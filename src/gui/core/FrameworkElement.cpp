@@ -457,7 +457,7 @@ void FrameworkElement::SetFontFamily(StringView value) noexcept {
     Result<Ref<Media::FontFamily>> family =
         Base::MakeRef<Media::FontFamily>();
     if (!family) { AERO_ASSERT(false); return; }
-    family.Value()->SetSource(value);
+    family->SetSource(value);
     SetFontFamily(std::move(family).Value());
 }
 

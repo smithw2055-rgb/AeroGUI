@@ -55,6 +55,10 @@ public:
         return value_;
     }
     explicit operator bool() const noexcept { return value_ != nullptr; }
+    bool HasValue() const noexcept { return value_ != nullptr; }
+    Ref& Value() & noexcept { return *this; }
+    const Ref& Value() const& noexcept { return *this; }
+    Ref&& Value() && noexcept { return std::move(*this); }
     bool operator==(std::nullptr_t) const noexcept { return value_ == nullptr; }
     bool operator!=(std::nullptr_t) const noexcept { return value_ != nullptr; }
     friend bool operator==(std::nullptr_t, const Ref& ref) noexcept { return ref.value_ == nullptr; }
@@ -114,7 +118,7 @@ private:
 
     template<class U> friend class WeakRef;
 
-    template<class U, class... Args> friend Result<Ref<U>> MakeRefWithAllocator(IAllocator&, Args&&...) noexcept;
+    template<class U, class... Args> friend Ref<U> MakeRefWithAllocator(IAllocator&, Args&&...) noexcept;
 };
 
 template<class T> class WeakRef : private WeakRefBase {
@@ -173,7 +177,7 @@ private:
     }
 };
 
-template<class T, class... Args> Result<Ref<T>> MakeRefWithAllocator(IAllocator& allocator, Args&&... args) noexcept {
+template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocator, Args&&... args) noexcept {
     static_assert(std::is_base_of<Object, T>::value, "MakeRef<T> requires T to derive from Aero::Base::Object");
     static_assert(std::is_nothrow_constructible<T, Args...>::value,
         "Aero runtime objects must be nothrow constructible");
@@ -183,7 +187,10 @@ template<class T, class... Args> Result<Ref<T>> MakeRefWithAllocator(IAllocator&
     constexpr std::size_t objectAlignment = alignof(T);
 
     void* memory = allocator.Allocate({objectSize, objectAlignment, MemoryTag::Object});
-    if (memory == nullptr) { return Status::Failure(ErrorCode::OutOfMemory, "Unable to allocate Aero object"); }
+    if (memory == nullptr) {
+        AERO_ASSERT(false && "Unable to allocate Aero object (Out of Memory)");
+        return Ref<T>{};
+    }
 
     T* object = new (memory) T(std::forward<Args>(args)...);
 
@@ -196,13 +203,14 @@ template<class T, class... Args> Result<Ref<T>> MakeRefWithAllocator(IAllocator&
     if (!object->AttachManagedLifetime(allocator, destroy, objectSize, objectAlignment)) {
         object->~T();
         allocator.Deallocate(object, objectSize, objectAlignment, MemoryTag::Object);
-        return Status::Failure(ErrorCode::OutOfMemory, "Unable to allocate Aero object control block");
+        AERO_ASSERT(false && "Unable to allocate Aero object control block (Out of Memory)");
+        return Ref<T>{};
     }
 
     return Ref<T>(object, AdoptRef);
 }
 
-template<class T, class... Args> Result<Ref<T>> MakeRef(Args&&... args) noexcept {
+template<class T, class... Args> Ref<T> MakeRef(Args&&... args) noexcept {
     return MakeRefWithAllocator<T>(GetDefaultAllocator(), std::forward<Args>(args)...);
 }
 
@@ -216,8 +224,7 @@ using Base::MakeRef;
 using Base::MakeRefWithAllocator;
 
 template<class T, class... Args> inline Ref<T> New(Args&&... args) noexcept {
-    auto res = Base::MakeRef<T>(std::forward<Args>(args)...);
-    return res ? res.Value() : Ref<T>{};
+    return Base::MakeRef<T>(std::forward<Args>(args)...);
 }
 
 } // namespace Aero

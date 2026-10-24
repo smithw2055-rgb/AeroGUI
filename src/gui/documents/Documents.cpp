@@ -613,7 +613,7 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     }
     Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
     if (!created) return;
-    created.Value()->SetText(value.AsString());
+    created->SetText(value.AsString());
     AddOwnedInline(Base::Ref<Inline>(created.Value()));
 }
 

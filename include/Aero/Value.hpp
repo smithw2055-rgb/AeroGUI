@@ -360,10 +360,10 @@ template<class T, class Enable = void> struct ValueCodec {
 
 template<> struct ValueCodec<Value, void> {
     static TypeId Type() noexcept { return TypeOf<Value>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, const Value& value) noexcept {
+    template<class TMetadata> static Value Encode(TMetadata&, const Value& value) noexcept {
         return Encode(value);
     }
-    static Result<Value> Encode(const Value& value) noexcept { return value; }
+    static Value Encode(const Value& value) noexcept { return value; }
     template<class TMetadata> static Result<Value> Decode(TMetadata&, const Value& value) noexcept {
         return Decode(value);
     }
@@ -399,8 +399,8 @@ template<> struct ValueCodec<TypeReference, void> {
 
 template<> struct ValueCodec<bool, void> {
     static TypeId Type() noexcept { return TypeOf<bool>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, bool value) noexcept { return Encode(value); }
-    static Result<Value> Encode(bool value) noexcept { return Value::FromBoolean(Type(), value); }
+    template<class TMetadata> static Value Encode(TMetadata&, bool value) noexcept { return Encode(value); }
+    static Value Encode(bool value) noexcept { return Value::FromBoolean(Type(), value); }
     template<class TMetadata> static Result<bool> Decode(
         TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<bool> Decode(const Value& value) noexcept {
@@ -415,9 +415,9 @@ template<> struct ValueCodec<::Aero::Nullable<bool>, void> {
     using NullableBoolean = ::Aero::Nullable<bool>;
 
     static TypeId Type() noexcept { return TypeOf<NullableBoolean>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&,
+    template<class TMetadata> static Value Encode(TMetadata&,
         NullableBoolean value) noexcept { return Encode(value); }
-    static Result<Value> Encode(NullableBoolean value) noexcept { const std::int64_t encoded = !value.GetHasValue() ? -1
+    static Value Encode(NullableBoolean value) noexcept { const std::int64_t encoded = !value.GetHasValue() ? -1
             : (value.GetValue() ? 1 : 0);
         return Value::FromSignedInteger(Type(), encoded);
     }
@@ -438,8 +438,8 @@ template<> struct ValueCodec<::Aero::Nullable<bool>, void> {
 template<class T> struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_signed_v<T> && !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
-    static Result<Value> Encode(T value) noexcept {
+    template<class TMetadata> static Value Encode(TMetadata&, T value) noexcept { return Encode(value); }
+    static Value Encode(T value) noexcept {
         return Value::FromSignedInteger(Type(), static_cast<std::int64_t>(value));
     }
     template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
@@ -456,8 +456,8 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
 template<class T> struct ValueCodec<T, std::enable_if_t<
     std::is_integral_v<T> && std::is_unsigned_v<T> && !std::is_same_v<T, bool>>> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
-    static Result<Value> Encode(T value) noexcept {
+    template<class TMetadata> static Value Encode(TMetadata&, T value) noexcept { return Encode(value); }
+    static Value Encode(T value) noexcept {
         return Value::FromUnsignedInteger(Type(), static_cast<std::uint64_t>(value));
     }
     template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
@@ -472,8 +472,8 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
 
 template<> struct ValueCodec<double, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, double value) noexcept { return Encode(value); }
-    static Result<Value> Encode(double value) noexcept { return Value::FromDouble(Type(), value); }
+    template<class TMetadata> static Value Encode(TMetadata&, double value) noexcept { return Encode(value); }
+    static Value Encode(double value) noexcept { return Value::FromDouble(Type(), value); }
     template<class TMetadata> static Result<double> Decode(
         TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<double> Decode(const Value& value) noexcept {
@@ -486,8 +486,8 @@ template<> struct ValueCodec<double, void> {
 
 template<> struct ValueCodec<float, void> {
     static TypeId Type() noexcept { return TypeOf<double>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, float value) noexcept { return Encode(value); }
-    static Result<Value> Encode(float value) noexcept { return Value::FromDouble(Type(), static_cast<double>(value)); }
+    template<class TMetadata> static Value Encode(TMetadata&, float value) noexcept { return Encode(value); }
+    static Value Encode(float value) noexcept { return Value::FromDouble(Type(), static_cast<double>(value)); }
     template<class TMetadata> static Result<float> Decode(
         TMetadata&, const Value& value) noexcept { return Decode(value); }
     static Result<float> Decode(const Value& value) noexcept {
@@ -519,8 +519,8 @@ template<> struct ValueCodec<String, void> {
 template<class T> struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
     using Underlying = std::underlying_type_t<T>;
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata> static Result<Value> Encode(TMetadata&, T value) noexcept { return Encode(value); }
-    static Result<Value> Encode(T value) noexcept {
+    template<class TMetadata> static Value Encode(TMetadata&, T value) noexcept { return Encode(value); }
+    static Value Encode(T value) noexcept {
         if constexpr (std::is_signed_v<Underlying>) {
             return Value::FromSignedInteger(Type(), static_cast<std::int64_t>(static_cast<Underlying>(value)));
         } else {
@@ -550,9 +550,9 @@ template<class T> struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
 
 template<class T> struct ValueCodec<Ref<T>, void> {
     static TypeId Type() noexcept { return TypeOf<T>(); }
-    template<class TMetadata> static Result<Value> Encode(
+    template<class TMetadata> static Value Encode(
         TMetadata&, const Ref<T>& value) noexcept { return Encode(value); }
-    static Result<Value> Encode(const Ref<T>& value) noexcept {
+    static Value Encode(const Ref<T>& value) noexcept {
         if (!value) return Value::NullObject(Type());
         return Value::FromObject(Type(), Ref<Base::Object>(value));
     }

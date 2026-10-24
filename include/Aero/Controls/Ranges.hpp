@@ -35,9 +35,9 @@ public:
     bool HitTestCore() const noexcept override { return true; }
 
     bool GetIsDragging() const noexcept { return GetValue(IsDraggingProperty); }
-    Result<void> BeginDrag(std::uint32_t pointerId, Point position) noexcept;
+    void BeginDrag(std::uint32_t pointerId, Point position) noexcept;
     Result<ThumbDragDelta> DragTo(std::uint32_t pointerId, Point position) noexcept;
-    Result<bool> EndDrag(std::uint32_t pointerId) noexcept;
+    bool EndDrag(std::uint32_t pointerId) noexcept;
 
     void UpdateVisualState(bool useTransitions = true) noexcept;
 
@@ -116,7 +116,7 @@ public:
     void SetIncreaseRepeatButton(Ref<RepeatButton> value) noexcept;
     double GetThumbLength(double trackLength, double minimumThumbLength = 8.0) const noexcept;
     double GetThumbOffset(double trackLength, double minimumThumbLength = 8.0) const noexcept;
-    Result<double> ValueFromThumbOffset(double offset, double trackLength,
+    double ValueFromThumbOffset(double offset, double trackLength,
         double minimumThumbLength = 8.0) const noexcept;
 
     // Control only exposes TemplateRoot. Track's Thumb / RepeatButtons are
@@ -174,11 +174,11 @@ public:
     void SetViewportSize(double value) noexcept;
     void SetSmallChange(double value) noexcept;
     void SetLargeChange(double value) noexcept;
-    Result<bool> LineDecrement() noexcept;
-    Result<bool> LineIncrement() noexcept;
-    Result<bool> PageDecrement() noexcept;
-    Result<bool> PageIncrement() noexcept;
-    Result<bool> DragThumb(double thumbOffset, double trackLength, double minimumThumbLength = 8.0) noexcept;
+    bool LineDecrement() noexcept;
+    bool LineIncrement() noexcept;
+    bool PageDecrement() noexcept;
+    bool PageIncrement() noexcept;
+    bool DragThumb(double thumbOffset, double trackLength, double minimumThumbLength = 8.0) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(double, ViewportSize);
@@ -302,10 +302,10 @@ public:
     void SetIsSnapToTickEnabled(bool value) noexcept;
     void SetIsDirectionReversed(bool value) noexcept;
     void SetIsMoveToPointEnabled(bool value) noexcept;
-    Result<bool> DecreaseSmall() noexcept;
-    Result<bool> IncreaseSmall() noexcept;
-    Result<bool> DecreaseLarge() noexcept;
-    Result<bool> IncreaseLarge() noexcept;
+    bool DecreaseSmall() noexcept;
+    bool IncreaseSmall() noexcept;
+    bool DecreaseLarge() noexcept;
+    bool IncreaseLarge() noexcept;
     void SetValueFromPosition(double position, double trackLength) noexcept;
     void SetValueFromTrackPoint(Point local) noexcept;
     Primitives::Track* GetTrack() const noexcept { return track_; }

@@ -27,21 +27,21 @@ public:
     virtual void SetViewport(Size viewport) noexcept = 0;
     virtual void SetHorizontalOffset(double value) noexcept = 0;
     virtual void SetVerticalOffset(double value) noexcept = 0;
-    virtual Result<bool> LineHorizontal(double direction) noexcept = 0;
-    virtual Result<bool> LineVertical(double direction) noexcept = 0;
-    virtual Result<bool> PageHorizontal(double direction) noexcept = 0;
-    virtual Result<bool> PageVertical(double direction) noexcept = 0;
+    virtual bool LineHorizontal(double direction) noexcept = 0;
+    virtual bool LineVertical(double direction) noexcept = 0;
+    virtual bool PageHorizontal(double direction) noexcept = 0;
+    virtual bool PageVertical(double direction) noexcept = 0;
 
-    virtual Result<bool> LineUp() noexcept { return LineVertical(-1.0); }
-    virtual Result<bool> LineDown() noexcept { return LineVertical(1.0); }
-    virtual Result<bool> LineLeft() noexcept { return LineHorizontal(-1.0); }
-    virtual Result<bool> LineRight() noexcept { return LineHorizontal(1.0); }
-    virtual Result<bool> PageUp() noexcept { return PageVertical(-1.0); }
-    virtual Result<bool> PageDown() noexcept { return PageVertical(1.0); }
-    virtual Result<bool> MouseWheelUp() noexcept { return PageVertical(-1.0); }
-    virtual Result<bool> MouseWheelDown() noexcept { return PageVertical(1.0); }
-    virtual Result<bool> MouseWheelLeft() noexcept { return PageHorizontal(-1.0); }
-    virtual Result<bool> MouseWheelRight() noexcept { return PageHorizontal(1.0); }
+    virtual bool LineUp() noexcept { return LineVertical(-1.0); }
+    virtual bool LineDown() noexcept { return LineVertical(1.0); }
+    virtual bool LineLeft() noexcept { return LineHorizontal(-1.0); }
+    virtual bool LineRight() noexcept { return LineHorizontal(1.0); }
+    virtual bool PageUp() noexcept { return PageVertical(-1.0); }
+    virtual bool PageDown() noexcept { return PageVertical(1.0); }
+    virtual bool MouseWheelUp() noexcept { return PageVertical(-1.0); }
+    virtual bool MouseWheelDown() noexcept { return PageVertical(1.0); }
+    virtual bool MouseWheelLeft() noexcept { return PageHorizontal(-1.0); }
+    virtual bool MouseWheelRight() noexcept { return PageHorizontal(1.0); }
 };
 
 // ============================================================================
@@ -73,11 +73,11 @@ public:
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
-    Result<bool> LineHorizontal(double direction) noexcept override;
-    Result<bool> LineVertical(double direction) noexcept override;
-    Result<bool> PageHorizontal(double direction) noexcept override;
-    Result<bool> PageVertical(double direction) noexcept override;
-    Result<bool> ApplyScrollDelta(double deltaX, double deltaY, ScrollInputKind kind) noexcept;
+    bool LineHorizontal(double direction) noexcept override;
+    bool LineVertical(double direction) noexcept override;
+    bool PageHorizontal(double direction) noexcept override;
+    bool PageVertical(double direction) noexcept override;
+    bool ApplyScrollDelta(double deltaX, double deltaY, ScrollInputKind kind) noexcept;
 
     double GetLineScrollAmount() const noexcept { return lineScrollAmount_; }
     void SetLineScrollAmount(double value) noexcept;
@@ -91,7 +91,7 @@ protected:
     virtual bool GetAllowsHorizontalScroll() const noexcept;
     virtual bool GetAllowsVerticalScroll() const noexcept;
     virtual bool GetUsesContentScrolling() const noexcept;
-    Result<bool> UpdateData(ScrollData value, ScrollInputKind kind, bool invalidateArrange) noexcept;
+    bool UpdateData(ScrollData value, ScrollInputKind kind, bool invalidateArrange) noexcept;
 
 private:
     ScrollData data_;
@@ -103,7 +103,7 @@ private:
     double desiredVerticalOffset_ = 0.0;
     double desiredHorizontalOffset_ = 0.0;
 
-    Result<bool> SyncLogicalData(ScrollInputKind kind) noexcept;
+    bool SyncLogicalData(ScrollInputKind kind) noexcept;
     IScrollInfo* ActiveContentScrollInfo() const noexcept;
 };
 
@@ -138,10 +138,10 @@ public:
     ScrollViewer() noexcept;
     ~ScrollViewer() override;
 
-    Result<bool> LineHorizontal(double direction) noexcept;
-    Result<bool> LineVertical(double direction) noexcept;
-    Result<bool> PageHorizontal(double direction) noexcept;
-    Result<bool> PageVertical(double direction) noexcept;
+    bool LineHorizontal(double direction) noexcept;
+    bool LineVertical(double direction) noexcept;
+    bool PageHorizontal(double direction) noexcept;
+    bool PageVertical(double direction) noexcept;
 
     double GetHorizontalOffset() const noexcept;
     void SetHorizontalOffset(double value) noexcept;

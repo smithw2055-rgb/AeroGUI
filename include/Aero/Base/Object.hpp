@@ -50,7 +50,7 @@ private:
 
     template<class T> friend class WeakRef;
 
-    template<class T, class... Args> friend Result<Ref<T>> MakeRefWithAllocator(IAllocator&, Args&&...) noexcept;
+    template<class T, class... Args> friend Ref<T> MakeRefWithAllocator(IAllocator&, Args&&...) noexcept;
 
     friend class WeakRefBase;
 };

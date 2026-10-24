@@ -63,59 +63,8 @@ inline Shader::Enum ToPPAAShader(Shader::Enum shader, bool ppaa = true) noexcept
 }
 
 
-constexpr VertexOffsets ComputeVertexOffsets(uint8_t format) noexcept {
-    VertexOffsets offsets{};
-    if (format >= Shader::Vertex::Format::Count) {
-        // Vertex2D compatibility fallback: Pos(8), Color(4), Tex0(8), Coverage(4)
-        offsets.colorOffset = 8;
-        offsets.tex0Offset = 12;
-        offsets.coverageOffset = 20;
-        offsets.stride = 24;
-        return offsets;
-    }
-    const uint8_t attrs = AttributesForFormat[format];
-    uint8_t currentOffset = 8; // Pos is always 8 bytes (0..7)
-    for (uint32_t i = 1; i < Shader::Vertex::Format::Attr::Count; ++i) {
-        if (attrs & (1U << i)) {
-            if (i == Shader::Vertex::Format::Attr::Color) {
-                offsets.colorOffset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::Tex0) {
-                offsets.tex0Offset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::Tex1) {
-                offsets.tex1Offset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::Coverage) {
-                offsets.coverageOffset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::Rect) {
-                offsets.rectOffset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::Tile) {
-                offsets.tileOffset = static_cast<int8_t>(currentOffset);
-            } else if (i == Shader::Vertex::Format::Attr::ImagePos) {
-                offsets.imagePosOffset = static_cast<int8_t>(currentOffset);
-            }
-            currentOffset += SizeForType[TypeForAttr[i]];
-        }
-    }
-    offsets.stride = currentOffset;
-    return offsets;
-}
 
-struct FormatOffsetsTable {
-    VertexOffsets data[Shader::Vertex::Format::Count + 1];
-    constexpr FormatOffsetsTable() : data{} {
-        for (uint8_t i = 0; i <= Shader::Vertex::Format::Count; ++i) {
-            data[i] = ComputeVertexOffsets(i);
-        }
-    }
-};
 
-static constexpr FormatOffsetsTable kFormatOffsetsTable{};
-
-inline const VertexOffsets& GetVertexOffsets(uint8_t format) noexcept {
-    const uint8_t idx = (format < Shader::Vertex::Format::Count && SizeForFormat[format] != 0U)
-        ? format
-        : static_cast<uint8_t>(Shader::Vertex::Format::Count);
-    return kFormatOffsetsTable.data[idx];
-}
 
 inline void WriteVertex(
     uint8_t* dst,
@@ -267,6 +216,7 @@ Base::Result<void> UiFrameEncoder::Initialize() noexcept {
 void UiFrameEncoder::Shutdown() noexcept {
     resources_.Clear();
     queuedBatches_.Clear();
+    pendingReleaseTargets_.Clear();
     cpuVertices_.Clear();
     cpuIndices_.Clear();
     mappedVertices_ = nullptr;
@@ -361,9 +311,18 @@ void UiFrameEncoder::BeginOffscreenTargetFrame() noexcept {
     // Mark the pool free for this encode pass so same-sized ClipToBounds /
     // opacity layers can reuse FBOs across different nodeIds instead of
     // growing one target per node forever.
+    pendingReleaseTargets_.Clear();
     for (auto& entry : resources_.OffscreenTargets()) {
         entry.inUse = false;
     }
+}
+
+void UiFrameEncoder::ReleaseOffscreenTarget(RenderTarget* target) noexcept {
+    if (target == nullptr) return;
+    for (RenderTarget* existing : pendingReleaseTargets_) {
+        if (existing == target) return;
+    }
+    pendingReleaseTargets_.PushBack(target);
 }
 
 RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
@@ -421,6 +380,7 @@ RenderTarget* UiFrameEncoder::GetOrCreateOffscreenTarget(
 
 void UiFrameEncoder::ResetFrame() noexcept {
     queuedBatches_.Clear();
+    pendingReleaseTargets_.Clear();
     currentBatchVertexStart_ = 0U;
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
@@ -555,6 +515,19 @@ void UiFrameEncoder::CommitBatches() noexcept {
     }
     queuedBatches_.Clear();
 
+    if (!pendingReleaseTargets_.Empty()) {
+        auto& targets = resources_.OffscreenTargets();
+        for (RenderTarget* released : pendingReleaseTargets_) {
+            for (auto& entry : targets) {
+                if (entry.target.Get() == released) {
+                    entry.inUse = false;
+                    break;
+                }
+            }
+        }
+        pendingReleaseTargets_.Clear();
+    }
+
     currentBatch_ = Batch{};
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
@@ -583,46 +556,8 @@ void UiFrameEncoder::EmitQuad(
     const Point points[4],
     const Point uvs[4],
     Color color) noexcept {
-    for (int i = 0; i < 4; ++i) {
-        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
-            return;
-        }
-    }
-
-    const Point pts[4] = {points[0], points[1], points[2], points[3]};
-    const float coverage = 1.0f;
-
-    uint32_t stride = 0U;
-    const auto& offsets = CurrentVertexFormat(stride);
-    if (!PrepareGeometrySpace(4U, stride, 6U)) return;
-
-    const uint32_t color32 = ColorToRGBA32(color, 1.0);
-    uint8_t* dst = mappedVertices_ + currentVertexOffset_;
-    for (int i = 0; i < 4; ++i) {
-        WriteVertex(
-            dst + i * stride, offsets,
-            static_cast<float>(pts[i].x),
-            static_cast<float>(pts[i].y),
-            color32,
-            static_cast<float>(uvs[i].x),
-            static_cast<float>(uvs[i].y),
-            coverage);
-    }
-    currentVertexOffset_ += 4U * stride;
-
-    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
-    mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
-    mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
-    mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
-    mappedIndices_[currentIndexCount_ + 3] = baseVertex + 0;
-    mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
-    mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
-    currentVertexCount_ += 4U;
-    currentIndexCount_ += 6U;
-    currentBatch_.numVertices += 4U;
-    currentBatch_.numIndices += 6U;
-    stats_.vertexCount += 4U;
-    stats_.indexCount += 6U;
+    const Color colors[4] = {color, color, color, color};
+    EmitQuadWithColors(points, uvs, colors, 1.0);
 }
 
 void UiFrameEncoder::EmitQuadWithColors(
@@ -1368,9 +1303,10 @@ void UiFrameEncoder::EmitAnalyticalShadow(
 
     const double maxRadius = std::fmin(rw, rh) * 0.5;
     const double baseRadius = std::clamp(static_cast<double>(cmd.cornerRadius), 0.0, maxRadius);
-    const double spread = blur * 2.0;
+    const double inset = std::min(blur * 0.5, maxRadius);
+    const double spread = blur;
+    const double innerRadius = std::max(0.0, baseRadius - inset);
     const double outerRadius = baseRadius + spread;
-    const double innerRadius = std::max(0.0, baseRadius - blur * 0.5);
 
     const std::uint32_t cornerSegments = (outerRadius > 0.0)
         ? CalculateRoundedCornerSegments(transform, rx, ry, outerRadius)
@@ -1379,7 +1315,9 @@ void UiFrameEncoder::EmitAnalyticalShadow(
 
     Point inner[kMaxRoundedRectContourPoints];
     BuildRoundedRectContour(
-        rx, ry, rw, rh, innerRadius, cornerSegments, inner);
+        rx + inset, ry + inset,
+        std::max(0.0, rw - inset * 2.0), std::max(0.0, rh - inset * 2.0),
+        innerRadius, cornerSegments, inner);
 
     const Point centroid = TransformPoint(transform, rx + rw * 0.5, ry + rh * 0.5);
     Point transformedInner[kMaxRoundedRectContourPoints];
@@ -2062,10 +2000,6 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     currentFrame_ = &frame;
     stats_.sourceCommandCount = frame.CommandHeaders().Size();
 
-    for (const auto& ramp : frame.GradientRamps()) {
-        GetOrCreateGradientRamp(ramp);
-    }
-
     device_->SetRenderTarget(&target);
     device_->BeginOnscreenRender();
 
@@ -2449,13 +2383,10 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             }
 
             CompositeOffscreen(node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi, frame);
-            CommitBatches();
-            for (auto& entry : resources_.OffscreenTargets()) {
-                if (entry.target.Get() == offscreen || (maskTarget != nullptr && entry.target.Get() == maskTarget)) {
-                    entry.inUse = false;
-                }
+            ReleaseOffscreenTarget(offscreen);
+            if (maskTarget != nullptr) {
+                ReleaseOffscreenTarget(maskTarget);
             }
-
             idx = subEnd;
         }
 

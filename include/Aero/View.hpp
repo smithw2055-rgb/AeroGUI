@@ -54,23 +54,23 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
-    Result<void> SetContent(Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
-    Result<void> SetContent(Ref<FrameworkElement> root, Aero::Size availableSize) noexcept;
+    bool SetContent(Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
+    bool SetContent(Ref<FrameworkElement> root, Aero::Size availableSize) noexcept;
     // Transitional: prefers the current viewport size. New code calls
     // SetContent(root, size) explicitly; this overload will be removed.
     [[deprecated("Use SetContent(root, availableSize) instead")]]
-    Result<void> SetContent(Ref<FrameworkElement> root) noexcept;
+    bool SetContent(Ref<FrameworkElement> root) noexcept;
     // Mounts a loaded UI document under a host root (for example a Window
     // wrapping a UserControl StartupUri root). The document's root is
     // attached as a visual child of the host. New fragment-style mounts
     // should use Markup::XamlReader::MountFragment instead.
-    Result<void> SetContent(Ref<FrameworkElement> root, Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
+    bool SetContent(Ref<FrameworkElement> root, Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
     FrameworkElement* GetContent() noexcept;
     const FrameworkElement* GetContent() const noexcept;
     Gui& GetGui() noexcept;
     const Gui& GetGui() const noexcept;
 
-    Result<void> SetViewport(const ViewViewport& viewport) noexcept;
+    bool SetViewport(const ViewViewport& viewport) noexcept;
     void SetSize(Aero::Size availableSize) noexcept;
     void SetSize(std::uint32_t width, std::uint32_t height) noexcept;
     void SetScale(double scale) noexcept;
@@ -106,7 +106,7 @@ private:
     friend class Media::CompositionTarget;
     friend class Markup::XamlReader;
     friend class App::DesktopHost;
-    template<class T, class... Args> friend Result<Ref<T>> Base::MakeRefWithAllocator(Base::IAllocator&,
+    template<class T, class... Args> friend Ref<T> Base::MakeRefWithAllocator(Base::IAllocator&,
         Args&&...) noexcept;
 
     ViewFrame* state_ = nullptr;

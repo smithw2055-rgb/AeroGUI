@@ -57,8 +57,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<BitmapImage>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<BitmapImage>();
     }
 
 private:
@@ -79,8 +78,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<CroppedBitmap>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<CroppedBitmap>();
     }
 
 private:

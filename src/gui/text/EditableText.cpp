@@ -374,6 +374,185 @@ Base::Result<void> EditableTextState::ReplaceBytes(
     return RebuildIndexes();
 }
 
+bool EditableTextState::TryIncrementalReplace(
+    TextRange range,
+    std::uint32_t byteStart,
+    std::uint32_t removedBytes,
+    Base::StringView replacement,
+    std::uint32_t insertedCount,
+    std::uint32_t insertedCodePoints) noexcept {
+    const std::uint32_t currentGraphemes = GraphemeCount();
+    const std::uint32_t byteEnd = byteStart + removedBytes;
+
+    for (std::uint32_t i = 0U; i < removedBytes; ++i) {
+        const char c = static_cast<char>(ByteAt(byteStart + i));
+        if (c == '\r' || c == '\n') {
+            return false;
+        }
+    }
+    for (std::uint32_t i = 0U; i < replacement.SizeBytes(); ++i) {
+        const char c = replacement[i];
+        if (c == '\r' || c == '\n') {
+            return false;
+        }
+    }
+
+    if (range.start > 0U) {
+        std::uint32_t leftOffset = graphemeOffsets[range.start - 1U];
+        std::uint32_t leftCp = 0U;
+        while (leftOffset < byteStart) {
+            const Base::DecodedCodePoint dec =
+                Decode(leftOffset, byteStart, [&](std::uint32_t idx) { return ByteAt(idx); });
+            leftCp = dec.value;
+            leftOffset += dec.length;
+        }
+        if (leftCp == 0x200DU || leftCp == 0x000DU || IsRegionalIndicator(leftCp) || IsGraphemeExtend(leftCp)) {
+            return false;
+        }
+    }
+
+    const auto* repBytes = reinterpret_cast<const std::uint8_t*>(replacement.Data());
+    if (replacement.SizeBytes() > 0U) {
+        const Base::DecodedCodePoint firstDec =
+            Decode(0U, replacement.SizeBytes(), [&](std::uint32_t idx) { return repBytes[idx]; });
+        if (firstDec.value == 0x200DU || IsGraphemeExtend(firstDec.value) || IsRegionalIndicator(firstDec.value)) {
+            return false;
+        }
+        std::uint32_t repOff = 0U;
+        std::uint32_t lastCp = 0U;
+        while (repOff < replacement.SizeBytes()) {
+            const Base::DecodedCodePoint dec =
+                Decode(repOff, replacement.SizeBytes(), [&](std::uint32_t idx) { return repBytes[idx]; });
+            lastCp = dec.value;
+            repOff += dec.length;
+        }
+        if (lastCp == 0x200DU || lastCp == 0x000DU || IsRegionalIndicator(lastCp) || IsGraphemeExtend(lastCp)) {
+            return false;
+        }
+    }
+
+    if (range.GetEnd() < currentGraphemes) {
+        const Base::DecodedCodePoint rightDec =
+            Decode(byteEnd, textBytes, [&](std::uint32_t idx) { return ByteAt(idx); });
+        if (rightDec.value == 0x200DU || rightDec.value == 0x000AU || IsGraphemeExtend(rightDec.value) || IsRegionalIndicator(rightDec.value)) {
+            return false;
+        }
+    }
+
+    std::uint32_t removedCodePoints = 0U;
+    std::uint32_t off = byteStart;
+    while (off < byteEnd) {
+        const Base::DecodedCodePoint dec =
+            Decode(off, byteEnd, [&](std::uint32_t idx) { return ByteAt(idx); });
+        ++removedCodePoints;
+        off += dec.length;
+    }
+
+    Base::Vector<std::uint32_t> relOffsets(&bytes.Allocator());
+    relOffsets.Reserve(insertedCount);
+    std::uint32_t rOff = 0U;
+    std::uint32_t prev = 0U;
+    std::uint32_t regRun = 0U;
+    bool first = true;
+    while (rOff < replacement.SizeBytes()) {
+        const Base::DecodedCodePoint dec =
+            Decode(rOff, replacement.SizeBytes(), [&](std::uint32_t idx) { return repBytes[idx]; });
+        const bool brk = first || ShouldBreak(prev, dec.value, regRun);
+        if (brk) {
+            relOffsets.PushBack(rOff);
+        }
+        if (IsRegionalIndicator(dec.value)) {
+            regRun = !brk && IsRegionalIndicator(prev) ? regRun + 1U : 1U;
+        } else if (!IsGraphemeExtend(dec.value) && dec.value != 0x200DU) {
+            regRun = 0U;
+        }
+        prev = dec.value;
+        first = false;
+        rOff += dec.length;
+    }
+    if (relOffsets.Size() != insertedCount) {
+        return false;
+    }
+
+    Base::Result<void> moved = MoveGap(byteStart);
+    if (!moved) {
+        return false;
+    }
+    gapEnd += removedBytes;
+    textBytes -= removedBytes;
+    Base::Result<void> gap = EnsureGap(replacement.SizeBytes());
+    if (!gap) {
+        return false;
+    }
+    if (replacement.SizeBytes() != 0U) {
+        std::memcpy(
+            bytes.Data() + gapBegin,
+            replacement.Data(),
+            replacement.SizeBytes());
+        gapBegin += replacement.SizeBytes();
+        textBytes += replacement.SizeBytes();
+    }
+
+    codePoints = codePoints - removedCodePoints + insertedCodePoints;
+
+    const std::int32_t deltaGraphemes =
+        static_cast<std::int32_t>(insertedCount) - static_cast<std::int32_t>(range.length);
+    if (deltaGraphemes != 0) {
+        for (std::uint32_t i = 1U; i < lineStarts.Size(); ++i) {
+            if (lineStarts[i] > range.start) {
+                lineStarts[i] = static_cast<std::uint32_t>(
+                    static_cast<std::int32_t>(lineStarts[i]) + deltaGraphemes);
+            }
+        }
+    }
+
+    const std::uint32_t oldSize = graphemeOffsets.Size();
+    const std::int32_t deltaBytes =
+        static_cast<std::int32_t>(replacement.SizeBytes()) - static_cast<std::int32_t>(removedBytes);
+    const std::uint32_t oldTailStart = range.start + range.length;
+    const std::uint32_t newTailStart = range.start + insertedCount;
+    const std::uint32_t tailCount = oldSize - oldTailStart;
+
+    if (deltaGraphemes > 0) {
+        graphemeOffsets.Resize(oldSize + static_cast<std::uint32_t>(deltaGraphemes));
+        std::memmove(
+            graphemeOffsets.Data() + newTailStart,
+            graphemeOffsets.Data() + oldTailStart,
+            tailCount * sizeof(std::uint32_t));
+        for (std::uint32_t k = 0U; k < insertedCount; ++k) {
+            graphemeOffsets[range.start + k] = byteStart + relOffsets[k];
+        }
+        for (std::uint32_t k = 0U; k < tailCount; ++k) {
+            graphemeOffsets[newTailStart + k] = static_cast<std::uint32_t>(
+                static_cast<std::int32_t>(graphemeOffsets[newTailStart + k]) + deltaBytes);
+        }
+    } else if (deltaGraphemes < 0) {
+        std::memmove(
+            graphemeOffsets.Data() + newTailStart,
+            graphemeOffsets.Data() + oldTailStart,
+            tailCount * sizeof(std::uint32_t));
+        for (std::uint32_t k = 0U; k < insertedCount; ++k) {
+            graphemeOffsets[range.start + k] = byteStart + relOffsets[k];
+        }
+        for (std::uint32_t k = 0U; k < tailCount; ++k) {
+            graphemeOffsets[newTailStart + k] = static_cast<std::uint32_t>(
+                static_cast<std::int32_t>(graphemeOffsets[newTailStart + k]) + deltaBytes);
+        }
+        static_cast<void>(graphemeOffsets.Resize(
+            oldSize - static_cast<std::uint32_t>(-deltaGraphemes)));
+    } else {
+        for (std::uint32_t k = 0U; k < insertedCount; ++k) {
+            graphemeOffsets[range.start + k] = byteStart + relOffsets[k];
+        }
+        for (std::uint32_t k = 0U; k < tailCount; ++k) {
+            graphemeOffsets[newTailStart + k] = static_cast<std::uint32_t>(
+                static_cast<std::int32_t>(graphemeOffsets[newTailStart + k]) + deltaBytes);
+        }
+    }
+
+    return true;
+}
+
 void EditableTextState::TrimHistory(
     Base::Vector<EditRecord>& history) noexcept {
     if (history.Size() < HistoryLimit) {
@@ -398,8 +577,9 @@ Base::Result<void> EditableTextState::Replace(
         return OutOfRange(
             "Editable text range is out of bounds");
     }
+    std::uint32_t insertedPoints = 0U;
     Base::Result<std::uint32_t> insertedCount =
-        CountGraphemes(replacement);
+        CountGraphemes(replacement, &insertedPoints);
     if (!insertedCount) {
         return insertedCount.GetStatus();
     }
@@ -462,11 +642,16 @@ Base::Result<void> EditableTextState::Replace(
                     undo.Size() + 1U));
     }
 
-    Base::Result<void> replaced =
-        ReplaceBytes(
-            byteStart, removedBytes, replacement);
-    if (!replaced) {
-        return replaced;
+    const bool incremental = TryIncrementalReplace(
+        range, byteStart, removedBytes, replacement,
+        insertedCount.Value(), insertedPoints);
+    if (!incremental) {
+        Base::Result<void> replaced =
+            ReplaceBytes(
+                byteStart, removedBytes, replacement);
+        if (!replaced) {
+            return replaced;
+        }
     }
     selection = forcedSelection != nullptr
         ? *forcedSelection
@@ -509,18 +694,15 @@ Base::Result<void> EditableTextModel::EnsureState() noexcept {
 
 Base::Result<void> EditableTextModel::SetText(
     Base::StringView text) noexcept {
-    Base::Result<std::uint32_t> graphemes =
-        CountGraphemes(text);
-    if (!graphemes) {
-        return graphemes.GetStatus();
+    const Base::Utf8Validation validation =
+        Base::ValidateUtf8(text);
+    if (!validation.valid) {
+        return InvalidArgument(
+            "Editable text replacement is not valid UTF-8");
     }
     Base::Result<void> state = EnsureState();
     if (!state) {
         return state;
-    }
-    if (graphemes.Value() > state_->maximumLength) {
-        return OutOfRange(
-            "Editable text exceeds maximum length");
     }
     Base::Result<void> indexes =
         state_->EnsureIndexCapacity(text.SizeBytes());
@@ -550,8 +732,18 @@ Base::Result<void> EditableTextModel::SetText(
     if (!rebuilt) {
         return rebuilt;
     }
+    if (state_->GraphemeCount() > state_->maximumLength) {
+        state_->bytes.Clear();
+        state_->textBytes = 0U;
+        state_->gapBegin = 0U;
+        state_->gapEnd = 0U;
+        static_cast<void>(state_->RebuildIndexes());
+        return OutOfRange(
+            "Editable text exceeds maximum length");
+    }
+    const std::uint32_t graphemeCount = state_->GraphemeCount();
     state_->selection = {
-        graphemes.Value(), graphemes.Value()};
+        graphemeCount, graphemeCount};
     state_->undo.Clear();
     state_->redo.Clear();
     ++state_->revision;

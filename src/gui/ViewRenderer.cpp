@@ -262,21 +262,19 @@ Base::Result<void> ViewRenderer::Init(
 
         Aero::Render::ImageResources*
             previousImages = data.GetImageResources();
-        if (data.images != nullptr) {
-            data.images->ReleaseBackendResources(
+        if (data.Images() != nullptr) {
+            data.Images()->ReleaseBackendResources(
                 previousImages);
         }
-        data.VisitTextElements(
-            data.RootVisual(), nullptr);
-        if (data.text != nullptr) {
+        data.SyncVisualRenderResources(
+            data.RootVisual(), nullptr, nullptr, false);
+        if (data.Text() != nullptr) {
             Base::Result<bool> detached =
-                data.text->SynchronizeBackend(
+                data.Text()->SynchronizeBackend(
                     *previous, nullptr, true);
             if (!detached) return detached.GetStatus();
         }
-        data.VisitPaths(
-            data.RootVisual(), nullptr);
-        if (data.tree != nullptr) data.tree->SetMeshResources(nullptr);
+        if (data.Tree() != nullptr) data.Tree()->SetMeshResources(nullptr);
         ShutdownRenderResources();
     }
 
@@ -294,19 +292,14 @@ Base::Result<void> ViewRenderer::Init(
     data.device = device;
     data.deviceGeneration =
         device->Generation();
-    if (data.tree != nullptr) {
-        data.tree->SetMeshResources(data.GetMeshResources());
+    if (data.Tree() != nullptr) {
+        data.Tree()->SetMeshResources(data.GetMeshResources());
+        data.Tree()->SetTextLayout(data.Text() != nullptr ? data.Text()->Layout() : nullptr);
     }
-    data.VisitPaths(
+    data.SyncVisualRenderResources(
         data.RootVisual(),
+        data.Text() != nullptr ? data.Text()->Layout() : nullptr,
         data.GetMeshResources(),
-        true);
-    if (data.tree != nullptr) {
-        data.tree->SetTextLayout(data.text != nullptr ? data.text->Layout() : nullptr);
-    }
-    data.VisitTextElements(
-        data.RootVisual(),
-        data.text != nullptr ? data.text->Layout() : nullptr,
         true);
 
     Aero::Media::Visual* rootVisual =
@@ -356,7 +349,7 @@ bool ViewRenderer::UpdateRenderTree() noexcept {
     }
 
     if (device_->State() != RenderDeviceState::Ready) {
-        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+        view_->state_->ReportRendererFailure(ViewInvalidState(
             "Render device is not ready"));
         return false;
     }
@@ -413,7 +406,7 @@ bool ViewRenderer::RenderOffscreen() noexcept {
         return true;
     }
     if (frame.Version() != updatedVersion_) {
-        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+        view_->state_->ReportRendererFailure(ViewInvalidState(
             "UpdateRenderTree must run before RenderOffscreen"));
         return false;
     }
@@ -442,7 +435,7 @@ void ViewRenderer::Render(
 
     Base::Ref<RenderDevice> surfaceDevice = target.GetDevice();
     if (!surfaceDevice || surfaceDevice.Get() != device_.Get()) {
-        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+        view_->state_->ReportRendererFailure(ViewInvalidState(
             "RenderTarget must belong to the renderer RenderDevice"));
         return;
     }
@@ -454,12 +447,12 @@ void ViewRenderer::Render(
         return;
     }
     if (frame.Version() != updatedVersion_) {
-        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+        view_->state_->ReportRendererFailure(ViewInvalidState(
             "UpdateRenderTree must run before Render"));
         return;
     }
     if (!offscreenReady_) {
-        view_->state_->ReportRendererFailure(ViewApiInvalidState(
+        view_->state_->ReportRendererFailure(ViewInvalidState(
             "RenderOffscreen must run before Render"));
         return;
     }

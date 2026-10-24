@@ -25,7 +25,7 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
     // Close popups on an outside press *before* routing, then hit-test
     // again. Otherwise a stale open Popup overlay keeps capturing the
     // sidebar (and ComboBox toggles reopen the theme dropdown).
-    if (state.overlays != nullptr &&
+    if (state.Overlays() != nullptr &&
         input.action == Input::PointerAction::Down) {
         Aero::UIElement* preTarget = nullptr;
         Aero::Media::Visual* root = state.RootVisual();
@@ -38,13 +38,13 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
             preTarget = preHit.Value().target;
         }
         Base::Result<void> dismissed =
-            state.overlays->DismissOverlaysForPointer(
+            state.Overlays()->DismissOverlaysForPointer(
                 input, preTarget);
         if (!dismissed) {
             return dismissed.GetStatus();
         }
         Base::Result<void> synced =
-            state.overlays->SynchronizeOverlays();
+            state.Overlays()->SynchronizeOverlays();
         if (!synced) {
             return synced.GetStatus();
         }
@@ -58,17 +58,17 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
     }
     Aero::UIElement* target =
         dispatched.Value().hit.target;
-    if (state.overlays == nullptr) {
+    if (state.Overlays() == nullptr) {
         return dispatched;
     }
     Base::Result<void> toolTip =
-        state.overlays->UpdateToolTipForPointer(
+        state.Overlays()->UpdateToolTipForPointer(
             input, target);
     if (!toolTip) {
         return toolTip.GetStatus();
     }
     Base::Result<void> contextMenu =
-        state.overlays->OpenContextMenuForPointer(
+        state.Overlays()->OpenContextMenuForPointer(
             input, target);
     if (!contextMenu) {
         return contextMenu.GetStatus();
@@ -98,8 +98,8 @@ DispatchKeyboard(
         input.key ==
             Input::KeyboardKeyEscape) {
         Base::Result<bool> dismissed =
-            state.overlays != nullptr
-                ? state.overlays->DismissTopOverlayForEscape()
+            state.Overlays() != nullptr
+                ? state.Overlays()->DismissTopOverlayForEscape()
                 : Base::Result<bool>(false);
         if (!dismissed) {
             return dismissed.GetStatus();

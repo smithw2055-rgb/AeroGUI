@@ -8,6 +8,7 @@
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Media/Images.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
@@ -48,7 +49,7 @@ public:
     Aero::Meta::TypeId RuntimeType() const noexcept override {
         return StaticTypeId();
     }
-    Aero::Base::Result<bool> CanExecute(
+    bool CanExecute(
         const Aero::Value&,
         Aero::UIElement* = nullptr) noexcept override {
         return true;
@@ -164,12 +165,12 @@ public:
 };
 
 class DragAdornerBehavior final : public Aero::Interactivity::Behavior {
+public:
     AERO_DECLARE_TYPE_NAMED(
         DragAdornerBehavior,
         Aero::Interactivity::Behavior,
         "clr-namespace:Inventory",
         "DragAdornerBehavior")
-public:
     DragAdornerBehavior() noexcept
         : Behavior(StaticTypeId()),
           dragOverHandler_(this, &DragAdornerBehavior::OnDragOver),
@@ -184,18 +185,13 @@ public:
         detachedCount = 0U;
     }
 protected:
-    Aero::Base::Result<void> OnAttached() noexcept override {
+    void OnAttached() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
-        if (associated == nullptr) {
-            return Aero::Base::Status::Failure(
-                Aero::Base::ErrorCode::InvalidState,
-                "DragAdornerBehavior has no associated object");
-        }
+        if (associated == nullptr) return;
         associated->SetAllowDrop(true);
         associated->DragOver().Add(dragOverHandler_);
         associated->Drop().Add(dropHandler_);
         ++attachedCount;
-        return {};
     }
     void OnDetaching() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
@@ -247,20 +243,15 @@ public:
         detachedCount = 0U;
     }
 protected:
-    Aero::Base::Result<void> OnAttached() noexcept override {
+    void OnAttached() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
-        if (associated == nullptr) {
-            return Aero::Base::Status::Failure(
-                Aero::Base::ErrorCode::InvalidState,
-                "DragItemBehavior has no associated object");
-        }
+        if (associated == nullptr) return;
         associated->GiveFeedback().Add(feedbackHandler_);
         associated->PreviewMouseLeftButtonDown().Add(mouseDownHandler_);
         associated->PreviewMouseLeftButtonUp().Add(mouseUpHandler_);
         associated->PreviewMouseMove().Add(mouseMoveHandler_);
         associated->DragCompleted().Add(completedHandler_);
         ++attachedCount;
-        return {};
     }
     void OnDetaching() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
@@ -311,15 +302,15 @@ private:
         if (item.IsUnset() || item.IsNullObject()) return;
         Aero::Base::Ref<Aero::Input::ICommand> command = GetValue(StartDragCommandProperty);
         if (!command) return;
-        Aero::Base::Result<bool> canExecute =
+        const bool canExecute =
             command->CanExecute(item, associated);
-        if (!canExecute || !canExecute.Value()) return;
+        if (!canExecute) return;
         SetValue(DragStartOffsetProperty, args.GetPosition());
         command->Execute(item, associated);
-        Aero::Base::Result<void> started = associated->BeginDrag(
+        associated->BeginDrag(
             args.GetPointerId(), item,
             Aero::Input::DragDropEffects::Move);
-        dragStarted_ = started.HasValue();
+        dragStarted_ = true;
     }
     void OnDragCompleted(
         Aero::Base::Object*,
@@ -334,9 +325,9 @@ private:
             args.GetEffects() != Aero::Input::DragDropEffects::None;
         Aero::Value parameter = Aero::Value::FromBoolean(
             Aero::Meta::TypeOf<bool>(), success);
-        Aero::Base::Result<bool> canExecute =
+        const bool canExecute =
             command->CanExecute(parameter, associated);
-        if (canExecute && canExecute.Value()) {
+        if (canExecute) {
             command->Execute(parameter, associated);
         }
     }
@@ -373,19 +364,14 @@ public:
         lastEnteredBehavior = nullptr;
     }
 protected:
-    Aero::Base::Result<void> OnAttached() noexcept override {
+    void OnAttached() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
-        if (associated == nullptr) {
-            return Aero::Base::Status::Failure(
-                Aero::Base::ErrorCode::InvalidState,
-                "DropItemBehavior has no associated object");
-        }
+        if (associated == nullptr) return;
         associated->SetAllowDrop(true);
         associated->PreviewDragEnter().Add(enterHandler_);
         associated->PreviewDragLeave().Add(leaveHandler_);
         associated->PreviewDrop().Add(dropHandler_);
         ++attachedCount;
-        return {};
     }
     void OnDetaching() noexcept override {
         Aero::FrameworkElement* associated = GetAssociatedObject();
@@ -428,10 +414,10 @@ private:
         }
         Aero::Value item = associated->GetDataContext();
         Aero::Base::Ref<Aero::Input::ICommand> command = GetValue(DropCommandProperty);
-        Aero::Base::Result<bool> canExecute = command
+        const bool canExecute = command
             ? command->CanExecute(item, associated)
-            : Aero::Base::Result<bool>(false);
-        if (command && canExecute && canExecute.Value() &&
+            : false;
+        if (command && canExecute &&
             !item.IsUnset() && !item.IsNullObject()) {
             command->Execute(item, associated);
         } else {
@@ -650,56 +636,53 @@ struct ViewModelFixture {
 
 Aero::Base::Result<ViewModelFixture> CreateViewModel() noexcept {
     using namespace Aero;
-    Base::Result<Base::Ref<Inventory::ViewModel>> vm = Base::MakeRef<Inventory::ViewModel>();
-    if (!vm) return vm.GetStatus();
-    Base::Result<Base::Ref<Inventory::Player>> player = Base::MakeRef<Inventory::Player>();
-    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> inventory = Base::MakeRef<Collections::ObservableObjectCollection>();
-    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> items = Base::MakeRef<Collections::ObservableObjectCollection>();
-    Base::Result<Base::Ref<Collections::ObservableObjectCollection>> slots = Base::MakeRef<Collections::ObservableObjectCollection>();
-    Base::Result<Base::Ref<Inventory::TestCommand>> command = Base::MakeRef<Inventory::TestCommand>();
-    if (!player || !inventory || !items || !slots || !command) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Inventory view model allocation failed");
+    Base::Ref<Inventory::ViewModel> vm = Base::MakeRef<Inventory::ViewModel>();
+    Base::Ref<Inventory::Player> player = Base::MakeRef<Inventory::Player>();
+    Base::Ref<Collections::ObservableObjectCollection> inventory = Base::MakeRef<Collections::ObservableObjectCollection>();
+    Base::Ref<Collections::ObservableObjectCollection> items = Base::MakeRef<Collections::ObservableObjectCollection>();
+    Base::Ref<Collections::ObservableObjectCollection> slots = Base::MakeRef<Collections::ObservableObjectCollection>();
+    Base::Ref<Inventory::TestCommand> command = Base::MakeRef<Inventory::TestCommand>();
+    if (!vm || !player || !inventory || !items || !slots || !command) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Inventory view model allocation failed");
 
-    player.Value()->SetValue(Inventory::Player::NameProperty, Base::StringView("Morgan Hearson"));
-    player.Value()->SetValue(Inventory::Player::LifeProperty, std::int32_t{1423});
-    player.Value()->SetValue(Inventory::Player::ManaProperty, std::int32_t{345});
-    player.Value()->SetValue(Inventory::Player::DpsProperty, std::int32_t{2164});
-    player.Value()->SetValue(Inventory::Player::ArmorProperty, std::int32_t{218});
+    player->SetValue(Inventory::Player::NameProperty, Base::StringView("Morgan Hearson"));
+    player->SetValue(Inventory::Player::LifeProperty, std::int32_t{1423});
+    player->SetValue(Inventory::Player::ManaProperty, std::int32_t{345});
+    player->SetValue(Inventory::Player::DpsProperty, std::int32_t{2164});
+    player->SetValue(Inventory::Player::ArmorProperty, std::int32_t{218});
 
     for (std::uint32_t index = 0U; index < 12U; ++index) {
-        Base::Result<Base::Ref<Inventory::Item>> item = Base::MakeRef<Inventory::Item>();
-        Base::Result<Base::Ref<Inventory::Slot>> slot = Base::MakeRef<Inventory::Slot>();
+        Base::Ref<Inventory::Item> item = Base::MakeRef<Inventory::Item>();
+        Base::Ref<Inventory::Slot> slot = Base::MakeRef<Inventory::Slot>();
         if (!item || !slot) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Inventory item allocation failed");
-        item.Value()->SetValue(Inventory::Item::NameProperty, Base::StringView("Item"));
-        item.Value()->SetValue(Inventory::Item::DescriptionProperty, Base::StringView("Item description"));
-        item.Value()->SetValue(Inventory::Item::LifeProperty, static_cast<std::int32_t>(index * 2U));
-        item.Value()->SetValue(Inventory::Item::ManaProperty, static_cast<std::int32_t>(index));
-        item.Value()->SetValue(Inventory::Item::DpsProperty, static_cast<std::int32_t>(index * 9U));
-        item.Value()->SetValue(Inventory::Item::ArmorProperty, static_cast<std::int32_t>(index * 3U));
-        slot.Value()->SetValue(Inventory::Slot::NameProperty, Base::StringView("Slot"));
-        slot.Value()->SetValue(Inventory::Slot::AllowedCategoryProperty, Inventory::ItemCategory::All);
-        slot.Value()->SetValue(Inventory::Slot::ItemProperty, item.Value());
-        Base::Result<void> added = items.Value()->Add(Base::Ref<Base::Object>(item.Value()));
-        if (added) added = inventory.Value()->Add(Base::Ref<Base::Object>(slot.Value()));
-        if (!added) return added.GetStatus();
+        item->SetValue(Inventory::Item::NameProperty, Base::StringView("Item"));
+        item->SetValue(Inventory::Item::DescriptionProperty, Base::StringView("Item description"));
+        item->SetValue(Inventory::Item::LifeProperty, static_cast<std::int32_t>(index * 2U));
+        item->SetValue(Inventory::Item::ManaProperty, static_cast<std::int32_t>(index));
+        item->SetValue(Inventory::Item::DpsProperty, static_cast<std::int32_t>(index * 9U));
+        item->SetValue(Inventory::Item::ArmorProperty, static_cast<std::int32_t>(index * 3U));
+        slot->SetValue(Inventory::Slot::NameProperty, Base::StringView("Slot"));
+        slot->SetValue(Inventory::Slot::AllowedCategoryProperty, Inventory::ItemCategory::All);
+        slot->SetValue(Inventory::Slot::ItemProperty, item);
+        items->Add(Base::Ref<Base::Object>(item));
+        inventory->Add(Base::Ref<Base::Object>(slot));
         if (index < 8U) {
-            added = slots.Value()->Add(Base::Ref<Base::Object>(slot.Value()));
-            if (!added) return added.GetStatus();
+            slots->Add(Base::Ref<Base::Object>(slot));
         }
     }
-    player.Value()->SetValue(Inventory::Player::SlotsProperty, Base::Ref<Base::Object>(slots.Value()));
-    vm.Value()->SetValue(Inventory::ViewModel::PlatformProperty, Base::StringView("PC"));
-    vm.Value()->SetValue(Inventory::ViewModel::PlayerProperty, player.Value());
-    vm.Value()->SetValue(Inventory::ViewModel::InventoryProperty, Base::Ref<Base::Object>(inventory.Value()));
-    vm.Value()->SetValue(Inventory::ViewModel::ItemsProperty, Base::Ref<Base::Object>(items.Value()));
-    Base::Ref<Input::ICommand> interfaceCommand(command.Value());
-    vm.Value()->SetValue(Inventory::ViewModel::StartDragItemProperty, interfaceCommand);
-    vm.Value()->SetValue(Inventory::ViewModel::EndDragItemProperty, interfaceCommand);
-    vm.Value()->SetValue(Inventory::ViewModel::DropItemProperty, interfaceCommand);
-    vm.Value()->SetValue(Inventory::ViewModel::SelectSlotProperty, std::move(interfaceCommand));
+    player->SetValue(Inventory::Player::SlotsProperty, Base::Ref<Base::Object>(slots));
+    vm->SetValue(Inventory::ViewModel::PlatformProperty, Base::StringView("PC"));
+    vm->SetValue(Inventory::ViewModel::PlayerProperty, player);
+    vm->SetValue(Inventory::ViewModel::InventoryProperty, Base::Ref<Base::Object>(inventory));
+    vm->SetValue(Inventory::ViewModel::ItemsProperty, Base::Ref<Base::Object>(items));
+    Base::Ref<Input::ICommand> interfaceCommand(command);
+    vm->SetValue(Inventory::ViewModel::StartDragItemProperty, interfaceCommand);
+    vm->SetValue(Inventory::ViewModel::EndDragItemProperty, interfaceCommand);
+    vm->SetValue(Inventory::ViewModel::DropItemProperty, interfaceCommand);
+    vm->SetValue(Inventory::ViewModel::SelectSlotProperty, std::move(interfaceCommand));
     ViewModelFixture result;
-    result.viewModel = std::move(vm).Value();
-    result.command = std::move(command).Value();
-    result.slots = std::move(slots).Value();
+    result.viewModel = std::move(vm);
+    result.command = std::move(command);
+    result.slots = std::move(slots);
     return result;
 }
 
@@ -797,18 +780,16 @@ bool VerifyMainWindowInteractions(
         return false;
     }
 
-    Base::Result<bool> focused = slotHead->Focus();
-    if (!focused || !slotHead->GetIsKeyboardFocused()) {
+    bool focused = slotHead->Focus();
+    if (!slotHead->GetIsKeyboardFocused()) {
         std::fprintf(stderr,
-            "INTERACTION FAIL: SlotHead focus failed result=%d loaded=%d enabled=%d visible=%d focusable=%d focused=%d status=%s\n",
-            focused ? (focused.Value() ? 1 : 0) : -1,
+            "INTERACTION FAIL: SlotHead focus failed result=%d loaded=%d enabled=%d visible=%d focusable=%d focused=%d\n",
+            focused ? 1 : 0,
             slotHead->GetIsLoaded() ? 1 : 0,
             slotHead->GetIsEnabled() ? 1 : 0,
             slotHead->GetIsVisible() ? 1 : 0,
             slotHead->GetFocusable() ? 1 : 0,
-            slotHead->GetIsKeyboardFocused() ? 1 : 0,
-            focused ? "ok" : (focused.GetStatus().message != nullptr
-                ? focused.GetStatus().message : "unknown"));
+            slotHead->GetIsKeyboardFocused() ? 1 : 0);
         return false;
     }
     Input::KeyboardInput key;
@@ -860,8 +841,8 @@ bool VerifyMainWindowInteractions(
     }
     auto* targetSlot = static_cast<Inventory::Slot*>(
         targetData.AsObject().Get());
-    auto* dragAdorner =
-        root.FindName<Inventory::DragAdornerBehavior>("DragAdorner");
+    auto* dragAdorner = static_cast<Inventory::DragAdornerBehavior*>(
+        root.FindName("DragAdorner"));
     if (dragAdorner == nullptr) {
         std::fprintf(stderr, "DRAG FAIL: DragAdorner behavior is missing\n");
         return false;
@@ -882,16 +863,18 @@ bool VerifyMainWindowInteractions(
     pointer.action = Input::PointerAction::Move;
     pointer.position = {sourcePoint.x + 2.0, sourcePoint.y + 2.0};
     pointerResult = SendHostPointer(view, pointer);
-    if (!pointerResult || !slotHead->GetIsDragging() ||
-        fixture.command->GetExecutionCount() != 3U ||
-        !IsObjectValue(
-            fixture.command->GetParameter(2U),
-            sourceData.AsObject().Get())) {
+    const bool isDragging = slotHead->GetIsDragging();
+    const unsigned execCount = fixture.command->GetExecutionCount();
+    const bool isObjVal = (execCount > 2U) && IsObjectValue(
+        fixture.command->GetParameter(2U), sourceData.AsObject().Get());
+    if (!pointerResult || !isDragging || execCount != 3U || !isObjVal) {
         const UIElement* hitTarget = nullptr;
         std::fprintf(stderr,
-            "DRAG FAIL: drag did not start from SlotHead count=%u dragging=%d source=(%.2f,%.2f) hit=%p slot=%p attached=%u\n",
-            fixture.command->GetExecutionCount(),
-            slotHead->GetIsDragging() ? 1 : 0,
+            "DRAG FAIL: drag did not start from SlotHead pResult=%d dragging=%d count=%u isObjVal=%d source=(%.2f,%.2f) hit=%p slot=%p attached=%u\n",
+            pointerResult ? 1 : 0,
+            isDragging ? 1 : 0,
+            execCount,
+            isObjVal ? 1 : 0,
             sourcePoint.x, sourcePoint.y,
             static_cast<const void*>(hitTarget),
             static_cast<const void*>(slotHead),
@@ -1049,10 +1032,9 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
     viewOptions.automaticAnimationClock = false;
     viewOptions.applicationResources = resources;
     viewOptions.diagnostics = &diagnostics;
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
+    Aero::Base::Ref<Aero::View> view =
         gui.CreateView(viewOptions);
-    if (!made) { std::fprintf(stderr, "view failed: %s\n", made.GetStatus().message); return false; }
-    Aero::Base::Ref<Aero::View> view = std::move(made).Value();
+    if (!view) { std::fprintf(stderr, "view failed\n"); return false; }
     std::string uri = "pack://application:,,,/Inventory;component/";
     uri += relative;
     diagnostics.Clear();
@@ -1081,8 +1063,8 @@ bool LoadOne(Aero::Gui& gui, const char* relative) {
         root->SetDataContext(Aero::Base::Ref<Aero::Base::Object>(
             vm.Value().viewModel));
     }
-    Aero::Base::Result<void> mounted = view->SetContent(std::move(loaded).Value(), {1000.0, 600.0});
-    if (!mounted) { std::fprintf(stderr, "MOUNT FAIL %s: %s\n", relative, mounted.GetStatus().message); return false; }
+    bool mounted = view->SetContent(std::move(loaded).Value(), {1000.0, 600.0});
+    if (!mounted) { std::fprintf(stderr, "MOUNT FAIL %s\n", relative); return false; }
     double timeInSeconds = 0.0;
     view->Update(timeInSeconds);
     AdvanceView(*view, timeInSeconds, 16U);

@@ -290,19 +290,19 @@ struct XamlTemplateSchemaFacet::State {
                             PushBack(trigger);
                 }
             }
-            Base::Result<Base::Ref<CompiledTemplateProgramOwner>>
+            Base::Ref<CompiledTemplateProgramOwner>
                 program =
                     Base::MakeRefWithAllocator<
                         CompiledTemplateProgramOwner>(
                         *self->allocator,
                         std::move(compiled).Value());
             if (!program) {
-                return program.GetStatus();
+                return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
             }
             CompiledTemplateBlueprint* programContext =
-                &program.Value()->Blueprint();
+                &program->Blueprint();
             Base::Ref<Base::Object> programOwner =
-                program.Value();
+                program;
             Base::Result<void> configured;
             if (isDataTemplateFamily) {
                 auto& dataTemplate =
@@ -455,7 +455,7 @@ struct XamlTemplateSchemaFacet::State {
             return compiled.GetStatus();
         }
 
-        Base::Result<Base::Ref<CompiledTemplateProgramOwner>>
+        Base::Ref<CompiledTemplateProgramOwner>
             program =
                 Base::MakeRefWithAllocator<
                     CompiledTemplateProgramOwner>(
@@ -463,12 +463,12 @@ struct XamlTemplateSchemaFacet::State {
                     std::move(
                         compiled.Value().blueprint));
         if (!program) {
-            return program.GetStatus();
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
         }
         CompiledTemplateBlueprint* programContext =
-            &program.Value()->Blueprint();
+            &program->Blueprint();
         Base::Ref<Base::Object> programOwner =
-            program.Value();
+            program;
 
         Base::Result<void> configured =
             ::Aero::Controls::FrameworkTemplateState::ConfigureFactory(controlTemplate,

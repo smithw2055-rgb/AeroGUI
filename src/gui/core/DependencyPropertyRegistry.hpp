@@ -127,8 +127,7 @@ private:
     Base::Vector<DependencyPropertyHandle> inheritableProperties_;
     IInheritanceChangeSink* inheritanceSink_ = nullptr;
     static Base::Ref<RegistryLifetime> CreateLifetime() noexcept {
-        auto res = Base::MakeRef<RegistryLifetime>();
-        return res ? std::move(res).Value() : Base::Ref<RegistryLifetime>{};
+        return Base::MakeRef<RegistryLifetime>();
     }
     Base::Ref<RegistryLifetime> lifetime_{CreateLifetime()};
     std::uint64_t nextReadOnlySecret_ = 1U;

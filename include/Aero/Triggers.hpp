@@ -214,8 +214,6 @@ private:
 
     DependencyPropertyHandle property_;
     PropertyValue value_;
-    Base::Vector<DependencyPropertyHandle> setterProperties_;
-    Base::Vector<PropertyValue> setterValues_;
     AuthoredData* authored_ = nullptr;
 };
 

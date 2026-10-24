@@ -2161,9 +2161,6 @@ void TabControl::SynchronizeSelection() noexcept {
         }
     }
     SetReadOnlyCurrentValue(SelectedContentProperty, selectedContent);
-    std::fprintf(stderr, "[TabControl %p] Sync: selIdx=%u selectedTab=%p selectedContentKind=%d isNull=%d\n",
-        (void*)this, value, (void*)selected, static_cast<int>(selectedContent.Kind()),
-        selectedContent.IsNullObject());
 
     Ref<Base::Object> selectedContentTemplate;
     if (selected != nullptr && selected->GetContentTemplate()) {

@@ -1107,8 +1107,8 @@ Base::Result<void> PopulateAnimationTypes(
         auto created = Base::MakeRef<EasingFunctionBase>( \
             ::Aero::Meta::MakeTypeId(::Aero::Meta::AeroNamespaceUri(), #name), \
             EasingFunctionBase::Kind::kind); \
-        if (!created) return created.GetStatus(); \
-        return Base::Ref<Base::Object>(std::move(created).Value()); \
+        if (!created) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM"); \
+        return Base::Ref<Base::Object>(std::move(created)); \
     }
     SetObjectFactory(RegisterAlias<EasingFunctionBase>(context, "SineEase"),
         AERO_EASE_FACTORY(SineEase, Sine));
@@ -1167,8 +1167,8 @@ Base::Result<void> PopulateAnimationTypes(
         auto created = Base::MakeRef<Type>( \
             ::Aero::Meta::MakeTypeId(::Aero::Meta::AeroNamespaceUri(), #name), \
             KeyFrameBase::Interpolation::interpolation); \
-        if (!created) return created.GetStatus(); \
-        return Base::Ref<Base::Object>(std::move(created).Value()); \
+        if (!created) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM"); \
+        return Base::Ref<Base::Object>(std::move(created)); \
     }
 #define AERO_KEYFRAME_ALIAS(Name, Kind) \
     SetObjectFactory(RegisterAlias<Name##KeyFrame>(context, #Kind #Name "KeyFrame"), \

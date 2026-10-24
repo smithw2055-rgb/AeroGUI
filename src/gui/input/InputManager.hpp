@@ -54,7 +54,7 @@ public:
         UIElement& owner,
         Base::Ref<InputBinding> binding) noexcept;
 
-    Base::Result<bool> CanExecute(
+    bool CanExecute(
         ICommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
@@ -62,7 +62,7 @@ public:
         ICommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
-    Base::Result<bool> CanExecute(
+    bool CanExecute(
         RoutedCommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
@@ -425,8 +425,8 @@ public:
     bool RemoveRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.RemoveRequerySuggested(handler); }
     void InvalidateRequerySuggested() const noexcept { commands_.InvalidateRequerySuggested(); }
 
-    Base::Result<bool> CanExecute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
-    Base::Result<bool> CanExecute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
+    bool CanExecute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
+    bool CanExecute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
     Base::Result<bool> Execute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
     Base::Result<bool> Execute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
 

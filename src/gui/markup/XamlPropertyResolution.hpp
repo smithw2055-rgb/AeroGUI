@@ -134,7 +134,7 @@ inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
             ::Aero::Meta::ValueCodec<::Aero::Base::Ref<::Aero::Media::Brush>>::Decode(value);
         if (!brush) return brush.GetStatus();
         if (brush.Value() == nullptr ||
-            brush.Value()->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
+            brush->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
             return ::Aero::Base::Status::Failure(
                 ::Aero::Base::ErrorCode::InvalidArgument,
                 "Color-backed text property requires SolidColorBrush");

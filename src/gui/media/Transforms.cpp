@@ -441,8 +441,7 @@ bool TransformGroup::FreezeCore(bool isChecking) noexcept {
 }
 
 Base::Ref<Freezable> TransformGroup::CreateInstanceCore() const {
-    auto made = Base::MakeRef<TransformGroup>();
-    return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+    return Base::MakeRef<TransformGroup>();
 }
 
 void TransformGroup::CloneCore(const Freezable& source) {

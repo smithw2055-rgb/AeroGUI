@@ -520,13 +520,12 @@ bool Run(Aero::Gui& gui) {
     ::Aero::ViewOptions options;
     options.automaticAnimationClock = false;
     options.applicationResources = resources;
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> made =
+    Aero::Base::Ref<Aero::View> view =
         gui.CreateView(options);
-    if (!made) {
-        std::fprintf(stderr, "VIEW FAIL: %s\n", made.GetStatus().message);
+    if (!view) {
+        std::fprintf(stderr, "VIEW FAIL: CreateView returned null\n");
         return false;
     }
-    Aero::Base::Ref<Aero::View> view = std::move(made).Value();
     diagnostics.Clear();
     Aero::Base::Result<Aero::Markup::XamlDocument> loaded = reader.Load(
         "pack://application:,,,/BackgroundBlur;component/MainWindow.xaml",
@@ -544,10 +543,10 @@ bool Run(Aero::Gui& gui) {
         std::fprintf(stderr, "LOAD FAIL: MainWindow root is not FrameworkElement\n");
         return false;
     }
-    Aero::Base::Result<void> mounted = view->SetContent(
+    bool mounted = view->SetContent(
         std::move(loaded).Value(), {1280.0, 720.0});
     if (!mounted) {
-        std::fprintf(stderr, "MOUNT FAIL: %s\n", mounted.GetStatus().message);
+        std::fprintf(stderr, "MOUNT FAIL: SetContent returned false\n");
         return false;
     }
     double timeInSeconds = 0.0;

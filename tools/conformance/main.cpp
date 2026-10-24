@@ -256,7 +256,7 @@ void VerifyGradientFreeze() noexcept {
 void VerifyViewport(Aero::View& view) noexcept {
     const Aero::ViewViewport expected{
         {800.0, 450.0}, 1600U, 900U, 2.0};
-    Check(view.SetViewport(expected).HasValue(),
+    Check(view.SetViewport(expected),
         "View rejected a valid atomic viewport");
     const Aero::ViewViewport invalid{
         {0.0, 450.0}, 1U, 900U, 2.0};
@@ -337,11 +337,11 @@ void VerifyGuiLoadFacade(Aero::Gui& gui) noexcept {
     Check(loaded.HasValue(), "Gui::LoadXaml facade failed");
     if (!loaded) return;
     Aero::Controls::Grid* root = loaded.Value().Get();
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
+    Aero::Base::Ref<Aero::View> view =
         gui.CreateView(std::move(loaded).Value());
-    Check(view.HasValue(), "Gui::CreateView(root) facade failed");
+    Check(static_cast<bool>(view), "Gui::CreateView(root) facade failed");
     if (!view) return;
-    Check(view.Value()->GetContent() == root,
+    Check(view->GetContent() == root,
         "Gui facade did not preserve the loaded root identity");
     Check(root->FindName("FacadeChild") != nullptr,
         "Gui facade discarded the XAML NameScope during View creation");
@@ -358,17 +358,17 @@ void VerifyGuiLoadFacade(Aero::Gui& gui) noexcept {
         gui.LoadXaml<Aero::Controls::Grid>("memory:///Interleaved.xaml");
     Check(interleaved.HasValue(), "Gui interleaved document load failed");
     if (!interleaved) return;
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> componentView =
+    Aero::Base::Ref<Aero::View> componentView =
         gui.CreateView(std::move(component).Value());
-    Check(componentView.HasValue(),
+    Check(static_cast<bool>(componentView),
         "Gui::CreateView(component) facade failed");
     if (!componentView) return;
-    Check(componentView.Value()->GetContent()->FindName(
+    Check(componentView->GetContent()->FindName(
               "FacadeChild") != nullptr,
         "Gui::LoadComponent discarded the XAML NameScope");
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> interleavedView =
+    Aero::Base::Ref<Aero::View> interleavedView =
         gui.CreateView(std::move(interleaved).Value());
-    Check(interleavedView.HasValue(),
+    Check(static_cast<bool>(interleavedView),
         "Gui discarded a pending interleaved XAML document");
 }
 
@@ -800,14 +800,9 @@ void VerifyMaskAndEffectRendering(Aero::View& view) noexcept {
     const Aero::Size logicalSize{128.0, 96.0};
     constexpr std::uint32_t pixelWidth = 256U;
     constexpr std::uint32_t pixelHeight = 192U;
-    Aero::Base::Result<void> mounted =
+    bool mounted =
         view.SetContent(std::move(document).Value(), logicalSize);
-    if (!mounted) {
-        std::fprintf(stderr, "View mount failed: %u %s\n",
-            static_cast<unsigned>(mounted.GetStatus().code),
-            mounted.GetStatus().message);
-    }
-    Check(mounted.HasValue(), "nested effect View mount failed");
+    Check(mounted, "nested effect View mount failed");
     if (!mounted) return;
     view.SetSize(logicalSize);
     view.SetScale(2.0);
@@ -851,11 +846,11 @@ void VerifyGradientSpreadModes(Aero::Gui& gui) noexcept {
     Aero::ViewOptions viewOptions;
     viewOptions.loadBuiltInTheme = true;
     viewOptions.builtInTheme = Aero::BuiltInTheme::Light;
-    Aero::Base::Result<Aero::Base::Ref<Aero::View>> viewMade =
+    Aero::Base::Ref<Aero::View> viewMade =
         gui.CreateView(viewOptions);
-    Check(viewMade.HasValue(), "spread modes View creation failed");
+    Check(static_cast<bool>(viewMade), "spread modes View creation failed");
     if (!viewMade) return;
-    Aero::View& view = *viewMade.Value();
+    Aero::View& view = *viewMade;
 
     constexpr char xaml[] = R"XAML(
 <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
@@ -918,9 +913,9 @@ void VerifyGradientSpreadModes(Aero::Gui& gui) noexcept {
     const Aero::Size logicalSize{128.0, 96.0};
     constexpr std::uint32_t pixelWidth = 256U;
     constexpr std::uint32_t pixelHeight = 192U;
-    Aero::Base::Result<void> mounted =
+    bool mounted =
         view.SetContent(std::move(document).Value(), logicalSize);
-    Check(mounted.HasValue(), "gradient spread modes View mount failed");
+    Check(mounted, "gradient spread modes View mount failed");
     if (!mounted) return;
     view.SetSize(logicalSize);
     view.SetScale(2.0);
@@ -1074,16 +1069,16 @@ int main() {
         Aero::ViewOptions viewOptions;
         viewOptions.loadBuiltInTheme = true;
         viewOptions.builtInTheme = Aero::BuiltInTheme::Light;
-        Aero::Base::Result<Aero::Base::Ref<Aero::View>> view =
+        Aero::Base::Ref<Aero::View> view =
             gui.CreateView(viewOptions);
-        Check(view.HasValue(), "View creation failed");
+        Check(static_cast<bool>(view), "View creation failed");
         if (view) {
-            VerifyMaskAndEffectRendering(*view.Value());
+            VerifyMaskAndEffectRendering(*view);
             VerifyFreezeGraph();
             VerifyExpressionFreezeRejection();
             VerifySharedConsumers();
             VerifyGradientFreeze();
-            VerifyViewport(*view.Value());
+            VerifyViewport(*view);
             VerifyAuthoringPropertySynchronization();
         }
         VerifyGradientSpreadModes(gui);

@@ -88,10 +88,10 @@ public:
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
-    Result<bool> LineHorizontal(double direction) noexcept override;
-    Result<bool> LineVertical(double direction) noexcept override;
-    Result<bool> PageHorizontal(double direction) noexcept override;
-    Result<bool> PageVertical(double direction) noexcept override;
+    bool LineHorizontal(double direction) noexcept override;
+    bool LineVertical(double direction) noexcept override;
+    bool PageHorizontal(double direction) noexcept override;
+    bool PageVertical(double direction) noexcept override;
 
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverscanCount);
@@ -165,10 +165,10 @@ public:
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
-    Result<bool> LineHorizontal(double direction) noexcept override;
-    Result<bool> LineVertical(double direction) noexcept override;
-    Result<bool> PageHorizontal(double direction) noexcept override;
-    Result<bool> PageVertical(double direction) noexcept override;
+    bool LineHorizontal(double direction) noexcept override;
+    bool LineVertical(double direction) noexcept override;
+    bool PageHorizontal(double direction) noexcept override;
+    bool PageVertical(double direction) noexcept override;
 
     AERO_DEPENDENCY_PROPERTY(double, ItemWidth);
     AERO_DEPENDENCY_PROPERTY(double, ItemHeight);

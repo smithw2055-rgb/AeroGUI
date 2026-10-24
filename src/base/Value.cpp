@@ -83,12 +83,12 @@ Base::Result<Value> Value::TryFromString(TypeId type, Base::StringView value) no
     Base::String text(&selected);
     Base::Result<void> assigned = text.Assign(value);
     if (!assigned) return assigned.GetStatus();
-    Base::Result<Base::Ref<StringValueStorage>> storage =
+    Base::Ref<StringValueStorage> storage =
         Base::MakeRefWithAllocator<StringValueStorage>(selected, std::move(text));
-    if (!storage) return storage.GetStatus();
+    if (!storage) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
 
     result.isShortString_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
     return result;
 }
 
@@ -112,12 +112,12 @@ Base::Result<Value> Value::FromDynamicResourceKey(Base::StringView key) noexcept
     Base::String text(&selected);
     Base::Result<void> assigned = text.Assign(key);
     if (!assigned) return assigned.GetStatus();
-    Base::Result<Base::Ref<StringValueStorage>> storage =
+    Base::Ref<StringValueStorage> storage =
         Base::MakeRefWithAllocator<StringValueStorage>(selected, std::move(text));
-    if (!storage) return storage.GetStatus();
+    if (!storage) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
 
     result.isShortString_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
     return result;
 }
 
@@ -177,7 +177,7 @@ Base::Result<Value> Value::TryFromCustom(
             memory, registration.size, registration.alignment, Base::MemoryTag::Ui);
         return copied.GetStatus();
     }
-    Base::Result<Base::Ref<CustomValueStorage>> storage =
+    Base::Ref<CustomValueStorage> storage =
         Base::MakeRefWithAllocator<CustomValueStorage>(
             selected, memory, selected, semantics);
     if (!storage) {
@@ -186,10 +186,10 @@ Base::Result<Value> Value::TryFromCustom(
         }
         selected.Deallocate(
             memory, registration.size, registration.alignment, Base::MemoryTag::Ui);
-        return storage.GetStatus();
+        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
     }
     result.inlineCustom_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
     return result;
 }
 

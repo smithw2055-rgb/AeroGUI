@@ -421,9 +421,6 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             Base::Result<void> resolved = setter->Resolve(
                 property->Handle(), value.Value());
             if (!resolved) return resolved.GetStatus();
-            if (auto* propTrigger = ::Aero::TryCast<Aero::Trigger>(&trigger)) {
-                propTrigger->AddSetter(*setter);
-            }
             setter->ReleaseAuthored();
         }
         return {};

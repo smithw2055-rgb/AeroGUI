@@ -264,18 +264,18 @@ Base::Result<HitTestResult> HitTestState::RootToLocal(
             "Hit-test root is not a registered UIElement");
     }
     UIElement* targetElement = ::Aero::TryCast<::Aero::UIElement>(&(target));
-    if (targetElement == nullptr || !targetElement->GetIsArrangeValid()) {
+    if (targetElement == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Pointer capture target must be an arranged UIElement");
+            "Pointer capture target must be a UIElement");
     }
 
     Base::Vector<UIElement*> path;
     ::Aero::Media::Visual* current = &target;
     while (current != &root) {
         UIElement* currentElement = ::Aero::TryCast<::Aero::UIElement>(current);
-        if (currentElement == nullptr || !currentElement->GetIsArrangeValid()) {
+        if (currentElement == nullptr) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "Pointer capture route contains an unarranged element");
+                "Pointer capture route contains a non-UIElement visual");
         }
         ::Aero::Media::Visual* parent = current->GetVisualParent();
         if (parent == nullptr) {
@@ -362,38 +362,18 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
     }
 
     const auto children = (element).RenderChildren();
-    const bool isTrack = (element.RuntimeType() == Controls::Primitives::Track::StaticTypeId());
-    const bool isThumb = (element.RuntimeType() == Controls::Primitives::Thumb::StaticTypeId());
-    const bool isScrollBar = (element.RuntimeType() == Controls::Primitives::ScrollBar::StaticTypeId());
-    if (isTrack || isThumb || isScrollBar) {
-        const char* typeName = isTrack ? "Track" : (isThumb ? "Thumb" : "ScrollBar");
-        fprintf(stderr, "[HITTEST-NODE] type=%s contains=%d pos=(%.1f,%.1f) rSize=(%.1f,%.1f) vChildren=%u\n",
-            typeName, contains ? 1 : 0,
-            position.x, position.y, element.GetRenderSize().width, element.GetRenderSize().height,
-            children.Size());
-    }
     for (std::uint32_t index = children.Size(); index > 0U; --index) {
         ::Aero::Media::Visual* childNode = children[index - 1U];
         if (childNode == nullptr) continue;
         UIElement* child = ::Aero::TryCast<::Aero::UIElement>(childNode);
         if (child == nullptr) continue;
         if (IsOverlay(*child)) continue;
-        const bool childIsThumb = (child->RuntimeType() == Controls::Primitives::Thumb::StaticTypeId());
-        if (isTrack || isThumb || childIsThumb) {
-            fprintf(stderr, "[HITTEST-CHILD] parent=%s childIsThumb=%d slot=(%.1f,%.1f,%.1f,%.1f) arrangeValid=%d\n",
-                isTrack ? "Track" : (isThumb ? "Thumb" : "ScrollBar"), childIsThumb ? 1 : 0,
-                child->GetLayoutSlot().x, child->GetLayoutSlot().y, child->GetLayoutSlot().width, child->GetLayoutSlot().height,
-                child->GetIsArrangeValid() ? 1 : 0);
-        }
         // Hidden/template branches may be present in the visual tree before
         // they receive a layout slot. They are not hittable and must not
         // poison hit testing for an otherwise arranged root.
         if (!child->GetIsArrangeValid()) {
             const Rect slot = child->GetLayoutSlot();
             if (!(slot.width > 0.0 && slot.height > 0.0)) {
-                if (isTrack || isThumb) {
-                    fprintf(stderr, "[HITTEST-CHILD] SKIPPED: slot empty\n");
-                }
                 continue;
             }
         }
@@ -405,10 +385,6 @@ Base::Result<HitTestResult> HitTestState::HitTestElement(
                 childPosition,
                 transform3D,
                 childContext);
-        if (isTrack || isThumb) {
-            fprintf(stderr, "[HITTEST-P2L] p2l_res=%d childPos=(%.1f,%.1f)\n",
-                p2lOk ? 1 : 0, childPosition.x, childPosition.y);
-        }
         if (!p2lOk) {
             continue;
         }
@@ -818,14 +794,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
         }
         hoverTarget = TryCast<UIElement>(parentVisual);
     }
-    if (input.action == PointerAction::Move) {
-        if (input.position.x >= 320.0 && input.position.x <= 360.0) {
-            fprintf(stderr, "[MOVE-THUMB-ZONE] pos=(%.1f, %.1f) hoverTarget=%p type=%llu\n",
-                input.position.x, input.position.y, static_cast<void*>(hoverTarget),
-                hoverTarget ? hoverTarget->RuntimeType() : 0ULL);
-            fflush(stderr);
-        }
-    }
+
     Base::Result<void> hover =
         UpdateHover(input.pointerId, hoverTarget);
     if (!hover) return hover.GetStatus();

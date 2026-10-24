@@ -216,7 +216,7 @@ InputRouter* InteractivityEngine::Input() const noexcept {
 }
 
 ElementTree* InteractivityEngine::Tree() const noexcept {
-    return view != nullptr ? view->tree : nullptr;
+    return view != nullptr ? view->Tree() : nullptr;
 }
 
 StyleEngine* InteractivityEngine::Styles() const noexcept {
@@ -224,7 +224,7 @@ StyleEngine* InteractivityEngine::Styles() const noexcept {
 }
 
 Meta::EffectiveValueEngine* InteractivityEngine::Values() const noexcept {
-    return view != nullptr ? view->values : nullptr;
+    return view != nullptr ? view->Values() : nullptr;
 }
 
 BindingEngine* InteractivityEngine::Bindings() const noexcept {
@@ -232,7 +232,7 @@ BindingEngine* InteractivityEngine::Bindings() const noexcept {
 }
 
 StoryboardHost* InteractivityEngine::Storyboards() const noexcept {
-    return view != nullptr ? view->storyboards : nullptr;
+    return view != nullptr ? view->Storyboards() : nullptr;
 }
 
 bool InteractivityEngine::IsInVisualSubtree(
@@ -1974,6 +1974,7 @@ void InteractivityEngine::KeyTriggerState::Invoke(
         args.GetKey() != InteractivityEngine::KeyCodeFromName(trigger->GetKey())) {
         return;
     }
+
     if (trigger->GetActiveOnFocus()) {
         Aero::UIElement* expected = ::Aero::TryCast<::Aero::UIElement>(owner);
         if (expected == nullptr || runtime->Input() == nullptr ||

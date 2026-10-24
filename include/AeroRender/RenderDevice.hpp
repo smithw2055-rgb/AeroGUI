@@ -547,24 +547,6 @@ public:
     /// Draws primitives for the given batch
     virtual void DrawBatch(const Batch& batch) noexcept = 0;
 
-    /// Offscreen configuration
-    void SetOffscreenWidth(uint32_t width) noexcept;
-    uint32_t GetOffscreenWidth() const noexcept;
-    void SetOffscreenHeight(uint32_t height) noexcept;
-    uint32_t GetOffscreenHeight() const noexcept;
-    void SetOffscreenSampleCount(uint32_t sampleCount) noexcept;
-    uint32_t GetOffscreenSampleCount() const noexcept;
-    void SetOffscreenDefaultNumSurfaces(uint32_t numSurfaces) noexcept;
-    uint32_t GetOffscreenDefaultNumSurfaces() const noexcept;
-    void SetOffscreenMaxNumSurfaces(uint32_t numSurfaces) noexcept;
-    uint32_t GetOffscreenMaxNumSurfaces() const noexcept;
-
-    /// Glyph cache configuration
-    void SetGlyphCacheWidth(uint32_t width) noexcept;
-    uint32_t GetGlyphCacheWidth() const noexcept;
-    void SetGlyphCacheHeight(uint32_t height) noexcept;
-    uint32_t GetGlyphCacheHeight() const noexcept;
-
     /// State validation helpers
     static bool IsValidState(Shader shader, RenderState state) noexcept;
     static bool IsValidBlendMode(Shader shader, RenderBlendMode::Enum blendMode) noexcept;
@@ -589,13 +571,6 @@ protected:
     RenderDeviceState state_ = RenderDeviceState::Ready;
     RenderBackendKind backend_ = RenderBackendKind::Headless;
     std::uint64_t generation_ = 1U;
-    uint32_t offscreenWidth_ = 0U;
-    uint32_t offscreenHeight_ = 0U;
-    uint32_t offscreenSampleCount_ = 1U;
-    uint32_t offscreenDefaultNumSurfaces_ = 0U;
-    uint32_t offscreenMaxNumSurfaces_ = 0U;
-    uint32_t glyphCacheWidth_ = 1024U;
-    uint32_t glyphCacheHeight_ = 1024U;
 };
 
 } // namespace Aero

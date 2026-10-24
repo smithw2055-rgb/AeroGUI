@@ -351,11 +351,12 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
     }
     StyleApplication& application =
         applications_[applicationIndex];
-    Base::Result<void> cleared =
-        ClearTriggerSetters(object, style);
-    if (!cleared) return cleared.GetStatus();
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
+    if (triggers.Empty()) {
+        return {};
+    }
+
     std::uint64_t activeMask = 0ULL;
     Base::Vector<std::uint8_t> activeStatesFallback;
     if (triggers.Size() > 64U) {
@@ -377,13 +378,20 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
         return activeStatesFallback[idx] != 0U;
     };
 
+    bool anyStateChanged = false;
+    if (application.triggerStates.Size() < triggers.Size()) {
+        anyStateChanged = true;
+    }
+
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
             triggers[index];
         bool active = false;
         if (trigger.IsBindingTrigger()) {
-            active = application.bindingTriggerKnown[index] != 0U &&
+            active = index < application.bindingTriggerKnown.Size() &&
+                index < application.bindingTriggerStates.Size() &&
+                application.bindingTriggerKnown[index] != 0U &&
                 application.bindingTriggerStates[index] != 0U;
         } else {
             Base::Result<bool> met =
@@ -392,39 +400,60 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
             active = met.Value();
         }
         setActive(index, active);
-        if (active) {
-            for (const StyleTriggerSetter& setter :
-                 trigger.setters) {
-                Base::StringView dynamicKey;
-                PropertyValue setterValue = setter.value;
-                if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
-                    FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(&object);
-                    ResourceValue lookedUp{};
-                    if (element != nullptr) {
-                        Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
-                        if (res) lookedUp = res.Value();
-                    }
-                    if (!lookedUp.IsUnset()) {
-                        const DependencyProperty* prop =
-                            DependencyObjectAccess::PropertyRegistry(object).Find(setter.property);
-                        if (prop != nullptr) {
-                            Base::Result<PropertyValue> converted =
-                                Markup::ConvertDynamicResourceValue(lookedUp, *prop);
-                            if (converted) {
-                                setterValue = std::move(converted).Value();
-                            }
+        if (!anyStateChanged) {
+            const bool wasActive = index < application.triggerStates.Size() &&
+                application.triggerStates[index] != 0U;
+            if (active != wasActive) {
+                anyStateChanged = true;
+            }
+        }
+    }
+
+    // Short-circuit: if no trigger flipped its active state, no setters or flush needed.
+    if (!anyStateChanged) {
+        return {};
+    }
+
+    Base::Result<void> cleared =
+        ClearTriggerSetters(object, style);
+    if (!cleared) return cleared.GetStatus();
+
+    for (std::uint32_t index = 0U;
+         index < triggers.Size(); ++index) {
+        if (!getActive(index)) continue;
+        const TriggerPlan& trigger =
+            triggers[index];
+        for (const StyleTriggerSetter& setter :
+             trigger.setters) {
+            Base::StringView dynamicKey;
+            PropertyValue setterValue = setter.value;
+            if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
+                FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(&object);
+                ResourceValue lookedUp{};
+                if (element != nullptr) {
+                    Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
+                    if (res) lookedUp = res.Value();
+                }
+                if (!lookedUp.IsUnset()) {
+                    const DependencyProperty* prop =
+                        DependencyObjectAccess::PropertyRegistry(object).Find(setter.property);
+                    if (prop != nullptr) {
+                        Base::Result<PropertyValue> converted =
+                            Markup::ConvertDynamicResourceValue(lookedUp, *prop);
+                        if (converted) {
+                            setterValue = std::move(converted).Value();
                         }
                     }
-                } else if (IsDeferredBindingSetterValue(setter.value)) {
-                    continue;
                 }
-                Base::Result<void> applied =
-                    values_.SetTriggerValue(
-                        object, setter.property,
-                        setterValue);
-                if (!applied) {
-                    return applied.GetStatus();
-                }
+            } else if (IsDeferredBindingSetterValue(setter.value)) {
+                continue;
+            }
+            Base::Result<void> applied =
+                values_.SetTriggerValue(
+                    object, setter.property,
+                    setterValue);
+            if (!applied) {
+                return applied.GetStatus();
             }
         }
     }

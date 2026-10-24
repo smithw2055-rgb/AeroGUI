@@ -180,7 +180,6 @@ DiagnosticBag::DiagnosticBag(std::uint32_t maxDiagnostics) noexcept
       maxDiagnostics_(maxDiagnostics) {}
 
 Base::Result<void> DiagnosticBag::Report(Diagnostic&& diagnostic) noexcept {
-    std::fprintf(stderr, "[DiagnosticBag::Report] %.*s\n", (int)diagnostic.Message().SizeBytes(), diagnostic.Message().Data());
     if (!diagnostic.Code().IsValid() ||
         !IsValidSeverity(diagnostic.Severity()) ||
         diagnostic.Message().Empty() ||

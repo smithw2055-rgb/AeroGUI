@@ -2,6 +2,7 @@
 
 #include "DisplayList.hpp"
 #include "RenderTree.hpp"
+#include "common/StateCache.hpp"
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/RenderTarget.hpp>
 #include <AeroRender/Texture.hpp>
@@ -29,17 +30,6 @@ struct RenderGlyphQuad {
     float u1 = 0.0F;
     float v1 = 0.0F;
     std::uint32_t page = 0U;
-};
-
-struct VertexOffsets {
-    std::int8_t colorOffset = -1;
-    std::int8_t tex0Offset = -1;
-    std::int8_t tex1Offset = -1;
-    std::int8_t coverageOffset = -1;
-    std::int8_t rectOffset = -1;
-    std::int8_t tileOffset = -1;
-    std::int8_t imagePosOffset = -1;
-    std::uint8_t stride = 0;
 };
 
 class RenderResourceTable {
@@ -391,6 +381,7 @@ public:
         RenderNodeId nodeId, std::uint32_t width, std::uint32_t height,
         bool isMask = false) noexcept;
     void BeginOffscreenTargetFrame() noexcept;
+    void ReleaseOffscreenTarget(RenderTarget* target) noexcept;
 
     void EmitQuad(
         const Point points[4],
@@ -500,6 +491,7 @@ public:
     float customEffectUniforms_[4] = {0.0F, 0.0F, 0.0F, 0.0F};
     float paintUniforms_[8]{};
     const RenderFrame* currentFrame_ = nullptr;
+    Base::Vector<RenderTarget*> pendingReleaseTargets_{allocator_};
 
     std::uint8_t clipDepth_ = 0U;
 

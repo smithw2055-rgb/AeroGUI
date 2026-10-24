@@ -20,7 +20,7 @@ namespace Aero {
 
 Base::Result<void> BeginDocumentLoad(ViewFrame& state) noexcept {
         if (!state.initialized) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "View must be initialized before XAML loading");
         }
         if (state.mounted || state.root || state.loadedDocument.root) {
@@ -37,11 +37,14 @@ Base::Result<Markup::XamlReaderSettings> XamlSettings(ViewFrame& state,
         if (override != nullptr) {
             result = *override;
         }
-        state.loadContext.resources = &state.resources->dynamicResourceEnvironment;
-        state.loadContext.effectiveValues = state.values;
+        state.loadContext.resources = state.Resources() != nullptr
+            ? &state.Resources()->dynamicResourceEnvironment
+            : nullptr;
+        state.loadContext.effectiveValues = state.Values();
         state.loadContext.bindings = state.Bindings();
-        state.loadContext.fallbackResources =
-            &state.resources->dynamicResourceEnvironment;
+        state.loadContext.fallbackResources = state.Resources() != nullptr
+            ? &state.Resources()->dynamicResourceEnvironment
+            : nullptr;
         state.loadContext.documentCache = state.documentCache;
         state.loadContext.dispatcher = state.dispatcher;
         state.loadContext.dependencyProperties =
@@ -69,7 +72,8 @@ Base::Object* ViewFrame::FindNameForElement(
             : nullptr;
 
         // If requester is within a loaded component mount or fragment, resolve inside that component's scope first
-        if (object == nullptr && requester != nullptr) {
+        if (object == nullptr && requester != nullptr &&
+            (!runtime->componentMounts.Empty() || !runtime->fragmentMounts.Empty())) {
             const DependencyObject* current = requester;
             for (std::uint32_t depth = 0U; current != nullptr && depth < 256U; ++depth) {
                 for (ViewFrame::FragmentMount* component : runtime->componentMounts) {
@@ -168,7 +172,7 @@ Base::Result<void> ResourceHost::LoadLayer(
         Diagnostics::IDiagnosticSink* diagnostics,
         bool merge) noexcept {
         if (!view->initialized) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "View must be initialized before loading resources");
         }
         if (view->mounted || view->root || view->loadedDocument.root) {
@@ -181,7 +185,7 @@ Base::Result<void> ResourceHost::LoadLayer(
             return loadOptions.GetStatus();
         }
         if (view->gui == nullptr || view->schemaBundle == nullptr) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
@@ -203,7 +207,7 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
         Aero::ResourceDictionary& target,
         bool merge) noexcept {
         if (!view->initialized) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "View must be initialized before loading resources");
         }
         if (view->mounted || view->root || view->loadedDocument.root) {
@@ -214,7 +218,7 @@ Base::Result<void> ResourceHost::LoadCompiledLayer(
             XamlSettings(*view);
         if (!loadOptions) return loadOptions.GetStatus();
         if (view->gui == nullptr || view->schemaBundle == nullptr) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "Gui XAML runtime is unavailable");
         }
         Base::Result<Markup::XamlDocument> loaded =
@@ -336,12 +340,12 @@ Base::Result<void> ActivateMountedSubtree(
     ViewFrame& state,
     Aero::Media::Visual& subtreeRoot,
     Markup::LoaderResult& doc) noexcept {
-    if (state.tree == nullptr) {
+    if (state.Tree() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "View has no element tree");
     }
-    ElementTree& context = *state.tree;
+    ElementTree& context = *state.Tree();
 
     const auto hostLoadedContent = [&]() noexcept -> Base::Result<void> {
         Controls::ContentControl* host =
@@ -501,11 +505,11 @@ Base::Result<void> ActivateMountedSubtree(
     if (!attached) return attached.GetStatus();
 
     Markup::EffectServices runtimeServices;
-    runtimeServices.effectiveValues = state.values;
+    runtimeServices.effectiveValues = state.Values();
     runtimeServices.bindings = state.Bindings();
     runtimeServices.fallbackResources =
-        state.resources != nullptr
-            ? &state.resources->dynamicResourceEnvironment
+        state.Resources() != nullptr
+            ? &state.Resources()->dynamicResourceEnvironment
             : nullptr;
     runtimeServices.lifetime = state.effectLifetime;
     Base::Result<void> bound = doc.effects.Bind(runtimeServices);
@@ -535,9 +539,9 @@ Base::Result<void> ActivateMountedSubtree(
     Base::Result<void> generated = state.FlushGeneratedVisuals();
     if (!generated) return generated.GetStatus();
 
-    if (state.storyboards != nullptr) {
+    if (state.Storyboards() != nullptr) {
         Base::Result<std::uint32_t> animations =
-            state.storyboards->StartLoadedAnimations(&subtreeRoot, &doc.names);
+            state.Storyboards()->StartLoadedAnimations(&subtreeRoot, &doc.names);
         if (!animations) return animations.GetStatus();
     }
 
@@ -557,7 +561,7 @@ Base::Result<void> MountRoot(ViewFrame& state,
         Base::Ref<Base::Object> requestedRoot,
         Aero::Size availableSize) noexcept {
         if (!state.initialized) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "View must be initialized before mounting");
         }
         if (state.mounted || state.root) {
@@ -606,8 +610,8 @@ Base::Result<void> MountRoot(ViewFrame& state,
             if (state.Animations() != nullptr) {
                 static_cast<void>(state.Animations()->RemoveAll());
             }
-            if (state.storyboards != nullptr) {
-                state.storyboards->storyboardSessions.Clear();
+            if (state.Storyboards() != nullptr) {
+                state.Storyboards()->storyboardSessions.Clear();
             }
             state.deferGeneratedActivation = false;
             state.BeginDestroyInteractions();
@@ -644,8 +648,8 @@ Base::Result<void> DetachFragment(ViewFrame& state,
                 *fragment.document.root,
                 fragment.document.root->RuntimeType());
         if (!rootVisual) return rootVisual.GetStatus();
-        if (state.interactivity != nullptr) {
-            state.interactivity->ClearAnimationSubscriptionsFor(*rootVisual.Value());
+        if (state.Interactivity() != nullptr) {
+            state.Interactivity()->ClearAnimationSubscriptionsFor(*rootVisual.Value());
         }
 
         DetachViewUi(
@@ -654,7 +658,7 @@ Base::Result<void> DetachFragment(ViewFrame& state,
             {fragment.document.visualContent.nodes.Data(),
              fragment.document.visualContent.nodes.Size()});
 
-        ElementTree& context = *state.tree;
+        ElementTree& context = *state.Tree();
         const auto reconcileAttachment =
             [](Aero::Markup::VisualEdge& edge) noexcept {
                 auto& edgeState = edge.state;
@@ -708,7 +712,6 @@ Base::Result<void> DetachFragment(ViewFrame& state,
                 if (hasMountedChild) continue;
                 Base::Result<void> detached = context.DetachElement(edge.state);
                 if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
-                    std::fprintf(stderr, "DetachFragment: edge detach failed: %s\n", detached.GetStatus().message);
                     return detached.GetStatus();
                 }
                 edge.state = {};
@@ -785,7 +788,9 @@ Base::Result<void> DetachMountedRoot(ViewFrame& state,
                 state.Animations()->RemoveAll();
             if (!removed) return removed.GetStatus();
         }
-        state.storyboards->storyboardSessions.Clear();
+        if (state.Storyboards() != nullptr) {
+            state.Storyboards()->storyboardSessions.Clear();
+        }
         state.BeginDestroyInteractions();
         DetachViewUi(state);
         state.FinishDestroyInteractions();
@@ -844,9 +849,8 @@ Base::Result<void> ReplaceViewDocument(
     ViewFrame& state,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
-    ViewFrame* state_ = &state;
-    if (state_ == nullptr || !state_->initialized || !state_->mounted) {
-        return ViewApiInvalidState(
+    if (!state.initialized || !state.mounted) {
+        return ViewInvalidState(
             "View document replacement requires a mounted view");
     }
     if (!document.IsValid()) {
@@ -854,13 +858,13 @@ Base::Result<void> ReplaceViewDocument(
             Base::ErrorCode::InvalidArgument,
             "View cannot replace a document with an empty document");
     }
-    Base::Result<void> valid = ValidateDocumentRoot(*state_, document.Root());
+    Base::Result<void> valid = ValidateDocumentRoot(state, document.Root());
     if (!valid) return valid.GetStatus();
 
     Markup::LoaderResult next =
         Aero::Markup::TakeXamlDocument(document);
     if (!next.root ||
-        !state_->metadata->Types().IsDerivedFrom(
+        !state.metadata->Types().IsDerivedFrom(
             next.root->RuntimeType(),
             Aero::Media::Visual::StaticTypeId())) {
         next.Clear();
@@ -870,27 +874,27 @@ Base::Result<void> ReplaceViewDocument(
     }
 
     Base::Result<void> detached =
-        DetachMountedRoot(*state_, false);
+        DetachMountedRoot(state, false);
     if (!detached) {
-        Base::Result<void> restored = MountRoot(*state_, 
-            state_->loadedDocument.root, availableSize);
+        Base::Result<void> restored = MountRoot(state, 
+            state.loadedDocument.root, availableSize);
         next.Clear();
         return restored ? detached : restored;
     }
 
     Markup::LoaderResult previous =
-        std::move(state_->loadedDocument);
-    state_->loadedDocument = std::move(next);
-    Base::Result<void> mounted = MountRoot(*state_, 
-        state_->loadedDocument.root, availableSize);
+        std::move(state.loadedDocument);
+    state.loadedDocument = std::move(next);
+    Base::Result<void> mounted = MountRoot(state, 
+        state.loadedDocument.root, availableSize);
     if (mounted) {
         previous.Clear();
         return {};
     }
 
-    state_->loadedDocument = std::move(previous);
-    Base::Result<void> restored = MountRoot(*state_, 
-        state_->loadedDocument.root, availableSize);
+    state.loadedDocument = std::move(previous);
+    Base::Result<void> restored = MountRoot(state, 
+        state.loadedDocument.root, availableSize);
     return restored ? mounted : restored;
 }
 
@@ -898,10 +902,9 @@ Base::Result<void> MountViewFragment(
     ViewFrame& state,
     Controls::ContentControl& host,
     Markup::XamlDocument&& document) noexcept {
-    ViewFrame* state_ = &state;
-    if (state_ == nullptr || !state_->initialized || !state_->mounted ||
-        state_->tree == nullptr || state_->Layout() == nullptr) {
-        return ViewApiInvalidState(
+    if (!state.initialized || !state.mounted ||
+        state.Tree() == nullptr || state.Layout() == nullptr) {
+        return ViewInvalidState(
             "content fragment mounting requires a mounted View");
     }
     if (!document.IsValid()) {
@@ -909,7 +912,7 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidArgument,
             "content fragment document must not be empty");
     }
-    if (VisualTree(host) != state_->tree) {
+    if (VisualTree(host) != state.Tree()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "content fragment host does not belong to this View");
@@ -917,15 +920,15 @@ Base::Result<void> MountViewFragment(
 
     std::uint32_t existing = UINT32_MAX;
     for (std::uint32_t index = 0U;
-         index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index] != nullptr &&
-            state_->fragmentMounts[index]->host == &host) {
+         index < state.fragmentMounts.Size(); ++index) {
+        if (state.fragmentMounts[index] != nullptr &&
+            state.fragmentMounts[index]->host == &host) {
             existing = index;
             break;
         }
     }
     if (existing != UINT32_MAX) {
-        Base::Result<void> unmounted = UnmountFragmentAt(*state_, existing);
+        Base::Result<void> unmounted = UnmountFragmentAt(state, existing);
         if (!unmounted) {
             // Best-effort unmount: a stale visual/logical parent pointer left by
             // a prior template substitution can make DetachVisual report NotFound
@@ -938,28 +941,28 @@ Base::Result<void> MountViewFragment(
             Base::ErrorCode::InvalidState,
               "content fragment host already owns non-fragment content");
     }
-    state_->fragmentMounts.Reserve(
-        state_->fragmentMounts.Size() + 1U);
+    state.fragmentMounts.Reserve(
+        state.fragmentMounts.Size() + 1U);
 
     ViewFrame::FragmentMount* fragment = nullptr;
     Base::Result<void> allocated = AllocateObject(
-        *state_->allocator, Base::MemoryTag::Ui, fragment);
+        *state.allocator, Base::MemoryTag::Ui, fragment);
     if (!allocated) return allocated.GetStatus();
 
     fragment->host = &host;
     fragment->document = Aero::Markup::TakeXamlDocument(document);
     const Aero::NameScope* previousActiveNames =
-        state_->activeFragmentNames;
-    state_->activeFragmentNames = &fragment->document.names;
+        state.activeFragmentNames;
+    state.activeFragmentNames = &fragment->document.names;
     const auto restoreActiveNames = [&]() noexcept {
-        state_->activeFragmentNames = previousActiveNames;
+        state.activeFragmentNames = previousActiveNames;
     };
     Base::Result<Aero::Media::Visual*> rootVisual =
-        state_->ResolveVisual(
+        state.ResolveVisual(
             *fragment->document.root,
             fragment->document.root->RuntimeType());
     Base::Result<Aero::UIElement*> rootElement =
-        state_->ResolveUIElement(
+        state.ResolveUIElement(
             *fragment->document.root,
             fragment->document.root->RuntimeType());
     if (!rootVisual || !rootElement) {
@@ -968,7 +971,7 @@ Base::Result<void> MountViewFragment(
         Base::Status status = !rootVisual
             ? rootVisual.GetStatus()
             : rootElement.GetStatus();
-        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
+        FreeObject(*state.allocator, Base::MemoryTag::Ui, fragment);
         return status;
     }
     Base::Result<void> tracked =
@@ -976,22 +979,22 @@ Base::Result<void> MountViewFragment(
     if (!tracked) {
         restoreActiveNames();
         fragment->document.Clear();
-        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
+        FreeObject(*state.allocator, Base::MemoryTag::Ui, fragment);
         return tracked.GetStatus();
     }
     (host).SetOwnedContent(
         fragment->document.root, *rootElement.Value());
 
-    ElementTree& context = *state_->tree;
+    ElementTree& context = *state.Tree();
     // Templated ContentControl hosts Content through a ContentPresenter.
     // SetOwnedContent / Content DP already joined the fragment root there.
     // A second AttachElement(host, root) then fails with "already attached".
-    if (rootElement.Value()->GetIsLayoutAttached() ||
+    if (rootElement->GetIsLayoutAttached() ||
         (host).GetTemplateRoot() != nullptr) {
         fragment->rootEdge.logicalParent = &host;
         fragment->rootEdge.visualParent =
-            rootVisual.Value()->GetVisualParent() != nullptr
-                ? rootVisual.Value()->GetVisualParent()
+            rootVisual->GetVisualParent() != nullptr
+                ? rootVisual->GetVisualParent()
                 : static_cast<Aero::Media::Visual*>(&host);
         fragment->rootEdge.child = rootVisual.Value();
     } else {
@@ -1001,7 +1004,7 @@ Base::Result<void> MountViewFragment(
             restoreActiveNames();
             static_cast<void>(host.SetContent(nullptr));
             fragment->document.Clear();
-            FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
+            FreeObject(*state.allocator, Base::MemoryTag::Ui, fragment);
             return rootMounted.GetStatus();
         }
         fragment->rootEdge = std::move(rootMounted).Value();
@@ -1009,34 +1012,33 @@ Base::Result<void> MountViewFragment(
 
     const auto detachFailedFragment = [&]() noexcept {
         restoreActiveNames();
-        static_cast<void>(DetachFragment(*state_, *fragment));
-        FreeObject(*state_->allocator, Base::MemoryTag::Ui, fragment);
+        static_cast<void>(DetachFragment(state, *fragment));
+        FreeObject(*state.allocator, Base::MemoryTag::Ui, fragment);
     };
 
     Base::Result<void> activated = ActivateMountedSubtree(
-        *state_, *rootVisual.Value(), fragment->document);
+        state, *rootVisual.Value(), fragment->document);
     if (!activated) {
         detachFailedFragment();
         return activated.GetStatus();
     }
     restoreActiveNames();
-    state_->fragmentMounts.PushBack(fragment);
+    state.fragmentMounts.PushBack(fragment);
     return {};
 }
 
 Base::Result<void> UnmountViewFragment(
     ViewFrame& state,
     Controls::ContentControl& host) noexcept {
-    ViewFrame* state_ = &state;
-    if (state_ == nullptr || !state_->initialized || !state_->mounted) {
-        return ViewApiInvalidState(
+    if (!state.initialized || !state.mounted) {
+        return ViewInvalidState(
             "content fragment unmounting requires a mounted View");
     }
     for (std::uint32_t index = 0U;
-         index < state_->fragmentMounts.Size(); ++index) {
-        if (state_->fragmentMounts[index] != nullptr &&
-            state_->fragmentMounts[index]->host == &host) {
-            return UnmountFragmentAt(*state_, index);
+         index < state.fragmentMounts.Size(); ++index) {
+        if (state.fragmentMounts[index] != nullptr &&
+            state.fragmentMounts[index]->host == &host) {
+            return UnmountFragmentAt(state, index);
         }
     }
     return (host).GetContentElement() == nullptr
@@ -1051,8 +1053,8 @@ Base::Result<void> AdoptLoadedComponent(
     ViewFrame& state,
     Markup::LoaderResult&& incoming) noexcept {
     if (!state.initialized || !state.mounted ||
-        state.tree == nullptr || state.Bindings() == nullptr ||
-        state.values == nullptr || state.allocator == nullptr) {
+        state.Tree() == nullptr || state.Bindings() == nullptr ||
+        state.Values() == nullptr || state.allocator == nullptr) {
         return {};
     }
     if (!incoming.root) {

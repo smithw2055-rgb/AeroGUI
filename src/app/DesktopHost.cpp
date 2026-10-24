@@ -170,10 +170,12 @@ struct DesktopHostState : public IApplicationHost {
             options.clipboard = &clipboard;
             options.textInputMethodHost = &inputMethod;
 #endif
-            Base::Result<Base::Ref<View>> created =
-                owner->environment.CreateView(options, owner->allocator);
-            if (!created) return created.GetStatus();
-            view = std::move(created).Value();
+            view = owner->environment.CreateView(options, owner->allocator);
+            if (!view) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to create GUI view");
+            }
             return {};
         }
 
@@ -204,7 +206,7 @@ Base::Result<void> LoadFromUri(
                         Base::ErrorCode::OutOfMemory,
                         "Unable to allocate a host Window for StartupUri");
                 }
-                hosted = std::move(made).Value();
+                hosted = std::move(made);
                 hosted->SetContent(root);
                 windowOwner = Base::Ref<Base::Object>(hosted);
                 window = static_cast<Window*>(windowOwner.Get());
@@ -344,10 +346,13 @@ Base::Result<void> LoadFromUri(
             const Size size{
                 static_cast<double>(width) / dpiScale,
                 static_cast<double>(height) / dpiScale};
-            Base::Result<void> viewport = view->SetViewport(
-                {size, width, height, dpiScale});
-            if (!viewport) return viewport.GetStatus();
-            Base::Result<void> mounted;
+            if (!view->SetViewport(
+                {size, width, height, dpiScale})) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to set view viewport");
+            }
+            bool mounted = false;
             if (programmaticRoot) {
                 if (loadedDocument.IsValid()) {
                     mounted = view->SetContent(
@@ -363,7 +368,11 @@ Base::Result<void> LoadFromUri(
                 mounted = view->SetContent(
                     std::move(loadedDocument), size);
             }
-            if (!mounted) return mounted.GetStatus();
+            if (!mounted) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to mount view content");
+            }
             window->Attach(this);
             window->NotifySourceInitialized();
             static_cast<void>(view->Update(0.0));
@@ -522,9 +531,12 @@ Base::Result<void> LoadFromUri(
             const Size logicalSize{
                 static_cast<double>(width) / nextDpiScale,
                 static_cast<double>(height) / nextDpiScale};
-            Base::Result<void> viewport = view->SetViewport(
-                {logicalSize, width, height, nextDpiScale});
-            if (!viewport) return viewport.GetStatus();
+            if (!view->SetViewport(
+                {logicalSize, width, height, nextDpiScale})) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to update view viewport");
+            }
             dpiScale = nextDpiScale;
             frameRequested = true;
             if (!firstLayoutFlushed &&
@@ -1113,10 +1125,7 @@ Base::Result<void> LoadFromUri(
             }
         }
         if (visible && !windows.Empty()) {
-            status = windows[0]->Show();
-            if (!status) {
-                return status.GetStatus();
-            }
+            windows[0]->Show();
         }
 
         while (!exitRequested) {

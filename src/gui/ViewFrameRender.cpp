@@ -90,63 +90,54 @@ void ViewFrame::AttachPathResources(
         }
     }
 
-void ViewFrame::VisitTextElements(
-        Aero::Media::Visual* rootVisual,
-        ::Aero::Controls::TextBlockLayout* service,
-        bool invalidate,
-        bool ancestorsVisible) noexcept {
-        if (rootVisual == nullptr) return;
-        bool effectivelyVisible = ancestorsVisible;
-        if (Aero::UIElement* element =
-                ::Aero::TryCast<::Aero::UIElement>(rootVisual);
-            element != nullptr) {
-            effectivelyVisible =
-                ancestorsVisible &&
-                element->GetVisibility() ==
-                    Aero::Visibility::Visible;
-        }
-        AttachTextLayout(
-            *rootVisual,
-            service,
-            invalidate && effectivelyVisible);
-        for (Aero::Media::Visual* child :
-             (*rootVisual).RenderChildren()) {
-            VisitTextElements(
-                child,
-                service,
-                invalidate,
-                effectivelyVisible);
-        }
+void ViewFrame::SyncVisualRenderResources(
+    Aero::Media::Visual* rootVisual,
+    ::Aero::Controls::TextBlockLayout* textService,
+    Aero::Render::MeshResources* meshService,
+    bool invalidate,
+    bool ancestorsVisible) noexcept {
+    if (rootVisual == nullptr) return;
+    bool effectivelyVisible = ancestorsVisible;
+    if (Aero::UIElement* element =
+            ::Aero::TryCast<::Aero::UIElement>(rootVisual);
+        element != nullptr) {
+        effectivelyVisible =
+            ancestorsVisible &&
+            element->GetVisibility() ==
+                Aero::Visibility::Visible;
     }
+    const bool shouldInvalidate = invalidate && effectivelyVisible;
+    if (textService != nullptr || !invalidate) {
+        AttachTextLayout(*rootVisual, textService, shouldInvalidate);
+    }
+    if (meshService != nullptr || !invalidate) {
+        AttachPathResources(*rootVisual, meshService, shouldInvalidate);
+    }
+    for (Aero::Media::Visual* child : (*rootVisual).RenderChildren()) {
+        SyncVisualRenderResources(
+            child,
+            textService,
+            meshService,
+            invalidate,
+            effectivelyVisible);
+    }
+}
+
+void ViewFrame::VisitTextElements(
+    Aero::Media::Visual* rootVisual,
+    ::Aero::Controls::TextBlockLayout* service,
+    bool invalidate,
+    bool ancestorsVisible) noexcept {
+    SyncVisualRenderResources(rootVisual, service, nullptr, invalidate, ancestorsVisible);
+}
 
 void ViewFrame::VisitPaths(
-        Aero::Media::Visual* rootVisual,
-        Aero::Render::MeshResources* service,
-        bool invalidate,
-        bool ancestorsVisible) noexcept {
-        if (rootVisual == nullptr) return;
-        bool effectivelyVisible = ancestorsVisible;
-        if (Aero::UIElement* element =
-                ::Aero::TryCast<::Aero::UIElement>(rootVisual);
-            element != nullptr) {
-            effectivelyVisible =
-                ancestorsVisible &&
-                element->GetVisibility() ==
-                    Aero::Visibility::Visible;
-        }
-        AttachPathResources(
-            *rootVisual,
-            service,
-            invalidate && effectivelyVisible);
-        for (Aero::Media::Visual* child :
-             (*rootVisual).RenderChildren()) {
-            VisitPaths(
-                child,
-                service,
-                invalidate,
-                effectivelyVisible);
-        }
-    }
+    Aero::Media::Visual* rootVisual,
+    Aero::Render::MeshResources* service,
+    bool invalidate,
+    bool ancestorsVisible) noexcept {
+    SyncVisualRenderResources(rootVisual, nullptr, service, invalidate, ancestorsVisible);
+}
 
 void ViewFrame::TextLifecycleHook(
         const Aero::ElementTreeLifecycleEvent& event,
@@ -157,8 +148,8 @@ void ViewFrame::TextLifecycleHook(
         }
         runtime->AttachTextLayout(
             *event.node,
-            event.loaded && runtime->text != nullptr
-                ? runtime->text->Layout()
+            event.loaded && runtime->Text() != nullptr
+                ? runtime->Text()->Layout()
                 : nullptr);
         runtime->AttachPathResources(
             *event.node,

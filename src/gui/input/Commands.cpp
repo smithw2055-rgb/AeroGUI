@@ -89,40 +89,34 @@ Base::StringView OwnerDottedSegment(Base::StringView value) noexcept {
 
 } // namespace
 
-Base::Result<void> RoutedCommand::RegisterStatic(
+void RoutedCommand::RegisterStatic(
     Meta::TypeId ownerType,
     Base::StringView memberName) noexcept {
     if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Static routed command requires an owner type and member name");
+        return;
     }
     std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
     for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
         if (entry.ownerType == ownerType &&
             entry.memberName.View() == memberName) {
-            return {};
+            return;
         }
     }
-    Base::Result<Base::Ref<RoutedCommand>> created =
+    Base::Ref<RoutedCommand> created =
         Base::MakeRef<RoutedCommand>(memberName);
-    if (!created) return created.GetStatus();
+    if (!created) return;
     StaticRoutedCommandEntry entry;
     entry.ownerType = ownerType;
-    Base::Result<void> assigned = entry.memberName.Assign(memberName);
-    if (!assigned) return assigned.GetStatus();
-    entry.command = std::move(created).Value();
+    if (!entry.memberName.Assign(memberName)) return;
+    entry.command = std::move(created);
     StaticRoutedCommands().PushBack(std::move(entry));
-    return {};
 }
 
-Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
+Base::Ref<RoutedCommand> RoutedCommand::ResolveStatic(
     Meta::TypeId ownerType,
     Base::StringView memberName) noexcept {
     if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Static routed command requires an owner type and member name");
+        return {};
     }
     std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
     for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
@@ -131,12 +125,10 @@ Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
             return entry.command;
         }
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        "Static routed command member is not registered");
+    return {};
 }
 
-Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveAuthored(
+Base::Ref<RoutedCommand> RoutedCommand::ResolveAuthored(
     Base::StringView name) noexcept {
     Base::StringView authored = name;
     std::uint32_t begin = 0U;
@@ -153,9 +145,7 @@ Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveAuthored(
     }
     authored = authored.Substr(begin, end - begin);
     if (authored.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Command name cannot be empty");
+        return {};
     }
     const Base::StringView owner = OwnerDottedSegment(authored);
     const Base::StringView member = owner.Empty()
@@ -184,95 +174,91 @@ Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveAuthored(
             return entry.command;
         }
     }
-    Base::Result<Base::Ref<RoutedCommand>> created =
+    Base::Ref<RoutedCommand> created =
         Base::MakeRef<RoutedCommand>(member);
-    if (!created) return created.GetStatus();
+    if (!created) return {};
     InternedCommandEntry interned;
-    Base::Result<void> assigned = interned.name.Assign(member);
-    if (!assigned) return assigned.GetStatus();
-    interned.command = created.Value();
+    if (!interned.name.Assign(member)) return {};
+    interned.command = created;
     InternedCommands().PushBack(std::move(interned));
     return created;
 }
 
-Base::Result<void> ApplicationCommands::RegisterDefaults() noexcept {
+void ApplicationCommands::RegisterDefaults() noexcept {
     constexpr Base::StringView names[] = {
         "Cut", "Copy", "Paste", "Undo", "Redo", "Delete", "Find", "Replace",
         "SelectAll", "Help", "New", "Open", "Save", "SaveAs", "Print",
         "PrintPreview", "Properties", "Close", "Stop", "ContextMenu",
         "CorrectionList", "NotACommand"};
     for (Base::StringView commandName : names) {
-        Base::Result<void> registered =
-            RoutedCommand::RegisterStatic(StaticTypeId(), commandName);
-        if (!registered) return registered.GetStatus();
+        RoutedCommand::RegisterStatic(StaticTypeId(), commandName);
     }
-    return {};
 }
 
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Cut() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Cut() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Cut");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Copy() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Copy() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Copy");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Paste() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Paste() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Paste");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Undo() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Undo() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Undo");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Redo() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Redo() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Redo");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Delete() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Delete() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Delete");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Find() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Find() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Find");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Replace() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Replace() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Replace");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::SelectAll() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::SelectAll() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "SelectAll");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Help() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Help() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Help");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::New() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::New() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "New");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Open() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Open() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Open");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Save() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Save() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Save");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::SaveAs() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::SaveAs() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "SaveAs");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Print() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Print() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Print");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::PrintPreview() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::PrintPreview() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "PrintPreview");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Properties() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Properties() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Properties");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Close() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Close() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Close");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::Stop() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::Stop() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "Stop");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::ContextMenu() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::ContextMenu() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "ContextMenu");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::CorrectionList() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::CorrectionList() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "CorrectionList");
 }
-Base::Result<Base::Ref<RoutedCommand>> ApplicationCommands::NotACommand() noexcept {
+Base::Ref<RoutedCommand> ApplicationCommands::NotACommand() noexcept {
     return RoutedCommand::ResolveStatic(StaticTypeId(), "NotACommand");
 }
 
@@ -444,10 +430,11 @@ Base::Result<void> CommandBinding::Finalize() noexcept {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "CommandBinding requires Command");
     }
-    Base::Result<Base::Ref<RoutedCommand>> command =
-        RoutedCommand::ResolveAuthored(authored_->commandName.View());
-    if (!command) return command.GetStatus();
-    command_ = std::move(command).Value();
+    command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
+    if (!command_) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "CommandBinding requires Command");
+    }
     ReleaseAuthored();
     return {};
 }
@@ -529,21 +516,22 @@ Base::Result<void> KeyBinding::Finalize() noexcept {
                 "KeyBinding requires Command and Key");
         }
         if (!command_) {
-            Base::Result<Base::Ref<RoutedCommand>> command =
-                RoutedCommand::ResolveAuthored(authored_->commandName.View());
-            if (!command) return command.GetStatus();
-            command_ = std::move(command).Value();
+            command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
+            if (!command_) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+                    "KeyBinding requires Command and Key");
+            }
         }
         Base::Result<std::uint32_t> key = ParseKeyName(authored_->keyName.View());
         if (!key) return key.GetStatus();
         Base::Result<std::uint32_t> modifiers = ParseModifiersName(
             authored_->modifiersName.View());
         if (!modifiers) return modifiers.GetStatus();
-        Base::Result<Base::Ref<KeyGesture>> gesture =
+        Base::Ref<KeyGesture> gesture =
             Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
-        if (!gesture) return gesture.GetStatus();
+        if (!gesture) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
         command_->AddInputGesture(
-            Base::Ref<InputGesture>(std::move(gesture).Value()));
+            Base::Ref<InputGesture>(std::move(gesture)));
     }
     finalized_ = true;
     ReleaseAuthored();
@@ -595,10 +583,11 @@ Base::Result<void> MouseBinding::Finalize() noexcept {
         return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
             "MouseBinding requires Command");
     }
-    Base::Result<Base::Ref<RoutedCommand>> command =
-        RoutedCommand::ResolveAuthored(authored_->commandName.View());
-    if (!command) return command.GetStatus();
-    command_ = std::move(command).Value();
+    command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
+    if (!command_) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "MouseBinding requires Command");
+    }
     finalized_ = true;
     ReleaseAuthored();
     return {};
@@ -608,16 +597,14 @@ void RoutedUICommand::SetText(Base::StringView value) noexcept {
     static_cast<void>(text_.Assign(value));
 }
 
-Base::Result<bool> RoutedCommand::CanExecute(
+bool RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
         ? ElementTree::InputOf(*target)
         : nullptr;
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "RoutedCommand requires a loaded command target");
+        return false;
     }
     return input->CanExecute(*this, parameter, *target);
 }
@@ -773,7 +760,7 @@ Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     return inputBindings_.Back().handle;
 }
 
-Base::Result<bool> CommandState::CanExecute(
+bool CommandState::CanExecute(
     ICommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
@@ -792,21 +779,19 @@ Base::Result<bool> CommandState::Execute(
         return Execute(
             static_cast<RoutedCommand&>(command), parameter, target);
     }
-    Base::Result<bool> allowed = command.CanExecute(parameter, &target);
-    if (!allowed || !allowed.Value()) {
-        return allowed ? Base::Result<bool>(false)
-                       : Base::Result<bool>(allowed.GetStatus());
+    if (!command.CanExecute(parameter, &target)) {
+        return false;
     }
     command.Execute(parameter, &target);
     return true;
 }
 
-Base::Result<bool> CommandState::CanExecute(
+bool CommandState::CanExecute(
     RoutedCommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
     Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
+    if (!verified) return false;
     PruneStaleBindings();
 
     CanExecuteRoutedEventArgs args;
@@ -840,7 +825,7 @@ Base::Result<bool> CommandState::CanExecute(
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return args.GetCanExecute();
 }
 
@@ -849,10 +834,8 @@ Base::Result<bool> CommandState::Execute(
     const Meta::Value& parameter,
     UIElement& target) noexcept {
     if (!target.GetIsEnabled()) return false;
-    Base::Result<bool> allowed = CanExecute(command, parameter, target);
-    if (!allowed || !allowed.Value()) {
-        return allowed ? Base::Result<bool>(false)
-                       : Base::Result<bool>(allowed.GetStatus());
+    if (!CanExecute(command, parameter, target)) {
+        return false;
     }
 
     PruneStaleBindings();
@@ -929,12 +912,7 @@ Base::Result<bool> CommandState::ProcessInput(
                 }
                 RoutedCommand* command = record.command.Get();
                 if (command == nullptr || !command->MatchesInput(input)) continue;
-                Base::Result<bool> allowed = CanExecute(*command, Meta::Value::Unset(), target);
-                if (!allowed) {
-                    result = allowed.GetStatus();
-                    return false;
-                }
-                if (allowed.Value()) {
+                if (CanExecute(*command, Meta::Value::Unset(), target)) {
                     result = Execute(*command, Meta::Value::Unset(), target);
                     return false;
                 }
@@ -1026,13 +1004,17 @@ Base::Result<Value> ConvertRoutedCommandReference(
             Base::ErrorCode::InvalidArgument,
             "Command reference requires a non-empty routed command name");
     }
-    Base::Result<Base::Ref<RoutedCommand>> command =
+    Base::Ref<RoutedCommand> command =
         RoutedCommand::ResolveAuthored(name);
-    if (!command) return command.GetStatus();
+    if (!command) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Static routed command member is not registered");
+    }
     return Value::FromObject(
         targetType,
         Base::Ref<Base::Object>(
-            std::move(command).Value()));
+            std::move(command)));
 }
 } // namespace
 } // namespace Aero::MetadataSupport

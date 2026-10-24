@@ -40,6 +40,12 @@ public:
     void DrawRectangleOutline(Base::Rect bounds, const Ref<Brush>& brush, double thickness) noexcept;
     void DrawLine(const Ref<Pen>& pen, Base::Point start, Base::Point end) noexcept;
     void DrawGeometry(const Ref<Brush>& brush, const Ref<Pen>& pen, const Geometry& geometry) noexcept;
+    void DrawEllipse(const Ref<Brush>& brush, const Ref<Pen>& pen, Base::Point center,
+        double radiusX, double radiusY) noexcept;
+    void DrawRoundedRectangle(const Ref<Brush>& brush, const Ref<Pen>& pen, Base::Rect bounds,
+        double radiusX, double radiusY) noexcept;
+    void DrawImage(std::uint64_t imageId, Base::Rect bounds,
+        Base::Rect sourceUv = {0.0, 0.0, 1.0, 1.0}) noexcept;
 
 private:
     friend struct Bridge;

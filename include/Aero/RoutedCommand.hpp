@@ -24,7 +24,7 @@ public:
     bool MatchesInput(const KeyboardInput& input) const noexcept;
     bool MatchesPointer(const PointerInput& input) const noexcept;
 
-    Result<bool> CanExecute(const Value& parameter, UIElement* target = nullptr) noexcept override;
+    bool CanExecute(const Value& parameter, UIElement* target = nullptr) noexcept override;
     void Execute(const Value& parameter, UIElement* target = nullptr) noexcept override;
 
     void InvalidateCanExecute() const noexcept { RaiseCanExecuteChanged(); }
@@ -32,11 +32,11 @@ public:
     // Registers and resolves process-stable WPF-style static command members.
     // Module metadata registers the supported names once; XAML and control
     // bindings then resolve the same command object identity.
-    static Result<void> RegisterStatic(Meta::TypeId ownerType, StringView memberName) noexcept;
-    static Result<Ref<RoutedCommand>> ResolveStatic(Meta::TypeId ownerType, StringView memberName) noexcept;
+    static void RegisterStatic(Meta::TypeId ownerType, StringView memberName) noexcept;
+    static Ref<RoutedCommand> ResolveStatic(Meta::TypeId ownerType, StringView memberName) noexcept;
     // Interns `Copy`, `ApplicationCommands.Copy`, and other authored names
     // onto one RoutedCommand instance so CommandBinding and KeyBinding match.
-    static Result<Ref<RoutedCommand>> ResolveAuthored(StringView name) noexcept;
+    static Ref<RoutedCommand> ResolveAuthored(StringView name) noexcept;
 
 private:
     friend class KeyBinding;

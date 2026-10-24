@@ -48,6 +48,38 @@ struct Status  {
     static constexpr Status OutOfMemory(const char* message = "Out of memory") noexcept { return {ErrorCode::OutOfMemory, message}; }
 };
 
+namespace Detail {
+
+template<typename, typename = void>
+struct HasArrowOperator : std::false_type {};
+
+template<typename U>
+struct HasArrowOperator<U, std::void_t<decltype(std::declval<U&>().operator->())>> : std::true_type {};
+
+template<typename U>
+constexpr decltype(auto) ArrowHelper(U& val) noexcept {
+    if constexpr (std::is_pointer_v<U>) {
+        return val;
+    } else if constexpr (HasArrowOperator<U>::value) {
+        return val.operator->();
+    } else {
+        return &val;
+    }
+}
+
+template<typename U>
+constexpr decltype(auto) ArrowHelper(const U& val) noexcept {
+    if constexpr (std::is_pointer_v<U>) {
+        return val;
+    } else if constexpr (HasArrowOperator<const U>::value) {
+        return val.operator->();
+    } else {
+        return &val;
+    }
+}
+
+} // namespace Detail
+
 template<class T> class Result  {
 public:
     Result(const T& value) : hasValue_(true) { new (&storage_.value) T(value); }
@@ -117,6 +149,28 @@ public:
     T&& Value() && noexcept {
         AERO_ASSERT(hasValue_);
         return std::move(storage_.value);
+    }
+
+    decltype(auto) operator*() & noexcept {
+        return Value();
+    }
+
+    decltype(auto) operator*() const& noexcept {
+        return Value();
+    }
+
+    decltype(auto) operator*() && noexcept {
+        return std::move(*this).Value();
+    }
+
+    decltype(auto) operator->() noexcept {
+        AERO_ASSERT(hasValue_);
+        return Detail::ArrowHelper(storage_.value);
+    }
+
+    decltype(auto) operator->() const noexcept {
+        AERO_ASSERT(hasValue_);
+        return Detail::ArrowHelper(storage_.value);
     }
 
     Status GetStatus() const noexcept { return hasValue_ ? Status::Ok() : storage_.status; }

@@ -98,8 +98,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<GradientStopCollection>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<GradientStopCollection>();
     }
 };
 
@@ -140,8 +139,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<MonochromeShader>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<MonochromeShader>();
     }
 
 private:
@@ -163,8 +161,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<ConicGradientShader>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<ConicGradientShader>();
     }
 
 private:
@@ -183,8 +180,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<WavesShader>();
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<WavesShader>();
     }
 };
 

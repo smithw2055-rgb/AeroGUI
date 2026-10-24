@@ -263,11 +263,10 @@ StoryboardHost::ExecuteAnimationAction(
                 Base::ErrorCode::InvalidState,
                 "InvokeCommandAction owner is not a UIElement");
         }
-        Base::Result<bool> canExecute = Input() != nullptr
+        const bool canExecute = Input() != nullptr
             ? Input()->CanExecute(*command, parameter, *target)
             : command->CanExecute(parameter, target);
-        if (!canExecute) return canExecute.GetStatus();
-        if (!canExecute.Value()) return {};
+        if (!canExecute) return {};
         if (Input() != nullptr) {
             Base::Result<bool> executed =
                 Input()->Execute(*command, parameter, *target);
@@ -343,12 +342,12 @@ StoryboardHost::ExecuteAnimationAction(
                 "SetFocusAction target is unavailable");
         }
         if (!target->GetIsLoaded()) {
-            if (view->focus == nullptr) {
+            if (view->Focus() == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotInitialized,
                     "View focus host is unavailable");
             }
-            return view->focus->QueueFocus(*target);
+            return view->Focus()->QueueFocus(*target);
         }
         if (!target->GetIsEnabled()) return {};
         Base::Result<bool> focused = Input()->SetFocus(target);
@@ -404,30 +403,14 @@ StoryboardHost::ExecuteAnimationAction(
                 Base::ErrorCode::InvalidArgument,
                 "PlaySoundAction Volume must be between zero and one");
         }
-        Base::Result<void> initialized = view->audio.Initialize();
-        if (!initialized &&
-            (initialized.GetStatus().code ==
-                 Base::ErrorCode::Unsupported ||
-             initialized.GetStatus().code ==
-                 Base::ErrorCode::InvalidState)) {
+        if (!view->audio.Initialize()) {
             // Audio is optional for headless and provider-free hosts.
             return {};
         }
-        if (!initialized) return initialized.GetStatus();
         view->audio.SetEffectsVolume(
             static_cast<float>(volume));
-        Base::Result<void> played =
-            view->audio.PlayEffect(playSound.GetSource());
-        if (!played &&
-            (played.GetStatus().code ==
-                 Base::ErrorCode::InvalidState ||
-             played.GetStatus().code ==
-                 Base::ErrorCode::NotFound)) {
-            // A missing device or authored file must not poison the UI
-            // trigger pipeline.
-            return {};
-        }
-        return played;
+        view->audio.PlayEffect(playSound.GetSource());
+        return {};
     }
 
     if (type == Interactivity::RemoveElementAction::StaticTypeId()) {

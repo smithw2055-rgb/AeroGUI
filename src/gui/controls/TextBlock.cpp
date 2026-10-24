@@ -279,7 +279,7 @@ void TextBlock::SetInlineValue(
     Base::Result<Base::Ref<Documents::Run>> created =
         Base::MakeRef<Documents::Run>();
     if (!created) return;
-    created.Value()->SetText(value.AsString());
+    created->SetText(value.AsString());
     AddOwnedInline(Base::Ref<Base::Object>(created.Value()));
 }
 void TextBlock::AddOwnedInline(

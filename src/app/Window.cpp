@@ -18,53 +18,37 @@ void Window::InitializeComponent(
     static_cast<void>(componentUri_.Assign(componentUri));
 }
 
-Base::Result<void> Window::Show() noexcept {
+void Window::Show() noexcept {
     if (host_ == nullptr) {
         Application* application = Application::Current();
-        if (application == nullptr || application->host_ == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Window.Show requires a running Application host");
+        if (application != nullptr && application->host_ != nullptr) {
+            static_cast<void>(application->host_->ShowWindow(*this));
         }
-        Base::Result<void> attached =
-            application->host_->ShowWindow(*this);
-        if (!attached) return attached.GetStatus();
     }
     if (host_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Window is not attached to an application host");
+        return;
     }
     Base::Result<void> shown = host_->Show();
     if (shown) {
         NotifySourceInitialized();
         NotifyActivated();
     }
-    return shown;
 }
 
-Base::Result<bool> Window::ShowDialog() noexcept {
+bool Window::ShowDialog() noexcept {
     if (dialogActive_ || GetIsOpen()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Window.ShowDialog requires a window that is not already open");
+        return false;
     }
     dialogActive_ = true;
-    Base::Result<void> shown = Show();
-    if (!shown) {
-        dialogActive_ = false;
-        return shown.GetStatus();
-    }
+    Show();
     Application* application = Application::Current();
     if (application == nullptr || application->host_ == nullptr) {
         dialogActive_ = false;
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Window.ShowDialog requires a running Application host");
+        return false;
     }
     Base::Result<bool> result = application->host_->RunDialog(*this);
     dialogActive_ = false;
-    return result;
+    return result.HasValue() ? result.Value() : false;
 }
 
 Nullable<bool> Window::GetDialogResult() const noexcept {

@@ -55,16 +55,8 @@ inline Base::Status ViewInvalidState(const char* message) noexcept {
     return Base::Status::InvalidState(message);
 }
 
-inline Base::Status ViewApiInvalidState(const char* message) noexcept {
-    return ViewInvalidState(message);
-}
-
 inline Base::Status ViewNotInitialized(const char* message) noexcept {
     return Base::Status::NotInitialized(message);
-}
-
-inline Base::Status AeroNotInitialized(const char* message) noexcept {
-    return ViewNotInitialized(message);
 }
 
 inline Base::Result<void> ValidateViewport(
@@ -208,21 +200,19 @@ struct ViewFrame {
     ViewViewport viewport;
 
     // Frame ownership + ElementTree hub.
-    // Domain callers reach Layout/Bindings/Styles/Animations/… through
-    // ElementTree (VisualTree()); ViewFrame keeps ownership for hosts that are
-    // not yet on the tree, and direct accessors that forward to engines.
+    // Domain callers reach engines through direct inline accessors that forward
+    // to engines. ViewFrame keeps ownership of engines without redundant mirrors.
     ViewEngines* engines = nullptr;
-    Meta::EffectiveValueEngine* values = nullptr;
-    Aero::ElementTree* tree = nullptr;
-    Aero::Media::ImageCache* images = nullptr;
-    Aero::Text::TextPipeline* text = nullptr;
 
-    InteractivityEngine* interactivity = nullptr;
-    StoryboardHost* storyboards = nullptr;
-    OverlayHost* overlays = nullptr;
-    FocusHost* focus = nullptr;
-    ResourceHost* resources = nullptr;
-
+    Meta::EffectiveValueEngine* Values() const noexcept;
+    Aero::ElementTree* Tree() const noexcept;
+    Aero::Media::ImageCache* Images() const noexcept;
+    Aero::Text::TextPipeline* Text() const noexcept;
+    InteractivityEngine* Interactivity() const noexcept;
+    StoryboardHost* Storyboards() const noexcept;
+    OverlayHost* Overlays() const noexcept;
+    FocusHost* Focus() const noexcept;
+    ResourceHost* Resources() const noexcept;
     Aero::LayoutEngine* Layout() const noexcept;
     ::Aero::Render::RenderTree* RenderTree() const noexcept;
     Aero::BindingEngine* Bindings() const noexcept;
@@ -259,6 +249,8 @@ struct ViewFrame {
 
     Base::Vector<Controls::ItemContainerGenerator*>
         itemGenerators;
+    Base::Vector<Controls::ItemsControl*>
+        trackedItemsControls;
     Base::Vector<Aero::VisualHandle>
         pendingGeneratedVisuals;
     bool deferGeneratedActivation = false;
@@ -310,6 +302,13 @@ struct ViewFrame {
         Aero::Media::Visual& node,
         Aero::Render::MeshResources* service,
         bool invalidate = false) noexcept;
+
+    void SyncVisualRenderResources(
+        Aero::Media::Visual* rootVisual,
+        ::Aero::Controls::TextBlockLayout* textService,
+        Aero::Render::MeshResources* meshService,
+        bool invalidate = false,
+        bool ancestorsVisible = true) noexcept;
 
     void VisitTextElements(
         Aero::Media::Visual* rootVisual,
@@ -519,10 +518,6 @@ Base::Result<void> AdoptLoadedComponent(
 } // namespace Aero
 
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/interactivity/InteractivityEngine.hpp"
-#include "gui/media/StoryboardHost.hpp"
-#include "gui/input/OverlayHost.hpp"
-#include "gui/styles/ResourceHost.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
 
@@ -556,5 +551,60 @@ struct ViewEngines {
         ::Aero::Meta::Registry& metadata) noexcept;
     ~ViewEngines() noexcept;
 };
+
+inline Meta::EffectiveValueEngine* ViewFrame::Values() const noexcept {
+    return engines != nullptr ? &engines->values : nullptr;
+}
+inline Aero::ElementTree* ViewFrame::Tree() const noexcept {
+    return engines != nullptr ? &engines->tree : nullptr;
+}
+inline Aero::Media::ImageCache* ViewFrame::Images() const noexcept {
+    return engines != nullptr ? &engines->images : nullptr;
+}
+inline Aero::Text::TextPipeline* ViewFrame::Text() const noexcept {
+    return engines != nullptr ? &engines->text : nullptr;
+}
+inline InteractivityEngine* ViewFrame::Interactivity() const noexcept {
+    return engines != nullptr ? &engines->interactivity : nullptr;
+}
+inline StoryboardHost* ViewFrame::Storyboards() const noexcept {
+    return engines != nullptr ? &engines->storyboards : nullptr;
+}
+inline OverlayHost* ViewFrame::Overlays() const noexcept {
+    return engines != nullptr ? &engines->overlays : nullptr;
+}
+inline FocusHost* ViewFrame::Focus() const noexcept {
+    return engines != nullptr ? &engines->focus : nullptr;
+}
+inline ResourceHost* ViewFrame::Resources() const noexcept {
+    return engines != nullptr ? &engines->resources : nullptr;
+}
+inline Aero::LayoutEngine* ViewFrame::Layout() const noexcept {
+    return engines != nullptr ? &engines->layout : nullptr;
+}
+inline ::Aero::Render::RenderTree* ViewFrame::RenderTree() const noexcept {
+    return engines != nullptr ? &engines->renderTree : nullptr;
+}
+inline Aero::BindingEngine* ViewFrame::Bindings() const noexcept {
+    return engines != nullptr ? &engines->bindings : nullptr;
+}
+inline Aero::StyleEngine* ViewFrame::Styles() const noexcept {
+    return engines != nullptr ? &engines->styles : nullptr;
+}
+inline Aero::EventRouter* ViewFrame::Events() const noexcept {
+    return engines != nullptr ? &engines->events : nullptr;
+}
+inline Aero::InputManager* ViewFrame::Input() const noexcept {
+    return engines != nullptr ? &engines->input : nullptr;
+}
+inline Aero::AnimationEngine* ViewFrame::Animations() const noexcept {
+    return engines != nullptr ? &engines->animations : nullptr;
+}
+inline VisualStateManager* ViewFrame::VisualStates() const noexcept {
+    return engines != nullptr ? engines->visualStates : nullptr;
+}
+inline Aero::Controls::TemplateEngine* ViewFrame::Templates() const noexcept {
+    return engines != nullptr ? &engines->templates : nullptr;
+}
 
 } // namespace Aero

@@ -210,7 +210,7 @@ Base::Result<void> DependencyObject::ApplyChange(
             }
             return block.GetStatus();
         }
-        block.Value()->currentValue = *requestedValue;
+        block->currentValue = *requestedValue;
         entry.SetHasCurrent(true);
         break;
     }
@@ -475,7 +475,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         Base::Result<StoredValueRare*> block =
             entry.EnsureRare(GetDispatcher().GetPropertySlab());
         if (block) {
-            block.Value()->localBackup = localValue;
+            block->localBackup = localValue;
         }
     } else if (entry.rare != nullptr) {
         entry.rare->localBackup = PropertyValue::Unset();
@@ -583,11 +583,11 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
         "Animation values cannot be Unset");
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
     if (!ensured) return ensured.GetStatus();
-    Base::Result<StoredValueRare*> block = ensured.Value()->EnsureRare(
+    Base::Result<StoredValueRare*> block = ensured->EnsureRare(
         GetDispatcher().GetPropertySlab());
     if (!block) return block.GetStatus();
-    block.Value()->animationValue = value;
-    ensured.Value()->SetHasAnimation(true);
+    block->animationValue = value;
+    ensured->SetHasAnimation(true);
     return {};
 }
 
@@ -639,7 +639,7 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     Base::Result<StoredValueRare*> block =
         entry.EnsureRare(GetDispatcher().GetPropertySlab());
     if (!block) return block.GetStatus();
-    block.Value()->localExpression = expression;
+    block->localExpression = expression;
     entry.SetHasExpression(true);
     entry.ClearLocal();
     entry.ClearCurrent();
@@ -704,7 +704,7 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     if (!providers) {
         return providers.GetStatus();
     }
-    if (!providers.Value()->Set(token, value)) {
+    if (!providers->Set(token, value)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "A property contribution requires a valid token and value");

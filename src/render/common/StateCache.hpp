@@ -6,6 +6,70 @@
 
 namespace Aero::Render {
 
+struct VertexOffsets {
+    std::int8_t colorOffset = -1;
+    std::int8_t tex0Offset = -1;
+    std::int8_t tex1Offset = -1;
+    std::int8_t coverageOffset = -1;
+    std::int8_t rectOffset = -1;
+    std::int8_t tileOffset = -1;
+    std::int8_t imagePosOffset = -1;
+    std::uint8_t stride = 0;
+};
+
+constexpr VertexOffsets ComputeVertexOffsets(uint8_t format) noexcept {
+    VertexOffsets offsets{};
+    if (format >= Shader::Vertex::Format::Count) {
+        offsets.colorOffset = 8;
+        offsets.tex0Offset = 12;
+        offsets.coverageOffset = 20;
+        offsets.stride = 24;
+        return offsets;
+    }
+    const uint8_t attrs = AttributesForFormat[format];
+    uint8_t currentOffset = 8;
+    for (uint32_t i = 1; i < Shader::Vertex::Format::Attr::Count; ++i) {
+        if (attrs & (1U << i)) {
+            if (i == Shader::Vertex::Format::Attr::Color) {
+                offsets.colorOffset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::Tex0) {
+                offsets.tex0Offset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::Tex1) {
+                offsets.tex1Offset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::Coverage) {
+                offsets.coverageOffset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::Rect) {
+                offsets.rectOffset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::Tile) {
+                offsets.tileOffset = static_cast<int8_t>(currentOffset);
+            } else if (i == Shader::Vertex::Format::Attr::ImagePos) {
+                offsets.imagePosOffset = static_cast<int8_t>(currentOffset);
+            }
+            currentOffset += SizeForType[TypeForAttr[i]];
+        }
+    }
+    offsets.stride = currentOffset;
+    return offsets;
+}
+
+struct FormatOffsetsTable {
+    VertexOffsets data[Shader::Vertex::Format::Count + 1];
+    constexpr FormatOffsetsTable() : data{} {
+        for (uint8_t i = 0; i <= Shader::Vertex::Format::Count; ++i) {
+            data[i] = ComputeVertexOffsets(i);
+        }
+    }
+};
+
+inline constexpr FormatOffsetsTable kFormatOffsetsTable{};
+
+inline constexpr const VertexOffsets& GetVertexOffsets(uint8_t format) noexcept {
+    const uint8_t idx = (format < Shader::Vertex::Format::Count && SizeForFormat[format] != 0U)
+        ? format
+        : static_cast<uint8_t>(Shader::Vertex::Format::Count);
+    return kFormatOffsetsTable.data[idx];
+}
+
 /// Logical blend key shared by D3D11 (prebuilt blend-state table) and OpenGL33
 /// (glEnable/glBlendFuncSeparate). colorEnable maps to D3D write-mask / GL
 /// ColorMask.

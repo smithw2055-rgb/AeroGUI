@@ -565,6 +565,55 @@ public:
         return *this;
     }
 
+    template<class TItem, auto AddMethod, auto ClearMethod>
+    TypeBuilder& Collection(StringView name,
+        PropertyFlags propertyFlags = PropertyFlags::Structural,
+        ContentFlags contentFlags = ContentFlags::None) noexcept {
+        ContentWriteCallback write = [](Object& owner, const Ref<Object>& value, void*) noexcept {
+            if (!value) return;
+            auto& host = static_cast<T&>(owner);
+            if constexpr (std::is_invocable_v<decltype(AddMethod), T&, Ref<Object>>) {
+                static_cast<void>((host.*AddMethod)(value));
+            } else if constexpr (std::is_invocable_v<decltype(AddMethod), T&, Ref<TItem>>) {
+                Ref<TItem> retained = Ref<TItem>::TryFromBorrowed(static_cast<TItem&>(*value));
+                if (retained) {
+                    static_cast<void>((host.*AddMethod)(std::move(retained)));
+                }
+            } else if constexpr (std::is_invocable_v<decltype(AddMethod), T&, const TItem&>) {
+                static_cast<void>((host.*AddMethod)(static_cast<const TItem&>(*value)));
+            }
+        };
+        ContentClearCallback clear = [](Object& owner, void*) noexcept {
+            static_cast<void>((static_cast<T&>(owner).*ClearMethod)());
+        };
+        builder_.Collection(name, TypeOf<TItem>(), write, clear, propertyFlags, contentFlags, nullptr);
+        return *this;
+    }
+
+    template<class TItem, auto AddMethod, auto ClearMethod>
+    TypeBuilder& Content(StringView name,
+        ContentKind kind = ContentKind::Collection,
+        ContentFlags contentFlags = ContentFlags::None) noexcept {
+        ContentWriteCallback write = [](Object& owner, const Ref<Object>& value, void*) noexcept {
+            if (!value) return;
+            auto& host = static_cast<T&>(owner);
+            if constexpr (std::is_invocable_v<decltype(AddMethod), T&, Ref<Object>>) {
+                static_cast<void>((host.*AddMethod)(value));
+            } else if constexpr (std::is_invocable_v<decltype(AddMethod), T&, Ref<TItem>>) {
+                Ref<TItem> retained = Ref<TItem>::TryFromBorrowed(static_cast<TItem&>(*value));
+                if (retained) {
+                    static_cast<void>((host.*AddMethod)(std::move(retained)));
+                }
+            } else if constexpr (std::is_invocable_v<decltype(AddMethod), T&, const TItem&>) {
+                static_cast<void>((host.*AddMethod)(static_cast<const TItem&>(*value)));
+            }
+        };
+        ContentClearCallback clear = [](Object& owner, void*) noexcept {
+            static_cast<void>((static_cast<T&>(owner).*ClearMethod)());
+        };
+        return Content(name, TypeOf<TItem>(), kind, write, clear, contentFlags, nullptr);
+    }
+
     template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
         const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;

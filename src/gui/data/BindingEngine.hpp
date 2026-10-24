@@ -292,8 +292,6 @@ public:
     void RecordError(Base::Status status) noexcept {
         if (!status.IsOk()) {
             lastError_ = status;
-            std::fprintf(stderr, "[BindingError] %s\n",
-                status.message ? status.message : "?");
         }
     }
 

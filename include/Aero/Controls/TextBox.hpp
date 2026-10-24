@@ -41,16 +41,16 @@ public:
     virtual void SelectAll() noexcept;
     virtual void Undo() noexcept;
     virtual void Redo() noexcept;
-    Result<void> AttachScrollViewer(ScrollViewer* viewer) noexcept;
+    void AttachScrollViewer(ScrollViewer* viewer) noexcept;
     Result<void> BeginComposition() noexcept override;
     Result<void> UpdateComposition(StringView text) noexcept override;
     Result<void> CommitComposition(StringView text) noexcept override;
     Result<void> CancelComposition() noexcept override;
     std::uint32_t HitTestText(Point position) const noexcept;
-    Result<bool> LineHorizontal(double direction) noexcept override;
-    Result<bool> LineVertical(double direction) noexcept override;
-    Result<bool> PageHorizontal(double direction) noexcept override;
-    Result<bool> PageVertical(double direction) noexcept override;
+    bool LineHorizontal(double direction) noexcept override;
+    bool LineVertical(double direction) noexcept override;
+    bool PageHorizontal(double direction) noexcept override;
+    bool PageVertical(double direction) noexcept override;
 
     TextSelection GetSelection() const noexcept;
     virtual void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
@@ -94,7 +94,7 @@ protected:
     void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs& args);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
-    virtual Result<void> CommitModelText() noexcept;
+    virtual void CommitModelText() noexcept;
     virtual bool GetAcceptsReturnCore() const noexcept { return false; }
     virtual bool GetIsReadOnlyCore() const noexcept { return false; }
     virtual std::uint32_t GetMaxLengthCore() const noexcept { return 0U; }
@@ -106,23 +106,23 @@ protected:
     virtual Ref<Media::Brush> GetPlaceholderForegroundCore() const noexcept { return {}; }
     virtual FontStyle GetFontStyleCore() const noexcept { return FontStyle::Normal; }
 
-    Result<void> ReplaceSelection(StringView text) noexcept;
-    Result<void> DeleteBackward() noexcept;
-    Result<void> DeleteForward() noexcept;
-    Result<void> CopySelection(Input::IClipboard& clipboard) const noexcept;
-    Result<void> CutSelection(Input::IClipboard& clipboard) noexcept;
-    Result<void> Paste(Input::IClipboard& clipboard) noexcept;
-    Result<void> SelectedText(String& output) const noexcept;
-    Result<void> MoveCaretHorizontal(double direction, bool extend) noexcept;
-    Result<void> MoveCaretLineBoundary(bool end, bool extend) noexcept;
+    void ReplaceSelection(StringView text) noexcept;
+    void DeleteBackward() noexcept;
+    void DeleteForward() noexcept;
+    void CopySelection(Input::IClipboard& clipboard) const noexcept;
+    void CutSelection(Input::IClipboard& clipboard) noexcept;
+    void Paste(Input::IClipboard& clipboard) noexcept;
+    void SelectedText(String& output) const noexcept;
+    void MoveCaretHorizontal(double direction, bool extend) noexcept;
+    void MoveCaretLineBoundary(bool end, bool extend) noexcept;
     void EnsureCaretVisible() noexcept;
-    Result<void> RebuildCaretStops() noexcept;
-    Result<void> SanitizeInput(StringView input, String& output) const noexcept;
-    Result<void> ConstrainManualInput(String& input, const void* target, TextSelection selection) const noexcept;
+    void RebuildCaretStops() noexcept;
+    void SanitizeInput(StringView input, String& output) const noexcept;
+    void ConstrainManualInput(String& input, const void* target, TextSelection selection) const noexcept;
     void ReleaseGlyphRuns() noexcept;
     void UpdateCandidateWindow() noexcept;
-    Result<void> CancelCompositionForFocusLoss() noexcept;
-    Result<void> RenderEditor(::Aero::Media::DrawingContext& context, Size viewport, bool drawCaret, bool isContentHost = false) noexcept;
+    void CancelCompositionForFocusLoss() noexcept;
+    void RenderEditor(::Aero::Media::DrawingContext& context, Size viewport, bool drawCaret, bool isContentHost = false) noexcept;
     void InvalidateEditor() noexcept;
 
     double GetLineHeight() const noexcept;
@@ -229,7 +229,7 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     PropertyValue CoerceValueCore(DependencyPropertyHandle property, const PropertyValue& baseValue) noexcept override;
 
-    Result<void> CommitModelText() noexcept override;
+    void CommitModelText() noexcept override;
     bool GetAcceptsReturnCore() const noexcept override { return GetAcceptsReturn(); }
     bool GetIsReadOnlyCore() const noexcept override { return GetIsReadOnly(); }
     std::uint32_t GetMaxLengthCore() const noexcept override { return GetMaxLength(); }
@@ -276,7 +276,7 @@ protected:
     bool ValidateValueCore(Meta::DependencyPropertyHandle property, const PropertyValue& value) const noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 
-    Result<void> CommitModelText() noexcept override;
+    void CommitModelText() noexcept override;
     std::uint32_t GetMaxLengthCore() const noexcept override { return GetMaxLength(); }
     StringView GetPlaceholderCore() const noexcept override { return GetPlaceholder(); }
 

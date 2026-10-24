@@ -80,14 +80,14 @@ public:
     // headers no longer leak LayoutEngine&.
     void Measure(Size availableSize) noexcept;
     void Arrange(Rect finalRect) noexcept;
-    Result<void> BeginDrag(std::uint32_t pointerId, const Value& data,
+    void BeginDrag(std::uint32_t pointerId, const Value& data,
         Input::DragDropEffects allowedEffects = Input::DragDropEffects::Move) noexcept;
-    Result<bool> CancelDrag() noexcept;
-    Result<void> CapturePointer(std::uint32_t pointerId = 0U) noexcept;
-    Result<bool> ReleasePointer(std::uint32_t pointerId = 0U) noexcept;
-    Result<void> CaptureMouse() noexcept { return CapturePointer(0U); }
-    Result<bool> ReleaseMouseCapture() noexcept { return ReleasePointer(0U); }
-    Result<bool> Focus() noexcept;
+    bool CancelDrag() noexcept;
+    bool CapturePointer(std::uint32_t pointerId = 0U) noexcept;
+    bool ReleasePointer(std::uint32_t pointerId = 0U) noexcept;
+    bool CaptureMouse() noexcept { return CapturePointer(0U); }
+    bool ReleaseMouseCapture() noexcept { return ReleasePointer(0U); }
+    bool Focus() noexcept;
     void AddInputBinding(Ref<Input::InputBinding> binding) noexcept;
     void ClearInputBindings() noexcept;
     void AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;

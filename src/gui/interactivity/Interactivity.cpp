@@ -76,7 +76,7 @@ Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
     if (!created) return created.GetStatus();
     if (!created.Value() ||
         !metadata.Types().IsDerivedFrom(
-            created.Value()->RuntimeType(),
+            created->RuntimeType(),
             Behavior::StaticTypeId())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,

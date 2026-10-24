@@ -392,15 +392,14 @@ bool UIElement::GetIsTabStop() const noexcept {
 }
 
 // from src/gui/controls/Layout.cpp
-Base::Result<bool> UIElement::Focus() noexcept {
+bool UIElement::Focus() noexcept {
     Aero::InputRouter* input =
         ElementTree::InputOf(*this);
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "UIElement Focus requires a mounted View");
+        return false;
     }
-    return input->SetFocus(this);
+    Base::Result<bool> res = input->SetFocus(this);
+    return res.HasValue() ? res.Value() : false;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -858,32 +857,29 @@ void UIElement::SetAllowDrop(bool value) noexcept {
 
 // from src/gui/input/Input.cpp
 
-Base::Result<bool> UIElement::CancelDrag() noexcept {
+bool UIElement::CancelDrag() noexcept {
     Aero::InputRouter* input =
         ElementTree::InputOf(*this);
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "UIElement CancelDrag requires a mounted View");
+        return false;
     }
-    return input->CancelDrag();
+    Base::Result<bool> res = input->CancelDrag();
+    return res.HasValue() ? res.Value() : false;
 }
 
 // from src/gui/input/Input.cpp
 
-Base::Result<void> UIElement::BeginDrag(
+void UIElement::BeginDrag(
     std::uint32_t pointerId,
     const Value& data,
     Input::DragDropEffects allowedEffects) noexcept {
     Aero::InputRouter* input =
         ElementTree::InputOf(*this);
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "UIElement BeginDrag requires a mounted View");
+        return;
     }
-    return input->BeginDrag(
-        *this, pointerId, data, allowedEffects);
+    static_cast<void>(input->BeginDrag(
+        *this, pointerId, data, allowedEffects));
 }
 
 // from src/gui/input/Input.cpp
@@ -894,24 +890,22 @@ bool UIElement::GetIsDragging() const noexcept {
     return input != nullptr && input->IsDragSource(*this);
 }
 
-Base::Result<void> UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
+bool UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "UIElement CapturePointer requires a mounted View");
+        return false;
     }
-    return input->CapturePointer(pointerId, *this);
+    Base::Result<void> res = input->CapturePointer(pointerId, *this);
+    return res.HasValue();
 }
 
-Base::Result<bool> UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
+bool UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "UIElement ReleasePointer requires a mounted View");
+        return false;
     }
-    return input->ReleasePointer(pointerId);
+    Base::Result<bool> res = input->ReleasePointer(pointerId);
+    return res.HasValue() ? res.Value() : false;
 }
 
 UIElement::Rare& UIElement::EnsureRare() noexcept {

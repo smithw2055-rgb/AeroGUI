@@ -29,6 +29,7 @@ ViewFrame::ViewFrame(
       documentCache(&gui->documents),
       xamlProviders(&gui->xamlProviders),
       itemGenerators(&value),
+      trackedItemsControls(&value),
       fragmentMounts(&value),
       componentMounts(&value) {}
 
@@ -36,7 +37,7 @@ Base::Result<void> ViewFrame::ApplyViewport(
         const ViewViewport& next) noexcept {
         ::Aero::Render::RenderTree* renderTree = RenderTree();
         if (renderTree == nullptr) {
-            return AeroNotInitialized(
+            return ViewNotInitialized(
                 "View render tree is unavailable");
         }
         const ViewViewport previous = viewport;
@@ -63,8 +64,8 @@ Base::Result<void> ViewFrame::ApplyViewport(
 
 void ViewFrame::Shutdown() noexcept {
     audio.Shutdown();
-    if (storyboards != nullptr) {
-        storyboards->storyboardSessions.Clear();
+    if (Storyboards() != nullptr) {
+        Storyboards()->storyboardSessions.Clear();
     }
     if (Animations() != nullptr) {
         Animations()->Shutdown();
@@ -75,8 +76,7 @@ void ViewFrame::Shutdown() noexcept {
     BeginDestroyInteractions();
     DetachViewUi(*this);
     FinishDestroyInteractions();
-    VisitTextElements(RootVisual(), nullptr);
-    VisitPaths(RootVisual(), nullptr);
+    SyncVisualRenderResources(RootVisual(), nullptr, nullptr);
     if (HasAttachedRoot()) {
         static_cast<void>(DetachVisualGraph({
             loadedDocument.visualContent.mountEdges.Data(),
@@ -101,34 +101,26 @@ void ViewFrame::Shutdown() noexcept {
             fragmentMounts[index - 1U]);
     }
     fragmentMounts.Clear();
-    if (tree != nullptr) {
-        static_cast<void>(tree->FlushLifecycle());
+    if (Tree() != nullptr) {
+        static_cast<void>(Tree()->FlushLifecycle());
     }
     if (effectLifetime) effectLifetime->Invalidate();
-    if (values != nullptr) {
-        values->Shutdown();
+    if (Values() != nullptr) {
+        Values()->Shutdown();
     }
-    if (tree != nullptr) {
-        tree->SetTextLayout(nullptr);
-        tree->SetMeshResources(nullptr);
-        tree->SetLifecycleHandler(nullptr);
+    if (Tree() != nullptr) {
+        Tree()->SetTextLayout(nullptr);
+        Tree()->SetMeshResources(nullptr);
+        Tree()->SetLifecycleHandler(nullptr);
     }
 
-    if (images != nullptr) {
-        images->Shutdown(GetImageResources());
+    if (Images() != nullptr) {
+        Images()->Shutdown(GetImageResources());
     }
 
     if (engines != nullptr) {
         FreeObject(*allocator, Base::MemoryTag::Ui, engines);
-        values = nullptr;
-        tree = nullptr;
-        images = nullptr;
-        text = nullptr;
-        interactivity = nullptr;
-        storyboards = nullptr;
-        overlays = nullptr;
-        focus = nullptr;
-        resources = nullptr;
+        engines = nullptr;
     }
     schema = nullptr;
     metadata = nullptr;
@@ -168,13 +160,13 @@ Base::Result<void> ViewFrame::Initialize(
         device = std::move(headless).Value();
         deviceGeneration = device->Generation();
 
-        Base::Result<Base::Ref<Markup::EffectLifetime>> lifetime =
+        Base::Ref<Markup::EffectLifetime> lifetime =
             Base::MakeRefWithAllocator<Markup::EffectLifetime>(
                 *allocator);
         status = lifetime
             ? Base::Result<void>()
-            : Base::Result<void>(lifetime.GetStatus());
-        if (status) effectLifetime = std::move(lifetime).Value();
+            : Base::Result<void>(Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM"));
+        if (status) effectLifetime = std::move(lifetime);
 
         if (!status || schemaBundle == nullptr ||
             !schemaBundle->IsFrozen()) {
@@ -203,54 +195,44 @@ Base::Result<void> ViewFrame::Initialize(
             return status.GetStatus();
         }
 
-        values = &engines->values;
-        tree = &engines->tree;
-        images = &engines->images;
-        text = &engines->text;
-        interactivity = &engines->interactivity;
-        storyboards = &engines->storyboards;
-        overlays = &engines->overlays;
-        focus = &engines->focus;
-        resources = &engines->resources;
-
-        status = values->Initialize();
+        status = engines->values.Initialize();
         if (status) status = engines->animations.Initialize();
         if (status) {
             engines->animations.SetAutomaticTickingEnabled(
                 options.automaticAnimationClock);
         }
-        if (status) status = tree->Initialize();
+        if (status) status = engines->tree.Initialize();
         if (status) {
-            tree->SetAnimations(&engines->animations);
+            engines->tree.SetAnimations(&engines->animations);
         }
         if (status) status = engines->layout.Initialize();
         if (status) {
-            tree->SetLayout(&engines->layout);
+            engines->tree.SetLayout(&engines->layout);
         }
         if (status) status = engines->renderTree.Initialize();
         if (status) {
-            tree->SetRenderTree(&engines->renderTree);
+            engines->tree.SetRenderTree(&engines->renderTree);
         }
         if (status) {
-            status = text->Initialize(
+            status = engines->text.Initialize(
                 *device, nullptr, options.text);
         }
         if (status) {
-            tree->SetLifecycleHandler(
+            engines->tree.SetLifecycleHandler(
                 &TextLifecycleHook, this);
         }
         if (status) status = engines->bindings.Initialize();
         if (status) {
-            tree->SetBindings(&engines->bindings);
-            tree->SetEvents(&engines->events);
-            tree->SetInput(&engines->input);
+            engines->tree.SetBindings(&engines->bindings);
+            engines->tree.SetEvents(&engines->events);
+            engines->tree.SetInput(&engines->input);
         }
 
         if (status) {
-            tree->SetTemplates(&engines->templates);
+            engines->tree.SetTemplates(&engines->templates);
             Base::Result<VisualStateManager*> createdStates =
                 ::Aero::Controls::FrameworkTemplateState::CreateVisualStateManager(
-                    *values,
+                    engines->values,
                     engines->templates,
                     engines->animations,
                     (*metadata).DependencyProperties());
@@ -258,30 +240,30 @@ Base::Result<void> ViewFrame::Initialize(
                 status = createdStates.GetStatus();
             } else {
                 engines->visualStates = createdStates.Value();
-                tree->SetVisualStates(engines->visualStates);
+                engines->tree.SetVisualStates(engines->visualStates);
             }
         }
         if (status) {
             engines->styles.SetTriggerActionHandler(
-                &InteractivityEngine::ExecuteStyleTriggerActions, interactivity);
-            tree->SetStyles(&engines->styles);
-            tree->SetTextLayout(text != nullptr ? text->Layout() : nullptr);
-            tree->SetMeshResources(GetMeshResources());
-            tree->SetClipboard(options.clipboard);
-            tree->AttachResourceEnvironment(resources->Environment());
-            tree->SetNameScope(this, &ViewFrame::FindNameForElement);
-            tree->SetViewState(this);
+                &InteractivityEngine::ExecuteStyleTriggerActions, &engines->interactivity);
+            engines->tree.SetStyles(&engines->styles);
+            engines->tree.SetTextLayout(engines->text.Layout());
+            engines->tree.SetMeshResources(GetMeshResources());
+            engines->tree.SetClipboard(options.clipboard);
+            engines->tree.AttachResourceEnvironment(engines->resources.Environment());
+            engines->tree.SetNameScope(this, &ViewFrame::FindNameForElement);
+            engines->tree.SetViewState(this);
         }
         if (status) {
-            interactivity->Bind();
-            storyboards->Bind();
-            overlays->Bind();
-            focus->Bind();
-            resources->Bind();
-            status = resources->RebuildDynamicEnvironment();
+            engines->interactivity.Bind();
+            engines->storyboards.Bind();
+            engines->overlays.Bind();
+            engines->focus.Bind();
+            engines->resources.Bind();
+            status = engines->resources.RebuildDynamicEnvironment();
         }
         if (status) {
-            tree->AttachPresentation(Layout(), RenderTree());
+            engines->tree.AttachPresentation(Layout(), RenderTree());
         }
         if (!status) {
             Shutdown();
@@ -326,7 +308,7 @@ View::~View() noexcept {
 Base::Result<void> View::Initialize(
     const ViewOptions& options) noexcept {
     if (state_ == nullptr || !state_->gui) {
-        return ViewApiInvalidState("View has no Gui state");
+        return ViewInvalidState("View has no Gui state");
     }
     const GuiRuntime& guiState =
         static_cast<const GuiRuntime&>(*state_->gui);
@@ -354,14 +336,14 @@ Base::Result<void> LoadViewResources(
     Base::StringView uri,
     ResourceLoadMode mode,
     Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (state.resources == nullptr) {
-        return AeroNotInitialized(
+    if (state.Resources() == nullptr) {
+        return ViewNotInitialized(
             "View resource host is unavailable");
     }
     Base::Result<Aero::ResourceDictionary*> target =
-        state.resources->ResolveLayer(layer);
+        state.Resources()->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state.resources->LoadLayer(
+    return state.Resources()->LoadLayer(
         uri,
         *target.Value(),
         diagnostics,
@@ -375,14 +357,14 @@ LoadViewCompiledResources(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     ResourceLoadMode mode) noexcept {
-    if (state.resources == nullptr) {
-        return AeroNotInitialized(
+    if (state.Resources() == nullptr) {
+        return ViewNotInitialized(
             "View resource host is unavailable");
     }
     Base::Result<Aero::ResourceDictionary*> target =
-        state.resources->ResolveLayer(layer);
+        state.Resources()->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state.resources->LoadCompiledLayer(
+    return state.Resources()->LoadCompiledLayer(
         bytes,
         originUri,
         *target.Value(),
@@ -394,7 +376,7 @@ void SetViewResourceDictionary(
     ResourceLayer layer,
     Aero::ResourceDictionary& dictionary,
     ResourceLoadMode mode) noexcept {
-    if (state.resources == nullptr || !state.initialized) {
+    if (state.Resources() == nullptr || !state.initialized) {
         return;
     }
     if (state.mounted || state.root ||
@@ -402,16 +384,16 @@ void SetViewResourceDictionary(
         return;
     }
     Base::Result<Aero::ResourceDictionary*> target =
-        state.resources->ResolveLayer(layer);
+        state.Resources()->ResolveLayer(layer);
     if (!target) return;
     Base::Result<Aero::ResourceDictionary> shared =
         dictionary.Share();
     if (!shared) return;
     if (mode == ResourceLoadMode::Merge) {
         Base::Result<void> merged =
-            target.Value()->AddMerged(shared.Value());
+            target->AddMerged(shared.Value());
         if (!merged) return;
-        (void)state.resources->RebuildDynamicEnvironment();
+        (void)state.Resources()->RebuildDynamicEnvironment();
         return;
     }
 
@@ -419,19 +401,19 @@ void SetViewResourceDictionary(
         std::move(*target.Value());
     *target.Value() = std::move(shared).Value();
     Base::Result<void> rebuilt =
-        state.resources->RebuildDynamicEnvironment();
+        state.Resources()->RebuildDynamicEnvironment();
     if (rebuilt) return;
     *target.Value() = std::move(previous);
     Base::Result<void> restored =
-        state.resources->RebuildDynamicEnvironment();
+        state.Resources()->RebuildDynamicEnvironment();
     (void)restored;
 }
 
 Base::Result<void> LoadViewBuiltInTheme(
     ViewFrame& state,
     BuiltInTheme theme) noexcept {
-    if (state.resources == nullptr) {
-        return AeroNotInitialized(
+    if (state.Resources() == nullptr) {
+        return ViewNotInitialized(
             "View resource host is unavailable");
     }
     if (theme != BuiltInTheme::Light &&
@@ -448,7 +430,7 @@ Base::Result<void> LoadViewBuiltInTheme(
               "pack://application:,,,/Aero.GUI.Extensions;component/Theme/AeroTheme.DarkBlue.xaml");
 
     Aero::ResourceDictionary previous =
-        std::move(state.resources->themeResources);
+        std::move(state.Resources()->themeResources);
     Base::Result<void> loaded = LoadViewResources(
         state, ResourceLayer::Theme, themeUri);
     if (loaded) return {};
@@ -467,14 +449,14 @@ Base::Result<void> LoadViewBuiltInTheme(
             ? Base::StringView("Light.xaml")
             : Base::StringView("Dark.xaml"));
     if (!paletteUri) {
-        state.resources->themeResources = std::move(previous);
+        state.Resources()->themeResources = std::move(previous);
         return paletteUri.GetStatus();
     }
     Base::Result<Base::ResourceUri> genericUri =
         ::Aero::BuiltInThemeUri(
             Base::StringView("Generic.xaml"));
     if (!genericUri) {
-        state.resources->themeResources = std::move(previous);
+        state.Resources()->themeResources = std::move(previous);
         return genericUri.GetStatus();
     }
 
@@ -500,10 +482,10 @@ Base::Result<void> LoadViewBuiltInTheme(
                   ResourceLoadMode::Merge);
     }
     if (!loaded) {
-        state.resources->themeResources =
+        state.Resources()->themeResources =
             std::move(previous);
         Base::Result<void> restored =
-            state.resources->RebuildDynamicEnvironment();
+            state.Resources()->RebuildDynamicEnvironment();
         return restored
             ? Base::Result<void>(loaded.GetStatus())
             : Base::Result<void>(restored.GetStatus());
@@ -511,48 +493,47 @@ Base::Result<void> LoadViewBuiltInTheme(
     return {};
 }
 
-Base::Result<void> View::SetContent(
+bool View::SetContent(
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
     if (state_ == nullptr || !state_->initialized) {
-        return ViewNotInitialized(
-            "View must be initialized before SetContent");
+        return false;
     }
-    return state_->mounted
+    Base::Result<void> res = state_->mounted
         ? ReplaceViewDocument(
               *state_, std::move(document), availableSize)
         : MountViewDocument(
               *state_, std::move(document), availableSize);
+    return res.HasValue();
 }
 
-Base::Result<void> View::SetContent(
+bool View::SetContent(
     Base::Ref<FrameworkElement> root,
     Aero::Size availableSize) noexcept {
     if (state_ == nullptr || !state_->initialized) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "View must be initialized before SetContent");
+        return false;
     }
     if (root) {
         Markup::XamlDocument document;
         Base::Result<bool> pending =
             GetGui().TakeLoadedDocument(*root, document);
-        if (!pending) return pending.GetStatus();
+        if (!pending) return false;
         if (pending.Value()) {
             return SetContent(std::move(document), availableSize);
         }
     }
     if (state_->mounted) {
         Base::Result<void> unmounted = UnmountRoot(*state_);
-        if (!unmounted) return unmounted.GetStatus();
+        if (!unmounted) return false;
     }
-    return MountViewContent(
+    Base::Result<void> res = MountViewContent(
         *state_,
         Base::Ref<Base::Object>(std::move(root)),
         availableSize);
+    return res.HasValue();
 }
 
-Base::Result<void> View::SetContent(
+bool View::SetContent(
     Base::Ref<FrameworkElement> root) noexcept {
     const Aero::Size availableSize = state_ != nullptr
         ? state_->viewport.logicalSize
@@ -560,49 +541,38 @@ Base::Result<void> View::SetContent(
     return SetContent(std::move(root), availableSize);
 }
 
-Base::Result<void> View::SetContent(
+bool View::SetContent(
     Base::Ref<FrameworkElement> root,
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
     if (state_ == nullptr || !state_->initialized) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "View must be initialized before SetContent");
+        return false;
     }
-    if (!root) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View host root must not be null");
-    }
-    if (!document.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View cannot mount an empty UI document");
+    if (!root || !document.IsValid()) {
+        return false;
     }
     if (state_->mounted) {
         Base::Result<void> unmounted = UnmountRoot(*state_);
-        if (!unmounted) return unmounted.GetStatus();
+        if (!unmounted) return false;
     }
 
     Markup::LoaderResult next = Aero::Markup::TakeXamlDocument(document);
     if (!next.root) {
         next.Clear();
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View host document has no root object");
+        return false;
     }
     Base::Result<Aero::UIElement*> documentRoot =
         state_->ResolveUIElement(
             *next.root, next.root->RuntimeType());
     if (!documentRoot) {
         next.Clear();
-        return Base::Result<void>(documentRoot.GetStatus());
+        return false;
     }
     Base::Result<Aero::UIElement*> hostRoot =
         state_->ResolveUIElement(*root, root->RuntimeType());
     if (!hostRoot) {
         next.Clear();
-        return Base::Result<void>(hostRoot.GetStatus());
+        return false;
     }
 
     // Attach the loaded document root (for example a UserControl) as a visual
@@ -630,27 +600,26 @@ Base::Result<void> View::SetContent(
         }
     } else {
         next.Clear();
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View host root must be a ContentControl or Panel to host content");
+        return false;
     }
 
     next.root = std::move(root);
     state_->loadedDocument = std::move(next);
-    return MountRoot(
+    Base::Result<void> res = MountRoot(
         *state_,
         state_->loadedDocument.root, availableSize);
+    return res.HasValue();
 }
 
-Base::Result<void> View::SetViewport(
+bool View::SetViewport(
     const ViewViewport& viewport) noexcept {
     if (state_ == nullptr || !state_->initialized) {
-        return ViewNotInitialized(
-            "View must be initialized before setting its viewport");
+        return false;
     }
     Base::Result<void> valid = ValidateViewport(viewport);
-    if (!valid) return valid.GetStatus();
-    return state_->ApplyViewport(viewport);
+    if (!valid) return false;
+    Base::Result<void> applied = state_->ApplyViewport(viewport);
+    return applied.HasValue();
 }
 
 void View::SetSize(
@@ -661,7 +630,7 @@ void View::SetSize(
             availableSize,
             state_->viewport.dpiScale);
     if (!viewport) return;
-    static_cast<void>(SetViewport(viewport.Value()));
+    SetViewport(viewport.Value());
 }
 
 void View::SetSize(

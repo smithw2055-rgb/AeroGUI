@@ -54,9 +54,9 @@ Base::Result<SchemaTypeInfo> ResolveTypeInfo(
         schema.ResolveType(xamlNamespace, localName);
     if (!type) return type.GetStatus();
     return SchemaTypeInfo{
-        type.Value()->Id(),
-        type.Value()->Kind(),
-        type.Value()->Flags()};
+        type->Id(),
+        type->Kind(),
+        type->Flags()};
 }
 
 Base::Result<SchemaTypeInfo> ResolveTypeInfo(

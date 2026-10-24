@@ -5,6 +5,7 @@
 #include "gui/text/TextLayout.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -18,13 +19,8 @@ namespace {
 constexpr float GlyphRasterScale = 2.0F;
 
 std::uint32_t AllocateAtlasPage() noexcept {
-    static std::uint32_t next = 1U;
-    return next++;
-}
-
-RenderGlyphRunId AllocateGlyphRunId() noexcept {
-    static RenderGlyphRunId next = 1U;
-    return next++;
+    static std::atomic<std::uint32_t> next{1U};
+    return next.fetch_add(1U, std::memory_order_relaxed);
 }
 
 
@@ -122,7 +118,8 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     layoutRequest.trimming = request.trimming;
     layoutRequest.alignment = request.alignment;
 
-    Text::TextLayout layout(allocator_);
+    Text::TextLayout& layout = state_->layout;
+    layout.Clear();
     Base::Result<void> shaped = layout.ShapeAndMeasure(*fonts_, layoutRequest);
     if (!shaped) return shaped.GetStatus();
 
@@ -142,7 +139,8 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     const float pageHeight = static_cast<float>(atlasConfig.pageHeight);
     const std::uint64_t runStamp = ++state_->useStamp;
 
-    Base::Vector<RenderGlyphQuad> quads(allocator_);
+    state_->quads.Clear();
+    Base::Vector<RenderGlyphQuad>& quads = state_->quads;
     for (const Text::GlyphRun& run : layout.Runs()) {
         for (const Text::PositionedGlyph& glyph : run.glyphs) {
             Text::GlyphRequest glyphRequest;
@@ -151,14 +149,10 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
             glyphRequest.pixelSize = run.pixelSize;
             glyphRequest.dpiScale = glyphRasterDpi;
 
-            Text::GlyphMetrics metrics;
-            Base::Result<void> measured = fonts_->GetGlyphMetrics(glyphRequest, metrics);
-            if (!measured || metrics.width <= 0.0F || metrics.height <= 0.0F) continue;
-
             Text::GlyphAtlasPlacement placement;
             Base::Result<void> ensured = state_->atlas.EnsureGlyph(
                 *fonts_, glyphRequest, ++state_->useStamp, runStamp, placement);
-            if (!ensured) return ensured.GetStatus();
+            if (!ensured || placement.width == 0U || placement.height == 0U) continue;
 
             RenderGlyphQuad quad;
             quad.x0 = static_cast<float>(glyph.x) +
@@ -209,7 +203,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     state_->atlas.ClearPendingUploads();
 
-    const RenderGlyphRunId glyphRun = AllocateGlyphRunId();
+    const RenderGlyphRunId glyphRun = state_->nextRunId++;
     if (glyphRun == Render::InvalidRenderGlyphRunId) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,

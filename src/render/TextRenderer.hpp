@@ -2,6 +2,7 @@
 
 #include "DisplayList.hpp"
 #include "RenderResources.hpp"
+#include "render/FrameEncoder.hpp"
 #include "gui/controls/TextBlockLayout.hpp"
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/Texture.hpp>
@@ -12,6 +13,8 @@
 
 namespace Aero::Text { class FontManager; }
 
+#include "gui/text/TextLayout.hpp"
+
 namespace Aero::Render {
 
 class UiFrameEncoder;
@@ -21,6 +24,8 @@ struct TextRendererState {
     Base::Vector<Ref<Texture>> pageTextures;
     Base::Vector<std::uint32_t> pageIds;
     Base::Vector<RenderGlyphRunId> glyphRuns;
+    Text::TextLayout layout;
+    Base::Vector<RenderGlyphQuad> quads;
     std::uint64_t nextRunId = 1U;
     std::uint64_t useStamp = 1U;
 
@@ -31,7 +36,9 @@ struct TextRendererState {
           atlas(allocator),
           pageTextures(allocator),
           pageIds(allocator),
-          glyphRuns(allocator) {}
+          glyphRuns(allocator),
+          layout(allocator),
+          quads(allocator) {}
 };
 
 using TextConfig = Aero::Render::TextConfig;

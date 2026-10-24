@@ -650,13 +650,11 @@ void VirtualizingStackPanel::SetVerticalOffset(
     }
 }
 
-Base::Result<bool>
+bool
 VirtualizingStackPanel::LineHorizontal(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal line direction must be finite");
+        return false;
     }
     const double old = data_.horizontalOffset;
     SetHorizontalOffset(std::max(0.0, old + direction *
@@ -665,13 +663,11 @@ VirtualizingStackPanel::LineHorizontal(
     return !Same(old, data_.horizontalOffset);
 }
 
-Base::Result<bool>
+bool
 VirtualizingStackPanel::LineVertical(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical line direction must be finite");
+        return false;
     }
     const double old = data_.verticalOffset;
     SetVerticalOffset(std::max(0.0, old + direction *
@@ -680,26 +676,22 @@ VirtualizingStackPanel::LineVertical(
     return !Same(old, data_.verticalOffset);
 }
 
-Base::Result<bool>
+bool
 VirtualizingStackPanel::PageHorizontal(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal page direction must be finite");
+        return false;
     }
     const double old = data_.horizontalOffset;
     SetHorizontalOffset(std::max(0.0, old + direction * data_.viewportWidth));
     return !Same(old, data_.horizontalOffset);
 }
 
-Base::Result<bool>
+bool
 VirtualizingStackPanel::PageVertical(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical page direction must be finite");
+        return false;
     }
     const double old = data_.verticalOffset;
     SetVerticalOffset(std::max(0.0, old + direction * data_.viewportHeight));
@@ -993,42 +985,34 @@ void VirtualizingWrapPanel::SetVerticalOffset(double value) noexcept {
     InvalidateArrange();
 }
 
-Base::Result<bool> VirtualizingWrapPanel::LineHorizontal(double direction) noexcept {
+bool VirtualizingWrapPanel::LineHorizontal(double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal line direction must be finite");
+        return false;
     }
     SetHorizontalOffset(std::max(0.0, data_.horizontalOffset + direction * 16.0));
     return true;
 }
 
-Base::Result<bool> VirtualizingWrapPanel::LineVertical(double direction) noexcept {
+bool VirtualizingWrapPanel::LineVertical(double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical line direction must be finite");
+        return false;
     }
     SetVerticalOffset(std::max(0.0, data_.verticalOffset + direction * 16.0));
     return true;
 }
 
-Base::Result<bool> VirtualizingWrapPanel::PageHorizontal(double direction) noexcept {
+bool VirtualizingWrapPanel::PageHorizontal(double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Horizontal page direction must be finite");
+        return false;
     }
     SetHorizontalOffset(std::max(
         0.0, data_.horizontalOffset + direction * data_.viewportWidth));
     return true;
 }
 
-Base::Result<bool> VirtualizingWrapPanel::PageVertical(double direction) noexcept {
+bool VirtualizingWrapPanel::PageVertical(double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Vertical page direction must be finite");
+        return false;
     }
     SetVerticalOffset(std::max(
         0.0, data_.verticalOffset + direction * data_.viewportHeight));

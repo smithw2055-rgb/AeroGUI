@@ -701,14 +701,6 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
             if (content == nullptr || content->OwnerType() != type.Id() ||
                 (static_cast<std::uint32_t>(content->Flags()) &
                  static_cast<std::uint32_t>(PropertyFlags::Structural)) == 0U) {
-                std::fprintf(
-                    stderr,
-                    "Aero metadata invalid content member: type=%.*s member=%u\n",
-                    static_cast<int>(
-                        type.Name().SizeBytes()),
-                    type.Name().Data(),
-                    static_cast<unsigned>(
-                        type.ContentMember()));
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Content member must be a structural property");
@@ -3477,7 +3469,7 @@ Registry::CreateObject(TypeId type) const noexcept {
             Base::ErrorCode::InternalError,
             "Metadata factory returned a null object");
     }
-    if (created.Value()->RuntimeType() != type) {
+    if (created->RuntimeType() != type) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata factory returned the wrong runtime type");

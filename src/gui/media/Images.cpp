@@ -50,7 +50,7 @@ Base::Result<Value> ConvertImageSourceText(
     Base::Result<Base::Ref<BitmapImage>> image =
         Base::MakeRef<BitmapImage>();
     if (!image) return image.GetStatus();
-    image.Value()->SetUriSource(uri.Value());
+    image->SetUriSource(uri.Value());
     return Value::FromObject(
         ImageSource::StaticTypeId(),
         Base::Ref<Base::Object>(

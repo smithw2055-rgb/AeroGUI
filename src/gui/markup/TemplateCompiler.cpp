@@ -40,7 +40,7 @@ using namespace Aero::Controls;
 using namespace Aero::Media;
 using Controls::Primitives::Selector;
 using namespace Data;
-using Documents::Inline; // not Documents:: â€” avoid Span collision with Aero::Span
+using Documents::Inline; // not Documents:: â€?avoid Span collision with Aero::Span
 using namespace Media::Animation;
 
 Base::Status InvalidTemplateCompiler(
@@ -999,50 +999,50 @@ CompileVisualStates(
             if (auto srcStoryboard = sourceState.GetStoryboard()) {
                 auto storyboardCopy =
                     Base::MakeRef<Storyboard>();
-                if (!storyboardCopy) return storyboardCopy.GetStatus();
+                if (!storyboardCopy) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
                 for (const auto& tl : srcStoryboard->GetTimelines()) {
                     if (!tl) continue;
                     Base::Ref<Timeline> cloned;
                     if (tl->RuntimeType() == DoubleAnimationUsingKeyFrames::StaticTypeId()) {
                         auto* srcDouble = static_cast<DoubleAnimationUsingKeyFrames*>(tl.Get());
                         auto dst = Base::MakeRef<DoubleAnimationUsingKeyFrames>();
-                        if (!dst) return dst.GetStatus();
+                        if (!dst) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
                         Base::Result<PropertyValue> nameVal = srcDouble->GetValue(Storyboard::TargetNameProperty.Handle());
                         if (nameVal && nameVal.Value().Kind() == Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                            (void)dst->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
                         }
                         Base::Result<PropertyValue> propVal = srcDouble->GetValue(Storyboard::TargetPropertyProperty.Handle());
                         if (propVal && propVal.Value().Kind() == Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                            (void)dst->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
                         }
                         for (auto& kf : srcDouble->GetKeyFrames()) {
                             if (!kf) continue;
-                            dst.Value()->AddKeyFrame(kf);
+                            dst->AddKeyFrame(kf);
                         }
-                        cloned = dst.Value();
+                        cloned = dst;
                     } else if (tl->RuntimeType() == ColorAnimationUsingKeyFrames::StaticTypeId()) {
                         auto* srcColor = static_cast<ColorAnimationUsingKeyFrames*>(tl.Get());
                         auto dst = Base::MakeRef<ColorAnimationUsingKeyFrames>();
-                        if (!dst) return dst.GetStatus();
+                        if (!dst) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
                         Base::Result<PropertyValue> nameVal = srcColor->GetValue(Storyboard::TargetNameProperty.Handle());
                         if (nameVal && nameVal.Value().Kind() == Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
+                            (void)dst->SetValue(Storyboard::TargetNameProperty.Handle(), nameVal.Value());
                         }
                         Base::Result<PropertyValue> propVal = srcColor->GetValue(Storyboard::TargetPropertyProperty.Handle());
                         if (propVal && propVal.Value().Kind() == Meta::ValueKind::String) {
-                            (void)dst.Value()->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
+                            (void)dst->SetValue(Storyboard::TargetPropertyProperty.Handle(), propVal.Value());
                         }
                         for (auto& kf : srcColor->GetKeyFrames()) {
                             if (!kf) continue;
-                            dst.Value()->AddKeyFrame(kf);
+                            dst->AddKeyFrame(kf);
                         }
-                        cloned = dst.Value();
+                        cloned = dst;
                     } else {
                         cloned = tl;
                     }
-                    storyboardCopy.Value()->AddTimeline(cloned);
+                    storyboardCopy->AddTimeline(cloned);
                 }
-                state.storyboard = std::move(storyboardCopy.Value());
+                state.storyboard = std::move(storyboardCopy);
             } else {
                 state.storyboard.Reset();
             }
@@ -1174,12 +1174,12 @@ CompileVisualStates(
             if (auto srcStoryboard = sourceTransition.GetStoryboard()) {
                 auto storyboardCopy =
                     Base::MakeRef<Storyboard>();
-                if (!storyboardCopy) return storyboardCopy.GetStatus();
+                if (!storyboardCopy) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
                 for (const auto& tl : srcStoryboard->GetTimelines()) {
                     if (!tl) continue;
-                    storyboardCopy.Value()->AddTimeline(tl);
+                    storyboardCopy->AddTimeline(tl);
                 }
-                transition.storyboard = std::move(storyboardCopy.Value());
+                transition.storyboard = std::move(storyboardCopy);
             } else {
                 transition.storyboard.Reset();
             }

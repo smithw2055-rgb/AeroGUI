@@ -131,9 +131,11 @@ struct ReloadCoordinatorState final {
         Base::Result<void> tracked = BuildTrackedSources(
             replacement.Value(), replacementRoot, replacementRevisions);
         if (!tracked) return tracked.GetStatus();
-        Base::Result<void> replaced = view->SetContent(
-            std::move(replacement).Value(), availableSize);
-        if (!replaced) return replaced.GetStatus();
+        if (!view->SetContent(
+            std::move(replacement).Value(), availableSize)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState, "SetContent failed");
+        }
         rootUri = replacementRoot;
         revisions = std::move(replacementRevisions);
 
@@ -234,9 +236,11 @@ Base::Result<void> ReloadCoordinator::Start(
     Base::Result<void> tracked = state->BuildTrackedSources(
         document.Value(), resolvedRoot, revisions);
     if (!tracked) return tracked.GetStatus();
-    Base::Result<void> mounted = state->view->SetContent(
-        std::move(document).Value(), availableSize);
-    if (!mounted) return mounted.GetStatus();
+    if (!state->view->SetContent(
+        std::move(document).Value(), availableSize)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState, "SetContent failed");
+    }
 
     state->rootUri = resolvedRoot;
     state->revisions = std::move(revisions);

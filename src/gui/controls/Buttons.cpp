@@ -200,11 +200,9 @@ void ButtonBase::RefreshCanExecute() noexcept {
         const Value parameter = GetCommandParameter();
         Aero::InputRouter* input = ElementTree::InputOf(*this);
         if (input != nullptr) {
-            Base::Result<bool> allowed = input->CanExecute(*command, parameter, *target);
-            if (allowed) enabled = allowed.Value();
+            enabled = input->CanExecute(*command, parameter, *target);
         } else {
-            Base::Result<bool> allowed = command->CanExecute(parameter, target);
-            if (allowed) enabled = allowed.Value();
+            enabled = command->CanExecute(parameter, target);
         }
     }
     commandEnabled_ = enabled;
@@ -225,9 +223,7 @@ PropertyValue ButtonBase::CoerceValueCore(
     if (adjusted == baseValue.AsBoolean()) {
         return baseValue;
     }
-    Base::Result<PropertyValue> encoded =
-        Meta::ValueCodec<bool>::Encode(adjusted);
-    return encoded ? std::move(encoded).Value() : baseValue;
+    return Meta::ValueCodec<bool>::Encode(adjusted);
 }
 
 void ButtonBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {

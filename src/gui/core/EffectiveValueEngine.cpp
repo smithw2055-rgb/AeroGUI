@@ -484,21 +484,6 @@ DependencyPropertyRegistry::Register(
     }
     if (typeRegistry_->FindType(registration.ownerType) == nullptr ||
         typeRegistry_->FindType(registration.valueType) == nullptr) {
-        std::fprintf(
-            stderr,
-            "Dependency property registration missing type name=%.*s owner=%llu value=%llu owner-found=%u value-found=%u\n",
-            static_cast<int>(registration.name.SizeBytes()),
-            registration.name.Data(),
-            static_cast<unsigned long long>(
-                registration.ownerType),
-            static_cast<unsigned long long>(
-                registration.valueType),
-            typeRegistry_->FindType(
-                registration.ownerType) != nullptr
-                ? 1U : 0U,
-            typeRegistry_->FindType(
-                registration.valueType) != nullptr
-                ? 1U : 0U);
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Dependency property owner or value type is not registered");

@@ -423,11 +423,29 @@ Base::Result<void> VisualStateManagerState::ClearStateValues(
     if (active.providerOrigin == 0U) {
         return {};
     }
+    DependencyObject* seenTargets[32];
+    std::uint32_t seenCount = 0U;
+
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target = setter.targetName.Empty()
             ? static_cast<DependencyObject*>(&control)
             : templates_->FindName(handle, setter.targetName.View());
         if (target == nullptr) continue;
+
+        bool alreadyCleared = false;
+        for (std::uint32_t i = 0U; i < seenCount; ++i) {
+            if (seenTargets[i] == target) {
+                alreadyCleared = true;
+                break;
+            }
+        }
+        if (alreadyCleared) {
+            continue;
+        }
+        if (seenCount < 32U) {
+            seenTargets[seenCount++] = target;
+        }
+
         Base::Result<std::uint32_t> cleared =
             values_->ClearProviderOrigin(
                 *target, active.providerOrigin);
@@ -541,6 +559,8 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
         if (timeline.GetRepeatBehavior().IsForever()) {
             effectiveParent.beginTimeMicroseconds = 0U;
         }
+        const Aero::Media::Animation::Model::TimelineTiming composedTiming =
+            ComposeTiming(timeline, effectiveParent);
 
         Base::Result<Aero::Media::Animation::Model::AnimationHandle> started =
             Base::Status::Failure(
@@ -552,7 +572,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 static_cast<Media::Animation::DoubleAnimation&>(timeline);
             Aero::Media::Animation::Model::DoubleAnimation runtime =
                 Aero::Media::Animation::Double(authored);
-            runtime.timing = ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             started = animations_->Begin(
                 *resolved.Value().object,
                 resolved.Value().property,
@@ -563,7 +583,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 static_cast<Media::Animation::ColorAnimation&>(timeline);
             Aero::Media::Animation::Model::ColorAnimation runtime =
                 Aero::Media::Animation::Color(authored);
-            runtime.timing = ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             started = animations_->Begin(
                 *resolved.Value().object,
                 resolved.Value().property,
@@ -579,7 +599,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                     Aero::Media::Animation::BuildSortedKeyFrames<
                         Aero::Media::Animation::Model::DoubleKeyFrame>(
                         authored,
-                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
+                        composedTiming.durationMicroseconds);
             if (frames.Empty()) {
                 return {};
             }
@@ -597,8 +617,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             if (!decoded) return decoded.GetStatus();
             Aero::Media::Animation::Model::DoubleKeyFrameAnimation runtime;
             runtime.baseValue = decoded.Value();
-            runtime.timing =
-                ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -620,7 +639,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                     Aero::Media::Animation::BuildSortedKeyFrames<
                         Aero::Media::Animation::Model::ColorKeyFrame>(
                         authored,
-                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
+                        composedTiming.durationMicroseconds);
             if (frames.Empty()) {
                 return {};
             }
@@ -635,8 +654,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             Aero::Media::Animation::Model::ColorKeyFrameAnimation
                 runtime;
             runtime.baseValue = decoded.Value();
-            runtime.timing =
-                ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -652,7 +670,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 static_cast<Media::Animation::PointAnimation&>(timeline);
             Aero::Media::Animation::Model::PointAnimation runtime =
                 Aero::Media::Animation::Point(authored);
-            runtime.timing = ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             started = animations_->Begin(
                 *resolved.Value().object,
                 resolved.Value().property,
@@ -669,7 +687,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                     Aero::Media::Animation::BuildSortedKeyFrames<
                         Aero::Media::Animation::Model::PointKeyFrame>(
                         authored,
-                        ComposeTiming(authored, effectiveParent).durationMicroseconds);
+                        composedTiming.durationMicroseconds);
             if (frames.Empty()) {
                 return {};
             }
@@ -693,8 +711,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             } else {
                 return decoded.GetStatus();
             }
-            runtime.timing =
-                ComposeTiming(authored, effectiveParent);
+            runtime.timing = composedTiming;
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;
@@ -723,7 +740,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 frames = Aero::Media::Animation::BuildSortedKeyFramesWith<
                     Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>(
                     authored,
-                    ComposeTiming(authored, effectiveParent).durationMicroseconds,
+                    composedTiming.durationMicroseconds,
                     [](const Media::Animation::ObjectKeyFrame& frame,
                        Aero::Media::Animation::AnimationTime duration,
                        std::uint32_t keyIndex,
@@ -741,7 +758,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
                 frames = Aero::Media::Animation::BuildSortedKeyFramesWith<
                     Aero::Media::Animation::Model::DiscreteAnimationKeyFrame>(
                     authored,
-                    ComposeTiming(authored, effectiveParent).durationMicroseconds,
+                    composedTiming.durationMicroseconds,
                     [](const Media::Animation::BooleanKeyFrame& frame,
                        Aero::Media::Animation::AnimationTime duration,
                        std::uint32_t keyIndex,
@@ -763,8 +780,7 @@ Base::Result<void> VisualStateManagerState::StartStoryboardAnimations(
             if (!base) return base.GetStatus();
             Aero::Media::Animation::Model::DiscreteAnimation runtime;
             runtime.baseValue = base.Value();
-            runtime.timing =
-                ComposeTiming(timeline, effectiveParent);
+            runtime.timing = composedTiming;
             if (runtime.timing.durationMicroseconds == 0U) {
                 runtime.timing.durationMicroseconds =
                     frames.Back().keyTimeMicroseconds;

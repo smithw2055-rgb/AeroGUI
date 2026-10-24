@@ -35,21 +35,25 @@ CreateIntegratedView(
             "Integrated View requires a RenderTarget");
     }
     Aero::ViewOptions options;
-    Aero::Result<Aero::Ref<Aero::View>> created =
+    Aero::Ref<Aero::View> created =
         environment.CreateView(options);
-    if (!created) return created.GetStatus();
+    if (!created) {
+        return Aero::Base::Status::Failure(
+            Aero::Base::ErrorCode::InvalidState,
+            "CreateView failed");
+    }
     Aero::Result<void> initialized =
-        created.Value()->GetRenderer().Init(target->GetDevice());
+        created->GetRenderer().Init(target->GetDevice());
     if (!initialized) return initialized.GetStatus();
-    return std::move(created).Value();
+    return created;
 }
 
 [[maybe_unused]]
-Aero::Result<Aero::Ref<Aero::View>>
+Aero::Ref<Aero::View>
 LoadIntegratedView(Aero::Gui& gui) noexcept {
     Aero::Result<Aero::Ref<Aero::FrameworkElement>> root =
         gui.LoadXaml<Aero::FrameworkElement>("HUD.xaml");
-    if (!root) return root.GetStatus();
+    if (!root) return {};
     return gui.CreateView(std::move(root).Value());
 }
 

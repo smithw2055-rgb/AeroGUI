@@ -252,7 +252,7 @@ struct StoredValueEntry {
         if (!block) {
             return block.GetStatus();
         }
-        block.Value()->inheritedValue = value;
+        block->inheritedValue = value;
         SetHasInherited(true);
         return {};
     }
@@ -317,7 +317,7 @@ struct StoredValueEntry {
         if (!block) {
             return block.GetStatus();
         }
-        block.Value()->sourceInfo = info;
+        block->sourceInfo = info;
         return {};
     }
 
@@ -336,7 +336,7 @@ struct StoredValueEntry {
         if (!block) {
             return block.GetStatus();
         }
-        return &block.Value()->baseProviders;
+        return &block->baseProviders;
     }
 
 private:

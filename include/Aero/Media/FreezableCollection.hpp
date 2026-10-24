@@ -76,8 +76,7 @@ public:
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
-        auto made = Base::MakeRef<FreezableCollection<T>>(this->RuntimeType());
-        return made ? Base::Ref<Freezable>(std::move(made).Value()) : Base::Ref<Freezable>{};
+        return Base::MakeRef<FreezableCollection<T>>(this->RuntimeType());
     }
 
     void CloneCore(const Freezable& source) override {

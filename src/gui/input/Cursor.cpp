@@ -67,11 +67,11 @@ StringView Cursor::Name() const noexcept {
 }
 
 Base::Ref<Cursor> Cursor::Create(CursorType type) noexcept {
-    return Base::MakeRef<Cursor>(type).Value();
+    return Base::MakeRef<Cursor>(type);
 }
 
 Base::Ref<Cursor> Cursor::Create(const String& filename) noexcept {
-    return Base::MakeRef<Cursor>(filename).Value();
+    return Base::MakeRef<Cursor>(filename);
 }
 
 Base::Ref<Cursor> Cursors::AppStarting() {

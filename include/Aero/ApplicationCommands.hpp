@@ -13,29 +13,29 @@ class AERO_GUI_API ApplicationCommands : public Base::Object {
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
-    static Result<void> RegisterDefaults() noexcept;
-    static Result<Ref<RoutedCommand>> Cut() noexcept;
-    static Result<Ref<RoutedCommand>> Copy() noexcept;
-    static Result<Ref<RoutedCommand>> Paste() noexcept;
-    static Result<Ref<RoutedCommand>> Undo() noexcept;
-    static Result<Ref<RoutedCommand>> Redo() noexcept;
-    static Result<Ref<RoutedCommand>> Delete() noexcept;
-    static Result<Ref<RoutedCommand>> Find() noexcept;
-    static Result<Ref<RoutedCommand>> Replace() noexcept;
-    static Result<Ref<RoutedCommand>> SelectAll() noexcept;
-    static Result<Ref<RoutedCommand>> Help() noexcept;
-    static Result<Ref<RoutedCommand>> New() noexcept;
-    static Result<Ref<RoutedCommand>> Open() noexcept;
-    static Result<Ref<RoutedCommand>> Save() noexcept;
-    static Result<Ref<RoutedCommand>> SaveAs() noexcept;
-    static Result<Ref<RoutedCommand>> Print() noexcept;
-    static Result<Ref<RoutedCommand>> PrintPreview() noexcept;
-    static Result<Ref<RoutedCommand>> Properties() noexcept;
-    static Result<Ref<RoutedCommand>> Close() noexcept;
-    static Result<Ref<RoutedCommand>> Stop() noexcept;
-    static Result<Ref<RoutedCommand>> ContextMenu() noexcept;
-    static Result<Ref<RoutedCommand>> CorrectionList() noexcept;
-    static Result<Ref<RoutedCommand>> NotACommand() noexcept;
+    static void RegisterDefaults() noexcept;
+    static Ref<RoutedCommand> Cut() noexcept;
+    static Ref<RoutedCommand> Copy() noexcept;
+    static Ref<RoutedCommand> Paste() noexcept;
+    static Ref<RoutedCommand> Undo() noexcept;
+    static Ref<RoutedCommand> Redo() noexcept;
+    static Ref<RoutedCommand> Delete() noexcept;
+    static Ref<RoutedCommand> Find() noexcept;
+    static Ref<RoutedCommand> Replace() noexcept;
+    static Ref<RoutedCommand> SelectAll() noexcept;
+    static Ref<RoutedCommand> Help() noexcept;
+    static Ref<RoutedCommand> New() noexcept;
+    static Ref<RoutedCommand> Open() noexcept;
+    static Ref<RoutedCommand> Save() noexcept;
+    static Ref<RoutedCommand> SaveAs() noexcept;
+    static Ref<RoutedCommand> Print() noexcept;
+    static Ref<RoutedCommand> PrintPreview() noexcept;
+    static Ref<RoutedCommand> Properties() noexcept;
+    static Ref<RoutedCommand> Close() noexcept;
+    static Ref<RoutedCommand> Stop() noexcept;
+    static Ref<RoutedCommand> ContextMenu() noexcept;
+    static Ref<RoutedCommand> CorrectionList() noexcept;
+    static Ref<RoutedCommand> NotACommand() noexcept;
 
 private:
     ApplicationCommands() noexcept = default;

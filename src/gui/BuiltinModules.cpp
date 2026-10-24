@@ -281,8 +281,7 @@ Base::Result<void> PopulateUiMedia(
     DescribeHook<::Aero::Input::InputBinding>::Run(context);
     DescribeHook<::Aero::Input::CommandBinding>::Run(context);
     DescribeHook<::Aero::Input::ApplicationCommands>::Run(context);
-    status = ApplicationCommands::RegisterDefaults();
-    if (!status) return status.GetStatus();
+    ApplicationCommands::RegisterDefaults();
     return {};
 }
 

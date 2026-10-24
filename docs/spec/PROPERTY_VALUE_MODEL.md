@@ -37,7 +37,7 @@ Base providers are ordered from strongest to weakest:
 
 Animation and coercion are applied after the winning base provider is selected.
 VisualState setters write through `SetProviderContribution` at
-`PropertyValueRank::VisualState` (between Local and Animation) and are cleared
+`PropertyValueRank::VisualState` (between TemplatedParentTrigger and Local) and are cleared
 by origin when the state exits. Storyboards remain on the animation engine and
 use `SetAnimationValue`. `SetCurrentValue()` changes the current value without
 replacing the winning provider identity.

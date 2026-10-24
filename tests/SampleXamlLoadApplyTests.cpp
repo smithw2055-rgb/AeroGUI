@@ -383,7 +383,7 @@ class OptionSelector final : public UserControl {
         "OptionSelector")
 public:
     OptionSelector() noexcept : UserControl(StaticTypeId()) {
-        options_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>().Value();
+        options_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
     }
     Ref<Aero::Collections::ObservableObjectCollection> GetOptions() const noexcept {
         return options_;
@@ -425,7 +425,7 @@ class ScoreboardGame final : public Aero::DependencyObject {
         "Game")
 public:
     ScoreboardGame() noexcept : DependencyObject(StaticTypeId()) {
-        players_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>().Value();
+        players_ = Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
     }
     inline static constexpr DependencyProperty<std::int32_t> ElapsedTimeProperty{"ElapsedTime"};
     inline static constexpr DependencyProperty<Base::String> NameProperty{"Name"};
@@ -1121,13 +1121,12 @@ LiveGui* NewSampleLiveGui() {
             initialized.GetStatus().message);
         return nullptr;
     }
-    Result<Ref<View>> created = live->gui.CreateView(options);
+    Ref<View> created = live->gui.CreateView(options);
     if (!created) {
-        std::fprintf(stderr, "CreateView failed: %s\n",
-            created.GetStatus().message);
+        std::fprintf(stderr, "CreateView failed\n");
         return nullptr;
     }
-    live->view = std::move(created).Value();
+    live->view = std::move(created);
     live->view->Activate();
     live->view->SetSize({640.0, 480.0});
     ViewViewport viewport;
@@ -1220,7 +1219,7 @@ bool MountAndLayout(
     if (skipNativeHost) {
         return true;
     }
-    Result<void> mounted;
+    bool mounted = false;
     if (TryCast<Window>(root) != nullptr) {
         mounted = live.view->SetContent(
             std::move(document), {640.0, 480.0});
@@ -1256,7 +1255,7 @@ bool MountAndLayout(
             live.sampleDocument = std::move(document);
         }
     }
-    if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
+    if (FailIfSampleError(where, mounted ? Aero::Base::Status::Ok() : Aero::Base::Status::Failure(Aero::Base::ErrorCode::InvalidState, "SetContent failed"), live.diagnostics)) {
         return false;
     }
     if (!PumpSample(live)) {
@@ -1404,7 +1403,7 @@ bool ApplySampleItemsDataContext(
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(inventory);
         SAMPLE_CHECK(FillObjectCollection(*inventory.Value(), kCount));
-        model.Value()->SetInventory(inventory.Value());
+        model->SetInventory(inventory.Value());
         Result<Ref<InventoryPlayer>> player =
             Aero::Base::MakeRef<InventoryPlayer>();
         SAMPLE_CHECK(player);
@@ -1412,8 +1411,8 @@ bool ApplySampleItemsDataContext(
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(slots);
         SAMPLE_CHECK(FillObjectCollection(*slots.Value(), 8U));
-        player.Value()->SetSlots(slots.Value());
-        model.Value()->SetValue(
+        player->SetSlots(slots.Value());
+        model->SetValue(
             InventoryViewModel::PlayerProperty, player.Value());
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
@@ -1431,7 +1430,7 @@ bool ApplySampleItemsDataContext(
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(objects);
         SAMPLE_CHECK(FillObjectCollection(*objects.Value(), kCount));
-        model.Value()->SetSolarSystemObjects(objects.Value());
+        model->SetSolarSystemObjects(objects.Value());
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
         SAMPLE_CHECK(PumpSample(live));
@@ -1458,7 +1457,7 @@ bool ApplySampleItemsDataContext(
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(quests);
         SAMPLE_CHECK(FillObjectCollection(*quests.Value(), kCount));
-        model.Value()->SetQuests(quests.Value());
+        model->SetQuests(quests.Value());
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
         SAMPLE_CHECK(PumpSample(live));
@@ -1469,8 +1468,8 @@ bool ApplySampleItemsDataContext(
         Result<Ref<ScoreboardGame>> model =
             Aero::Base::MakeRef<ScoreboardGame>();
         SAMPLE_CHECK(model);
-        SAMPLE_CHECK(model.Value()->GetPlayers());
-        SAMPLE_CHECK(FillObjectCollection(*model.Value()->GetPlayers(), kCount));
+        SAMPLE_CHECK(model->GetPlayers());
+        SAMPLE_CHECK(FillObjectCollection(*model->GetPlayers(), kCount));
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
         SAMPLE_CHECK(PumpSample(live));
@@ -1485,7 +1484,7 @@ bool ApplySampleItemsDataContext(
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(languages);
         SAMPLE_CHECK(FillObjectCollection(*languages.Value(), kCount));
-        model.Value()->SetLanguages(languages.Value());
+        model->SetLanguages(languages.Value());
         root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
         SAMPLE_CHECK(PumpSample(live));
         SAMPLE_CHECK(PumpSample(live));
@@ -1572,9 +1571,9 @@ bool ApplyOneControlTemplate(
     if (!live.view) {
         return true;
     }
-    Result<void> mounted = live.view->SetContent(
+    bool mounted = live.view->SetContent(
         std::move(document).Value(), {640.0, 480.0});
-    if (FailIfSampleError(where, mounted.GetStatus(), live.diagnostics)) {
+    if (FailIfSampleError(where, mounted ? Aero::Base::Status::Ok() : Aero::Base::Status::Failure(Aero::Base::ErrorCode::InvalidState, "SetContent failed"), live.diagnostics)) {
         return false;
     }
     Control* control = TryCast<Control>(live.view->GetContent());
@@ -1684,11 +1683,11 @@ bool ApplyDictionaryTemplates(
         if (!live.view) {
             continue;
         }
-        Result<void> mounted = live.view->SetContent(
+        bool mounted = live.view->SetContent(
             std::move(document).Value(), {640.0, 480.0});
         if (FailIfSampleError(
                 CStringView(host.key),
-                mounted.GetStatus(),
+                mounted ? Aero::Base::Status::Ok() : Aero::Base::Status::Failure(Aero::Base::ErrorCode::InvalidState, "SetContent failed"),
                 live.diagnostics)) {
             return false;
         }
@@ -2369,13 +2368,13 @@ bool TestInventoryTemplateApply() {
     SAMPLE_CHECK(theme);
     Result<Ref<ProgressBar>> themedBar = Aero::Base::MakeRef<ProgressBar>();
     SAMPLE_CHECK(themedBar);
-    Result<void> mountedTheme = live->view->SetContent(
+    bool mountedTheme = live->view->SetContent(
         Ref<FrameworkElement>(themedBar.Value()), {120.0, 16.0});
     SAMPLE_CHECK(!FailIfSampleError(
         StringView("themed ProgressBar"),
-        mountedTheme.GetStatus(),
+        mountedTheme ? Aero::Base::Status::Ok() : Aero::Base::Status::Failure(Aero::Base::ErrorCode::InvalidState, "SetContent failed"),
         diagnostics));
-    static_cast<void>(themedBar.Value()->ApplyTemplate());
+    static_cast<void>(themedBar->ApplyTemplate());
     SAMPLE_CHECK(PumpSample(*live));
     SAMPLE_CHECK(!DiagnosticsReportSampleFailure(diagnostics));
     static_cast<void>(live->view->SetContent(Ref<FrameworkElement>{}, {}));
@@ -2410,7 +2409,7 @@ bool TestWindowGridItemsBinding(LiveGui& live) noexcept {
         Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
     SAMPLE_CHECK(inventory);
     SAMPLE_CHECK(FillObjectCollection(*inventory.Value(), 4U));
-    model.Value()->SetInventory(inventory.Value());
+    model->SetInventory(inventory.Value());
     FrameworkElement* root = live.view->GetContent();
     SAMPLE_CHECK(root != nullptr);
     root->SetDataContext(Ref<Aero::Base::Object>(model.Value()));
@@ -2457,7 +2456,7 @@ bool TestWindowGridItemsBinding(LiveGui& live) noexcept {
             Aero::Base::MakeRef<Aero::Collections::ObservableObjectCollection>();
         SAMPLE_CHECK(nestedItems);
         SAMPLE_CHECK(FillObjectCollection(*nestedItems.Value(), 4U));
-        nestedModel.Value()->SetInventory(nestedItems.Value());
+        nestedModel->SetInventory(nestedItems.Value());
         FrameworkElement* nestedRoot = live.view->GetContent();
         SAMPLE_CHECK(nestedRoot != nullptr);
         nestedRoot->SetDataContext(Ref<Aero::Base::Object>(nestedModel.Value()));

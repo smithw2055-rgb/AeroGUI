@@ -531,28 +531,6 @@ Base::Result<void> ResourceDictionary::Add(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    {
-        if (key.Kind() == ResourceKeyKind::String) {
-            Base::StringView kv = key.StringValue();
-            auto contains = [&](const char* s) noexcept {
-                if (kv.SizeBytes() == 0) return false;
-                std::uint32_t n = 0U;
-                while (s[n] != '\0') ++n;
-                if (n == 0U || n > kv.SizeBytes()) return false;
-                for (std::uint32_t i = 0U; i + n <= kv.SizeBytes(); ++i) {
-                    std::uint32_t j = 0U;
-                    while (j < n && kv.Data()[i + j] == s[j]) ++j;
-                    if (j == n) return true;
-                }
-                return false;
-            };
-            if (contains("Container") || contains("ItemStyle") || contains("HeaderStyle") ||
-                contains("StockTemplate") || contains("RowBackground")) {
-                std::fprintf(stderr, "[ResAdd] key='%.*s' valType=%u\n",
-                    (int)kv.SizeBytes(), kv.Data(), (unsigned)value.Type());
-            }
-        }
-    }
     if (!key.IsValid() ||
         value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {
@@ -564,7 +542,7 @@ Base::Result<void> ResourceDictionary::Add(
     if (!storage) {
         return storage.GetStatus();
     }
-    if (storage.Value()->sealed) {
+    if (storage->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             MessageReadOnly);
@@ -578,7 +556,7 @@ Base::Result<void> ResourceDictionary::Add(
     entry.key = key;
     entry.value = value;
     entry.source = source;
-    storage.Value()->entries.PushBack(
+    storage->entries.PushBack(
             std::move(entry));
     Notify(
         *storage.Value(),
@@ -638,7 +616,7 @@ Base::Result<void> ResourceDictionary::StoreResource(
     if (!storage) {
         return storage.GetStatus();
     }
-    if (storage.Value()->sealed) {
+    if (storage->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             MessageReadOnly);
@@ -840,7 +818,7 @@ Base::Result<void> ResourceDictionary::AddMerged(
     if (!child) {
         return child.GetStatus();
     }
-    if (owner.Value()->sealed) {
+    if (owner->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             MessageReadOnly);
@@ -851,7 +829,7 @@ Base::Result<void> ResourceDictionary::AddMerged(
             "ResourceDictionary cannot merge itself");
     }
     for (const Access::Merged& merged :
-         owner.Value()->merged) {
+         owner->merged) {
         if (merged.dictionary == child.Value()) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -876,7 +854,7 @@ Base::Result<void> ResourceDictionary::AddMerged(
         return subscribed.GetStatus();
     }
     AddStateRef(child.Value());
-    owner.Value()->merged.PushBack({
+    owner->merged.PushBack({
             child.Value(), subscribed.Value()});
     Notify(
         *owner.Value(),
@@ -981,7 +959,7 @@ void ResourceDictionary::SetSource(
     }
     Base::Result<Access*> storage = EnsureState();
     if (!storage) return;
-    if (storage.Value()->sealed) {
+    if (storage->sealed) {
         return;
     }
     if (source.Scheme().Empty() && !source.Assembly().Empty()) {
@@ -996,11 +974,11 @@ void ResourceDictionary::SetSource(
         Base::Result<Base::ResourceUri> normalized = assigned
             ? Base::ResourceUri::Parse(pack.View())
             : Base::Result<Base::ResourceUri>(assigned.GetStatus());
-        storage.Value()->source = normalized
+        storage->source = normalized
             ? std::move(normalized).Value()
             : source;
     } else {
-        storage.Value()->source = source;
+        storage->source = source;
     }
     Notify(
         *storage.Value(),
@@ -1021,10 +999,10 @@ Base::Result<void> ResourceDictionary::Seal() noexcept {
     if (!storage) {
         return storage.GetStatus();
     }
-    if (storage.Value()->sealed) {
+    if (storage->sealed) {
         return {};
     }
-    storage.Value()->sealed = true;
+    storage->sealed = true;
     Notify(
         *storage.Value(),
         {},

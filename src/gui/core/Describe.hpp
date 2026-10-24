@@ -10,9 +10,36 @@
 
 namespace Aero::Meta {
 
+template<class T, typename = void>
+struct HasDescribeMetadata : std::false_type {};
+
+template<class T>
+struct HasDescribeMetadata<T, std::void_t<decltype(T::DescribeMetadata(std::declval<Registration&>()))>> : std::true_type {};
+
+template<class T, typename = void>
+struct HasBaseType : std::false_type {};
+
+template<class T>
+struct HasBaseType<T, std::void_t<typename T::BaseType>> : std::true_type {};
+
 template<class T>
 struct DescribeHook {
     static void Run(Registration& context) noexcept {
+        if (context.ContainsType(TypeTraits<T>::Id())) {
+            return;
+        }
+        if constexpr (HasBaseType<T>::value) {
+            using BaseT = typename T::BaseType;
+            if constexpr (!std::is_same_v<BaseT, NoMetadataBase> &&
+                          !std::is_same_v<BaseT, void> &&
+                          !std::is_same_v<BaseT, Base::Object>) {
+                if constexpr (HasDescribeMetadata<BaseT>::value) {
+                    if (!context.ContainsType(TypeTraits<BaseT>::Id())) {
+                        DescribeHook<BaseT>::Run(context);
+                    }
+                }
+            }
+        }
         T::DescribeMetadata(context);
     }
 };

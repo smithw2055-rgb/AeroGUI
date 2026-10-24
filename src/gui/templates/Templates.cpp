@@ -1854,9 +1854,6 @@ bool Control::ApplyTemplate() noexcept {
     Base::Result<TemplateHandle> applied =
         templateRuntime->Apply(*this, *value);
     if (!applied) {
-        std::fprintf(stderr, "[ApplyTemplate] FAILED on control=%p type=%llu: %s\n",
-            (void*)this, (unsigned long long)RuntimeType(),
-            applied.GetStatus().message);
         return false;
     }
     // TemplateEngine has now completed its instance transaction and installed

@@ -23,8 +23,8 @@ public:
     Window() noexcept : Window(StaticTypeId()) {}
     ~Window() noexcept override;
 
-    Result<void> Show() noexcept;
-    Result<bool> ShowDialog() noexcept;
+    void Show() noexcept;
+    bool ShowDialog() noexcept;
     void Close() noexcept;
 
     StringView GetTitle() const noexcept { return GetValue(TitleProperty); }

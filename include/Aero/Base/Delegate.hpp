@@ -69,9 +69,21 @@ public:
         if (object != nullptr && method != nullptr) { Emplace<MemberFunction<C>>(MemberFunction<C>{object, method}); }
     }
 
+    template<class C> Delegate(C* object, Ret (C::*method)(Args...) noexcept) noexcept {
+        if (object != nullptr && method != nullptr) {
+            Emplace<MemberFunction<C>>(MemberFunction<C>{object, reinterpret_cast<Ret (C::*)(Args...)>(method)});
+        }
+    }
+
     template<class C> Delegate(const C* object, Ret (C::*method)(Args...) const) noexcept {
         if (object != nullptr && method != nullptr) {
             Emplace<ConstMemberFunction<C>>(ConstMemberFunction<C>{object, method});
+        }
+    }
+
+    template<class C> Delegate(const C* object, Ret (C::*method)(Args...) const noexcept) noexcept {
+        if (object != nullptr && method != nullptr) {
+            Emplace<ConstMemberFunction<C>>(ConstMemberFunction<C>{object, reinterpret_cast<Ret (C::*)(Args...) const>(method)});
         }
     }
 

@@ -121,8 +121,8 @@ static_assert(
 static_assert(
     std::is_same<
         decltype(std::declval<Aero::App::Window&>().Show()),
-        Aero::Result<void>>::value,
-    "Window must expose one Result-returning Show boundary");
+        void>::value,
+    "Window must expose void-returning Show boundary");
 
 static_assert(
     std::is_same<

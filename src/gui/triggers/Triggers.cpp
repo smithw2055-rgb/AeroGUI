@@ -1,62 +1,21 @@
 #include <Aero/Style.hpp>
 #include <Aero/Triggers.hpp>
-#include <Aero/Value.hpp>
-
-#include "gui/core/ValueConversion.hpp"
-#include "gui/triggers/TriggerPlan.hpp"
-#include "gui/core/Describe.hpp"
-#include "gui/core/TypeRegistryCore.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/data/BindingEngine.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Interactivity/TriggerAction.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
 #include <Aero/EventSetter.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
+#include <Aero/Events.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
-#include <Aero/Animatable.hpp>
-#include <cctype>
-#include <cmath>
-#include <cstdlib>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+
+#include "gui/core/Describe.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include "gui/triggers/TriggerPlan.hpp"
+
 #include <utility>
+
 
 namespace Aero {
 
@@ -128,8 +87,11 @@ void Trigger::AddSetter(
     const Setter& setter) noexcept {
     if (!setter.GetProperty().IsValid() ||
         setter.GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-    setterProperties_.PushBack(setter.GetProperty());
-    setterValues_.PushBack(setter.GetValue());
+    auto s = Base::MakeRef<Setter>();
+    if (!s) return;
+    s->SetProperty(setter.GetProperty());
+    s->SetValue(setter.GetValue());
+    AddAuthoredSetter(std::move(s));
 }
 
 namespace {
@@ -341,63 +303,6 @@ void Condition::SetSourceName(
 namespace Aero::MetadataSupport {
 namespace {
 
-void AddSetterTriggerSetter(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value || value->RuntimeType() != Setter::StaticTypeId()) {
-        return;
-    }
-    Base::Ref<Setter> retained =
-        Base::Ref<Setter>::TryFromBorrowed(
-            static_cast<Setter&>(*value));
-    if (!retained) {
-        return;
-    }
-    static_cast<SetterTriggerBase&>(owner).AddAuthoredSetter(
-        std::move(retained));
-}
-
-void ClearSetterTriggerSetters(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<SetterTriggerBase&>(owner).ClearAuthoredSetters();
-}
-
-void AddTriggerEnterAction(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    static_cast<void>(
-        static_cast<TriggerBase&>(owner).AddEnterAction(value));
-}
-
-void ClearTriggerEnterActions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<TriggerBase&>(owner)
-        .ClearEnterActions();
-    return;
-}
-
-void AddTriggerExitAction(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    static_cast<void>(
-        static_cast<TriggerBase&>(owner).AddExitAction(value));
-}
-
-void ClearTriggerExitActions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<TriggerBase&>(owner)
-        .ClearExitActions();
-    return;
-}
-
 void AddDataTriggerContent(
     Base::Object& owner,
     const Base::Ref<Base::Object>& value,
@@ -417,47 +322,6 @@ void ClearDataTriggerContent(Base::Object& owner, void*) noexcept {
     auto& trigger = static_cast<DataTrigger&>(owner);
     trigger.ClearAuthoredSetters();
     trigger.ClearEnterActions();
-}
-
-void AddMultiDataCondition(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Condition> retained =
-        Base::Ref<Condition>::TryFromBorrowed(
-            static_cast<Condition&>(*value));
-    if (!retained) return;
-    static_cast<MultiDataTrigger&>(owner).AddCondition(
-        std::move(retained));
-}
-
-void ClearMultiDataConditions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<MultiDataTrigger&>(owner)
-        .ClearConditions();
-    return;
-}
-
-void AddMultiTriggerCondition(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    if (!value) return;
-    Base::Ref<Condition> retained =
-        Base::Ref<Condition>::TryFromBorrowed(
-            static_cast<Condition&>(*value));
-    if (!retained) return;
-    static_cast<MultiTrigger&>(owner).AddCondition(
-        std::move(retained));
-}
-
-void ClearMultiTriggerConditions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<MultiTrigger&>(owner).ClearConditions();
-    return;
 }
 
 } // namespace
@@ -489,14 +353,14 @@ AERO_DESCRIBE(EventSetter) {
 AERO_DESCRIBE(TriggerBase) {
     using namespace Aero::Meta;
     Register<TriggerBase>(context, TypeFlags::Abstract)
-            .Collection<Aero::Interactivity::TriggerAction>("EnterActions", &::Aero::MetadataSupport::AddTriggerEnterAction, &::Aero::MetadataSupport::ClearTriggerEnterActions)
-            .Collection<Aero::Interactivity::TriggerAction>("ExitActions", &::Aero::MetadataSupport::AddTriggerExitAction, &::Aero::MetadataSupport::ClearTriggerExitActions);
+            .Collection<Aero::Interactivity::TriggerAction, &TriggerBase::AddEnterAction, &TriggerBase::ClearEnterActions>("EnterActions")
+            .Collection<Aero::Interactivity::TriggerAction, &TriggerBase::AddExitAction, &TriggerBase::ClearExitActions>("ExitActions");
 }
 
 AERO_DESCRIBE(SetterTriggerBase) {
     using namespace Aero::Meta;
     Register<SetterTriggerBase>(context, TypeFlags::Abstract)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters);
+            .Content<Setter, &SetterTriggerBase::AddAuthoredSetter, &SetterTriggerBase::ClearAuthoredSetters>("Setters");
 }
 
 AERO_DESCRIBE(Trigger) {
@@ -505,7 +369,7 @@ AERO_DESCRIBE(Trigger) {
             .Property("Property", &Trigger::GetPropertyName, &Trigger::SetPropertyName)
             .Property("SourceName", &Trigger::GetSourceName, &Trigger::SetSourceName)
             .Property<Value, &Trigger::GetAuthoredValue, &Trigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
+            .Content<Setter, &SetterTriggerBase::AddAuthoredSetter, &SetterTriggerBase::ClearAuthoredSetters>("Setters")
             .Factory();
 }
 
@@ -532,16 +396,16 @@ AERO_DESCRIBE(Condition) {
 AERO_DESCRIBE(MultiDataTrigger) {
     using namespace Aero::Meta;
     Register<MultiDataTrigger>(context)
-            .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiDataCondition, &::Aero::MetadataSupport::ClearMultiDataConditions)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
+            .Collection<Condition, &MultiDataTrigger::AddCondition, &MultiDataTrigger::ClearConditions>("Conditions")
+            .Content<Setter, &SetterTriggerBase::AddAuthoredSetter, &SetterTriggerBase::ClearAuthoredSetters>("Setters")
             .Factory();
 }
 
 AERO_DESCRIBE(MultiTrigger) {
     using namespace Aero::Meta;
     Register<MultiTrigger>(context)
-            .Collection<Condition>("Conditions", &::Aero::MetadataSupport::AddMultiTriggerCondition, &::Aero::MetadataSupport::ClearMultiTriggerConditions)
-            .Content<Setter>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddSetterTriggerSetter, &::Aero::MetadataSupport::ClearSetterTriggerSetters)
+            .Collection<Condition, &MultiTrigger::AddCondition, &MultiTrigger::ClearConditions>("Conditions")
+            .Content<Setter, &SetterTriggerBase::AddAuthoredSetter, &SetterTriggerBase::ClearAuthoredSetters>("Setters")
             .Factory();
 }
 

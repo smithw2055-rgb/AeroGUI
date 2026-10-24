@@ -38,7 +38,7 @@ public:
         return index < ownedChildren_.Size() ? ownedChildren_[index] : Ref<Base::Object>{};
     }
     void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
-    Result<bool> RemoveChildCore(UIElement& child) noexcept;
+    bool RemoveChildCore(UIElement& child) noexcept;
 
     Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
     void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }

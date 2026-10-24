@@ -74,11 +74,11 @@ Base::Result<void> ViewFrame::AttachVisualGraph(
         FrameworkElement* rootRender,
         Base::Span<Aero::Markup::VisualEdge> edges,
         Size availableSize) noexcept {
-        if (tree == nullptr) {
+        if (Tree() == nullptr) {
             return ViewInvalidState(
                 "Gui root cannot be attached in its current state");
         }
-        Base::Result<void> attached = tree->AttachVisualGraph(
+        Base::Result<void> attached = Tree()->AttachVisualGraph(
             rootVisual, edges, availableSize, rootAttachment);
         if (!attached) return attached.GetStatus();
         attachedRootVisual = &rootVisual;
@@ -89,32 +89,32 @@ Base::Result<void> ViewFrame::AttachVisualGraph(
 
 Base::Result<void> ViewFrame::CompleteVisualEdges(
         Base::Span<Aero::Markup::VisualEdge> edges) noexcept {
-        if (tree == nullptr || !HasAttachedRoot()) {
+        if (Tree() == nullptr || !HasAttachedRoot()) {
             return ViewInvalidState(
                 "Deferred visual edges require an attached root");
         }
-        return tree->CompleteVisualEdges(edges);
+        return Tree()->CompleteVisualEdges(edges);
     }
 
 Base::Result<void> ViewFrame::ResizeVisualRoot(Size availableSize) noexcept {
         if (!HasAttachedRoot() || attachedRootLayout == nullptr ||
-            tree == nullptr) {
-            return AeroNotInitialized(
+            Tree() == nullptr) {
+            return ViewNotInitialized(
                 "View resize requires an attached layout root");
         }
-        return tree->ResizeRoot(
+        return Tree()->ResizeRoot(
             *attachedRootLayout, availableSize, attachedRootVisual);
     }
 
 Base::Result<void> ViewFrame::DetachVisualGraph(
         Base::Span<Aero::Markup::VisualEdge> edges) noexcept {
         if (!HasAttachedRoot() && attachedRootVisual == nullptr) return {};
-        if (tree == nullptr) {
+        if (Tree() == nullptr) {
             return ViewInvalidState(
                 "Gui context is unavailable during root detach");
         }
         Base::Result<void> detached =
-            tree->DetachVisualGraph(rootAttachment, edges);
+            Tree()->DetachVisualGraph(rootAttachment, edges);
         if (!detached) return detached.GetStatus();
         attachedRootVisual = nullptr;
         attachedRootLayout = nullptr;
@@ -247,7 +247,7 @@ Base::Result<const T*> ResolveUiValue(
 }
 
 Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noexcept {
-        if (state.metadata == nullptr || state.values == nullptr || state.Bindings() == nullptr ||
+        if (state.metadata == nullptr || state.Values() == nullptr || state.Bindings() == nullptr ||
             state.Events() == nullptr || state.Input() == nullptr || state.Styles() == nullptr ||
             state.Templates() == nullptr) {
             return Base::Status::Failure(
@@ -255,13 +255,13 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                 "View UI state is unavailable");
         }
 
-        if (state.resources == nullptr) {
+        if (state.Resources() == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotInitialized,
                 "View UI state is unavailable");
         }
         const Aero::ResourceEnvironment resources =
-            state.resources->Environment();
+            state.Resources()->Environment();
         Base::Vector<Aero::Media::Visual*> stack(state.allocator);
         stack.PushBack(&root);
         while (!stack.Empty()) {
@@ -273,33 +273,15 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                 static_cast<void>(guiRuntime.AdoptPendingDocumentFor(*node, state));
             }
 
-            Base::Result<std::uint32_t> activated =
-                state.Bindings()->ActivateDeferred(
-                    *static_cast<::Aero::DependencyObject*>(node));
-            if (!activated) {
-                std::fprintf(
-                    stderr,
-                    "[ViewFrame] ActivateDeferred failed on %p: %s\n",
-                    static_cast<void*>(node),
-                    activated.GetStatus().message
-                        ? activated.GetStatus().message
-                        : "");
-            }
+            static_cast<void>(state.Bindings()->ActivateDeferred(
+                *static_cast<::Aero::DependencyObject*>(node)));
             if (auto* element = ::Aero::TryCast<::Aero::UIElement>(node)) {
                 if (Aero::Base::Ref<Aero::Media::Transform> transform =
                         element->GetRenderTransform()) {
-                    activated = state.Bindings()->ActivateDeferred(*transform);
-                    if (!activated) {
-                        std::fprintf(
-                            stderr,
-                            "[ViewFrame] ActivateDeferred failed on transform %p: %s\n",
-                            static_cast<void*>(transform.Get()),
-                            activated.GetStatus().message
-                                ? activated.GetStatus().message
-                                : "");
-                    }
+                    static_cast<void>(state.Bindings()->ActivateDeferred(*transform));
                 }
             }
+            bool styleApplied = false;
             Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr) {
                 Base::Result<const Aero::Style*> resolved =
@@ -307,65 +289,28 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                         *element, Aero::FrameworkElement::StyleProperty,
                         resources,
                         "FrameworkElement Style value is not a Style");
-                if (!resolved) {
-                    std::fprintf(
-                        stderr,
-                        "[ViewFrame] Style resolve failed on %p: %s\n",
-                        static_cast<void*>(element),
-                        resolved.GetStatus().message
-                            ? resolved.GetStatus().message
-                            : "");
-                }
                 const Aero::Style* style =
                     resolved ? resolved.Value() : nullptr;
-                if (style != nullptr) {
-                    if (!style->GetIsSealed()) {
-                        std::fprintf(
-                            stderr,
-                            "[ViewFrame] skip unsealed style on %p\n",
-                            static_cast<void*>(element));
-                    } else if (state.Styles()->AppliedStyle(*element) != style) {
-                        if (state.interactivity != nullptr) {
-                            state.interactivity->ClearStyleDataTriggersFor(*element);
+                if (style != nullptr && style->GetIsSealed()) {
+                    if (state.Styles()->AppliedStyle(*element) != style) {
+                        if (state.Interactivity() != nullptr) {
+                            state.Interactivity()->ClearStyleDataTriggersFor(*element);
                         }
                         Base::Result<void> applied = state.Styles()->Apply(*element, *style);
-                        if (!applied) {
-                            std::fprintf(
-                                stderr,
-                                "[ViewFrame] style apply failed on %p: %s\n",
-                                static_cast<void*>(element),
-                                applied.GetStatus().message
-                                    ? applied.GetStatus().message
-                                    : "");
+                        if (applied) {
+                            styleApplied = true;
                         }
                     }
-                    Base::Result<std::uint32_t> dataTriggers =
-                        state.interactivity != nullptr
-                        ? state.interactivity->StartStyleDataTriggers(*element, *style)
-                        : Base::Result<std::uint32_t>(std::uint32_t{0U});
-                    if (!dataTriggers) {
-                        std::fprintf(
-                            stderr,
-                            "[ViewFrame] data triggers failed on %p: %s\n",
-                            static_cast<void*>(element),
-                            dataTriggers.GetStatus().message
-                                ? dataTriggers.GetStatus().message
-                                : "");
+                    if (state.Interactivity() != nullptr) {
+                        static_cast<void>(state.Interactivity()->StartStyleDataTriggers(*element, *style));
                     }
                 }
             }
 
             const bool isControl = state.metadata->Types().IsDerivedFrom(
                 node->RuntimeType(), Controls::Control::StaticTypeId());
-            Base::Result<std::uint32_t> styleValues = state.values->Flush();
-            if (!styleValues) {
-                std::fprintf(
-                    stderr,
-                    "[ViewFrame] style value flush failed on %p: %s\n",
-                    static_cast<void*>(node),
-                    styleValues.GetStatus().message
-                        ? styleValues.GetStatus().message
-                        : "");
+            if (styleApplied || isControl) {
+                static_cast<void>(state.Values()->Flush());
             }
 
             if (isControl) {
@@ -374,44 +319,28 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                     ResolveUiValue<Controls::ControlTemplate>(
                         control, Controls::Control::TemplateProperty, resources,
                         "Control Template value is not a ControlTemplate");
-                if (!resolved) {
-                    std::fprintf(
-                        stderr,
-                        "[ViewFrame] Template resolve failed on %p: %s\n",
-                        static_cast<void*>(&control),
-                        resolved.GetStatus().message
-                            ? resolved.GetStatus().message
-                            : "");
-                } else {
-                const Controls::ControlTemplate* controlTemplate =
-                    resolved.Value();
-                if (controlTemplate != nullptr) {
-                    const ::Aero::Controls::TemplateHandle existing =
-                        state.Templates()->AppliedHandle(control);
-                    if (!existing.IsValid() ||
-                        state.Templates()->AppliedTemplate(existing) != controlTemplate) {
-                        Base::Result<::Aero::Controls::TemplateHandle> applied =
-                            state.Templates()->Apply(control, *controlTemplate);
-                        if (!applied) {
-                            std::fprintf(
-                                stderr,
-                                "[ViewFrame] template apply failed on %p: %s\n",
-                                static_cast<void*>(&control),
-                                applied.GetStatus().message
-                                    ? applied.GetStatus().message
-                                    : "");
-                        } else {
-                        // TemplateEngine installs the handle while its
-                        // transaction is active. Invoke the control callback
-                        // only after Apply has returned so PART_* lookups and
-                        // ItemsHost realization cannot re-enter that
-                        // transaction.
-                        (control).OnApplyTemplate();
+                if (resolved) {
+                    const Controls::ControlTemplate* controlTemplate =
+                        resolved.Value();
+                    if (controlTemplate != nullptr) {
+                        const ::Aero::Controls::TemplateHandle existing =
+                            state.Templates()->AppliedHandle(control);
+                        if (!existing.IsValid() ||
+                            state.Templates()->AppliedTemplate(existing) != controlTemplate) {
+                            Base::Result<::Aero::Controls::TemplateHandle> applied =
+                                state.Templates()->Apply(control, *controlTemplate);
+                            if (applied) {
+                                // TemplateEngine installs the handle while its
+                                // transaction is active. Invoke the control callback
+                                // only after Apply has returned so PART_* lookups and
+                                // ItemsHost realization cannot re-enter that
+                                // transaction.
+                                (control).OnApplyTemplate();
+                            }
                         }
+                    } else {
+                        (control).OnApplyTemplate();
                     }
-                } else {
-                    (control).OnApplyTemplate();
-                }
                 }
             }
 
@@ -419,7 +348,7 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                 stack.PushBack(child);
             });
         }
-        Base::Result<std::uint32_t> appliedValues = state.values->Flush();
+        Base::Result<std::uint32_t> appliedValues = state.Values()->Flush();
         return appliedValues ? Base::Result<void>()
                              : Base::Result<void>(appliedValues.GetStatus());
     }
@@ -428,7 +357,7 @@ void DetachViewUi(
         ViewFrame& state,
         Aero::Media::Visual* root,
         Base::Span<Aero::Media::Visual* const> declarationNodes) noexcept {
-        if (state.values == nullptr) return;
+        if (state.Values() == nullptr) return;
 
         Base::Vector<Aero::Media::Visual*> reachable(state.allocator);
         Base::HashSet<Aero::Media::Visual*> visited(state.allocator);
@@ -467,7 +396,7 @@ void DetachViewUi(
                     } else {
                         if (state.Animations() != nullptr) (void)state.Animations()->RemoveTarget(*child);
                         if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*child);
-                        if (state.values != nullptr) (void)state.values->DetachObject(*child);
+                        if (state.Values() != nullptr) (void)state.Values()->DetachObject(*child);
                     }
                 }
             }
@@ -477,8 +406,8 @@ void DetachViewUi(
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
-            if (state.tree != nullptr) {
-                state.tree->DetachPropertyDependencyGraph(
+            if (state.Tree() != nullptr) {
+                state.Tree()->DetachPropertyDependencyGraph(
                     *node, state.Animations(), detachedPropertyObjects);
             } else {
                 // No tree hub: skip property-graph detach (engines already torn down).
@@ -489,6 +418,12 @@ void DetachViewUi(
                 auto& itemsControl = *static_cast<Controls::ItemsControl*>(node);
                 if (auto* gen = itemsControl.GetItemContainerGenerator()) {
                     (void)gen->Detach();
+                }
+                for (std::uint32_t i = 0U; i < state.trackedItemsControls.Size(); ++i) {
+                    if (state.trackedItemsControls[i] == &itemsControl) {
+                        state.trackedItemsControls.Erase(i);
+                        break;
+                    }
                 }
             }
             if (state.Animations() != nullptr) {
@@ -509,16 +444,16 @@ void DetachViewUi(
             if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*node);
             Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr && state.Styles() != nullptr) {
-                if (state.interactivity != nullptr) {
-                    state.interactivity->ClearStyleDataTriggersFor(*element);
+                if (state.Interactivity() != nullptr) {
+                    state.Interactivity()->ClearStyleDataTriggersFor(*element);
                 }
                 (void)state.Styles()->DetachObject(*element);
             }
-            if (state.values != nullptr) {
-                (void)state.values->DetachObject(*node);
+            if (state.Values() != nullptr) {
+                (void)state.Values()->DetachObject(*node);
             }
-            if (state.tree != nullptr) {
-                state.tree->InvalidateNodeHandle(*node);
+            if (state.Tree() != nullptr) {
+                state.Tree()->InvalidateNodeHandle(*node);
             }
         }
     }
@@ -562,33 +497,6 @@ ViewEngines::~ViewEngines() noexcept {
     }
 }
 
-Aero::LayoutEngine* ViewFrame::Layout() const noexcept {
-    return engines != nullptr ? &engines->layout : nullptr;
-}
-::Aero::Render::RenderTree* ViewFrame::RenderTree() const noexcept {
-    return engines != nullptr ? &engines->renderTree : nullptr;
-}
-Aero::BindingEngine* ViewFrame::Bindings() const noexcept {
-    return engines != nullptr ? &engines->bindings : nullptr;
-}
-Aero::StyleEngine* ViewFrame::Styles() const noexcept {
-    return engines != nullptr ? &engines->styles : nullptr;
-}
-Aero::EventRouter* ViewFrame::Events() const noexcept {
-    return engines != nullptr ? &engines->events : nullptr;
-}
-Aero::InputManager* ViewFrame::Input() const noexcept {
-    return engines != nullptr ? &engines->input : nullptr;
-}
-Aero::AnimationEngine* ViewFrame::Animations() const noexcept {
-    return engines != nullptr ? &engines->animations : nullptr;
-}
-VisualStateManager* ViewFrame::VisualStates() const noexcept {
-    return engines != nullptr ? engines->visualStates : nullptr;
-}
-Aero::Controls::TemplateEngine* ViewFrame::Templates() const noexcept {
-    return engines != nullptr ? &engines->templates : nullptr;
-}
 
 Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
         Aero::Media::Visual& root,
@@ -601,7 +509,7 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
                 "Generated item subtree runtime context is null");
         }
         if (change == Controls::ItemSubtreeChange::Unmounting) {
-            Base::Result<Aero::VisualHandle> rootHandle = runtime->tree->GetHandle(root);
+            Base::Result<Aero::VisualHandle> rootHandle = runtime->Tree()->GetHandle(root);
             if (rootHandle) {
                 for (std::uint32_t index = 0U; index < runtime->pendingGeneratedVisuals.Size(); ++index) {
                     if (runtime->pendingGeneratedVisuals[index] == rootHandle.Value()) {
@@ -618,7 +526,7 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
              runtime->Bindings()->IsFlushing())) {
             Base::Result<Aero::VisualHandle>
                 handle =
-                    runtime->tree->GetHandle(root);
+                    runtime->Tree()->GetHandle(root);
             if (!handle) {
                 // ItemTemplate header visuals (gallery SampleTemplate
                 // StackPanel) are callback'd before PART_Header hosts them.
@@ -636,50 +544,16 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
         Base::Result<void> applied =
             ApplyViewUi(*runtime, root);
         if (!applied) {
-            std::fprintf(
-                stderr,
-                "[ViewFrame] generated ApplyViewUi failed %p: %s\n",
-                static_cast<void*>(&root),
-                applied.GetStatus().message
-                    ? applied.GetStatus().message
-                    : "");
             return {};
         }
         Base::Result<void> attached =
             runtime->VisitAndAttach(root);
         if (!attached) {
-            std::fprintf(
-                stderr,
-                "[ViewFrame] generated VisitAndAttach failed %p: %s\n",
-                static_cast<void*>(&root),
-                attached.GetStatus().message
-                    ? attached.GetStatus().message
-                    : "");
             return {};
         }
-        Base::Result<std::uint32_t> rebound =
-            runtime->Bindings()->Flush();
-        if (!rebound) {
-            std::fprintf(
-                stderr,
-                "[ViewFrame] generated bindings Flush failed %p: %s\n",
-                static_cast<void*>(&root),
-                rebound.GetStatus().message
-                    ? rebound.GetStatus().message
-                    : "");
-            return {};
-        }
-        Base::Result<std::uint32_t> started =
-            runtime->storyboards->StartLoadedAnimations(&root);
-        if (!started) {
-            std::fprintf(
-                stderr,
-                "[ViewFrame] generated StartLoadedAnimations failed %p: %s\n",
-                static_cast<void*>(&root),
-                started.GetStatus().message
-                    ? started.GetStatus().message
-                    : "");
-            return {};
+        static_cast<void>(runtime->Bindings()->Flush());
+        if (runtime->Storyboards() != nullptr) {
+            static_cast<void>(runtime->Storyboards()->StartLoadedAnimations(&root));
         }
         return {};
     }
@@ -701,46 +575,23 @@ Base::Result<void>
             for (const Aero::VisualHandle handle :
                  pending) {
                 Aero::Media::Visual* subtreeRoot =
-                    tree->ResolveHandle(handle);
+                    Tree()->ResolveHandle(handle);
                 if (subtreeRoot == nullptr) continue;
                 Base::Result<void> applied =
                     ApplyViewUi(
                         *this,
                         *subtreeRoot);
                 if (!applied) {
-                    std::fprintf(
-                        stderr,
-                        "[ViewFrame] flush ApplyViewUi failed %p: %s\n",
-                        static_cast<void*>(subtreeRoot),
-                        applied.GetStatus().message
-                            ? applied.GetStatus().message
-                            : "");
                     continue;
                 }
                 Base::Result<void> attached =
                     VisitAndAttach(
                         *subtreeRoot);
                 if (!attached) {
-                    std::fprintf(
-                        stderr,
-                        "[ViewFrame] flush VisitAndAttach failed %p: %s\n",
-                        static_cast<void*>(subtreeRoot),
-                        attached.GetStatus().message
-                            ? attached.GetStatus().message
-                            : "");
                     continue;
                 }
-                Base::Result<std::uint32_t> started =
-                    storyboards->StartLoadedAnimations(subtreeRoot);
-                if (!started) {
-                    std::fprintf(
-                        stderr,
-                        "[ViewFrame] flush StartLoadedAnimations failed %p: %s\n",
-                        static_cast<void*>(subtreeRoot),
-                        started.GetStatus().message
-                            ? started.GetStatus().message
-                            : "");
-                    continue;
+                if (Storyboards() != nullptr) {
+                    static_cast<void>(Storyboards()->StartLoadedAnimations(subtreeRoot));
                 }
             }
             Base::Result<std::uint32_t> rebound =
@@ -777,15 +628,15 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
         }
         Controls::Panel* host = itemsControl.GetItemsHost();
         if (host == nullptr) return {};
-        if (VisualTree(itemsControl) != tree || VisualTree(host) != tree) {
+        if (VisualTree(itemsControl) != Tree() || VisualTree(host) != Tree()) {
             return {};
         }
 
         Base::Result<Controls::ItemContainerGenerator*> created =
             Controls::ItemContainerGeneratorFactory::Create(
-                *tree,
+                *Tree(),
                 *Layout(),
-                *values,
+                *Values(),
                 Styles(),
                 RenderTree(),
                 Templates(),
@@ -822,24 +673,12 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
     }
 
 Base::Result<void> ViewFrame::AttachPendingItemGenerators(
-        Aero::Media::Visual& rootVisual) noexcept {
-        Base::Vector<Aero::Media::Visual*> stack(allocator);
-        stack.PushBack(&rootVisual);
-        while (!stack.Empty()) {
-            Aero::Media::Visual* node = stack.Back();
-            stack.PopBack();
-            if (node == nullptr) continue;
-            if (metadata->Types().IsDerivedFrom(
-                    node->RuntimeType(),
-                    Controls::ItemsControl::StaticTypeId())) {
-                Base::Result<void> attached = AttachItemGenerator(
-                    *static_cast<Controls::ItemsControl*>(node));
-                if (!attached) return attached.GetStatus();
-            }
-            for (Aero::Media::Visual* child :
-                 (*node).RenderChildren()) {
-                stack.PushBack(child);
-            }
+        Aero::Media::Visual& /*rootVisual*/) noexcept {
+        for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
+            Controls::ItemsControl* ic = trackedItemsControls[i];
+            if (ic == nullptr) continue;
+            Base::Result<void> attached = AttachItemGenerator(*ic);
+            if (!attached) return attached.GetStatus();
         }
         return {};
     }
@@ -864,15 +703,25 @@ Base::Result<void> ViewFrame::VisitAndAttach(
             }
             AttachTextLayout(
                 *node,
-                text != nullptr
-                    ? text->Layout()
+                Text() != nullptr
+                    ? Text()->Layout()
                     : nullptr);
             AttachPathResources(*node, GetMeshResources());
             if (metadata->Types().IsDerivedFrom(
                     type,
                     Controls::ItemsControl::StaticTypeId())) {
-                Base::Result<void> attached = AttachItemGenerator(
-                    *static_cast<Controls::ItemsControl*>(node));
+                auto* ic = static_cast<Controls::ItemsControl*>(node);
+                bool alreadyTracked = false;
+                for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
+                    if (trackedItemsControls[i] == ic) {
+                        alreadyTracked = true;
+                        break;
+                    }
+                }
+                if (!alreadyTracked) {
+                    (void)trackedItemsControls.PushBack(ic);
+                }
+                Base::Result<void> attached = AttachItemGenerator(*ic);
                 if (!attached) return attached.GetStatus();
             }
             ForEachVisualAndLogicalChild(*node, [&stack](Aero::Media::Visual* child) {
@@ -930,17 +779,17 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
     if (fontProviderChanged) {
         state.seenFontProviderChange = guiState.fontChangeGeneration;
     }
-    if (state.images != nullptr &&
+    if (state.Images() != nullptr &&
         guiState.textureChangeGeneration != state.seenTextureProviderChange) {
         if (guiState.textureChangesLost) {
-            state.images->Invalidate({}, state.GetImageResources());
+            state.Images()->Invalidate({}, state.GetImageResources());
         } else {
             for (const XamlProviderChangeRecord& change :
                  guiState.textureChanges) {
                 if (change.generation <= state.seenTextureProviderChange) {
                     continue;
                 }
-                state.images->Invalidate(change.uri, state.GetImageResources());
+                state.Images()->Invalidate(change.uri, state.GetImageResources());
             }
         }
         state.seenTextureProviderChange = guiState.textureChangeGeneration;
@@ -960,25 +809,25 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
                 if (!invalidated) return invalidated.GetStatus();
             }
             state.VisitPaths(rootVisual, state.GetMeshResources(), true);
-            if (state.tree != nullptr) {
-                state.tree->SetMeshResources(state.GetMeshResources());
+            if (state.Tree() != nullptr) {
+                state.Tree()->SetMeshResources(state.GetMeshResources());
             }
             state.deviceGeneration = generation;
         }
     }
-    if (state.text != nullptr) {
-        Base::Result<bool> synchronized = state.text->SynchronizeBackend(
+    if (state.Text() != nullptr) {
+        Base::Result<bool> synchronized = state.Text()->SynchronizeBackend(
             *state.device,
             state.publicRenderer.Resources().text,
             deviceGenerationChanged || fontProviderChanged);
         if (!synchronized) return synchronized.GetStatus();
         if (synchronized.Value()) {
             state.VisitTextElements(
-                state.RootVisual(), state.text->Layout(), true);
+                state.RootVisual(), state.Text()->Layout(), true);
         }
     }
-    if (state.images != nullptr) {
-        Base::Result<bool> synchronized = state.images->Synchronize(
+    if (state.Images() != nullptr) {
+        Base::Result<bool> synchronized = state.Images()->Synchronize(
             state.RootVisual(),
             state.loadedDocument.canonicalUri,
             *state.xamlProviders,
@@ -1037,8 +886,8 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     ViewFrameResult result;
 
     // ---- PropertyChanges ----
-    if (state.values != nullptr) {
-        Base::Result<std::uint32_t> flushed = state.values->Flush();
+    if (state.Values() != nullptr) {
+        Base::Result<std::uint32_t> flushed = state.Values()->Flush();
         if (!flushed) return flushed.GetStatus();
         Base::Result<void> counted = AddFrameCallbacks(
             result, flushed.Value(), "Frame callback count overflow");
@@ -1069,9 +918,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
                 return styleTriggers.GetStatus();
             }
         }
-        if (state.interactivity != nullptr) {
-            state.interactivity->FlushPendingStyleDataTriggerEvaluations();
-            state.interactivity->RetryPendingInteractionTriggers();
+        if (state.Interactivity() != nullptr) {
+            state.Interactivity()->FlushPendingStyleDataTriggerEvaluations();
+            state.Interactivity()->RetryPendingInteractionTriggers();
         }
     }
 
@@ -1084,9 +933,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
             state.ReportUpdateFailure(animationStatus);
         }
 
-        if (state.storyboards != nullptr) {
+        if (state.Storyboards() != nullptr) {
             Base::Result<std::uint32_t> completed =
-                state.storyboards->ProcessStoryboardCompletions();
+                state.Storyboards()->ProcessStoryboardCompletions();
             if (!completed) return completed.GetStatus();
             Base::Result<void> counted = AddFrameCallbacks(
                 result,
@@ -1107,16 +956,16 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
 
     // ---- Lifecycle ----
     {
-        if (state.tree != nullptr) {
+        if (state.Tree() != nullptr) {
             Base::Result<std::uint32_t> lifecycleCount =
-                state.tree->FlushLifecycle();
+                state.Tree()->FlushLifecycle();
             if (!lifecycleCount) return lifecycleCount.GetStatus();
             Base::Result<void> countedLifecycle = AddFrameCallbacks(
                 result, lifecycleCount.Value(), "Lifecycle callback count overflow");
             if (!countedLifecycle) return countedLifecycle.GetStatus();
         }
-        Base::Result<std::uint32_t> focused = state.focus != nullptr
-            ? state.focus->ProcessPendingFocus()
+        Base::Result<std::uint32_t> focused = state.Focus() != nullptr
+            ? state.Focus()->ProcessPendingFocus()
             : Base::Result<std::uint32_t>(0U);
         if (!focused) return focused.GetStatus();
         Base::Result<void> counted = AddFrameCallbacks(
@@ -1136,8 +985,8 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
 
     // ---- Layout ----
     if (!skipUnsyncedVisualPhases) {
-        if (state.HasAttachedRoot() && state.tree != nullptr) {
-            Base::Result<void> completed = state.tree->CompleteVisualEdges({
+        if (state.HasAttachedRoot() && state.Tree() != nullptr) {
+            Base::Result<void> completed = state.Tree()->CompleteVisualEdges({
                 state.loadedDocument.visualContent.mountEdges.Data(),
                 state.loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) {
@@ -1162,16 +1011,16 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
                     state.Bindings()->Flush();
                 if (!rebound) return rebound.GetStatus();
             }
-            if (state.storyboards != nullptr) {
+            if (state.Storyboards() != nullptr) {
                 Base::Result<void> loaded =
-                    state.storyboards->FlushPendingLoadedTriggers();
+                    state.Storyboards()->FlushPendingLoadedTriggers();
                 if (!loaded) return loaded.GetStatus();
             }
         }
         if (state.Layout() != nullptr &&
             state.Layout()->Diagnostics().arrangedCount != 0U) {
-            if (state.interactivity != nullptr) {
-                state.interactivity->NotifyLayoutUpdated();
+            if (state.Interactivity() != nullptr) {
+                state.Interactivity()->NotifyLayoutUpdated();
             }
         }
     }
@@ -1179,9 +1028,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     // ---- RenderCommit ----
     if (!skipUnsyncedVisualPhases) {
         state.RaiseFrameRendering(view);
-        if (state.overlays != nullptr) {
+        if (state.Overlays() != nullptr) {
             Base::Result<void> overlaySync =
-                state.overlays->SynchronizeOverlays();
+                state.Overlays()->SynchronizeOverlays();
             if (!overlaySync) return overlaySync.GetStatus();
         }
         if (state.RenderTree() != nullptr) {
@@ -1194,8 +1043,8 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         }
     }
 
-    if (state.text != nullptr) {
-        Base::Result<std::uint32_t> collected = state.text->CollectGarbage();
+    if (state.Text() != nullptr) {
+        Base::Result<std::uint32_t> collected = state.Text()->CollectGarbage();
         if (!collected) return collected.GetStatus();
     }
     result.frameNumber = ++state.frameNumber;
@@ -1233,8 +1082,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
 Base::Result<std::uint32_t> AdvanceViewClocks(
     ViewFrame& state,
     std::uint64_t elapsedMicroseconds) noexcept {
-    ViewFrame* state_ = &state;
-    if (!state_->mounted || state_->Animations() == nullptr) {
+    if (!state.mounted || state.Animations() == nullptr) {
         return ViewNotInitialized(
             "View timing requires a mounted animation manager");
     }
@@ -1242,12 +1090,12 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
         static_cast<std::uint32_t>(std::min<std::uint64_t>(
             elapsedMicroseconds / 1000U, UINT32_MAX));
     std::uint32_t actionCount = 0U;
-    if (state.tree != nullptr) {
-        actionCount += state.tree->AdvanceRepeatButtonTime(elapsedMilliseconds);
+    if (state.Tree() != nullptr) {
+        actionCount += state.Tree()->AdvanceRepeatButtonTime(elapsedMilliseconds);
     }
     Base::Result<std::uint32_t> toolTips =
-        state.overlays != nullptr
-            ? state.overlays->AdvanceToolTipTime(
+        state.Overlays() != nullptr
+            ? state.Overlays()->AdvanceToolTipTime(
                 elapsedMilliseconds)
             : Base::Result<std::uint32_t>(0U);
     if (!toolTips) return toolTips.GetStatus();
@@ -1257,16 +1105,18 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
             "Control timing action count overflow");
     }
     actionCount += toolTips.Value();
-    if (state_->options.automaticAnimationClock) {
+    if (state.options.automaticAnimationClock) {
         return actionCount;
     }
     Base::Result<std::uint32_t> animations =
-        state_->Animations()->AdvanceBy(
+        state.Animations()->AdvanceBy(
             static_cast<Aero::Media::Animation::AnimationTime>(
                 elapsedMicroseconds));
     if (!animations) return animations.GetStatus();
     Base::Result<std::uint32_t> completed =
-        state_->storyboards->ProcessStoryboardCompletions();
+        state.Storyboards() != nullptr
+            ? state.Storyboards()->ProcessStoryboardCompletions()
+            : Base::Result<std::uint32_t>(0U);
     if (!completed) return completed.GetStatus();
     if (actionCount > UINT32_MAX - animations.Value()) {
         return Base::Status::Failure(
@@ -1285,25 +1135,25 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
 
 void ViewFrame::BeginDestroyInteractions() noexcept {
         if (Aero::Media::Visual* rootVisual = RootVisual()) {
-            if (interactivity != nullptr) {
-                interactivity->DetachBehaviorsInSubtree(*rootVisual);
+            if (Interactivity() != nullptr) {
+                Interactivity()->DetachBehaviorsInSubtree(*rootVisual);
             }
         }
-        if (overlays != nullptr) {
-            overlays->CloseAllOverlays();
-            overlays->ClearOverlays();
+        if (Overlays() != nullptr) {
+            Overlays()->CloseAllOverlays();
+            Overlays()->ClearOverlays();
         }
-        if (interactivity != nullptr) {
-            interactivity->ClearAnimationEventSubscriptions();
+        if (Interactivity() != nullptr) {
+            Interactivity()->ClearAnimationEventSubscriptions();
         }
-        if (overlays != nullptr) {
-            if (overlays->activeToolTip) {
+        if (Overlays() != nullptr) {
+            if (Overlays()->activeToolTip) {
                 static_cast<void>(
-                    overlays->activeToolTip->SetIsOpen(false));
+                    Overlays()->activeToolTip->SetIsOpen(false));
             }
-            overlays->pendingToolTip.Reset();
-            overlays->activeToolTip.Reset();
-            overlays->toolTipTarget.Reset();
+            Overlays()->pendingToolTip.Reset();
+            Overlays()->activeToolTip.Reset();
+            Overlays()->toolTipTarget.Reset();
         }
         ClearTextInputHosts(RootVisual());
     }
@@ -1320,6 +1170,7 @@ void ViewFrame::FinishDestroyInteractions() noexcept {
                 generator = nullptr;
             }
         }
+        trackedItemsControls.Clear();
         if (Input() != nullptr) {
             Input()->SetRoot(nullptr);
         }
@@ -1343,12 +1194,6 @@ Base::Result<void> ViewFrame::CreateInteractions() noexcept {
                 "InputRouter is unavailable");
         }
         Input()->SetRoot(rootVisual);
-        Base::Result<void> status;
-
-        status = VisitAndAttach(*rootVisual);
-        if (!status) {
-            return status.GetStatus();
-        }
         return {};
     }
 

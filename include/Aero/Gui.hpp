@@ -48,9 +48,9 @@ public:
     }
     Result<void> LoadComponent(Base::Object& component, StringView uri,
         ResourceDictionary* resources = nullptr) noexcept;
-    Result<Ref<View>> CreateView(Base::IAllocator* allocator = nullptr) noexcept;
-    Result<Ref<View>> CreateView(const ViewOptions& options, Base::IAllocator* allocator = nullptr) noexcept;
-    Result<Ref<View>> CreateView(Ref<FrameworkElement> content, const ViewOptions& options = {},
+    Ref<View> CreateView(Base::IAllocator* allocator = nullptr) noexcept;
+    Ref<View> CreateView(const ViewOptions& options, Base::IAllocator* allocator = nullptr) noexcept;
+    Ref<View> CreateView(Ref<FrameworkElement> content, const ViewOptions& options = {},
         Base::IAllocator* allocator = nullptr) noexcept;
 
     bool IsInitialized() const noexcept;

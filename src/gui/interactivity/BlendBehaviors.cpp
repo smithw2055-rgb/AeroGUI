@@ -407,7 +407,7 @@ Base::Result<void> BackgroundEffectBehavior::Refresh() noexcept {
         ReadBackground(*source);
     if (!background) return background.GetStatus();
     Base::Ref<Media::Brush> projected = background.Value();
-    if (background.Value()->RuntimeType() ==
+    if (background->RuntimeType() ==
         Media::ImageBrush::StaticTypeId()) {
         Base::Result<Base::Ref<Media::ImageBrush>> image =
             ProjectImageBrush(

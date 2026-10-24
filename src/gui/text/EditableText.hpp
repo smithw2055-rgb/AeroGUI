@@ -68,6 +68,13 @@ struct EditableTextState {
         std::uint32_t byteStart,
         std::uint32_t removedBytes,
         Base::StringView replacement) noexcept;
+    bool TryIncrementalReplace(
+        TextRange range,
+        std::uint32_t byteStart,
+        std::uint32_t removedBytes,
+        Base::StringView replacement,
+        std::uint32_t insertedCount,
+        std::uint32_t insertedCodePoints) noexcept;
     void TrimHistory(Base::Vector<EditRecord>& history) noexcept;
     Base::Result<void> Replace(
         TextRange range,

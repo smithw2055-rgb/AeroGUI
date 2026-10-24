@@ -367,7 +367,7 @@ MakeSolidColorBrush(Color color) noexcept {
     Base::Result<Base::Ref<SolidColorBrush>> made =
         Base::MakeRef<SolidColorBrush>();
     if (!made) return made.GetStatus();
-    made.Value()->SetColor(color);
+    made->SetColor(color);
     return Base::Ref<Brush>(
         std::move(made).Value());
 }
@@ -1567,7 +1567,7 @@ Base::Result<Value> ConvertBrushText(
     Base::Result<Base::Ref<SolidColorBrush>> made =
         Base::MakeRef<SolidColorBrush>();
     if (!made) return made.GetStatus();
-    made.Value()->SetColor(color.Value());
+    made->SetColor(color.Value());
     return Value::FromObject(
         Brush::StaticTypeId(),
         Base::Ref<Base::Object>(

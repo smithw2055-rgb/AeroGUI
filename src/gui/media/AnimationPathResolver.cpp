@@ -251,9 +251,6 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
         const Meta::DependencyProperty* property =
             FindPropertyForToken(properties, *target, token);
         if (property == nullptr) {
-            std::fprintf(stderr, "[AnimationPathResolver] property not found: token='%.*s' targetType=%llu\n",
-                static_cast<int>(token.raw.SizeBytes()), token.raw.Data(),
-                static_cast<unsigned long long>(target->RuntimeType()));
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Animation target property was not found");
@@ -331,18 +328,18 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
                         auto rotate = Base::MakeRef<Media::RotateTransform>();
                         auto translate = Base::MakeRef<Media::TranslateTransform>();
                         if (group && scale && skew && rotate && translate) {
-                            group.Value()->AddChild(Base::Ref<Media::Transform>(scale.Value()));
-                            group.Value()->AddChild(Base::Ref<Media::Transform>(skew.Value()));
-                            group.Value()->AddChild(Base::Ref<Media::Transform>(rotate.Value()));
-                            group.Value()->AddChild(Base::Ref<Media::Transform>(translate.Value()));
+                            group->AddChild(Base::Ref<Media::Transform>(scale));
+                            group->AddChild(Base::Ref<Media::Transform>(skew));
+                            group->AddChild(Base::Ref<Media::Transform>(rotate));
+                            group->AddChild(Base::Ref<Media::Transform>(translate));
                             auto& element = static_cast<UIElement&>(*target);
                             const bool layoutPath = token.propertyName == Base::StringView("LayoutTransform");
                             if (layoutPath && properties.Types().IsDerivedFrom(target->RuntimeType(), FrameworkElement::StaticTypeId())) {
-                                static_cast<FrameworkElement&>(element).SetLayoutTransform(Base::Ref<Media::Transform>(group.Value()));
+                                static_cast<FrameworkElement&>(element).SetLayoutTransform(Base::Ref<Media::Transform>(group));
                             } else {
-                                element.SetRenderTransform(Base::Ref<Media::Transform>(group.Value()));
+                                element.SetRenderTransform(Base::Ref<Media::Transform>(group));
                             }
-                            transform = Base::Ref<Media::Transform>(group.Value());
+                            transform = Base::Ref<Media::Transform>(group);
                         }
                     }
                 }

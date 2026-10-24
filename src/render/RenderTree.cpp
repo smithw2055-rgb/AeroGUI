@@ -261,14 +261,7 @@ Base::Result<void> DisplayListBuilder::FillRoundedRect(
             "FillRoundedRect requires valid geometry, color, and corner radius");
     }
     const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
-    if (cornerRadius > maxRadius) {
-        if (cornerRadius - maxRadius <= 1.0e-3) {
-            cornerRadius = maxRadius;
-        } else {
-            return InvalidArgument(
-                "FillRoundedRect requires valid geometry, color, and corner radius");
-        }
-    }
+    cornerRadius = std::clamp(cornerRadius, 0.0, maxRadius);
     if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdRoundedRect cmd{rect, color, static_cast<float>(cornerRadius), 0.0f};
     RenderCommandHeader h{};
@@ -335,14 +328,7 @@ Base::Result<void> DisplayListBuilder::StrokeRect(
             "StrokeRect requires valid geometry, color, and thickness");
     }
     const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
-    if (cornerRadius > maxRadius) {
-        if (cornerRadius - maxRadius <= 1.0e-3) {
-            cornerRadius = maxRadius;
-        } else {
-            return InvalidArgument(
-                "StrokeRect requires valid geometry, color, and thickness");
-        }
-    }
+    cornerRadius = std::clamp(cornerRadius, 0.0, maxRadius);
     if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdStrokeRect cmd{rect, color, static_cast<float>(thickness), static_cast<float>(cornerRadius)};
     RenderCommandHeader h{};

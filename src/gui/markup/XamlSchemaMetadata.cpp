@@ -296,7 +296,7 @@ Base::Result<void> XamlFacets::AddFacetCore(
     column.Reserve(column.Size() + 1U);
     Base::Result<DraftType*> ensured = EnsureType(facet.type);
     if (!ensured) return ensured.GetStatus();
-    ensured.Value()->facets[static_cast<std::uint8_t>(kind)] = column.Size();
+    ensured->facets[static_cast<std::uint8_t>(kind)] = column.Size();
     column.PushBack(facet);
     return {};
 }
@@ -387,7 +387,7 @@ Base::Result<void> XamlFacets::Add(
     markupExtensions_.Reserve(markupExtensions_.Size() + 1U);
     Base::Result<DraftType*> ensured = EnsureType(facet.type);
     if (!ensured) return ensured.GetStatus();
-    ensured.Value()->facets[static_cast<std::uint8_t>(
+    ensured->facets[static_cast<std::uint8_t>(
         FacetKind::MarkupExtension)] = markupExtensions_.Size();
     markupExtensions_.PushBack(facet);
     return {};

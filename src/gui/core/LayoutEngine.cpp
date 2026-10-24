@@ -562,25 +562,6 @@ void UIElement::MeasureCore(
     desired = Inflate(desired, margin);
     if (!std::isfinite(desired.width) ||
         !std::isfinite(desired.height)) {
-        std::fprintf(
-            stderr,
-            "Aero layout invalid desired type=%llu constraint=%.3f,%.3f available=%.3f,%.3f min=%.3f,%.3f max=%.3f,%.3f margin=%.3f,%.3f,%.3f,%.3f desired=%.3f,%.3f\n",
-            static_cast<unsigned long long>(
-                element.RuntimeType()),
-            constraint.width,
-            constraint.height,
-            available.width,
-            available.height,
-            minimum.width,
-            minimum.height,
-            maximum.width,
-            maximum.height,
-            margin.left,
-            margin.top,
-            margin.right,
-            margin.bottom,
-            desired.width,
-            desired.height);
         AERO_ASSERT(false && "Layout constraints produced an invalid desired size");
         return;
     }

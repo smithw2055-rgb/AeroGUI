@@ -107,7 +107,7 @@ StyleEngine* StoryboardHost::Styles() const noexcept {
 }
 
 InteractivityEngine* StoryboardHost::Interactivity() const noexcept {
-    return view != nullptr ? view->interactivity : nullptr;
+    return view != nullptr ? view->Interactivity() : nullptr;
 }
 
 

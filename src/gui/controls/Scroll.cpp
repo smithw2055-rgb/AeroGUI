@@ -237,14 +237,12 @@ void ScrollContentPresenter::SetLineScrollAmount(
     lineScrollAmount_ = value;
 }
 
-Base::Result<bool> ScrollContentPresenter::UpdateData(
+bool ScrollContentPresenter::UpdateData(
     ScrollData value,
     ScrollInputKind kind,
     bool invalidateArrange) noexcept {
     if (!ValidData(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll data must be finite and nonnegative");
+        return false;
     }
     value.horizontalOffset = GetAllowsHorizontalScroll()
         ? ClampOffset(
@@ -269,16 +267,14 @@ Base::Result<bool> ScrollContentPresenter::UpdateData(
     return true;
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::SyncLogicalData(
     ScrollInputKind kind) noexcept {
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical == nullptr) return false;
     ScrollData value = logical->GetData();
     if (!ValidData(value)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Logical scrolling provider returned invalid data");
+        return false;
     }
     if (SameData(data_, value)) return false;
     const ScrollData oldData = data_;
@@ -343,16 +339,14 @@ void ScrollContentPresenter::SetVerticalOffset(
     (void)UpdateData(data, pendingInputKind_, true);
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::ApplyScrollDelta(
     double deltaX,
     double deltaY,
     ScrollInputKind kind) noexcept {
     if (!std::isfinite(deltaX) ||
         !std::isfinite(deltaY)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Scroll delta must be finite");
+        return false;
     }
     pendingInputKind_ = kind;
     const ScrollData current = GetData();
@@ -368,25 +362,19 @@ ScrollContentPresenter::ApplyScrollDelta(
         afterHorizontal.verticalOffset != afterVertical.verticalOffset;
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::LineHorizontal(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Line scroll direction must be finite");
+        return false;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         pendingInputKind_ = ScrollInputKind::Line;
-        Base::Result<bool> changed =
-            logical->LineHorizontal(direction);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(ScrollInputKind::Line);
+        bool changed = logical->LineHorizontal(direction);
+        bool synced = SyncLogicalData(ScrollInputKind::Line);
         pendingInputKind_ = ScrollInputKind::Line;
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        return changed || synced;
     }
     return ApplyScrollDelta(
         direction * lineScrollAmount_,
@@ -394,25 +382,19 @@ ScrollContentPresenter::LineHorizontal(
         ScrollInputKind::Line);
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::LineVertical(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Line scroll direction must be finite");
+        return false;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         pendingInputKind_ = ScrollInputKind::Line;
-        Base::Result<bool> changed =
-            logical->LineVertical(direction);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(ScrollInputKind::Line);
+        bool changed = logical->LineVertical(direction);
+        bool synced = SyncLogicalData(ScrollInputKind::Line);
         pendingInputKind_ = ScrollInputKind::Line;
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        return changed || synced;
     }
     return ApplyScrollDelta(
         0.0,
@@ -420,25 +402,19 @@ ScrollContentPresenter::LineVertical(
         ScrollInputKind::Line);
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::PageHorizontal(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Page scroll direction must be finite");
+        return false;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         pendingInputKind_ = ScrollInputKind::Page;
-        Base::Result<bool> changed =
-            logical->PageHorizontal(direction);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(ScrollInputKind::Page);
+        bool changed = logical->PageHorizontal(direction);
+        bool synced = SyncLogicalData(ScrollInputKind::Page);
         pendingInputKind_ = ScrollInputKind::Line;
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        return changed || synced;
     }
     return ApplyScrollDelta(
         direction * GetData().viewportWidth,
@@ -446,25 +422,19 @@ ScrollContentPresenter::PageHorizontal(
         ScrollInputKind::Page);
 }
 
-Base::Result<bool>
+bool
 ScrollContentPresenter::PageVertical(
     double direction) noexcept {
     if (!std::isfinite(direction)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Page scroll direction must be finite");
+        return false;
     }
     IScrollInfo* logical = ActiveContentScrollInfo();
     if (logical != nullptr) {
         pendingInputKind_ = ScrollInputKind::Page;
-        Base::Result<bool> changed =
-            logical->PageVertical(direction);
-        if (!changed) return changed.GetStatus();
-        Base::Result<bool> synced =
-            SyncLogicalData(ScrollInputKind::Page);
+        bool changed = logical->PageVertical(direction);
+        bool synced = SyncLogicalData(ScrollInputKind::Page);
         pendingInputKind_ = ScrollInputKind::Line;
-        if (!synced) return synced.GetStatus();
-        return changed.Value() || synced.Value();
+        return changed || synced;
     }
     return ApplyScrollDelta(
         0.0,
@@ -499,9 +469,7 @@ ScrollContentPresenter::MeasureOverride(
     MeasureChild(*child, childAvailable);
 
     if (logical != nullptr) {
-        Base::Result<bool> synced =
-            SyncLogicalData(pendingInputKind_);
-        if (!synced) return Size{};
+        (void)SyncLogicalData(pendingInputKind_);
     } else {
         ScrollData value = data_;
         value.extentWidth = child->GetDesiredSize().width;
@@ -510,9 +478,7 @@ ScrollContentPresenter::MeasureOverride(
         value.viewportHeight = availableSize.height;
         value.horizontalOffset = desiredHorizontalOffset_;
         value.verticalOffset = desiredVerticalOffset_;
-        Base::Result<bool> updated = UpdateData(
-            value, pendingInputKind_, false);
-        if (!updated) return Size{};
+        (void)UpdateData(value, pendingInputKind_, false);
     }
     const ScrollData value = GetData();
     return Size{
@@ -731,32 +697,32 @@ void ScrollViewer::SetVerticalOffset(
     }
 }
 
-Base::Result<bool> ScrollViewer::LineHorizontal(
+bool ScrollViewer::LineHorizontal(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->LineHorizontal(direction)
-        : Base::Result<bool>(false);
+        : false;
 }
 
-Base::Result<bool> ScrollViewer::LineVertical(
+bool ScrollViewer::LineVertical(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->LineVertical(direction)
-        : Base::Result<bool>(false);
+        : false;
 }
 
-Base::Result<bool> ScrollViewer::PageHorizontal(
+bool ScrollViewer::PageHorizontal(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->PageHorizontal(direction)
-        : Base::Result<bool>(false);
+        : false;
 }
 
-Base::Result<bool> ScrollViewer::PageVertical(
+bool ScrollViewer::PageVertical(
     double direction) noexcept {
     return contentPresenter_ != nullptr
         ? contentPresenter_->PageVertical(direction)
-        : Base::Result<bool>(false);
+        : false;
 }
 
 IScrollInfo* ScrollViewer::GetContentScrollInfo() const noexcept {
@@ -1297,10 +1263,6 @@ void Thumb::OnPropertyChanged(
     if (args.GetProperty() == UIElement::IsEnabledProperty ||
         args.GetProperty() == UIElement::IsMouseOverProperty ||
         args.GetProperty() == Thumb::IsDraggingProperty) {
-        if (args.GetProperty() == UIElement::IsMouseOverProperty) {
-            fprintf(stderr, "[THUMB-HOVER] mouseOver=%d\n", GetIsMouseOver());
-            fflush(stderr);
-        }
         UpdateVisualState(true);
     }
 }
@@ -1317,24 +1279,17 @@ void Thumb::UpdateVisualState(bool useTransitions) noexcept {
     static_cast<void>(VisualStateManager::GoToState(*this, common, useTransitions));
 }
 
-Base::Result<void> Thumb::BeginDrag(
+void Thumb::BeginDrag(
     std::uint32_t pointerId,
     Point position) noexcept {
     if (!IsFinite(position) || dragging_) {
-        return Base::Status::Failure(
-            dragging_
-                ? Base::ErrorCode::InvalidState
-                : Base::ErrorCode::InvalidArgument,
-            dragging_
-                ? "Thumb is already dragging"
-                : "Thumb drag position must be finite");
+        return;
     }
     SetReadOnlyCurrentValue(IsDraggingProperty, true);
     pointerId_ = pointerId;
     lastPosition_ = position;
     dragging_ = true;
     UpdateVisualState(true);
-    return {};
 }
 
 Base::Result<ThumbDragDelta> Thumb::DragTo(
@@ -1357,13 +1312,11 @@ Base::Result<ThumbDragDelta> Thumb::DragTo(
     return delta;
 }
 
-Base::Result<bool> Thumb::EndDrag(
+bool Thumb::EndDrag(
     std::uint32_t pointerId) noexcept {
     if (!dragging_) return false;
     if (pointerId != pointerId_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Thumb drag pointer does not match");
+        return false;
     }
     SetReadOnlyCurrentValue(IsDraggingProperty, false);
     pointerId_ = 0U;
@@ -1651,16 +1604,14 @@ double Track::GetThumbOffset(
         : offset;
 }
 
-Base::Result<double> Track::ValueFromThumbOffset(
+double Track::ValueFromThumbOffset(
     double offset,
     double trackLength,
     double minimumThumbLength) const noexcept {
     if (!std::isfinite(offset) ||
         !ValidNonnegative(trackLength) ||
         !ValidNonnegative(minimumThumbLength)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Track thumb geometry is invalid");
+        return GetMinimum();
     }
     const double travel =
         trackLength - GetThumbLength(
@@ -1686,21 +1637,17 @@ Base::Result<double> Track::ValueFromThumbOffset(
 Size Track::MeasureOverride(
     Size availableSize) noexcept {
     if (ElementTree* tree = VisualTree(this)) {
-        const auto ensureAttached = [&](UIElement* child, const char* name) {
+        const auto ensureAttached = [&](UIElement* child) {
             if (child == nullptr) return;
             if (VisualTree(child) == nullptr && child->GetLogicalParent() == nullptr) {
-                auto res = tree->AttachElement(*this, *child);
-                fprintf(stderr, "[TRACK-ATTACH] %s AttachElement res=%d\n", name, res ? 1 : 0);
+                static_cast<void>(tree->AttachElement(*this, *child));
             } else if (child->GetVisualParent() != this || !child->GetIsLayoutAttached()) {
-                auto res = tree->AttachVisualChild(*this, *child);
-                fprintf(stderr, "[TRACK-ATTACH] %s AttachVisualChild res=%d\n", name, res ? 1 : 0);
+                static_cast<void>(tree->AttachVisualChild(*this, *child));
             }
         };
-        ensureAttached(decreaseRepeatButton_.Get(), "Decrease");
-        ensureAttached(thumb_.Get(), "Thumb");
-        ensureAttached(increaseRepeatButton_.Get(), "Increase");
-    } else {
-        fprintf(stderr, "[TRACK-ATTACH] tree is NULL for track=%p\n", static_cast<void*>(this));
+        ensureAttached(decreaseRepeatButton_.Get());
+        ensureAttached(thumb_.Get());
+        ensureAttached(increaseRepeatButton_.Get());
     }
     Size desired{};
     if (thumb_ != nullptr) {
@@ -2227,9 +2174,7 @@ PropertyValue RangeBase::CoerceValueCore(
     if (adjusted == raw) {
         return baseValue;
     }
-    Base::Result<PropertyValue> encoded =
-        Meta::ValueCodec<double>::Encode(adjusted);
-    return encoded ? std::move(encoded).Value() : baseValue;
+    return Meta::ValueCodec<double>::Encode(adjusted);
 }
 
 double ScrollBar::GetViewportSize() const noexcept {
@@ -2277,31 +2222,31 @@ void ScrollBar::SetLargeChange(
     StoreDouble(*this, LargeChangeProperty, value);
 }
 
-Base::Result<bool> ScrollBar::LineDecrement() noexcept {
+bool ScrollBar::LineDecrement() noexcept {
     const double oldValue = GetValue();
     SetValue(oldValue - GetSmallChange());
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> ScrollBar::LineIncrement() noexcept {
+bool ScrollBar::LineIncrement() noexcept {
     const double oldValue = GetValue();
     SetValue(oldValue + GetSmallChange());
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> ScrollBar::PageDecrement() noexcept {
+bool ScrollBar::PageDecrement() noexcept {
     const double oldValue = GetValue();
     SetValue(oldValue - GetLargeChange());
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> ScrollBar::PageIncrement() noexcept {
+bool ScrollBar::PageIncrement() noexcept {
     const double oldValue = GetValue();
     SetValue(oldValue + GetLargeChange());
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> ScrollBar::DragThumb(
+bool ScrollBar::DragThumb(
     double thumbOffset,
     double trackLength,
     double minimumThumbLength) noexcept {
@@ -2309,14 +2254,13 @@ Base::Result<bool> ScrollBar::DragThumb(
     track.SetOrientation(GetOrientation());
     track.SetRange(GetMinimum(), GetMaximum());
     track.SetViewportSize(GetViewportSize());
-    Base::Result<double> value =
+    const double value =
         track.ValueFromThumbOffset(
             thumbOffset,
             trackLength,
             minimumThumbLength);
-    if (!value) return value.GetStatus();
     const double oldValue = GetValue();
-    SetValue(value.Value());
+    SetValue(value);
     return !Same(oldValue, GetValue());
 }
 
@@ -2489,11 +2433,9 @@ void Slider::OnKeyDown(KeyEventArgs& args) {
         SetValue(reversed ? GetMinimum() : GetMaximum());
         changed = !Same(oldValue, GetValue());
     } else if (args.GetKey() == KeyboardKeyLeft || args.GetKey() == KeyboardKeyDown) {
-        Result<bool> result = reversed ? IncreaseSmall() : DecreaseSmall();
-        changed = result && result.Value();
+        changed = reversed ? IncreaseSmall() : DecreaseSmall();
     } else if (args.GetKey() == KeyboardKeyRight || args.GetKey() == KeyboardKeyUp) {
-        Result<bool> result = reversed ? DecreaseSmall() : IncreaseSmall();
-        changed = result && result.Value();
+        changed = reversed ? DecreaseSmall() : IncreaseSmall();
     } else {
         handled = false;
     }
@@ -2770,25 +2712,25 @@ double Slider::GetSnapValue(double value) const noexcept {
         GetMinimum(), GetMaximum());
 }
 
-Base::Result<bool> Slider::DecreaseSmall() noexcept {
+bool Slider::DecreaseSmall() noexcept {
     const double oldValue = GetValue();
     SetValue(GetSnapValue(oldValue - GetSmallChange()));
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> Slider::IncreaseSmall() noexcept {
+bool Slider::IncreaseSmall() noexcept {
     const double oldValue = GetValue();
     SetValue(GetSnapValue(oldValue + GetSmallChange()));
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> Slider::DecreaseLarge() noexcept {
+bool Slider::DecreaseLarge() noexcept {
     const double oldValue = GetValue();
     SetValue(GetSnapValue(oldValue - GetLargeChange()));
     return !Same(oldValue, GetValue());
 }
 
-Base::Result<bool> Slider::IncreaseLarge() noexcept {
+bool Slider::IncreaseLarge() noexcept {
     const double oldValue = GetValue();
     SetValue(GetSnapValue(oldValue + GetLargeChange()));
     return !Same(oldValue, GetValue());
@@ -2838,10 +2780,9 @@ void Slider::SetValueFromTrackPoint(
     const double thumbLength = track_->GetThumbLength(length, desiredThumbLength);
     const double position =
         (horizontal ? local.x : local.y) - thumbLength * 0.5;
-    Base::Result<double> value =
+    const double value =
         track_->ValueFromThumbOffset(position, length, thumbLength);
-    if (!value) return;
-    SetValue(GetSnapValue(value.Value()));
+    SetValue(GetSnapValue(value));
 }
 
 double Slider::GetNormalizedValueForLayout() const noexcept {

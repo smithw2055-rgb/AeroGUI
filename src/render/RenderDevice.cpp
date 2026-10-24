@@ -34,7 +34,7 @@ private:
 class HeadlessRenderTarget final : public RenderTarget {
 public:
     HeadlessRenderTarget(Ref<RenderDevice> device, uint32_t width, uint32_t height) noexcept
-        : texture_(Base::MakeRef<HeadlessTexture>(width, height).Value()),
+        : texture_(Base::MakeRef<HeadlessTexture>(width, height)),
           width_(width), height_(height) {
         kind_ = RenderTargetKind::Embedded;
         state_ = RenderTargetState::Ready;
@@ -51,7 +51,7 @@ protected:
     Result<void> ResizeBackend(uint32_t width, uint32_t height) noexcept override {
         width_ = width;
         height_ = height;
-        texture_ = Base::MakeRef<HeadlessTexture>(width, height).Value();
+        texture_ = Base::MakeRef<HeadlessTexture>(width, height);
         return {};
     }
 
@@ -81,8 +81,7 @@ public:
         static_cast<void>(sampleCount);
         static_cast<void>(needsStencil);
         Ref<RenderDevice> self = Ref<RenderDevice>::FromBorrowed(*this);
-        return Ref<RenderTarget>(
-            Base::MakeRef<HeadlessRenderTarget>(std::move(self), width, height).Value());
+        return Base::MakeRef<HeadlessRenderTarget>(std::move(self), width, height);
     }
 
     Ref<RenderTarget> CloneRenderTarget(
@@ -100,7 +99,7 @@ public:
         static_cast<void>(numLevels);
         static_cast<void>(format);
         static_cast<void>(data);
-        return Ref<Texture>(Base::MakeRef<HeadlessTexture>(width, height).Value());
+        return Base::MakeRef<HeadlessTexture>(width, height);
     }
 
     void UpdateTexture(
@@ -188,61 +187,6 @@ void RenderDevice::EndUpdatingTextures(Texture** textures, uint32_t count) noexc
     static_cast<void>(count);
 }
 
-void RenderDevice::SetOffscreenWidth(uint32_t width) noexcept {
-    offscreenWidth_ = width;
-}
-
-uint32_t RenderDevice::GetOffscreenWidth() const noexcept {
-    return offscreenWidth_;
-}
-
-void RenderDevice::SetOffscreenHeight(uint32_t height) noexcept {
-    offscreenHeight_ = height;
-}
-
-uint32_t RenderDevice::GetOffscreenHeight() const noexcept {
-    return offscreenHeight_;
-}
-
-void RenderDevice::SetOffscreenSampleCount(uint32_t sampleCount) noexcept {
-    offscreenSampleCount_ = sampleCount;
-}
-
-uint32_t RenderDevice::GetOffscreenSampleCount() const noexcept {
-    return offscreenSampleCount_;
-}
-
-void RenderDevice::SetOffscreenDefaultNumSurfaces(uint32_t numSurfaces) noexcept {
-    offscreenDefaultNumSurfaces_ = numSurfaces;
-}
-
-uint32_t RenderDevice::GetOffscreenDefaultNumSurfaces() const noexcept {
-    return offscreenDefaultNumSurfaces_;
-}
-
-void RenderDevice::SetOffscreenMaxNumSurfaces(uint32_t numSurfaces) noexcept {
-    offscreenMaxNumSurfaces_ = numSurfaces;
-}
-
-uint32_t RenderDevice::GetOffscreenMaxNumSurfaces() const noexcept {
-    return offscreenMaxNumSurfaces_;
-}
-
-void RenderDevice::SetGlyphCacheWidth(uint32_t width) noexcept {
-    glyphCacheWidth_ = width;
-}
-
-uint32_t RenderDevice::GetGlyphCacheWidth() const noexcept {
-    return glyphCacheWidth_;
-}
-
-void RenderDevice::SetGlyphCacheHeight(uint32_t height) noexcept {
-    glyphCacheHeight_ = height;
-}
-
-uint32_t RenderDevice::GetGlyphCacheHeight() const noexcept {
-    return glyphCacheHeight_;
-}
 
 bool RenderDevice::IsValidState(Shader shader, RenderState state) noexcept {
     return IsValidBlendMode(shader, static_cast<RenderBlendMode::Enum>(state.f.blendMode)) &&
@@ -278,10 +222,10 @@ Base::Result<Base::Ref<Aero::RenderDevice>> CreateHeadlessRenderDevice(
     Base::IAllocator* allocator) noexcept {
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
-    Base::Result<Base::Ref<HeadlessRenderDevice>> made =
+    Base::Ref<HeadlessRenderDevice> made =
         Base::MakeRefWithAllocator<HeadlessRenderDevice>(selected, &selected);
-    if (!made) return made.GetStatus();
-    return Base::Ref<Aero::RenderDevice>(std::move(made).Value());
+    if (!made) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    return Base::Ref<Aero::RenderDevice>(std::move(made));
 }
 
 } // namespace Render

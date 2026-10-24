@@ -74,6 +74,31 @@ Runtime 不通过 C++ exception 报告 OOM。
 - 容器扩容失败不得破坏原内容；
 - fuzz/test build 必须支持 deterministic allocation failure injection。
 
+
+### 3.2 Result<T> 与错误处理边界规约
+
+AeroGUI 严格区分**外部不可信边界失败 (Operational Failures)** 与 **内部组件编程错误/契约违背 (Contract Violations / Bugs)**，禁止无节制滥用 `Base::Result<T>` 污染应用层和核心执行路径。
+
+#### 3.2.1 强制保留 `Result<T>` 的受控边界
+仅在以下涉及不可控外部数据源、I/O 或外部环境失败的边界保留 `Result<T>`：
+1. **XAML 解析与标记加载**：`XamlReader::Load`、`XamlParser`、`TypeResolver::ResolveType`、`MarkupExtension::ProvideValue` 等面对外部手写/动态 XAML 文本且可能存在语法、命名或类型解析错误的 API。
+2. **外部不可信输入转换与解码**：`Value::TryFromString`、`ImageSource::LoadFromFile`、`Stream::Read` 等依赖外部文件系统、解码器或不可信文本的场景。
+3. **动态值转换器契约**：`IValueConverter::Convert`、`IMultiValueConverter::Convert` 等在运行时动态消费未知类型绑定的扩展接口。
+
+#### 3.2.2 严禁使用 `Result<T>` 的内部与应用层场景
+内部稳定组件与公开 WPF 对齐接口全面拥抱现代原生 C++ 惯用语义：
+1. **静态系统命令与单例查询**：如 `ApplicationCommands::Copy()`、`Cut()` 等，系统命令天然可用且不可失败，必须直接返回 `Ref<RoutedCommand>`，杜绝 `Result<Ref<T>>`。
+2. **无状态谓词与状态判定**：`ICommand::CanExecute(...)`、`RoutedCommand::CanExecute(...)` 必须直接返回 `bool`，严禁出现 `Result<bool>` 导致 `if (res && res.Value())` 双重检查样板代码。
+3. **UI 核心交互与焦点控制**：`UIElement::Focus()`、`CaptureMouse()`、`CancelDrag()` 等直接返回 `bool`（严格对齐 WPF 规范：指示状态是否发生转移；已有焦点且未发生转移返回 `false`）。
+4. **副作用与命令式操作**：
+   - `Window::Show()` 直接返回 `void`；`Window::ShowDialog()` 直接返回 `bool`（代表对话框确认结果）。
+   - 音频播放与控制（`Audio::PlayMusic()`、`StopMusic()` 等）直接返回 `void`。
+   - 控件编辑循环（`TextBox::DeleteBackward()`、`ReplaceSelection()`、`Paste()` 等）直接返回 `void`。
+   - 滚动与范围系统（`IScrollInfo` 方法）返回 `bool`（偏移量是否实际变更）或 `double` 标量。
+5. **标量值封箱与类型推导**：`ValueCodec<T>::Encode(...)` 对于基础标量（`bool`、`int`、`double`、`float`）、枚举、`Nullable<bool>`、`Ref<T>`、`Value` 天然不可能失败，直接返回 `Value` 实例；通过 `Result<Value>` 的隐式构造无缝支持泛型反射与数据模板绑定。
+6. **对象工厂契约**：`Gui::CreateView(...)` 成功直接返回有效引用 `Ref<View>`，失败返回空引用 `Ref<View>{}`（对标现代智能指针惯用法），杜绝 `Result<Ref<T>>`。
+7. **契约违约处理**：如调用端传递了非法空指针或违反了类不变式，属于编程错误，必须在 Debug 模式通过 `AERO_ASSERT` 快速阻断暴露，严禁使用 `Result<void>` 作为控制流掩盖代码 Bug。
+
 ## 4. String 与 Unicode 边界
 
 ```cpp

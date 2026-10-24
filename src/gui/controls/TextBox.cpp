@@ -335,11 +335,7 @@ bool TextBox::GetIsReadOnly() const noexcept {
 void TextBox::SetIsReadOnly(
     bool value) noexcept {
     if (value && compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return;
-        }
+        CancelCompositionForFocusLoss();
     }
     SetValue(IsReadOnlyProperty, value);
     (void)Model(model_).SetReadOnly(value);
@@ -352,11 +348,7 @@ std::uint32_t TextBox::GetMaxLength() const noexcept {
 void TextBox::SetMaxLength(
     std::uint32_t value) noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return;
-        }
+        CancelCompositionForFocusLoss();
     }
     if (model_ != nullptr) {
         Base::Result<void> limited =
@@ -478,11 +470,7 @@ void TextBoxBase::SetSelection(
     std::uint32_t anchor,
     std::uint32_t caret) noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return;
-        }
+        CancelCompositionForFocusLoss();
     }
     Base::Result<void> changed =
         Model(model_).SetSelection(anchor, caret);
@@ -493,10 +481,7 @@ void TextBoxBase::SetSelection(
 
 void TextBoxBase::SelectAll() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        AERO_ASSERT(cancelled);
-        (void)cancelled;
+        CancelCompositionForFocusLoss();
     }
     Base::Result<void> selected =
         Model(model_).SelectAll();
@@ -508,42 +493,28 @@ void TextBoxBase::SelectAll() noexcept {
 
 void TextBoxBase::Undo() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        AERO_ASSERT(cancelled);
-        (void)cancelled;
+        CancelCompositionForFocusLoss();
     }
-    Base::Result<void> undone = Model(model_).Undo();
-    AERO_ASSERT(undone);
-    (void)undone;
-    Base::Result<void> committed = CommitModelText();
-    AERO_ASSERT(committed);
-    (void)committed;
+    static_cast<void>(Model(model_).Undo());
+    CommitModelText();
 }
 
 void TextBoxBase::Redo() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        AERO_ASSERT(cancelled);
-        (void)cancelled;
+        CancelCompositionForFocusLoss();
     }
-    Base::Result<void> redone = Model(model_).Redo();
-    AERO_ASSERT(redone);
-    (void)redone;
-    Base::Result<void> committed = CommitModelText();
-    AERO_ASSERT(committed);
-    (void)committed;
+    static_cast<void>(Model(model_).Redo());
+    CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::AttachScrollViewer(
+void TextBoxBase::AttachScrollViewer(
     ScrollViewer* viewer) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) {
-        return access;
+        return;
     }
     if (viewer == scrollViewer_) {
-        return {};
+        return;
     }
     if (scrollViewer_ != nullptr) {
         if (scrollViewer_->GetContentScrollInfo() == this) {
@@ -553,15 +524,14 @@ Base::Result<void> TextBoxBase::AttachScrollViewer(
     }
     scrollViewer_ = viewer;
     if (viewer == nullptr) {
-        return {};
+        return;
     }
     if (!view_) {
-        view_ = Base::MakeRef<Primitives::TextBoxView>(this).Value();
+        view_ = Base::MakeRef<Primitives::TextBoxView>(this);
     }
     viewer->SetContentScrollInfo(this);
     viewer->SetCanContentScroll(true);
     viewer->SetContent(view_.Get());
-    return {};
 }
 
 void TextBoxBase::InvalidateEditor() noexcept {
@@ -654,19 +624,11 @@ Base::Result<void> TextBoxBase::UpdateComposition(
         }
     }
     Base::String filtered;
-    Base::Result<void> sanitized =
-        SanitizeInput(text, filtered);
-    if (!sanitized) {
-        return sanitized;
-    }
-    Base::Result<void> constrained =
-        ConstrainManualInput(
-            filtered,
-            model_,
-            compositionSelection_);
-    if (!constrained) {
-        return constrained;
-    }
+    SanitizeInput(text, filtered);
+    ConstrainManualInput(
+        filtered,
+        model_,
+        compositionSelection_);
     Base::String snapshot;
     Base::Result<void> copied =
         Model(model_).Snapshot(snapshot);
@@ -712,19 +674,11 @@ Base::Result<void> TextBoxBase::CommitComposition(
         }
     }
     Base::String filtered;
-    Base::Result<void> sanitized =
-        SanitizeInput(text, filtered);
-    if (!sanitized) {
-        return sanitized;
-    }
-    Base::Result<void> constrained =
-        ConstrainManualInput(
-            filtered,
-            model_,
-            compositionSelection_);
-    if (!constrained) {
-        return constrained;
-    }
+    SanitizeInput(text, filtered);
+    ConstrainManualInput(
+        filtered,
+        model_,
+        compositionSelection_);
     if (filtered.Empty() && !text.Empty()) {
         return CancelComposition();
     }
@@ -743,11 +697,7 @@ Base::Result<void> TextBoxBase::CommitComposition(
     }
     compositionActive_ = false;
     compositionText_.Clear();
-    Base::Result<void> committed =
-        CommitModelText();
-    if (!committed) {
-        return committed;
-    }
+    CommitModelText();
     UpdateCandidateWindow();
     return {};
 }
@@ -765,29 +715,20 @@ TextBoxBase::CancelComposition() noexcept {
     return {};
 }
 
-Base::Result<void>
+void
 TextBoxBase::CancelCompositionForFocusLoss() noexcept {
     if (!compositionActive_) {
-        return {};
+        return;
     }
     if (inputMethodHost_ != nullptr) {
-        Base::Result<void> native =
-            inputMethodHost_->
-                CancelNativeComposition();
-        if (!native) {
-            return native;
-        }
+        static_cast<void>(inputMethodHost_->CancelNativeComposition());
     }
-    return CancelComposition();
+    static_cast<void>(CancelComposition());
 }
 
 Base::Result<void> TextBox::SynchronizeModel() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
     Base::Result<void> maximum =
         Model(model_).SetMaximumLength(
@@ -810,36 +751,32 @@ Base::Result<void> TextBox::SynchronizeModel() noexcept {
     return {};
 }
 
-Base::Result<void> TextBoxBase::CommitModelText() noexcept {
+void TextBoxBase::CommitModelText() noexcept {
     InvalidateMeasure();
     EnsureCaretVisible();
     InvalidateEditor();
     if (view_) {
         view_->InvalidateMeasure();
     }
-    return {};
 }
 
-Base::Result<void> TextBox::CommitModelText() noexcept {
+void TextBox::CommitModelText() noexcept {
     Base::String snapshot;
     if (model_ != nullptr) {
-        Base::Result<void> copied =
-            Model(model_).Snapshot(snapshot);
-        if (!copied) {
-            return copied;
-        }
+        static_cast<void>(Model(model_).Snapshot(snapshot));
     }
     updatingTextProperty_ = true;
     SetCurrentValue(TextProperty, snapshot);
     updatingTextProperty_ = false;
-    return TextBoxBase::CommitModelText();
+    TextBoxBase::CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::SanitizeInput(
+void TextBoxBase::SanitizeInput(
     Base::StringView input,
     Base::String& output) const noexcept {
     if (GetAcceptsReturnCore()) {
-        return output.Assign(input);
+        output.Assign(input);
+        return;
     }
     output.Clear();
     std::uint32_t start = 0U;
@@ -850,24 +787,19 @@ Base::Result<void> TextBoxBase::SanitizeInput(
             continue;
         }
         if (index > start) {
-            Base::Result<void> appended =
-                output.AppendUnchecked(
-                    input.Substr(
-                        start, index - start));
-            if (!appended) {
-                return appended;
-            }
+            output.AppendUnchecked(
+                input.Substr(
+                    start, index - start));
         }
         start = index + 1U;
     }
     if (start < input.SizeBytes()) {
-        return output.AppendUnchecked(
+        output.AppendUnchecked(
             input.Substr(start));
     }
-    return {};
 }
 
-Base::Result<void> TextBoxBase::ConstrainManualInput(
+void TextBoxBase::ConstrainManualInput(
     Base::String& input,
     const void* target,
     TextSelection selection) const noexcept {
@@ -875,7 +807,7 @@ Base::Result<void> TextBoxBase::ConstrainManualInput(
     const std::uint32_t maximum =
         GetMaxLengthCore();
     if (maximum == 0U || input.Empty()) {
-        return {};
+        return;
     }
     const std::uint32_t retained =
         model.GraphemeCount() -
@@ -887,208 +819,141 @@ Base::Result<void> TextBoxBase::ConstrainManualInput(
         ? 0U
         : maximum - retained;
     ::Aero::Text::EditableTextModel inserted;
-    Base::Result<void> parsed =
-        inserted.SetText(input.View());
-    if (!parsed) {
-        return parsed;
+    if (!inserted.SetText(input.View())) {
+        return;
     }
     if (inserted.GraphemeCount() <= available) {
-        return {};
+        return;
     }
     Base::Result<std::uint32_t> end =
         inserted.ByteOffsetForGrapheme(available);
     if (!end) {
-        return end.GetStatus();
+        return;
     }
     Base::String truncated;
-    Base::Result<void> copied =
-        truncated.Assign(
-            input.View().Substr(0U, end.Value()));
-    if (!copied) {
-        return copied;
+    if (!truncated.Assign(
+            input.View().Substr(0U, end.Value()))) {
+        return;
     }
     input = std::move(truncated);
-    return {};
 }
 
-Base::Result<void> TextBoxBase::ReplaceSelection(
+void TextBoxBase::ReplaceSelection(
     Base::StringView text) noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
     Base::String filtered;
-    Base::Result<void> sanitized =
-        SanitizeInput(text, filtered);
-    if (!sanitized) {
-        return sanitized;
-    }
-    Base::Result<void> constrained =
-        ConstrainManualInput(
-            filtered,
-            model_,
-            Model(model_).Selection());
-    if (!constrained) {
-        return constrained;
-    }
+    SanitizeInput(text, filtered);
+    ConstrainManualInput(
+        filtered,
+        model_,
+        Model(model_).Selection());
     if (filtered.Empty() &&
         Model(model_).Selection().GetIsEmpty()) {
-        return {};
+        return;
     }
-    Base::Result<void> replaced =
-        Model(model_).ReplaceSelection(
-            filtered.View());
-    if (!replaced) {
-        return replaced;
-    }
-    return CommitModelText();
+    Model(model_).ReplaceSelection(
+        filtered.View());
+    CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::DeleteBackward() noexcept {
+void TextBoxBase::DeleteBackward() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
-    Base::Result<void> removed =
-        Model(model_).DeleteBackward();
-    if (!removed) {
-        return removed;
-    }
-    return CommitModelText();
+    Model(model_).DeleteBackward();
+    CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::DeleteForward() noexcept {
+void TextBoxBase::DeleteForward() noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
-    Base::Result<void> removed =
-        Model(model_).DeleteForward();
-    if (!removed) {
-        return removed;
-    }
-    return CommitModelText();
+    Model(model_).DeleteForward();
+    CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::SelectedText(
+void TextBoxBase::SelectedText(
     Base::String& output) const noexcept {
     const TextSelection selection =
         Model(model_).Selection();
     if (selection.GetIsEmpty()) {
         output.Clear();
-        return {};
+        return;
     }
     Base::Result<std::uint32_t> begin =
         Model(model_).ByteOffsetForGrapheme(
             selection.GetStart());
     if (!begin) {
-        return begin.GetStatus();
+        return;
     }
     Base::Result<std::uint32_t> end =
         Model(model_).ByteOffsetForGrapheme(
             selection.GetEnd());
     if (!end) {
-        return end.GetStatus();
+        return;
     }
     Base::String snapshot;
-    Base::Result<void> copied =
-        Model(model_).Snapshot(snapshot);
-    if (!copied) {
-        return copied;
+    if (!Model(model_).Snapshot(snapshot)) {
+        return;
     }
-    return output.Assign(
+    output.Assign(
         snapshot.View().Substr(
             begin.Value(),
             end.Value() - begin.Value()));
 }
 
-Base::Result<void> TextBoxBase::CopySelection(
+void TextBoxBase::CopySelection(
     Input::IClipboard& clipboard) const noexcept {
     if (!DisplayPolicy(displayPolicy_)->AllowsCopy()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "Text display policy blocks clipboard copy");
+        return;
     }
     Base::String selected;
-    Base::Result<void> copied =
-        SelectedText(selected);
-    if (!copied) {
-        return copied;
-    }
+    SelectedText(selected);
     if (selected.Empty()) {
-        return {};
+        return;
     }
-    return clipboard.WriteText(
+    clipboard.WriteText(
         selected.View());
 }
 
-Base::Result<void> TextBoxBase::CutSelection(
+void TextBoxBase::CutSelection(
     Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
     if (!DisplayPolicy(displayPolicy_)->AllowsCut()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "Text display policy blocks clipboard cut");
+        return;
     }
     if (GetIsReadOnlyCore()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "TextBox is read-only");
+        return;
     }
     const TextSelection selection =
         Model(model_).Selection();
     if (selection.GetIsEmpty()) {
-        return {};
+        return;
     }
-    Base::Result<void> copied =
-        CopySelection(clipboard);
-    if (!copied) {
-        return copied;
-    }
-    Base::Result<void> removed =
-        Model(model_).ReplaceSelection({});
-    if (!removed) {
-        return removed;
-    }
-    return CommitModelText();
+    CopySelection(clipboard);
+    Model(model_).ReplaceSelection({});
+    CommitModelText();
 }
 
-Base::Result<void> TextBoxBase::Paste(
+void TextBoxBase::Paste(
     Input::IClipboard& clipboard) noexcept {
     if (compositionActive_) {
-        Base::Result<void> cancelled =
-            CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return cancelled;
-        }
+        CancelCompositionForFocusLoss();
     }
     if (GetIsReadOnlyCore()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "TextBox is read-only");
+        return;
     }
     Base::String text;
     Base::Result<void> read =
         clipboard.ReadText(text);
     if (!read) {
-        return read;
+        return;
     }
-    return ReplaceSelection(text.View());
+    ReplaceSelection(text.View());
 }
 
 void TextBoxBase::OnMouseDown(MouseButtonEventArgs& args) {
@@ -1097,10 +962,9 @@ void TextBoxBase::OnMouseDown(MouseButtonEventArgs& args) {
     }
     const Point local = ToLocalPoint(*this, args.GetPosition());
     const std::uint32_t caret = HitTestText(local);
-    static_cast<void>(SetSelection(caret, caret));
-    static_cast<void>(Focus());
-    Base::Result<void> captured = CapturePointer(args.GetPointerId());
-    if (captured) {
+    SetSelection(caret, caret);
+    Focus();
+    if (CapturePointer(args.GetPointerId())) {
         drag_.pointerId = args.GetPointerId();
         drag_.dragAnchor = caret;
         drag_.isDragging = true;
@@ -1134,25 +998,23 @@ void TextBoxBase::OnKeyDown(KeyEventArgs& args) {
     }
     const bool shift = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Shift);
     const bool control = HasKeyboardModifier(args.GetModifiers(), KeyboardModifiers::Control);
-    Base::Result<void> result;
     bool handled = true;
     if (control && args.GetKey() == KeyboardKeyA) {
         SelectAll();
-        result = {};
     } else if (control && args.GetKey() == KeyboardKeyC) {
         Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
-            result = CopySelection(*clipboard);
+            CopySelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyX) {
         Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
-            result = CutSelection(*clipboard);
+            CutSelection(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyV) {
         Input::IClipboard* clipboard = ElementTree::ClipboardOf(*this);
         if (clipboard != nullptr) {
-            result = Paste(*clipboard);
+            Paste(*clipboard);
         }
     } else if (control && args.GetKey() == KeyboardKeyZ) {
         if (shift) {
@@ -1160,28 +1022,26 @@ void TextBoxBase::OnKeyDown(KeyEventArgs& args) {
         } else {
             Undo();
         }
-        result = {};
     } else if (control && args.GetKey() == KeyboardKeyY) {
         Redo();
-        result = {};
     } else if (args.GetKey() == KeyboardKeyLeft) {
-        result = MoveCaretHorizontal(-1.0, shift);
+        MoveCaretHorizontal(-1.0, shift);
     } else if (args.GetKey() == KeyboardKeyRight) {
-        result = MoveCaretHorizontal(1.0, shift);
+        MoveCaretHorizontal(1.0, shift);
     } else if (args.GetKey() == KeyboardKeyHome) {
-        result = MoveCaretLineBoundary(false, shift);
+        MoveCaretLineBoundary(false, shift);
     } else if (args.GetKey() == KeyboardKeyEnd) {
-        result = MoveCaretLineBoundary(true, shift);
+        MoveCaretLineBoundary(true, shift);
     } else if (args.GetKey() == KeyboardKeyBackspace) {
-        result = DeleteBackward();
+        DeleteBackward();
     } else if (args.GetKey() == KeyboardKeyDelete) {
-        result = DeleteForward();
+        DeleteForward();
     } else if (args.GetKey() == KeyboardKeyEnter && GetAcceptsReturnCore()) {
-        result = ReplaceSelection(Base::StringView("\n"));
+        ReplaceSelection(Base::StringView("\n"));
     } else {
         handled = false;
     }
-    if (handled && result) {
+    if (handled) {
         args.SetHandled(true);
     }
 }
@@ -1191,15 +1051,10 @@ void TextBoxBase::OnTextInput(TextCompositionEventArgs& args) {
         return;
     }
     if (compositionActive_) {
-        Base::Result<void> cancelled = CancelCompositionForFocusLoss();
-        if (!cancelled) {
-            return;
-        }
+        CancelCompositionForFocusLoss();
     }
-    Base::Result<void> inserted = ReplaceSelection(args.GetText());
-    if (inserted) {
-        args.SetHandled(true);
-    }
+    ReplaceSelection(args.GetText());
+    args.SetHandled(true);
 }
 
 void TextBoxBase::OnLostKeyboardFocus(KeyboardFocusChangedEventArgs&) {
@@ -1261,7 +1116,7 @@ PropertyValue TextBox::CoerceValueCore(
 using namespace Primitives;
 using namespace ::Aero::Render;
 
-Base::Result<void> TextBoxBase::MoveCaretHorizontal(
+void TextBoxBase::MoveCaretHorizontal(
     double direction,
     bool extend) noexcept {
     const TextSelection old =
@@ -1278,10 +1133,9 @@ Base::Result<void> TextBoxBase::MoveCaretHorizontal(
         ++next;
     }
     SetSelection(extend ? old.anchor : next, next);
-    return {};
 }
 
-Base::Result<void>
+void
 TextBoxBase::MoveCaretLineBoundary(
     bool end,
     bool extend) noexcept {
@@ -1293,7 +1147,7 @@ TextBoxBase::MoveCaretLineBoundary(
         Base::Result<TextRange> range =
             Model(GetActiveModel()).LineRange(line);
         if (!range) {
-            return range.GetStatus();
+            return;
         }
         const std::uint32_t nextStart =
             line + 1U < Model(GetActiveModel()).LineCount()
@@ -1307,13 +1161,12 @@ TextBoxBase::MoveCaretLineBoundary(
     Base::Result<TextRange> range =
         Model(GetActiveModel()).LineRange(lineIndex);
     if (!range) {
-        return range.GetStatus();
+        return;
     }
     const std::uint32_t next = end
         ? range.Value().GetEnd()
         : range.Value().start;
     SetSelection(extend ? old.anchor : next, next);
-    return {};
 }
 
 double TextBoxBase::GetLineHeight() const noexcept {
@@ -1390,7 +1243,7 @@ std::uint32_t TextBoxBase::HitTestText(
     return best;
 }
 
-Base::Result<void>
+void
 TextBoxBase::RebuildCaretStops() noexcept {
     caretStops_.Clear();
     const auto& active = Model(GetActiveModel());
@@ -1406,7 +1259,7 @@ TextBoxBase::RebuildCaretStops() noexcept {
         Base::Result<TextRange> range =
             active.LineRange(line);
         if (!range) {
-            return range.GetStatus();
+            return;
         }
         maximumLineLength =
             std::max(
@@ -1419,7 +1272,7 @@ TextBoxBase::RebuildCaretStops() noexcept {
         Base::Result<TextRange> range =
             active.LineRange(line);
         if (!range) {
-            return range.GetStatus();
+            return;
         }
         const std::uint32_t length =
             range.Value().length;
@@ -1461,7 +1314,7 @@ TextBoxBase::RebuildCaretStops() noexcept {
         Base::Result<TextRange> range =
             active.LineRange(line);
         if (!range) {
-            return range.GetStatus();
+            return;
         }
         const std::uint32_t start =
             range.Value().start;
@@ -1515,7 +1368,6 @@ TextBoxBase::RebuildCaretStops() noexcept {
                 visualLineBase};
         }
     }
-    return {};
 }
 
 Size TextBoxBase::MeasureOverride(
@@ -1673,11 +1525,7 @@ Size TextBoxBase::MeasureOverride(
                 GetFontSize() * 1.6 /
                 std::max(1.0, GetDpiScale())};
     }
-    Base::Result<void> stops =
-        RebuildCaretStops();
-    if (!stops) {
-        return Size{};
-    }
+    RebuildCaretStops();
     scroll_.extentWidth = textSize_.width;
     scroll_.extentHeight =
         std::max(textSize_.height, GetLineHeight());
@@ -1834,7 +1682,7 @@ void TextBoxBase::OnRender(
     }
 }
 
-Base::Result<void>
+void
 TextBoxBase::RenderEditor(
     ::Aero::Media::DrawingContext& context,
     Size viewport,
@@ -1863,7 +1711,7 @@ TextBoxBase::RenderEditor(
     Base::Result<void> clip =
         builder.PushClip(contentBounds);
     if (!clip) {
-        return clip;
+        return;
     }
     Base::Result<void> transform =
         builder.PushTransform(Transform2D{
@@ -1873,7 +1721,7 @@ TextBoxBase::RenderEditor(
             padding.top -
                 scroll_.verticalOffset});
     if (!transform) {
-        return transform;
+        return;
     }
     const TextSelection selection =
         Model(GetActiveModel()).Selection();
@@ -1926,7 +1774,7 @@ TextBoxBase::RenderEditor(
                      width, first.height},
                     selectionColor);
             if (!filled) {
-                return filled;
+                return;
             }
             index = lineEnd;
         }
@@ -1951,7 +1799,7 @@ TextBoxBase::RenderEditor(
                         Color{
                             0.0F, 0.0F, 0.0F, 1.0F}));
         if (!drawn) {
-            return drawn;
+            return;
         }
     }
     if (drawCaret) {
@@ -1967,15 +1815,11 @@ TextBoxBase::RenderEditor(
                     Color{
                         0.0F, 0.0F, 0.0F, 1.0F}));
         if (!drawn) {
-            return drawn;
+            return;
         }
     }
-    Base::Result<void> popTransform =
-        builder.PopTransform();
-    if (!popTransform) {
-        return popTransform;
-    }
-    return builder.PopClip();
+    builder.PopTransform();
+    builder.PopClip();
 }
 
 void TextBoxBase::ReleaseGlyphRuns() noexcept {
@@ -2052,28 +1896,28 @@ void TextBoxBase::SetVerticalOffset(
     InvalidateEditor();
 }
 
-Base::Result<bool> TextBoxBase::LineHorizontal(
+bool TextBoxBase::LineHorizontal(
     double direction) noexcept {
     const double old = scroll_.horizontalOffset;
     SetHorizontalOffset(old + direction * ScrollLine);
     return old != scroll_.horizontalOffset;
 }
 
-Base::Result<bool> TextBoxBase::LineVertical(
+bool TextBoxBase::LineVertical(
     double direction) noexcept {
     const double old = scroll_.verticalOffset;
     SetVerticalOffset(old + direction * GetLineHeight());
     return old != scroll_.verticalOffset;
 }
 
-Base::Result<bool> TextBoxBase::PageHorizontal(
+bool TextBoxBase::PageHorizontal(
     double direction) noexcept {
     const double old = scroll_.horizontalOffset;
     SetHorizontalOffset(old + direction * scroll_.viewportWidth);
     return old != scroll_.horizontalOffset;
 }
 
-Base::Result<bool> TextBoxBase::PageVertical(
+bool TextBoxBase::PageVertical(
     double direction) noexcept {
     const double old = scroll_.verticalOffset;
     SetVerticalOffset(old + direction * scroll_.viewportHeight);
@@ -2292,14 +2136,10 @@ void PasswordBox::SetMaxLength(
     SetValue(MaxLengthProperty, value);
 }
 
-Base::Result<void> PasswordBox::CommitModelText() noexcept {
+void PasswordBox::CommitModelText() noexcept {
     Base::String snapshot;
     if (model_ != nullptr) {
-        Base::Result<void> copied =
-            Model(model_).Snapshot(snapshot);
-        if (!copied) {
-            return copied;
-        }
+        static_cast<void>(Model(model_).Snapshot(snapshot));
     }
     const bool changed = (password_.View() != snapshot.View());
     if (changed) {
@@ -2308,7 +2148,7 @@ Base::Result<void> PasswordBox::CommitModelText() noexcept {
         RoutedEventArgs args;
         RaiseEvent(PasswordChangedEvent, &args);
     }
-    return TextBoxBase::CommitModelText();
+    TextBoxBase::CommitModelText();
 }
 
 bool PasswordBox::ValidateValueCore(

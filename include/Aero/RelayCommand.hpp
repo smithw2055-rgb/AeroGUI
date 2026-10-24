@@ -53,7 +53,7 @@ public:
         }
     }
 
-    Result<bool> CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
+    bool CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
         if (canExecute_) { return canExecute_(parameter); }
         if (canExecuteSimple_) { return canExecuteSimple_(); }
         return true;

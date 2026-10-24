@@ -305,4 +305,39 @@ void DrawingContext::DrawGeometry(
     AssertOk(StrokePenGeometry(builder, *pen, geometry));
 }
 
+void DrawingContext::DrawEllipse(
+    const Ref<Brush>& brush,
+    const Ref<Pen>& pen,
+    Base::Point center,
+    double radiusX,
+    double radiusY) noexcept {
+    EllipseGeometry ellipse;
+    ellipse.SetCenter(center);
+    ellipse.SetRadiusX(radiusX);
+    ellipse.SetRadiusY(radiusY);
+    DrawGeometry(brush, pen, ellipse);
+}
+
+void DrawingContext::DrawRoundedRectangle(
+    const Ref<Brush>& brush,
+    const Ref<Pen>& pen,
+    Base::Rect bounds,
+    double radiusX,
+    double radiusY) noexcept {
+    RectangleGeometry rectGeom;
+    rectGeom.SetRect(bounds);
+    rectGeom.SetRadiusX(radiusX);
+    rectGeom.SetRadiusY(radiusY);
+    DrawGeometry(brush, pen, rectGeom);
+}
+
+void DrawingContext::DrawImage(
+    std::uint64_t imageId,
+    Base::Rect bounds,
+    Base::Rect sourceUv) noexcept {
+    if (imageId == 0U || bounds.width <= 0.0 || bounds.height <= 0.0) return;
+    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
+        .DrawImage(imageId, bounds, sourceUv));
+}
+
 } // namespace Aero::Media

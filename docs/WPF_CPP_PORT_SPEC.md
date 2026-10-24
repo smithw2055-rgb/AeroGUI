@@ -27,6 +27,7 @@ RenderFrame 与 GPU backend 是实现机制，不形成第二套开发模型。
 8. 核心不创建渲染线程，宿主拥有 event loop、线程、queue 和 present 调度；
 9. FreeType、HarfBuzz、Expat 等第三方实现通过私有边界集成；
 10. 安装包只公开产品目标，不公开仓库内部模块或 `_Detail` targets。
+11. API 与错误处理采用现代原生 C++ 契约：仅在 XAML 标记解析与外部不可信 I/O 边界保留 `Result<T>`；应用层命令、UI 交互、控件操作与标量封箱杜绝不必要的 `Result` 包装，状态操作使用标准 `bool`/`void`，契约违背由 `AERO_ASSERT` 保证。
 
 ## 2. 支持的产品面
 

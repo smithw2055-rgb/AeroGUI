@@ -417,7 +417,7 @@ Gui::Gui(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    Base::Result<Base::Ref<GuiRuntime>> made =
+    Base::Ref<GuiRuntime> made =
         Base::MakeRefWithAllocator<GuiRuntime>(
             *allocator_, *allocator_);
     if (!made) {
@@ -426,7 +426,7 @@ Gui::Gui(
             alignof(GuiRuntime),
             Base::MemoryTag::Object);
     }
-    state_ = std::move(made).Value();
+    state_ = std::move(made);
 }
 
 Gui::~Gui() noexcept {
@@ -556,16 +556,16 @@ Base::Result<void> Gui::Initialize() noexcept {
     Base::Result<void> finalized = state.schema.Finalize(
         GuiSchemaOptions{state.allocator});
     if (!finalized) return finalized.GetStatus();
-    Base::Result<Ref<Markup::EmbeddedXamlProvider>> embedded =
+    Ref<Markup::EmbeddedXamlProvider> embedded =
         Base::MakeRefWithAllocator<Markup::EmbeddedXamlProvider>(
             *state.allocator);
-    if (!embedded) return embedded.GetStatus();
-    Base::Result<Ref<Markup::FileXamlProvider>> file =
+    if (!embedded) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    Ref<Markup::FileXamlProvider> file =
         Base::MakeRefWithAllocator<Markup::FileXamlProvider>(
             *state.allocator);
-    if (!file) return file.GetStatus();
-    state.embeddedXaml = std::move(embedded).Value();
-    state.fileXaml = std::move(file).Value();
+    if (!file) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    state.embeddedXaml = std::move(embedded);
+    state.fileXaml = std::move(file);
     Base::Result<void> providers =
         Aero::RegisterDefaultXamlProviders(
             state.builtinXamlProviders,
@@ -666,50 +666,44 @@ Base::Result<bool> Gui::TakeLoadedDocument(
     return false;
 }
 
-Base::Result<Base::Ref<View>> Gui::CreateView(
+Base::Ref<View> Gui::CreateView(
     Base::IAllocator* allocator) noexcept {
     return CreateView(ViewOptions{}, allocator);
 }
 
-Base::Result<Base::Ref<View>> Gui::CreateView(
+Base::Ref<View> Gui::CreateView(
     const ViewOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!IsInitialized()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Gui must be initialized before creating a view");
+        return {};
     }
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : *allocator_;
-    Base::Result<Base::Ref<View>> made =
+    Base::Ref<View> made =
         Base::MakeRefWithAllocator<View>(
             selected,
             View::ConstructionToken{},
             *this,
             &selected);
-    if (!made) return made.GetStatus();
+    if (!made) return {};
     Base::Result<void> initialized =
-        made.Value()->Initialize(options);
-    if (!initialized) return initialized.GetStatus();
-    return std::move(made).Value();
+        made->Initialize(options);
+    if (!initialized) return {};
+    return made;
 }
 
-Base::Result<Base::Ref<View>> Gui::CreateView(
+Base::Ref<View> Gui::CreateView(
     Base::Ref<FrameworkElement> content,
     const ViewOptions& options,
     Base::IAllocator* allocator) noexcept {
     if (!content) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View content is required");
+        return {};
     }
-    Base::Result<Base::Ref<View>> made =
+    Base::Ref<View> made =
         CreateView(options, allocator);
-    if (!made) return made.GetStatus();
-    Base::Result<void> mounted =
-        made.Value()->SetContent(std::move(content), Aero::Size{});
-    if (!mounted) return mounted.GetStatus();
-    return std::move(made).Value();
+    if (!made) return {};
+    made->SetContent(std::move(content), Aero::Size{});
+    return made;
 }
 
 bool Gui::IsInitialized() const noexcept {

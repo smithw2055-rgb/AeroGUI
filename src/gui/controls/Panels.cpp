@@ -766,9 +766,9 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
     NotifyChildrenViewReset();
     InvalidateMeasure();
 }
-Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
+bool Panel::RemoveChildCore(UIElement& child) noexcept {
     Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return false;
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
         // Remove from storage BEFORE detach: DetachVisual/DetachLogical can
@@ -784,12 +784,10 @@ Base::Result<bool> Panel::RemoveChildCore(UIElement& child) noexcept {
         ElementTree* tree = VisualTree(this);
         if (tree != nullptr && VisualTree(child) == tree) {
             if (child.GetVisualParent() == this) {
-                Base::Result<void> detached = tree->DetachVisual(*this, child);
-                if (!detached) return detached.GetStatus();
+                static_cast<void>(tree->DetachVisual(*this, child));
             }
             if (child.GetLogicalParent() == this) {
-                Base::Result<void> detached = tree->DetachLogical(*this, child);
-                if (!detached) return detached.GetStatus();
+                static_cast<void>(tree->DetachLogical(*this, child));
             }
         } else if (child.GetVisualParent() == this) {
             RemoveVisualChild(&child);

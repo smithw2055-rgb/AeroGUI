@@ -451,11 +451,11 @@ Base::Result<Value> ConvertFontFamilyText(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "FontFamily text conversion received an invalid target");
     }
-    Base::Result<Base::Ref<FontFamily>> family = Base::MakeRef<FontFamily>();
-    if (!family) return family.GetStatus();
-    family.Value()->SetSource(text);
+    Base::Ref<FontFamily> family = Base::MakeRef<FontFamily>();
+    if (!family) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    family->SetSource(text);
     return Value::FromObject(FontFamily::StaticTypeId(),
-        Base::Ref<Base::Object>(std::move(family).Value()));
+        Base::Ref<Base::Object>(std::move(family)));
 }
 } // namespace
 } // namespace Aero::MetadataSupport

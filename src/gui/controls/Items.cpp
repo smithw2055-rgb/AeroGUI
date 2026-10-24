@@ -441,7 +441,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
                 ::Aero::Controls::FrameworkTemplateState::Instantiate(*itemsPanel);
             if (created && created.Value() &&
                 DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                    created.Value()->RuntimeType(), Panel::StaticTypeId())) {
+                    created->RuntimeType(), Panel::StaticTypeId())) {
                 panelOwner = std::move(created).Value();
                 panel = static_cast<Panel*>(panelOwner.Get());
             }
@@ -455,7 +455,7 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
                 Base::Result<Base::Ref<DockPanel>> dock =
                     Base::MakeRef<DockPanel>();
                 if (!dock || !dock.Value()) return {};
-                dock.Value()->SetLastChildFill(false);
+                dock->SetLastChildFill(false);
                 panelOwner = Base::Ref<Base::Object>(dock.Value());
                 panel = dock.Value().Get();
             } else {
@@ -522,8 +522,8 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
     Base::Result<Aero::ElementAttachment> panelMounted =
         tree->AttachElement(*presenter.Value(), *panel);
     if (!panelMounted) return false;
-    presenter.Value()->SetItemsHost(panelOwner, *panel);
-    itemsHost_ = presenter.Value()->GetItemsHost();
+    presenter->SetItemsHost(panelOwner, *panel);
+    itemsHost_ = presenter->GetItemsHost();
     defaultItemsPresenter_ =
         Base::Ref<Base::Object>(std::move(presenter).Value());
     return itemsHost_ != nullptr;
@@ -1312,7 +1312,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
-        text.Value()->SetText(display.View());
+        text->SetText(display.View());
         record.content = Base::Ref<Base::Object>(
             std::move(text).Value());
         record.generatedTextContent = true;
@@ -1332,7 +1332,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         Base::Result<Base::Ref<TextBlock>> text =
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
-        text.Value()->SetText(display.View());
+        text->SetText(display.View());
         record.content =
             Base::Ref<Base::Object>(
                 std::move(text).Value());
@@ -1401,7 +1401,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
             Base::MakeRef<TextBlock>();
         if (!text) return text.GetStatus();
         if (haveDisplay) {
-            text.Value()->SetText(display.View());
+            text->SetText(display.View());
         }
         record.content = Base::Ref<Base::Object>(
             std::move(text).Value());

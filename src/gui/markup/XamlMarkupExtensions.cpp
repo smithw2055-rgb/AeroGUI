@@ -1864,7 +1864,7 @@ Base::Result<std::uint64_t> CommitMultiBinding(
 
         state->ready.PushBack(0U);
 
-        input.Value()->AddValueChangedHandler(
+        input->AddValueChangedHandler(
 
             Data::MultiBindingProxy::ValueProperty.Handle(),
 
@@ -2134,7 +2134,7 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
 
     if (!metadata->Types().IsDerivedFrom(
 
-            target.Value()->RuntimeType(),
+            target->RuntimeType(),
 
             FrameworkElement::StaticTypeId()) &&
 
@@ -2757,18 +2757,18 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
         }
 
-        binding.Value()->SetPath(path);
+        binding->SetPath(path);
 
-        binding.Value()->SetElementName(elementName);
+        binding->SetElementName(elementName);
 
-        binding.Value()->SetStringFormat(stringFormat);
+        binding->SetStringFormat(stringFormat);
 
-        binding.Value()->SetMode(mode);
+        binding->SetMode(mode);
 
-        binding.Value()->SetUpdateSourceTrigger(updateSourceTrigger);
+        binding->SetUpdateSourceTrigger(updateSourceTrigger);
 
-        if (converter) binding.Value()->SetConverter(converter);
-        if (!convertedFallback.IsUnset()) binding.Value()->SetFallbackValue(convertedFallback);
+        if (converter) binding->SetConverter(converter);
+        if (!convertedFallback.IsUnset()) binding->SetFallbackValue(convertedFallback);
 
         if (!converterParameter.Empty()) {
 
@@ -2782,7 +2782,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
             if (!parameter) return parameter.GetStatus();
 
-            binding.Value()->SetConverterParameter(
+            binding->SetConverterParameter(
 
                 std::move(parameter).Value());
 
@@ -2810,13 +2810,13 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
 
             if (sourceMode == Data::RelativeSourceMode::FindAncestor) {
 
-                source.Value()->SetAncestorType(ancestorType);
+                source->SetAncestorType(ancestorType);
 
-                source.Value()->SetAncestorLevel(ancestorLevel);
+                source->SetAncestorLevel(ancestorLevel);
 
             }
 
-            binding.Value()->SetRelativeSource(std::move(source).Value());
+            binding->SetRelativeSource(std::move(source).Value());
 
         }
 
@@ -5218,12 +5218,12 @@ Base::Result<Meta::Value> ReadLocValue(
         Base::Result<Base::Ref<Media::BitmapImage>> bitmap =
             Base::MakeRef<Media::BitmapImage>();
         if (!bitmap) return bitmap.GetStatus();
-        bitmap.Value()->SetUriSource(imageUri.Value());
+        bitmap->SetUriSource(imageUri.Value());
 
         Base::Result<Base::Ref<Media::ImageBrush>> brush =
             Base::MakeRef<Media::ImageBrush>();
         if (!brush) return brush.GetStatus();
-        brush.Value()->SetSource(Base::Ref<Media::ImageSource>(
+        brush->SetSource(Base::Ref<Media::ImageSource>(
             std::move(bitmap).Value()));
 
         return Meta::Value::FromObject(
@@ -5753,7 +5753,7 @@ TemplateBindingExtension::ProvideValue(
 
         destination->MetadataFor(
 
-            target.Value()->RuntimeType()) == nullptr) {
+            target->RuntimeType()) == nullptr) {
 
         return Base::Status::Failure(
 
@@ -6111,13 +6111,13 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
     if (!type) return type.GetStatus();
 
-    if (type.Value()->Kind() == Meta::MetadataTypeKind::Enum) {
+    if (type->Kind() == Meta::MetadataTypeKind::Enum) {
 
         const Meta::EnumValueInfo* value =
 
             services.schema->Types().FindEnumValue(
 
-                type.Value()->Id(), memberName);
+                type->Id(), memberName);
 
         if (value == nullptr) {
 
@@ -6133,7 +6133,7 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
         const bool signedEnum =
 
-            (static_cast<std::uint32_t>(type.Value()->Flags()) &
+            (static_cast<std::uint32_t>(type->Flags()) &
 
              static_cast<std::uint32_t>(Meta::TypeFlags::SignedEnum)) != 0U;
 
@@ -6141,13 +6141,13 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
             ? Meta::Value::FromSignedInteger(
 
-                  type.Value()->Id(),
+                  type->Id(),
 
                   static_cast<std::int64_t>(value->RawValue()))
 
             : Meta::Value::FromUnsignedInteger(
 
-                  type.Value()->Id(),
+                  type->Id(),
 
                   value->RawValue());
 
@@ -6169,7 +6169,7 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
             Input::RoutedCommand::ResolveStatic(
 
-                type.Value()->Id(), memberName);
+                type->Id(), memberName);
 
         if (!command) return command.GetStatus();
 

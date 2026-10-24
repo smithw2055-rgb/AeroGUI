@@ -446,16 +446,23 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                 auto* popup =
                     static_cast<Controls::Primitives::Popup*>(
                         overlay);
+                DependencyObject* templated = popup->GetTemplatedParent();
+                UIElement* placement = popup->GetPlacementTarget().Get();
+                const bool isMenu = (templated != nullptr && Metadata()->Types().IsDerivedFrom(templated->RuntimeType(), Controls::MenuItem::StaticTypeId())) ||
+                                    (placement != nullptr && Metadata()->Types().IsDerivedFrom(placement->RuntimeType(), Controls::MenuItem::StaticTypeId()));
+                const bool isCombo = (templated != nullptr && Metadata()->Types().IsDerivedFrom(templated->RuntimeType(), Controls::ComboBox::StaticTypeId())) ||
+                                     (placement != nullptr && Metadata()->Types().IsDerivedFrom(placement->RuntimeType(), Controls::ComboBox::StaticTypeId()));
+                if (popup->GetStaysOpen() && !isMenu && !isCombo) {
+                    continue;
+                }
                 // Keep PlacementTarget so the ComboBox can reopen in place.
                 popup->SetIsOpen(false);
-                DependencyObject* templated = popup->GetTemplatedParent();
                 if (templated != nullptr &&
                     Metadata()->Types().IsDerivedFrom(
                         templated->RuntimeType(),
                         Controls::MenuItem::StaticTypeId())) {
                     static_cast<Controls::MenuItem*>(templated)->SetIsSubmenuOpen(false);
                 }
-                UIElement* placement = popup->GetPlacementTarget().Get();
                 if (placement != nullptr &&
                     Metadata()->Types().IsDerivedFrom(
                         placement->RuntimeType(),

@@ -781,29 +781,11 @@ void OpenGL33RenderDevice::SetVertexFormat(uint8_t format, uintptr_t offset) noe
         return;
     }
 
-    int8_t colorOffset = -1;
-    int8_t tex0Offset = -1;
-    int8_t tex1Offset = -1;
-    int8_t coverageOffset = -1;
-
-    if (format < Shader::Vertex::Format::Count) {
-        const uint8_t attrs = AttributesForFormat[format];
-        uint8_t curr = 8; // Pos is always 8 bytes
-        for (uint32_t i = 1; i < Shader::Vertex::Format::Attr::Count; ++i) {
-            if (attrs & (1U << i)) {
-                if (i == Shader::Vertex::Format::Attr::Color) colorOffset = static_cast<int8_t>(curr);
-                else if (i == Shader::Vertex::Format::Attr::Tex0) tex0Offset = static_cast<int8_t>(curr);
-                else if (i == Shader::Vertex::Format::Attr::Tex1) tex1Offset = static_cast<int8_t>(curr);
-                else if (i == Shader::Vertex::Format::Attr::Coverage) coverageOffset = static_cast<int8_t>(curr);
-                curr += SizeForType[TypeForAttr[i]];
-            }
-        }
-    } else {
-        // Full Vertex2D fallback
-        colorOffset = 8;
-        tex0Offset = 12;
-        coverageOffset = 20;
-    }
+    const auto& off = GetVertexOffsets(format);
+    const int8_t colorOffset = off.colorOffset;
+    const int8_t tex0Offset = off.tex0Offset;
+    const int8_t tex1Offset = off.tex1Offset;
+    const int8_t coverageOffset = off.coverageOffset;
 
     // Location 0: Pos (always enabled)
     gl.glEnableVertexAttribArray(0);
@@ -925,7 +907,7 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
         gl.glDeleteTextures(1, &texture);
         return {};
     }
-    Ref<OpenGL33Texture> glTex = makeTexResult.Value();
+    Ref<OpenGL33Texture> glTex = makeTexResult;
 
     auto makeRtResult = allocator_ != nullptr
         ? Base::MakeRefWithAllocator<OpenGL33RenderTarget>(
@@ -937,7 +919,7 @@ Ref<RenderTarget> OpenGL33RenderDevice::CreateRenderTarget(
         gl.glDeleteFramebuffers(1, &fbo);
         return {};
     }
-    return makeRtResult.Value();
+    return makeRtResult;
 }
 
 Ref<RenderTarget> OpenGL33RenderDevice::CloneRenderTarget(
@@ -983,7 +965,7 @@ Ref<Texture> OpenGL33RenderDevice::CreateTexture(
         gl.glDeleteTextures(1, &texture);
         return {};
     }
-    return makeTexResult.Value();
+    return makeTexResult;
 }
 
 void OpenGL33RenderDevice::BeginUpdatingTextures() noexcept {}
@@ -1420,11 +1402,22 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     gl_.glBindVertexArray(vao_);
     gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
     gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
-    SetVertexFormat(format, totalVBOffset);
 
-    gl_.glDrawElements(GL_TRIANGLES,
-        static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
-        reinterpret_cast<const void*>(totalIBOffset));
+    const GLsizei stride = (format < Shader::Vertex::Format::Count && SizeForFormat[format] != 0U)
+        ? static_cast<GLsizei>(SizeForFormat[format]) : 24;
+
+    if (gl_.glDrawElementsBaseVertex != nullptr && stride > 0 && (totalVBOffset % static_cast<uintptr_t>(stride)) == 0) {
+        SetVertexFormat(format, 0);
+        const GLint baseVertex = static_cast<GLint>(totalVBOffset / static_cast<uintptr_t>(stride));
+        gl_.glDrawElementsBaseVertex(GL_TRIANGLES,
+            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
+            reinterpret_cast<const void*>(totalIBOffset), baseVertex);
+    } else {
+        SetVertexFormat(format, totalVBOffset);
+        gl_.glDrawElements(GL_TRIANGLES,
+            static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
+            reinterpret_cast<const void*>(totalIBOffset));
+    }
 }
 
 Base::Result<Base::Ref<Aero::RenderDevice>> OpenGL33::CreateDevice(
@@ -1433,12 +1426,11 @@ Base::Result<Base::Ref<Aero::RenderDevice>> OpenGL33::CreateDevice(
     Base::IAllocator& selected = allocator != nullptr
         ? *allocator : Base::GetDefaultAllocator();
 
-    Base::Result<Base::Ref<OpenGL33RenderDevice>> made =
+    Base::Ref<OpenGL33RenderDevice> device =
         Base::MakeRefWithAllocator<OpenGL33RenderDevice>(
             selected, options, &selected);
-    if (!made) return made.GetStatus();
+    if (!device) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
 
-    Base::Ref<OpenGL33RenderDevice> device = std::move(made).Value();
     Base::Result<void> init = device->Initialize();
     if (!init) return init.GetStatus();
 
@@ -1449,7 +1441,8 @@ Base::Result<Base::Ref<Aero::RenderTarget>> OpenGL33::CreateTarget(
     Base::Ref<Aero::RenderDevice> device,
     const OpenGL33::TargetOptions& options,
     Base::IAllocator* allocator) noexcept {
-    static_cast<void>(allocator);
+    Base::IAllocator& selected = allocator != nullptr
+        ? *allocator : Base::GetDefaultAllocator();
     if (!device) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Device is null");
     }
@@ -1465,11 +1458,12 @@ Base::Result<Base::Ref<Aero::RenderTarget>> OpenGL33::CreateTarget(
 
             Ref<RenderDevice> devCopy = device;
             return Base::Ref<Aero::RenderTarget>(
-                Base::MakeRef<OpenGL33RenderTarget>(
+                Base::MakeRefWithAllocator<OpenGL33RenderTarget>(
+                    selected,
                     std::move(devCopy), std::move(glTex),
                     static_cast<unsigned int>(targetInfo.framebuffer),
                     static_cast<unsigned int>(targetInfo.depthStencilTexture),
-                    targetInfo.width, targetInfo.height, targetInfo.defaultFramebuffer, gl).Value());
+                    targetInfo.width, targetInfo.height, targetInfo.defaultFramebuffer, gl));
         }
     }
 

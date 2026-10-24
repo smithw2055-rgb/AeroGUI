@@ -311,9 +311,18 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         fonts.GetGlyphMetrics(request, metrics);
     if (!measured) return measured.GetStatus();
     if (bitmap.width == 0U || bitmap.height == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Glyph atlas cannot place an empty bitmap");
+        GlyphAtlasPlacement emptyPlacement{};
+        emptyPlacement.key = key;
+        emptyPlacement.deviceGeneration = state_->deviceGeneration;
+        emptyPlacement.width = 0U;
+        emptyPlacement.height = 0U;
+        emptyPlacement.advanceX = metrics.advanceX;
+        GlyphAtlasState::Entry entry{key, emptyPlacement};
+        const std::uint32_t newIndex = state_->entries.Size();
+        (void)state_->entries.PushBack(entry);
+        (void)state_->entryIndex.Insert(key, newIndex);
+        output = emptyPlacement;
+        return {};
     }
 
     const std::uint32_t padding = state_->config.padding;

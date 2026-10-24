@@ -834,11 +834,11 @@ Ref<RenderTarget> D3D11RenderDevice::CreateRenderTarget(
     if (dsv != nullptr) AERO_DX_NAME(dsv, label);
 
     Ref<D3D11Texture> d3dTex = Base::MakeRef<D3D11Texture>(
-        tex, srv, width, height, false, true).Value();
+        tex, srv, width, height, false, true);
 
     Ref<RenderDevice> self = Ref<RenderDevice>::TryFromBorrowed(*this);
     return Base::MakeRef<D3D11RenderTarget>(
-        std::move(self), std::move(d3dTex), rtv, dsv, width, height).Value();
+        std::move(self), std::move(d3dTex), rtv, dsv, width, height);
 }
 
 Ref<RenderTarget> D3D11RenderDevice::CloneRenderTarget(
@@ -894,7 +894,7 @@ Ref<Texture> D3D11RenderDevice::CreateTexture(
     AERO_DX_NAME(srv, label);
 
     return Base::MakeRef<D3D11Texture>(
-        tex, srv, width, height, levels > 1, format != TextureFormat::RGBX8).Value();
+        tex, srv, width, height, levels > 1, format != TextureFormat::RGBX8);
 }
 
 void D3D11RenderDevice::BeginUpdatingTextures() noexcept {}
@@ -1183,12 +1183,11 @@ Base::Result<Base::Ref<Aero::RenderDevice>> D3D11::CreateDevice(
     nativeOptions.allowWarpFallback = options.allowWarpFallback;
     nativeOptions.enableDebugLayer = options.enableDebugLayer;
 
-    Base::Result<Base::Ref<D3D11RenderDevice>> made =
+    Base::Ref<D3D11RenderDevice> device =
         Base::MakeRefWithAllocator<D3D11RenderDevice>(
             selected, nativeOptions, &selected);
-    if (!made) return made.GetStatus();
+    if (!device) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
 
-    Base::Ref<D3D11RenderDevice> device = std::move(made).Value();
     Base::Result<void> init = device->Initialize();
     if (!init) return init.GetStatus();
 
@@ -1199,7 +1198,8 @@ Base::Result<Base::Ref<Aero::RenderTarget>> D3D11::CreateTarget(
     Base::Ref<Aero::RenderDevice> device,
     const D3D11::TargetOptions& options,
     Base::IAllocator* allocator) noexcept {
-    static_cast<void>(allocator);
+    Base::IAllocator& selected = allocator != nullptr
+        ? *allocator : Base::GetDefaultAllocator();
     if (!device) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Device is null");
     }
@@ -1214,14 +1214,14 @@ Base::Result<Base::Ref<Aero::RenderTarget>> D3D11::CreateTarget(
             ID3D11DepthStencilView* dsv = reinterpret_cast<ID3D11DepthStencilView*>(targetInfo.depthStencilView);
             ID3D11Texture2D* tex = reinterpret_cast<ID3D11Texture2D*>(targetInfo.texture2D);
 
-            Ref<D3D11Texture> d3dTex = Base::MakeRef<D3D11Texture>(
-                tex, nullptr, targetInfo.width, targetInfo.height, false, true).Value();
+            Ref<D3D11Texture> d3dTex = Base::MakeRefWithAllocator<D3D11Texture>(
+                selected, tex, nullptr, targetInfo.width, targetInfo.height, false, true);
 
             Ref<RenderDevice> devCopy = device;
             return Base::Ref<Aero::RenderTarget>(
-                Base::MakeRef<D3D11RenderTarget>(
-                    std::move(devCopy), std::move(d3dTex), rtv, dsv,
-                    targetInfo.width, targetInfo.height).Value());
+                Base::MakeRefWithAllocator<D3D11RenderTarget>(
+                    selected, std::move(devCopy), std::move(d3dTex), rtv, dsv,
+                    targetInfo.width, targetInfo.height));
         }
     }
 

@@ -569,15 +569,15 @@ void Style::AddPropertyTrigger(
 void Style::AddTrigger(
     const Trigger& trigger) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
-    if (!trigger.property_.IsValid() || trigger.value_.IsUnset() ||
-        trigger.setterProperties_.Size() != trigger.setterValues_.Size()) { AERO_ASSERT(false); return; }
+    if (!trigger.property_.IsValid() || trigger.value_.IsUnset()) { AERO_ASSERT(false); return; }
     TriggerPlan plan;
     plan.property = trigger.property_;
     plan.value = trigger.value_;
-    for (std::uint32_t index = 0U;
-         index < trigger.setterProperties_.Size(); ++index) {
+    for (const Base::Ref<Setter>& authored : trigger.GetAuthoredSetters()) {
+        if (!authored || !authored->GetProperty().IsValid() ||
+            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
         plan.setters.PushBack({
-            trigger.setterProperties_[index], trigger.setterValues_[index]});
+            authored->GetProperty(), authored->GetValue()});
     }
     plan.enterActions.Append(
         trigger.GetEnterActions());

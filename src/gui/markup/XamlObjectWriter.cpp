@@ -2125,9 +2125,9 @@ Base::Result<void> ObjectWriter::StartObject(
 
         if (typeResult) {
 
-            typeId = typeResult.Value()->Id();
+            typeId = typeResult->Id();
 
-            typeFlags = typeResult.Value()->Flags();
+            typeFlags = typeResult->Flags();
 
         } else {
 
@@ -3462,7 +3462,7 @@ Base::Result<ProvidedValue> ObjectWriter::EvaluateMarkupExtension(
 
         schema_->ProvideMarkupExtensionValue(
 
-            typeResult.Value()->Id(),
+            typeResult->Id(),
 
             arguments,
 
@@ -4435,7 +4435,7 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
         if (!schema_->Types().IsDerivedFrom(
 
-                classType.Value()->Id(), object.type)) {
+                classType->Id(), object.type)) {
 
             return Failure(
 
@@ -4457,7 +4457,7 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
             frame.targetObjectIndex == rootObjectIndex_ &&
 
-            classType.Value()->Id() !=
+            classType->Id() !=
 
                 loadContext_->existingRoot->RuntimeType()) {
 
@@ -4477,11 +4477,11 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
         }
 
-        if (classType.Value()->Id() != object.type) {
+        if (classType->Id() != object.type) {
 
             Base::Result<Base::Ref<Base::Object>> replacement =
 
-                CreateObject(classType.Value()->Id());
+                CreateObject(classType->Id());
 
             if (!replacement) {
 
@@ -4499,7 +4499,7 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
             Base::Result<void> initialized = schema_->BeginInit(
 
-                classType.Value()->Id(), *replacement.Value());
+                classType->Id(), *replacement.Value());
 
             if (!initialized) return initialized.GetStatus();
 
@@ -4511,7 +4511,7 @@ Base::Result<void> ObjectWriter::WriteDirectiveText(
 
             object.object = std::move(replacement).Value();
 
-            object.type = classType.Value()->Id();
+            object.type = classType->Id();
 
             object.beginCalled = true;
 
@@ -7387,7 +7387,7 @@ Base::Result<Aero::ResourceValue> ObjectWriter::LookupResource(
 
         }
 
-        return type.Value()->Id();
+        return type->Id();
 
     };
 
