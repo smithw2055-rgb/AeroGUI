@@ -194,7 +194,7 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
         triggerValue = schema.Types().FindProperty(
             triggerType, Base::StringView("Value"), false);
         triggerSetters = schema.Types().FindProperty(
-            triggerType, Base::StringView("Setters"), false);
+            triggerType, Base::StringView("Setters"), true);
         if (triggers == nullptr || triggerProperty == nullptr ||
             triggerValue == nullptr || triggerSetters == nullptr ||
             !schema.Types().IsAssignableFrom(

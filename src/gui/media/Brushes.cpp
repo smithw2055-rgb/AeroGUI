@@ -362,14 +362,14 @@ void ImageBrush::SetSource(
         ImageSourceProperty, std::move(value));
 }
 
-Base::Result<Base::Ref<Brush>>
+Base::Ref<Brush>
 MakeSolidColorBrush(Color color) noexcept {
-    Base::Result<Base::Ref<SolidColorBrush>> made =
+    Base::Ref<SolidColorBrush> made =
         Base::MakeRef<SolidColorBrush>();
-    if (!made) return made.GetStatus();
-    made->SetColor(color);
-    return Base::Ref<Brush>(
-        std::move(made).Value());
+    if (made) {
+        made->SetColor(color);
+    }
+    return made;
 }
 
 namespace {
@@ -608,21 +608,18 @@ int IntersectSlabWithRect(
     return count;
 }
 
-Base::Result<void> FillSolidPolygon(
+void FillSolidPolygon(
     Render::DisplayListBuilder& builder,
     const Point* points,
     int count,
     Color color) noexcept {
-    if (count < 3 || color.alpha <= 0.0F) return {};
+    if (count < 3 || color.alpha <= 0.0F) return;
     const Color colors[4] = {color, color, color, color};
     for (int i = 1; i + 1 < count; ++i) {
         const Point quad[4] = {
             points[0], points[i], points[i + 1], points[i + 1]};
-        Base::Result<void> painted =
-            builder.FillGradientQuad(quad, colors);
-        if (!painted) return painted.GetStatus();
+        builder.FillGradientQuad(quad, colors);
     }
-    return {};
 }
 
 constexpr std::uint8_t kGpuPaintLinear = 1U;
@@ -768,12 +765,12 @@ bool TryPrepareGpuGradient(
     return true;
 }
 
-Base::Result<void> FillGpuPolygon(
+void FillGpuPolygon(
     Render::DisplayListBuilder& builder,
     const GpuGradientPaint& gpu,
     const Point* points,
     int count) noexcept {
-    if (count < 3 || gpu.kind == 0U) return {};
+    if (count < 3 || gpu.kind == 0U) return;
     for (int i = 1; i + 1 < count; ++i) {
         const Point quad[4] = {
             points[0], points[i], points[i + 1], points[i + 1]};
@@ -782,11 +779,9 @@ Base::Result<void> FillGpuPolygon(
             GpuGradientUv(gpu, quad[1]),
             GpuGradientUv(gpu, quad[2]),
             GpuGradientUv(gpu, quad[3])};
-        Base::Result<void> painted = builder.FillGradientQuad(
+        builder.FillGradientQuad(
             quad, uvs, gpu.kind, gpu.uniforms, gpu.brush, gpu.wrapMode);
-        if (!painted) return painted.GetStatus();
     }
-    return {};
 }
 
 } // namespace
@@ -797,7 +792,7 @@ Color SampleBrushAt(
     Rect bounds,
     bool isRtl) noexcept;
 
-Base::Result<void> PaintBrushRect(
+void PaintBrushRect(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
@@ -805,14 +800,14 @@ Base::Result<void> PaintBrushRect(
     bool isRtl) noexcept {
     if (!brush || bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
-        return {};
+        return;
     }
     // Do not emit transparent gradient/image tessellation. Apart from being
     // unnecessary work, zero-alpha FillRect commands can overwrite earlier
     // layers on backends that use opaque UI batches. This is especially
     // visible for hover overlays authored with Brush.Opacity="0".
     if (brush->GetOpacity() <= 0.0) {
-        return {};
+        return;
     }
     if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
         const auto& imageBrush =
@@ -825,7 +820,7 @@ Base::Result<void> PaintBrushRect(
             imageBrush.GetPixelHeight();
         if (image == Render::InvalidRenderImageId ||
             pixelWidth == 0U || pixelHeight == 0U) {
-            return {};
+            return;
         }
         Rect source = imageBrush.GetViewbox();
         if (imageBrush.GetViewboxUnits() ==
@@ -839,7 +834,7 @@ Base::Result<void> PaintBrushRect(
         source.y = std::clamp(source.y, 0.0, 1.0);
         source.width = std::clamp(source.width, 0.0, 1.0 - source.x);
         source.height = std::clamp(source.height, 0.0, 1.0 - source.y);
-        if (source.width <= 0.0 || source.height <= 0.0) return {};
+        if (source.width <= 0.0 || source.height <= 0.0) return;
         Rect viewport = imageBrush.GetViewport();
         if (imageBrush.GetViewportUnits() ==
             BrushMappingMode::RelativeToBoundingBox) {
@@ -925,12 +920,10 @@ Base::Result<void> PaintBrushRect(
                     {1.0F, 1.0F, 1.0F,
                      static_cast<float>(imageBrush.GetOpacity())},
                     center, Base::Size{bounds.width, bounds.height});
-                Base::Result<void> drawn =
-                    builder.DrawImage(image, tile, uv, tint);
-                if (!drawn) return drawn.GetStatus();
+                builder.DrawImage(image, tile, uv, tint);
             }
         }
-        return {};
+        return;
     }
     GpuGradientPaint gpuPaint;
     if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
@@ -940,18 +933,20 @@ Base::Result<void> PaintBrushRect(
         if (clipRadius > kGeomEps) {
             Point contour[kRoundedContourPoints];
             BuildRoundedRectContour(bounds, clipRadius, contour);
-            return FillGpuPolygon(
+            FillGpuPolygon(
                 builder,
                 gpuPaint,
                 contour,
                 static_cast<int>(kRoundedContourPoints));
+            return;
         }
         const Point quad[4] = {
             {bounds.x, bounds.y},
             {bounds.x + bounds.width, bounds.y},
             {bounds.x + bounds.width, bounds.y + bounds.height},
             {bounds.x, bounds.y + bounds.height}};
-        return FillGpuPolygon(builder, gpuPaint, quad, 4);
+        FillGpuPolygon(builder, gpuPaint, quad, 4);
+        return;
     }
     if (::Aero::TryCast<LinearGradientBrush>(brush.Get()) != nullptr) {
         const auto& gradient =
@@ -1019,7 +1014,7 @@ Base::Result<void> PaintBrushRect(
         }
 
         const auto emitSolid = [&](const Point* points, int count, Color color)
-            noexcept -> Base::Result<void> {
+            noexcept -> void {
             Point clipped[64];
             const Point* emit = points;
             int emitCount = count;
@@ -1029,11 +1024,11 @@ Base::Result<void> PaintBrushRect(
                     static_cast<int>(kRoundedContourPoints), clipped);
                 emit = clipped;
             }
-            return FillSolidPolygon(builder, emit, emitCount, color);
+            FillSolidPolygon(builder, emit, emitCount, color);
         };
 
         const auto emitSampled = [&](const Point* points, int count)
-            noexcept -> Base::Result<void> {
+            noexcept -> void {
             Point clipped[64];
             const Point* emit = points;
             int emitCount = count;
@@ -1043,7 +1038,7 @@ Base::Result<void> PaintBrushRect(
                     static_cast<int>(kRoundedContourPoints), clipped);
                 emit = clipped;
             }
-            if (emitCount < 3) return {};
+            if (emitCount < 3) return;
             Color colors[4];
             for (int i = 1; i + 1 < emitCount; ++i) {
                 const Point quad[4] = {
@@ -1052,11 +1047,8 @@ Base::Result<void> PaintBrushRect(
                 colors[1] = SampleBrushAt(brush, quad[1], bounds, isRtl);
                 colors[2] = SampleBrushAt(brush, quad[2], bounds, isRtl);
                 colors[3] = colors[2];
-                Base::Result<void> painted =
-                    builder.FillGradientQuad(quad, colors);
-                if (!painted) return painted.GetStatus();
+                builder.FillGradientQuad(quad, colors);
             }
-            return {};
         };
 
         if (!hasInverse) {
@@ -1111,12 +1103,10 @@ Base::Result<void> PaintBrushRect(
                     if (slabCount < 3) continue;
                     const Color fill = ::Aero::Media::SampleBrush(
                         brush, (a + b) * 0.5);
-                    Base::Result<void> painted =
-                        emitSolid(slab, slabCount, fill);
-                    if (!painted) return painted.GetStatus();
+                    emitSolid(slab, slabCount, fill);
                     ++paintedCount;
                 }
-                if (paintedCount > 0U) return {};
+                if (paintedCount > 0U) return;
             }
         }
 
@@ -1128,7 +1118,8 @@ Base::Result<void> PaintBrushRect(
             spread == GradientSpreadMethod::Reflect ||
             tRange > 1.25;
         if (!needsGrid) {
-            return emitSampled(quadPoints, 4);
+            emitSampled(quadPoints, 4);
+            return;
         }
         const int grid = std::clamp(
             static_cast<int>(std::ceil(std::max(8.0, tRange * 8.0))),
@@ -1145,11 +1136,10 @@ Base::Result<void> PaintBrushRect(
                     (static_cast<double>(c + 1) / grid);
                 const Point cell[4] = {
                     {x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}};
-                Base::Result<void> painted = emitSampled(cell, 4);
-                if (!painted) return painted.GetStatus();
+                emitSampled(cell, 4);
             }
         }
-        return {};
+        return;
     }
     if (::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr) {
         const double clipRadius = std::min(
@@ -1191,28 +1181,28 @@ Base::Result<void> PaintBrushRect(
                         SampleBrushAt(brush, quad[1], bounds, isRtl),
                         SampleBrushAt(brush, quad[2], bounds, isRtl),
                         SampleBrushAt(brush, quad[2], bounds, isRtl)};
-                    Base::Result<void> drawn =
-                        builder.FillGradientQuad(quad, colors);
-                    if (!drawn) return drawn.GetStatus();
+                    builder.FillGradientQuad(quad, colors);
                 }
             }
         }
-        return {};
+        return;
     }
     const Color color = ::Aero::Media::SampleBrush(brush);
-    if (color.alpha <= 0.0F) return {};
+    if (color.alpha <= 0.0F) return;
     const double effectiveRadius = std::min(
         std::max(0.0, cornerRadius),
         std::min(
             bounds.width,
             bounds.height) * 0.5);
-    return effectiveRadius > 0.0
-        ? builder.FillRoundedRect(
-            bounds, color, effectiveRadius)
-        : builder.FillRect(bounds, color);
+    if (effectiveRadius > 0.0) {
+        builder.FillRoundedRect(
+            bounds, color, effectiveRadius);
+    } else {
+        builder.FillRect(bounds, color);
+    }
 }
 
-Base::Result<void> PaintBrushRoundedStroke(
+void PaintBrushRoundedStroke(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
@@ -1221,12 +1211,13 @@ Base::Result<void> PaintBrushRoundedStroke(
     bool isRtl) noexcept {
     if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0 ||
         thickness <= 0.0 || brush->GetOpacity() <= 0.0) {
-        return {};
+        return;
     }
     const double half = thickness * 0.5;
     const double maxRadius = std::min(bounds.width, bounds.height) * 0.5;
     if (maxRadius <= kGeomEps) {
-        return PaintBrushRect(builder, brush, bounds, cornerRadius, isRtl);
+        PaintBrushRect(builder, brush, bounds, cornerRadius, isRtl);
+        return;
     }
     const double radius = std::clamp(cornerRadius, 0.0, maxRadius);
     GpuGradientPaint gpuPaint;
@@ -1260,15 +1251,14 @@ Base::Result<void> PaintBrushRoundedStroke(
                 GpuGradientUv(gpuPaint, quad[1]),
                 GpuGradientUv(gpuPaint, quad[2]),
                 GpuGradientUv(gpuPaint, quad[3])};
-            Base::Result<void> painted = builder.FillGradientQuad(
+            builder.FillGradientQuad(
                 quad, uvs, gpuPaint.kind, gpuPaint.uniforms, gpuPaint.brush);
-            if (!painted) return painted.GetStatus();
         }
-        return {};
+        return;
     }
     const Color color = ::Aero::Media::SampleBrush(brush);
-    if (color.alpha <= 0.0F) return {};
-    return builder.StrokeRect(bounds, color, thickness, radius);
+    if (color.alpha <= 0.0F) return;
+    builder.StrokeRect(bounds, color, thickness, radius);
 }
 
 Color SampleBrushAt(
@@ -1385,7 +1375,7 @@ Color SampleBrushAt(
     return ::Aero::Media::SampleBrush(brush, 0.5, {}, uv, size);
 }
 
-Base::Result<void> PaintBrushGeometry(
+void PaintBrushGeometry(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Base::Span<const Point> vertices,
@@ -1394,13 +1384,13 @@ Base::Result<void> PaintBrushGeometry(
     bool isRtl,
     Render::RenderMeshId mesh) noexcept {
     if (!brush || indices.Size() < 3U || vertices.Empty()) {
-        return {};
+        return;
     }
-    if (brush->GetOpacity() <= 0.0) return {};
+    if (brush->GetOpacity() <= 0.0) return;
     GpuGradientPaint gpuPaint;
     if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
         if (mesh != Render::InvalidRenderMeshId) {
-            return builder.DrawMesh(
+            builder.DrawMesh(
                 mesh,
                 gpuPaint.kind,
                 gpuPaint.uniforms,
@@ -1415,6 +1405,7 @@ Base::Result<void> PaintBrushGeometry(
                 gpuPaint.hasInverse,
                 gpuPaint.inverse,
                 gpuPaint.wrapMode);
+            return;
         }
         for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
             const std::uint32_t ia = indices[index];
@@ -1426,20 +1417,18 @@ Base::Result<void> PaintBrushGeometry(
             }
             const Point tri[3] = {
                 vertices[ia], vertices[ib], vertices[ic]};
-            Base::Result<void> drawn =
-                FillGpuPolygon(builder, gpuPaint, tri, 3);
-            if (!drawn) return drawn.GetStatus();
+            FillGpuPolygon(builder, gpuPaint, tri, 3);
         }
-        return {};
+        return;
     }
     const bool spatial = IsSpatialGradientBrush(brush.Get());
     Color solid{};
     if (!spatial) {
         solid = ::Aero::Media::SampleBrush(brush);
-        if (solid.alpha <= 0.0F) return {};
+        if (solid.alpha <= 0.0F) return;
     }
     const auto emit = [&](Point pa, Point pb, Point pc)
-        noexcept -> Base::Result<void> {
+        noexcept -> void {
         const Color ca =
             spatial ? SampleBrushAt(brush, pa, bounds, isRtl) : solid;
         const Color cb =
@@ -1447,11 +1436,11 @@ Base::Result<void> PaintBrushGeometry(
         const Color cc =
             spatial ? SampleBrushAt(brush, pc, bounds, isRtl) : solid;
         if (ca.alpha <= 0.0F && cb.alpha <= 0.0F && cc.alpha <= 0.0F) {
-            return {};
+            return;
         }
         const Point quad[4] = {pa, pb, pc, pc};
         const Color colors[4] = {ca, cb, cc, cc};
-        return builder.FillGradientQuad(quad, colors);
+        builder.FillGradientQuad(quad, colors);
     };
     const bool radial =
         ::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr;
@@ -1474,16 +1463,13 @@ Base::Result<void> PaintBrushGeometry(
             const Point mid{
                 (a.x + b.x + c.x) / 3.0,
                 (a.y + b.y + c.y) / 3.0};
-            Base::Result<void> drawn = emit(a, b, mid);
-            if (drawn) drawn = emit(b, c, mid);
-            if (drawn) drawn = emit(c, a, mid);
-            if (!drawn) return drawn.GetStatus();
+            emit(a, b, mid);
+            emit(b, c, mid);
+            emit(c, a, mid);
             continue;
         }
-        Base::Result<void> drawn = emit(a, b, c);
-        if (!drawn) return drawn.GetStatus();
+        emit(a, b, c);
     }
-    return {};
 }
 
 } // namespace Aero::Media

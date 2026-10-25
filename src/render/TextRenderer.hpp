@@ -64,7 +64,7 @@ public:
         ::Aero::Controls::TextLayoutResult& output) noexcept override;
     void ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept override;
 
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    std::uint32_t CollectGarbage() noexcept;
 
 private:
     Text::FontManager* fonts_ = nullptr;

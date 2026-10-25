@@ -16,7 +16,7 @@ namespace Aero::Meta {
 using Base::ValueCopyCallback;
 using Base::ValueDestroyCallback;
 using Base::ValueEqualsCallback;
-using ObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)() noexcept;
+using ObjectFactory = Base::Ref<Base::Object> (*)() noexcept;
 
 enum class ContentKind : std::uint8_t {
     Single = 0U,
@@ -50,7 +50,7 @@ using PropertyChangeSubscribeCallback = Base::Result<std::uint64_t> (*)(Base::Ob
     MetadataPropertyChangedCallback callback,
     void* callbackContext,
     void* context) noexcept;
-using PropertyChangeUnsubscribeCallback = Base::Result<bool> (*)(Base::Object& object, std::uint64_t subscription,
+using PropertyChangeUnsubscribeCallback = bool (*)(Base::Object& object, std::uint64_t subscription,
     void* context) noexcept;
 using InterfaceCastThunk = void* (*)(Base::Object* object) noexcept;
 using EventHandlerThunk = void (*)(Object* target, Object* sender, ::Aero::RoutedEventArgs& args) noexcept;
@@ -82,7 +82,7 @@ using CollectionChangeSubscribeCallback = Base::Result<std::uint64_t> (*)(Base::
     MetadataCollectionChangedCallback callback,
     void* callbackContext,
     void* context) noexcept;
-using CollectionChangeUnsubscribeCallback = Base::Result<bool> (*)(Base::Object& collection, std::uint64_t subscription,
+using CollectionChangeUnsubscribeCallback = bool (*)(Base::Object& collection, std::uint64_t subscription,
     void* context) noexcept;
 
 struct TypeRegistration {

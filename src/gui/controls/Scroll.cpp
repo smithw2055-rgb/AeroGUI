@@ -570,9 +570,9 @@ void ScrollViewer::OnMouseWheel(
     const double line = contentPresenter_->GetLineScrollAmount();
     const double horizontal = -args.GetDeltaX() * line;
     const double vertical = -args.GetDeltaY() * line;
-    Base::Result<bool> changed = contentPresenter_->ApplyScrollDelta(
+    const bool changed = contentPresenter_->ApplyScrollDelta(
         horizontal, vertical, ScrollInputKind::Wheel);
-    if (changed && changed.Value()) {
+    if (changed) {
         args.SetHandled(true);
     }
 }
@@ -751,9 +751,8 @@ void ScrollViewer::AdoptPresenterData(
 void ScrollViewer::EnsureFallbackPresenter() noexcept {
     if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
     if (!ownedPresenter_) {
-        Base::Result<Ref<ScrollContentPresenter>> made = Base::MakeRef<ScrollContentPresenter>();
-        if (!made) return;
-        ownedPresenter_ = std::move(made).Value();
+        ownedPresenter_ = Base::MakeRef<ScrollContentPresenter>();
+        if (!ownedPresenter_) return;
     }
     contentPresenter_ = ownedPresenter_.Get();
     UIElement* content = GetContentElement();
@@ -1176,7 +1175,7 @@ void ScrollViewer::UnregisterCommands() noexcept {
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input != nullptr) {
         for (Input::CommandBindingHandle handle : commandHandles_) {
-            static_cast<void>(input->RemoveCommandBinding(handle));
+            input->RemoveCommandBinding(handle);
         }
     }
     commandHandles_.Clear();
@@ -1839,7 +1838,7 @@ void ScrollBar::UnregisterCommands() noexcept {
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input != nullptr) {
         for (Input::CommandBindingHandle handle : commandHandles_) {
-            static_cast<void>(input->RemoveCommandBinding(handle));
+            input->RemoveCommandBinding(handle);
         }
     }
     commandHandles_.Clear();
@@ -2840,9 +2839,8 @@ void Slider::OnRender(
         trackColor.alpha *= 0.35F;
         const double normalized =
             GetNormalizedValueForLayout();
-        Base::Result<void> chrome;
         if (horizontal) {
-            chrome = builder.FillRoundedRect(
+            builder.FillRoundedRect(
                 {
                     startPixel,
                     std::max(0.0,
@@ -2851,21 +2849,19 @@ void Slider::OnRender(
                     std::min(4.0, size.height)},
                 trackColor,
                 2.0);
-            if (chrome) {
-                chrome = builder.FillRoundedRect(
-                    {
-                        std::clamp(normalized, 0.0, 1.0) *
-                            travel,
-                        std::max(0.0,
-                            (size.height -
-                                thumbLength) * 0.5),
-                        std::min(thumbLength, size.width),
-                        std::min(thumbLength, size.height)},
-                    color,
-                    thumbLength * 0.5);
-            }
+            builder.FillRoundedRect(
+                {
+                    std::clamp(normalized, 0.0, 1.0) *
+                        travel,
+                    std::max(0.0,
+                        (size.height -
+                            thumbLength) * 0.5),
+                    std::min(thumbLength, size.width),
+                    std::min(thumbLength, size.height)},
+                color,
+                thumbLength * 0.5);
         } else {
-            chrome = builder.FillRoundedRect(
+            builder.FillRoundedRect(
                 {
                     std::max(0.0,
                         (size.width - 4.0) * 0.5),
@@ -2874,21 +2870,18 @@ void Slider::OnRender(
                     travel},
                 trackColor,
                 2.0);
-            if (chrome) {
-                chrome = builder.FillRoundedRect(
-                    {
-                        std::max(0.0,
-                            (size.width -
-                                thumbLength) * 0.5),
-                        std::clamp(normalized, 0.0, 1.0) *
-                            travel,
-                        std::min(thumbLength, size.width),
-                        std::min(thumbLength, size.height)},
-                    color,
-                    thumbLength * 0.5);
-            }
+            builder.FillRoundedRect(
+                {
+                    std::max(0.0,
+                        (size.width -
+                            thumbLength) * 0.5),
+                    std::clamp(normalized, 0.0, 1.0) *
+                        travel,
+                    std::min(thumbLength, size.width),
+                    std::min(thumbLength, size.height)},
+                color,
+                thumbLength * 0.5);
         }
-        if (!chrome) return;
     }
     if (placement == TickPlacement::None) {
         return;
@@ -2900,10 +2893,10 @@ void Slider::OnRender(
         return;
     }
     auto drawTick = [&](double value)
-        noexcept -> Base::Result<void> {
+        noexcept -> void {
         if (value < GetMinimum() ||
             value > GetMaximum()) {
-            return {};
+            return;
         }
         const double range =
             GetMaximum() - GetMinimum();
@@ -2921,19 +2914,17 @@ void Slider::OnRender(
             startPixel +
             std::clamp(normalized, 0.0, 1.0) *
                 travel;
-        Base::Result<void> drawn;
         if (horizontal) {
             const double center =
                 size.height * 0.5;
             if (first) {
-                drawn = builder.FillRect(
+                builder.FillRect(
                     {pixel, std::max(0.0, center - 9.0),
                      1.0, std::min(5.0, size.height)},
                     color);
-                if (!drawn) return {};
             }
             if (second) {
-                drawn = builder.FillRect(
+                builder.FillRect(
                     {pixel, std::min(size.height, center + 4.0),
                      1.0, std::min(5.0, size.height)},
                     color);
@@ -2942,20 +2933,18 @@ void Slider::OnRender(
             const double center =
                 size.width * 0.5;
             if (first) {
-                drawn = builder.FillRect(
+                builder.FillRect(
                     {std::max(0.0, center - 9.0), pixel,
                      std::min(5.0, size.width), 1.0},
                     color);
-                if (!drawn) return {};
             }
             if (second) {
-                drawn = builder.FillRect(
+                builder.FillRect(
                     {std::min(size.width, center + 4.0), pixel,
                      std::min(5.0, size.width), 1.0},
                     color);
             }
         }
-        return drawn;
     };
 
     const Base::StringView ticks = GetTicks();
@@ -2984,11 +2973,7 @@ void Slider::OnRender(
                 ::Aero::Base::ValueConversion::ParseDouble(
                     ticks.Substr(start, end - start));
             if (parsed) {
-                Base::Result<void> drawn =
-                    drawTick(parsed.Value());
-                if (!drawn) {
-                    return;
-                }
+                drawTick(parsed.Value());
             }
             start = end;
             ++count;
@@ -3003,9 +2988,7 @@ void Slider::OnRender(
             frequency * 0.000001 &&
          count < 1024U;
          value += frequency, ++count) {
-        Base::Result<void> drawn =
-            drawTick(std::min(value, GetMaximum()));
-        if (!drawn) return;
+        drawTick(std::min(value, GetMaximum()));
     }
     return;
 }
@@ -3069,10 +3052,10 @@ void TickBar::OnRender(
         : !slider.GetIsDirectionReversed();
 
     auto drawTick = [&](double value)
-        noexcept -> Base::Result<void> {
+        noexcept -> void {
         if (value < slider.GetMinimum() ||
             value > slider.GetMaximum()) {
-            return {};
+            return;
         }
         double normalized = range > 0.0
             ? (value - slider.GetMinimum()) / range
@@ -3084,15 +3067,16 @@ void TickBar::OnRender(
             std::clamp(normalized, 0.0, 1.0) * travel;
         const double tickPos = std::round(position);
         if (horizontal) {
-            return builder.FillRect({
+            builder.FillRect({
                 tickPos,
                 GetPlacement() == TickBarPlacement::Top
                     ? 0.0
                     : std::max(0.0, size.height - 4.0),
                 1.0,
                 std::min(4.0, size.height)}, color);
+            return;
         }
-        return builder.FillRect({
+        builder.FillRect({
             GetPlacement() == TickBarPlacement::Left
                 ? 0.0
                 : std::max(0.0, size.width - 4.0),
@@ -3122,8 +3106,7 @@ void TickBar::OnRender(
                 ::Aero::Base::ValueConversion::ParseDouble(
                     ticks.Substr(begin, end - begin));
             if (parsed) {
-                Base::Result<void> rendered = drawTick(parsed.Value());
-                if (!rendered) return;
+                drawTick(parsed.Value());
             }
             begin = end;
             ++count;
@@ -3137,9 +3120,7 @@ void TickBar::OnRender(
          value <= slider.GetMaximum() + frequency * 0.000001 &&
          count < 1024.0;
          value += frequency, count += 1.0) {
-        Base::Result<void> rendered = drawTick(
-            std::min(value, slider.GetMaximum()));
-        if (!rendered) return;
+        drawTick(std::min(value, slider.GetMaximum()));
     }
     return;
 }

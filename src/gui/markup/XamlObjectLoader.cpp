@@ -1393,17 +1393,11 @@ Loader::LoaderState::Operation::CommitResourceDependencies(
          --index) {
         PendingResourceMerge& merge =
             pending[index - 1U];
-        Base::Result<bool> removed =
-            merge.target.RemoveMerged(
-                merge.source);
-        if (!removed || !removed.Value()) {
-            return removed
-                ? Base::Result<void>(
-                      Base::Status::Failure(
-                          Base::ErrorCode::InvalidState,
-                          "XAML resource dependency rollback failed"))
-                : Base::Result<void>(
-                      removed.GetStatus());
+        if (!merge.target.RemoveMerged(merge.source)) {
+            return Base::Result<void>(
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "XAML resource dependency rollback failed"));
         }
     }
     return failure;

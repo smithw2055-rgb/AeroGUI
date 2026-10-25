@@ -682,11 +682,7 @@ Base::Result<void> Win32Window::Create(
     open_ = true;
     UpdateClientMetrics();
     if (descriptor.visible) {
-        Base::Result<void> shown = Show();
-        if (!shown) {
-            Close();
-            return shown.GetStatus();
-        }
+        Show();
     }
     return {};
 #else
@@ -695,28 +691,19 @@ Base::Result<void> Win32Window::Create(
 #endif
 }
 
-Base::Result<void> Win32Window::Show() noexcept {
+void Win32Window::Show() noexcept {
 #if defined(_WIN32)
     if (window_ == nullptr || !open_) {
-        return WindowFailure(
-            Base::ErrorCode::NotInitialized,
-            "Win32 window is not created");
+        return;
     }
     ShowWindow(window_, SW_SHOWNORMAL);
     SetForegroundWindow(window_);
     BringWindowToTop(window_);
-    if (UpdateWindow(window_) == FALSE) {
-        return WindowFailure(
-            Base::ErrorCode::InternalError,
-            "Win32 window update failed");
-    }
-    return {};
-#else
-    return UnsupportedWin32Window();
+    static_cast<void>(UpdateWindow(window_));
 #endif
 }
 
-Base::Result<bool> Win32Window::PollEvent(
+bool Win32Window::PollEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
     if (Dequeue(event)) {
@@ -742,11 +729,11 @@ Base::Result<bool> Win32Window::PollEvent(
     return false;
 #else
     static_cast<void>(event);
-    return UnsupportedWin32Window();
+    return false;
 #endif
 }
 
-Base::Result<bool> Win32Window::WaitEvent(
+bool Win32Window::WaitEvent(
     WindowEvent& event) noexcept {
 #if defined(_WIN32)
     if (Dequeue(event)) {
@@ -756,12 +743,7 @@ Base::Result<bool> Win32Window::WaitEvent(
         MSG message{};
         const BOOL received = GetMessageW(
             &message, nullptr, 0U, 0U);
-        if (received < 0) {
-            return WindowFailure(
-                Base::ErrorCode::InternalError,
-                "Win32 message retrieval failed");
-        }
-        if (received == 0) {
+        if (received <= 0) {
             open_ = false;
             WindowEvent quit;
             quit.type = WindowEventType::CloseRequested;
@@ -777,7 +759,7 @@ Base::Result<bool> Win32Window::WaitEvent(
     return Dequeue(event);
 #else
     static_cast<void>(event);
-    return UnsupportedWin32Window();
+    return false;
 #endif
 }
 

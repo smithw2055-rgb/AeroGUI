@@ -427,39 +427,34 @@ Base::Result<std::uint32_t> Dispatcher::ProcessPending(
             const DispatcherTime now = NowMicroseconds();
             std::lock_guard<std::mutex> lock(mutex_);
 
-            const Base::Result<void> promoteResult =
-                PromoteDueLocked(now);
-            if (!promoteResult) {
-                terminalStatus = promoteResult.GetStatus();
-            } else {
-                DiscardCompletedReadyPrefixLocked();
-                const std::uint8_t allowedPriority =
-                    static_cast<std::uint8_t>(
-                        throughPriority);
-                for (std::uint32_t index = readyHead_;
-                     index < ready_.Size();
-                     ++index) {
-                    TaskRecord& record = ready_[index];
-                    if (record.state !=
-                            RecordState::Pending) {
-                        continue;
-                    }
-                    const std::uint8_t recordPriority =
-                        static_cast<std::uint8_t>(
-                            record.priority);
-                    if (recordPriority >
-                        allowedPriority) {
-                        continue;
-                    }
-                    invocation = record;
-                    record.state = RecordState::Finished;
-                    record.callback = nullptr;
-                    record.cleanup = nullptr;
-                    record.context = nullptr;
-                    CompactReadyLocked(false);
-                    hasInvocation = true;
-                    break;
+            PromoteDueLocked(now);
+            DiscardCompletedReadyPrefixLocked();
+            const std::uint8_t allowedPriority =
+                static_cast<std::uint8_t>(
+                    throughPriority);
+            for (std::uint32_t index = readyHead_;
+                 index < ready_.Size();
+                 ++index) {
+                TaskRecord& record = ready_[index];
+                if (record.state !=
+                        RecordState::Pending) {
+                    continue;
                 }
+                const std::uint8_t recordPriority =
+                    static_cast<std::uint8_t>(
+                        record.priority);
+                if (recordPriority >
+                    allowedPriority) {
+                    continue;
+                }
+                invocation = record;
+                record.state = RecordState::Finished;
+                record.callback = nullptr;
+                record.cleanup = nullptr;
+                record.context = nullptr;
+                CompactReadyLocked(false);
+                hasInvocation = true;
+                break;
             }
         }
 
@@ -574,7 +569,7 @@ void Dispatcher::InsertDelayedLocked(
     }
 }
 
-Base::Result<void> Dispatcher::PromoteDueLocked(
+void Dispatcher::PromoteDueLocked(
     DispatcherTime nowMicroseconds) noexcept {
     DiscardCompletedDelayedPrefixLocked();
 
@@ -598,7 +593,6 @@ Base::Result<void> Dispatcher::PromoteDueLocked(
     }
 
     CompactDelayedLocked(false);
-    return {};
 }
 
 void Dispatcher::CompactReadyLocked(bool force) noexcept {

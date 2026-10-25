@@ -1,5 +1,6 @@
 #include "TextLayout.hpp"
 
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Utf8.hpp>
 
 #include <algorithm>
@@ -157,13 +158,12 @@ Base::Result<void> ValidateRequest(
 
 } // namespace
 
-Base::Result<void> TextLayout::AddRun(GlyphRun&& run) noexcept {
+void TextLayout::AddRun(GlyphRun&& run) noexcept {
     if (!run.face.IsValid() ||
         !std::isfinite(run.pixelSize) ||
         run.pixelSize <= 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Glyph run requires a valid face and positive pixel size");
+        AERO_ASSERT(false && "Glyph run requires a valid face and positive pixel size");
+        return;
     }
     for (const PositionedGlyph& glyph : run.glyphs) {
         if (glyph.glyph == InvalidGlyphId ||
@@ -171,19 +171,14 @@ Base::Result<void> TextLayout::AddRun(GlyphRun&& run) noexcept {
             !std::isfinite(glyph.y) ||
             !std::isfinite(glyph.advanceX) ||
             glyph.advanceX < 0.0F) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Glyph run contains invalid positioned glyph data");
+            AERO_ASSERT(false && "Glyph run contains invalid positioned glyph data");
+            return;
         }
     }
-    Base::Result<GlyphRun*> appended =
-        runs_.EmplaceBack(std::move(run));
-    return appended
-        ? Base::Result<void>()
-        : Base::Result<void>(appended.GetStatus());
+    runs_.EmplaceBack(std::move(run));
 }
 
-Base::Result<void> TextLayout::AddLine(
+void TextLayout::AddLine(
     const TextLine& line) noexcept {
     if (line.firstRun > runs_.Size() ||
         line.runCount > runs_.Size() - line.firstRun ||
@@ -196,27 +191,23 @@ Base::Result<void> TextLayout::AddLine(
         line.width < 0.0F ||
         line.ascent < 0.0F ||
         line.descent < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text line range or metrics are invalid");
+        AERO_ASSERT(false && "Text line range or metrics are invalid");
+        return;
     }
     lines_.PushBack(line);
-    return {};
 }
 
-Base::Result<void> TextLayout::SetSize(
+void TextLayout::SetSize(
     TextLayoutSize size) noexcept {
     if (!std::isfinite(size.width) ||
         !std::isfinite(size.height) ||
         size.width < 0.0F ||
         size.height < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text layout size must be finite and nonnegative");
+        AERO_ASSERT(false && "Text layout size must be finite and nonnegative");
+        return;
     }
     size_ = size;
     naturalSize_ = size;
-    return {};
 }
 
 Base::Result<void> TextLayout::ShapeAndMeasure(
@@ -467,9 +458,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             return 0.0F;
         }
         for (GlyphRun& run : runs) {
-            Base::Result<void> appended =
-                pending.AddRun(std::move(run));
-            if (!appended) return appended.GetStatus();
+            pending.AddRun(std::move(run));
             ++line.runCount;
         }
         return width;
@@ -608,9 +597,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             }
 
             maximumWidth = std::max(maximumWidth, line.width);
-            Base::Result<void> appended =
-                pending.AddLine(line);
-            if (!appended) return appended.GetStatus();
+            pending.AddLine(line);
             lineY += lineHeight;
             firstRun = pending.runs_.Size();
             lineWidth = 0.0F;
@@ -667,9 +654,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             }
 
             for (GlyphRun& run : runs) {
-                Base::Result<void> appended =
-                    pending.AddRun(std::move(run));
-                if (!appended) return appended.GetStatus();
+                pending.AddRun(std::move(run));
             }
             lineWidth += pieceWidth;
             lineEnd = piece.start + piece.length;
@@ -763,12 +748,11 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     return {};
 }
 
-Base::Result<void> TextLayout::Arrange(
+void TextLayout::Arrange(
     float finalWidth) noexcept {
     if (!std::isfinite(finalWidth) || finalWidth < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text layout arrange width must be finite and nonnegative");
+        AERO_ASSERT(false && "Text layout arrange width must be finite and nonnegative");
+        return;
     }
     for (TextLine& line : lines_) {
         const float available =
@@ -792,7 +776,6 @@ Base::Result<void> TextLayout::Arrange(
     }
     size_.width = finalWidth;
     size_.height = naturalSize_.height;
-    return {};
 }
 
 void TextLayout::Clear() noexcept {

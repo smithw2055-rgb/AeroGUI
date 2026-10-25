@@ -1,4 +1,4 @@
-#include "OpenGLWindow.hpp"
+#include "OpenGLWindowX11.hpp"
 
 #if !defined(__linux__) && !defined(__unix__)
 #error "OpenGLWindow.cpp is only supported on Unix/X11"

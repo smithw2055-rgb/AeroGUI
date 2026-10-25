@@ -81,7 +81,7 @@ public:
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
 
-    Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
+    void PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
     void OnContainersChanged() noexcept override;
     void OnItemsChanged(const ItemsChangedEvent& event) noexcept override;
@@ -96,7 +96,7 @@ protected:
 private:
     void PushSelectionToCurrent() noexcept;
     void OnViewCurrentChanged() noexcept;
-    Result<bool> ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
+    bool ApplySelection(Span<const std::uint32_t> indices, std::uint32_t primaryIndex) noexcept;
     void PublishProperties() noexcept;
     void HookCurrentView() noexcept;
     void UnhookCurrentView() noexcept;
@@ -172,11 +172,11 @@ public:
     ListBox() noexcept;
     ~ListBox() override;
 
-    Result<bool> BringIntoView(std::uint32_t index) noexcept;
+    bool BringIntoView(std::uint32_t index) noexcept;
 
 protected:
     explicit ListBox(TypeId runtimeType) noexcept;
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 
@@ -184,7 +184,7 @@ private:
     std::uint32_t anchorIndex_ = UINT32_MAX;
 
     std::uint32_t FindContainerIndex(Base::Object* source) const noexcept;
-    Result<bool> ApplyUserSelection(std::uint32_t index, std::uint32_t modifiers) noexcept;
+    bool ApplyUserSelection(std::uint32_t index, std::uint32_t modifiers) noexcept;
 };
 
 class AERO_GUI_API ComboBox : public Primitives::Selector {
@@ -226,8 +226,8 @@ public:
     AERO_READONLY_PROPERTY(Ref<Base::Object>, SelectionBoxItemTemplate);
 
 protected:
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
-    Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
+    void PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept override;
     void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
     void OnContainersChanged() noexcept override;
@@ -253,7 +253,7 @@ private:
     void OnPopupIsOpenChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnSelectedProjectionChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnEditableTextChanged(Base::Object* sender, RoutedEventArgs& args) noexcept;
-    Result<void> UpdateSelectionBox() noexcept;
+    void UpdateSelectionBox() noexcept;
     void UpdateEditableVisualState() noexcept;
     void ObserveSelectedProjection(TextBlock* projection) noexcept;
     void SynchronizeContainers() noexcept;
@@ -319,8 +319,8 @@ public:
     AERO_DEPENDENCY_PROPERTY(Dock, TabStripPlacement);
 
 protected:
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
-    Result<void> PrepareContainerForItemOverride(FrameworkElement& container,
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
+    void PrepareContainerForItemOverride(FrameworkElement& container,
         const Ref<Base::Object>& item, std::uint32_t index) noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnSelectionChanged(const SelectionChangedEvent& event) override;

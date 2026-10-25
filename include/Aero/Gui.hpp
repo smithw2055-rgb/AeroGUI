@@ -61,7 +61,7 @@ private:
     friend class Markup::ReloadCoordinator;
 
     Result<Ref<Object>> LoadXamlRoot(StringView uri, Base::MetaTypeId expectedRoot) noexcept;
-    Result<bool> TakeLoadedDocument(Base::Object& root, Markup::XamlDocument& document) noexcept;
+    bool TakeLoadedDocument(Base::Object& root, Markup::XamlDocument& document) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
     Ref<GuiRuntime> state_;

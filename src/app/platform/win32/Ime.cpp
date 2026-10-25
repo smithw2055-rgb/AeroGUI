@@ -193,14 +193,7 @@ std::intptr_t DispatchWin32ImeWindowMessage(
     if (message == WM_IME_STARTCOMPOSITION ||
         message == WM_IME_COMPOSITION ||
         message == WM_IME_ENDCOMPOSITION) {
-        Base::Result<bool> handled = adapter->HandleMessage(
-            message, wParam, lParam);
-        if (handled && handled.Value()) {
-            static_cast<void>(InvalidateRect(
-                nativeWindow, nullptr, FALSE));
-            return 0;
-        }
-        if (!handled) {
+        if (adapter->HandleMessage(message, wParam, lParam)) {
             static_cast<void>(InvalidateRect(
                 nativeWindow, nullptr, FALSE));
             return 0;
@@ -228,31 +221,26 @@ std::intptr_t DispatchWin32ImeWindowMessage(
 }
 
 Win32ImeAdapter::~Win32ImeAdapter() {
-    static_cast<void>(Detach());
+    Detach();
 }
 
-Base::Result<void> Win32ImeAdapter::Attach(
+bool Win32ImeAdapter::Attach(
     void* window) noexcept {
 #if defined(_WIN32)
     const HWND nativeWindow = static_cast<HWND>(window);
     if (nativeWindow == nullptr ||
         IsWindow(nativeWindow) == FALSE) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Win32 IME requires a valid window");
+        return false;
     }
-    if (window_ == nativeWindow) return {};
+    if (window_ == nativeWindow) return true;
     if (IsAttached()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "Win32 IME adapter is already attached");
+        return false;
     }
     if (SetPropW(
             nativeWindow,
             ImeAdapterPropertyName(),
             this) == FALSE) {
-        return ImeFailure(
-            "Win32 failed to associate the IME adapter with the window");
+        return false;
     }
     SetLastError(ERROR_SUCCESS);
     const LONG_PTR previous = SetWindowLongPtrW(
@@ -262,22 +250,19 @@ Base::Result<void> Win32ImeAdapter::Attach(
     if (previous == 0 && GetLastError() != ERROR_SUCCESS) {
         static_cast<void>(RemovePropW(
             nativeWindow, ImeAdapterPropertyName()));
-        return ImeFailure(
-            "Win32 failed to subclass the IME window");
+        return false;
     }
     window_ = nativeWindow;
     previousProcedure_ = reinterpret_cast<void*>(previous);
     composing_ = false;
-    return {};
+    return true;
 #else
     static_cast<void>(window);
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
+    return false;
 #endif
 }
 
-Base::Result<bool>
+bool
 Win32ImeAdapter::AttachActiveWindow() noexcept {
 #if defined(_WIN32)
     HWND window = GetFocus();
@@ -285,33 +270,21 @@ Win32ImeAdapter::AttachActiveWindow() noexcept {
     if (window == nullptr) return false;
     if (window_ == window) return false;
     if (IsAttached()) {
-        Base::Result<bool> detached = Detach();
-        if (!detached) return detached.GetStatus();
+        Detach();
     }
-    Base::Result<void> attached = Attach(window);
-    if (!attached) return attached.GetStatus();
-    return true;
+    return Attach(window);
 #else
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
+    return false;
 #endif
 }
 
-Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
+bool Win32ImeAdapter::Detach() noexcept {
     if (!IsAttached()) return false;
 #if defined(_WIN32)
-    Base::Status failure;
     if (composing_) {
-        Base::Result<void> native =
-            CancelNativeComposition();
-        if (!native) failure = native.GetStatus();
+        CancelNativeComposition();
         if (client_ != nullptr) {
-            Base::Result<void> client =
-                client_->CancelComposition();
-            if (!client && failure.IsOk()) {
-                failure = client.GetStatus();
-            }
+            client_->CancelComposition();
         }
     }
     DestroyNativeCaret();
@@ -322,16 +295,11 @@ Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
         if (current == &ImeWindowProcedure &&
             previousProcedure_ != nullptr) {
             SetLastError(ERROR_SUCCESS);
-            if (SetWindowLongPtrW(
-                    nativeWindow,
-                    GWLP_WNDPROC,
-                    reinterpret_cast<LONG_PTR>(
-                        previousProcedure_)) == 0 &&
-                GetLastError() != ERROR_SUCCESS &&
-                failure.IsOk()) {
-                failure = ImeFailure(
-                    "Win32 failed to restore the window procedure");
-            }
+            SetWindowLongPtrW(
+                nativeWindow,
+                GWLP_WNDPROC,
+                reinterpret_cast<LONG_PTR>(
+                    previousProcedure_));
         }
         static_cast<void>(RemovePropW(
             nativeWindow, ImeAdapterPropertyName()));
@@ -339,7 +307,6 @@ Base::Result<bool> Win32ImeAdapter::Detach() noexcept {
     composing_ = false;
     window_ = nullptr;
     previousProcedure_ = nullptr;
-    if (!failure.IsOk()) return failure;
     return true;
 #else
     window_ = nullptr;
@@ -360,9 +327,7 @@ void Win32ImeAdapter::SetClient(
     }
     if (client == nullptr && composing_) {
         if (IsAttached()) {
-            Base::Result<void> cancelled =
-                CancelNativeComposition();
-            if (!cancelled) return;
+            CancelNativeComposition();
         } else {
             composing_ = false;
             DestroyNativeCaret();
@@ -375,27 +340,23 @@ void Win32ImeAdapter::SetClient(
 #endif
 }
 
-Base::Result<bool> Win32ImeAdapter::HandleMessage(
+bool Win32ImeAdapter::HandleMessage(
     std::uint32_t message,
     std::uintptr_t wParam,
     std::intptr_t lParam) noexcept {
     static_cast<void>(wParam);
 #if defined(_WIN32)
-    if (!IsAttached()) return NotAttached();
+    if (!IsAttached()) return false;
     if (client_ == nullptr) return false;
     if (message == WM_IME_STARTCOMPOSITION) {
         if (composing_) return true;
-        Base::Result<void> begun =
-            client_->BeginComposition();
-        if (!begun) return begun.GetStatus();
+        client_->BeginComposition();
         composing_ = true;
         return true;
     }
     if (message == WM_IME_COMPOSITION) {
         if (!composing_) {
-            Base::Result<void> begun =
-                client_->BeginComposition();
-            if (!begun) return begun.GetStatus();
+            client_->BeginComposition();
             composing_ = true;
         }
         const auto flags =
@@ -405,10 +366,9 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
             Base::Result<void> read = ReadCompositionText(
                 static_cast<HWND>(window_),
                 GCS_RESULTSTR, text);
-            if (!read) return read.GetStatus();
-            Base::Result<void> committed =
+            if (read) {
                 client_->CommitComposition(text.View());
-            if (!committed) return committed.GetStatus();
+            }
             composing_ = false;
             DestroyNativeCaret();
             return true;
@@ -417,18 +377,15 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
             Base::Result<void> read = ReadCompositionText(
                 static_cast<HWND>(window_),
                 GCS_COMPSTR, text);
-            if (!read) return read.GetStatus();
-            Base::Result<void> updated =
+            if (read) {
                 client_->UpdateComposition(text.View());
-            if (!updated) return updated.GetStatus();
+            }
         }
         return true;
     }
     if (message == WM_IME_ENDCOMPOSITION) {
         if (composing_) {
-            Base::Result<void> cancelled =
-                client_->CancelComposition();
-            if (!cancelled) return cancelled.GetStatus();
+            client_->CancelComposition();
             composing_ = false;
         }
         DestroyNativeCaret();
@@ -438,9 +395,7 @@ Base::Result<bool> Win32ImeAdapter::HandleMessage(
 #else
     static_cast<void>(message);
     static_cast<void>(lParam);
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
+    return false;
 #endif
 }
 
@@ -449,9 +404,7 @@ Win32ImeAdapter::SetCandidateWindow(
     const Input::ImeCandidateWindow& value) noexcept {
 #if defined(_WIN32)
     if (!IsAttached()) {
-        Base::Result<bool> attached = AttachActiveWindow();
-        if (!attached) return;
-        if (!attached.Value() && !IsAttached()) return;
+        if (!AttachActiveWindow() && !IsAttached()) return;
     }
     if (!Base::IsValidRect(value.caret) ||
         !std::isfinite(value.dpiScale) ||
@@ -546,30 +499,21 @@ void Win32ImeAdapter::DestroyNativeCaret() noexcept {
     caretHeight_ = 0;
 }
 
-Base::Result<void>
+void
 Win32ImeAdapter::CancelNativeComposition() noexcept {
 #if defined(_WIN32)
-    if (!IsAttached()) return NotAttached();
+    if (!IsAttached()) return;
     InputContextScope input(
         static_cast<HWND>(window_));
     if (input.Get() == nullptr) {
-        return ImeFailure(
-            "Win32 IME context is unavailable");
+        return;
     }
-    if (ImmNotifyIME(
-            input.Get(),
-            NI_COMPOSITIONSTR,
-            CPS_CANCEL, 0U) == FALSE) {
-        return ImeFailure(
-            "Win32 failed to cancel IME composition");
-    }
+    ImmNotifyIME(
+        input.Get(),
+        NI_COMPOSITIONSTR,
+        CPS_CANCEL, 0U);
     composing_ = false;
     DestroyNativeCaret();
-    return {};
-#else
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Win32 IME is unavailable on this platform");
 #endif
 }
 

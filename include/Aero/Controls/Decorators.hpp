@@ -34,10 +34,7 @@ public:
         return children.Size() == 1U ? children[0] : nullptr;
     }
     void SetChild(UIElement* child) noexcept {
-        Result<void> access = VerifyAccess();
-        if (!access) return;
-        Result<void> valid = ValidateChild(child);
-        if (!valid) return;
+        if (!CheckAccess() || !ValidateChild(child)) return;
         if (child_ == child) return;
         if (child_ != nullptr && child_->GetVisualParent() == this) { RemoveVisualChild(child_); }
         child_ = child;
@@ -46,10 +43,7 @@ public:
     }
     void SetOwnedChild(const Ref<Base::Object>& childObject, UIElement& child) noexcept {
         if (!childObject || childObject.Get() != &child) { return; }
-        Result<void> access = VerifyAccess();
-        if (!access) return;
-        Result<void> valid = ValidateChild(&child);
-        if (!valid) return;
+        if (!CheckAccess() || !ValidateChild(&child)) return;
         if (child_ == &child) {
             ownedChild_ = childObject;
             return;
@@ -86,17 +80,11 @@ protected:
     }
 
 private:
-    Result<void> ValidateChild(UIElement* child) const noexcept {
+    bool ValidateChild(UIElement* child) const noexcept {
         if (child == nullptr) {
-            if (!LayoutChildren().Empty()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                    "Decorator child must be detached before clearing it");
-            }
-        } else if (!LayoutChildren().Empty() && !IsOnlyAttachedChild(*child)) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "Decorator child must be its only attached UIElement");
+            return LayoutChildren().Empty();
         }
-        return {};
+        return LayoutChildren().Empty() || IsOnlyAttachedChild(*child);
     }
 
     bool IsOnlyAttachedChild(const UIElement& child) const noexcept {

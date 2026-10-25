@@ -142,7 +142,7 @@ public:
     ::Aero::Diagnostics::SourceSpan SourceOf(const ResourceKey& key) const noexcept;
     ::Aero::Diagnostics::SourceSpan SourceOf(StringView key) const noexcept;
     Result<void> AddMerged(ResourceDictionary& dictionary) noexcept;
-    Result<bool> RemoveMerged(ResourceDictionary& dictionary) noexcept;
+    bool RemoveMerged(ResourceDictionary& dictionary) noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.
@@ -173,13 +173,13 @@ private:
 
     explicit ResourceDictionary(DictionaryState* state, bool addReference) noexcept;
 
-    Result<void> StoreResource(const ResourceKey& key, const ResourceValue& value,
+    bool StoreResource(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(StringView key, const ResourceValue& value,
+    bool StoreResource(StringView key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(Meta::TypeId key, const ResourceValue& value,
+    bool StoreResource(Meta::TypeId key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> StoreResource(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
+    bool StoreResource(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     Result<DictionaryState*> EnsureState() noexcept;
     static void AddStateRef(DictionaryState* state) noexcept;

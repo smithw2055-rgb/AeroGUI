@@ -165,11 +165,7 @@ void Selector::SetSelectionMode(
             : selectedIndices_[0U];
         const std::uint32_t values[] = {
             selected};
-        Base::Result<bool> normalized =
-            ApplySelection(values, selected);
-        if (!normalized) {
-            lastSelectionError_ = normalized.GetStatus();
-        }
+        ApplySelection(values, selected);
     }
 }
 
@@ -188,12 +184,7 @@ void Selector::SetSelectedIndex(
     }
     pendingSelectedItem_.Reset();
     const std::uint32_t values[] = {index};
-    Base::Result<bool> result = ApplySelection(values, index);
-    if (!result) {
-        lastSelectionError_ = result.GetStatus();
-    } else {
-        lastSelectionError_ = Base::Status::Ok();
-    }
+    ApplySelection(values, index);
 }
 
 void Selector::SetSelectedItem(
@@ -238,13 +229,7 @@ bool Selector::Select(
     }
     if (GetSelectionMode() == SelectionMode::Single) {
         const std::uint32_t values[] = {index};
-        Base::Result<bool> result = ApplySelection(values, index);
-        if (!result) {
-            lastSelectionError_ = result.GetStatus();
-            return false;
-        }
-        lastSelectionError_ = Base::Status::Ok();
-        return result.Value();
+        return ApplySelection(values, index);
     }
     Base::Vector<std::uint32_t> selection;
     selection.Reserve(
@@ -259,15 +244,9 @@ bool Selector::Select(
         lastSelectionError_ = inserted.GetStatus();
         return false;
     }
-    Base::Result<bool> result = ApplySelection(
+    return ApplySelection(
         {selection.Data(), selection.Size()},
         index);
-    if (!result) {
-        lastSelectionError_ = result.GetStatus();
-        return false;
-    }
-    lastSelectionError_ = Base::Status::Ok();
-    return result.Value();
 }
 
 bool Selector::Unselect(
@@ -296,15 +275,9 @@ bool Selector::Unselect(
         : (selection.Empty()
             ? UINT32_MAX
             : selection.Back());
-    Base::Result<bool> result = ApplySelection(
+    return ApplySelection(
         {selection.Data(), selection.Size()},
         primary);
-    if (!result) {
-        lastSelectionError_ = result.GetStatus();
-        return false;
-    }
-    lastSelectionError_ = Base::Status::Ok();
-    return result.Value();
 }
 
 bool Selector::Toggle(
@@ -327,13 +300,7 @@ bool Selector::SelectRange(
     }
     if (GetSelectionMode() == SelectionMode::Single) {
         const std::uint32_t values[] = {last};
-        Base::Result<bool> result = ApplySelection(values, last);
-        if (!result) {
-            lastSelectionError_ = result.GetStatus();
-            return false;
-        }
-        lastSelectionError_ = Base::Status::Ok();
-        return result.Value();
+        return ApplySelection(values, last);
     }
     const std::uint32_t begin =
         std::min(first, last);
@@ -360,41 +327,34 @@ bool Selector::SelectRange(
             return false;
         }
     }
-    Base::Result<bool> result = ApplySelection(
+    return ApplySelection(
         {selection.Data(), selection.Size()},
         last);
-    if (!result) {
-        lastSelectionError_ = result.GetStatus();
-        return false;
-    }
-    lastSelectionError_ = Base::Status::Ok();
-    return result.Value();
 }
 
 void Selector::ClearSelection() noexcept {
     pendingSelectedItem_.Reset();
-    Base::Result<bool> result = ApplySelection({}, UINT32_MAX);
-    if (!result) {
-        lastSelectionError_ = result.GetStatus();
-    } else {
-        lastSelectionError_ = Base::Status::Ok();
-    }
+    ApplySelection({}, UINT32_MAX);
 }
 
-Base::Result<bool> Selector::ApplySelection(
+bool Selector::ApplySelection(
     Base::Span<const std::uint32_t> indices,
     std::uint32_t primaryIndex) noexcept {
     Base::Vector<std::uint32_t> normalized;
     normalized.Reserve(indices.Size());
     for (std::uint32_t index : indices) {
         if (index >= GetCount()) {
-            return Base::Status::Failure(
+            lastSelectionError_ = Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "Selector selection contains an invalid index");
+            return false;
         }
         Base::Result<void> inserted =
             InsertSortedUnique(normalized, index);
-        if (!inserted) return inserted.GetStatus();
+        if (!inserted) {
+            lastSelectionError_ = inserted.GetStatus();
+            return false;
+        }
     }
     if (GetSelectionMode() == SelectionMode::Single &&
         normalized.Size() > 1U) {
@@ -423,6 +383,7 @@ Base::Result<bool> Selector::ApplySelection(
     if (pendingIndex_ == UINT32_MAX &&
         primaryIndex_ == primaryIndex &&
         EqualIndices(oldSelection, newSelection)) {
+        lastSelectionError_ = Base::Status::Ok();
         return false;
     }
 
@@ -621,10 +582,7 @@ void Selector::OnItemsChanged(
         if (index != UINT32_MAX) {
             pendingSelectedItem_.Reset();
             const std::uint32_t values[] = {index};
-            Base::Result<bool> realized = ApplySelection(values, index);
-            if (!realized) {
-                lastSelectionError_ = realized.GetStatus();
-            }
+            ApplySelection(values, index);
             return;
         }
         // A bound ItemsSource frequently emits Reset before it emits the
@@ -643,12 +601,7 @@ void Selector::OnItemsChanged(
             pendingIndex_ = UINT32_MAX;
             const std::uint32_t values[] = {
                 selected};
-            Base::Result<bool> realized =
-                ApplySelection(values, selected);
-            if (!realized) {
-                lastSelectionError_ =
-                    realized.GetStatus();
-            }
+            ApplySelection(values, selected);
         }
         return;
     }
@@ -727,14 +680,9 @@ void Selector::OnItemsChanged(
             }
         }
     }
-    Base::Result<bool> applied =
-        ApplySelection(
-            {mapped.Data(), mapped.Size()},
-            mappedPrimary);
-    if (!applied) {
-        lastSelectionError_ =
-            applied.GetStatus();
-    }
+    ApplySelection(
+        {mapped.Data(), mapped.Size()},
+        mappedPrimary);
 }
 
 void Selector::OnSelectionChanged(const SelectionChangedEvent&) {}
@@ -744,7 +692,6 @@ void Selector::OnPropertyChanged(
     ItemsControl::OnPropertyChanged(args);
     if (synchronizingProperties_) return;
     activeProperty_ = args.GetProperty();
-    Base::Result<bool> applied = false;
     if (args.GetProperty() == SelectionModeProperty) {
         if (GetSelectionMode() ==
                 SelectionMode::Single &&
@@ -755,7 +702,7 @@ void Selector::OnPropertyChanged(
                 : selectedIndices_[0U];
             const std::uint32_t values[] = {
                 selected};
-            applied = ApplySelection(
+            ApplySelection(
                 values, selected);
         }
     } else if (args.GetProperty() ==
@@ -764,7 +711,6 @@ void Selector::OnPropertyChanged(
             GetSelectedIndex();
         if (index == UINT32_MAX) {
             ClearSelection();
-            applied = true;
         } else if (index >= GetCount()) {
             pendingIndex_ = index;
             selectedIndices_.Clear();
@@ -774,7 +720,7 @@ void Selector::OnPropertyChanged(
         } else {
             const std::uint32_t values[] = {
                 index};
-            applied = ApplySelection(
+            ApplySelection(
                 values, index);
         }
     } else if (
@@ -786,7 +732,6 @@ void Selector::OnPropertyChanged(
             : GetSelectedValue();
         if (!item) {
             ClearSelection();
-            applied = true;
         } else {
             const std::uint32_t index =
                 GetIndexOfItem(item.Get());
@@ -794,12 +739,11 @@ void Selector::OnPropertyChanged(
                 pendingSelectedItem_ = item;
                 selectedIndices_.Clear();
                 primaryIndex_ = UINT32_MAX;
-                applied = true;
             } else {
                 pendingSelectedItem_.Reset();
                 const std::uint32_t values[] = {
                     index};
-                applied = ApplySelection(
+                ApplySelection(
                     values, index);
             }
         }
@@ -809,23 +753,16 @@ void Selector::OnPropertyChanged(
         if (GetIsSynchronizedWithCurrentItem()) {
             HookCurrentView();
         }
-        applied = true;
-    }
-    if (!applied) {
-        lastSelectionError_ =
-            applied.GetStatus();
     }
     activeProperty_ = {};
 }
 
-Base::Result<void> Selector::PrepareContainerForItemOverride(
+void Selector::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
-    Base::Result<void> prepared =
-        ItemsControl::PrepareContainerForItemOverride(
-            container, item, index);
-    if (!prepared) return prepared.GetStatus();
+    ItemsControl::PrepareContainerForItemOverride(
+        container, item, index);
     if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ListBoxItem::StaticTypeId())) {
@@ -833,9 +770,8 @@ Base::Result<void> Selector::PrepareContainerForItemOverride(
             static_cast<ListBoxItem&>(container);
         listBoxItem.SetIsSelected(GetIsSelected(index));
         listBoxItem.SetIsTabStop(true);
-        return {};
+        return;
     }
-    return {};
 }
 
 void Selector::ClearContainerForItemOverride(
@@ -1041,24 +977,18 @@ std::uint32_t ListBox::FindContainerIndex(Base::Object* source) const noexcept {
     return UINT32_MAX;
 }
 
-Base::Result<bool> ListBox::ApplyUserSelection(
+bool ListBox::ApplyUserSelection(
     std::uint32_t index,
     std::uint32_t modifiers) noexcept {
     const SelectionMode mode = GetSelectionMode();
     if (mode == SelectionMode::Single) {
         anchorIndex_ = index;
         SetSelectedIndex(index);
-        if (!LastSelectionError().IsOk()) {
-            return LastSelectionError();
-        }
-        return true;
+        return LastSelectionError().IsOk();
     }
     if (mode == SelectionMode::Multiple) {
         anchorIndex_ = index;
-        const bool changed = Toggle(index);
-        return LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(LastSelectionError());
+        return Toggle(index) && LastSelectionError().IsOk();
     }
     const bool shift = HasKeyboardModifier(
         modifiers, KeyboardModifiers::Shift);
@@ -1072,26 +1002,14 @@ Base::Result<bool> ListBox::ApplyUserSelection(
                 ? GetSelectedIndex()
                 : index;
         }
-        const bool changed = SelectRange(
-                anchorIndex_,
-                index,
-                control);
-        return LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(LastSelectionError());
+        return SelectRange(anchorIndex_, index, control) && LastSelectionError().IsOk();
     }
     anchorIndex_ = index;
     if (control) {
-        const bool changed = Toggle(index);
-        return LastSelectionError().IsOk()
-            ? Base::Result<bool>(changed)
-            : Base::Result<bool>(LastSelectionError());
+        return Toggle(index) && LastSelectionError().IsOk();
     }
     SetSelectedIndex(index);
-    if (!LastSelectionError().IsOk()) {
-        return LastSelectionError();
-    }
-    return true;
+    return LastSelectionError().IsOk();
 }
 
 void ListBox::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
@@ -1101,8 +1019,7 @@ void ListBox::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     if (!GetIsEnabled()) return;
     const std::uint32_t index = FindContainerIndex(args.GetOriginalSource());
     if (index == UINT32_MAX) return;
-    Base::Result<bool> selected = ApplyUserSelection(index, args.GetModifiers());
-    if (!selected) return;
+    if (!ApplyUserSelection(index, args.GetModifiers())) return;
     ItemContainerGenerator* generator = GetItemContainerGenerator();
     if (generator != nullptr) {
         FrameworkElement* container = generator->ContainerFromIndex(index);
@@ -1146,8 +1063,7 @@ void ListBox::OnKeyDown(KeyEventArgs& args) {
     const bool shift = HasKeyboardModifier(
         args.GetModifiers(), KeyboardModifiers::Shift);
     if (!control || GetSelectionMode() != SelectionMode::Extended || shift) {
-        Base::Result<bool> selected = ApplyUserSelection(target, args.GetModifiers());
-        if (!selected) return;
+        if (!ApplyUserSelection(target, args.GetModifiers())) return;
     }
     ItemContainerGenerator* generator = GetItemContainerGenerator();
     if (generator != nullptr) {
@@ -1160,16 +1076,12 @@ void ListBox::OnKeyDown(KeyEventArgs& args) {
     args.SetHandled(true);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 ListBox::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<ListBoxItem>> made =
-        Base::MakeRef<ListBoxItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<ListBoxItem>();
 }
 
-Base::Result<bool> ListBox::BringIntoView(
+bool ListBox::BringIntoView(
     std::uint32_t index) noexcept {
     ItemContainerGenerator* generator =
         AttachedGenerator();
@@ -1325,23 +1237,17 @@ Base::StringView ComboBox::GetSelectionBoxText() const noexcept {
     return GetValue(SelectionBoxTextProperty);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 ComboBox::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<ComboBoxItem>> made =
-        Base::MakeRef<ComboBoxItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<ComboBoxItem>();
 }
 
-Base::Result<void> ComboBox::PrepareContainerForItemOverride(
+void ComboBox::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
-    Base::Result<void> prepared =
-        Selector::PrepareContainerForItemOverride(
-            container, item, index);
-    if (!prepared) return prepared.GetStatus();
+    Selector::PrepareContainerForItemOverride(
+        container, item, index);
     if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(),
             ComboBoxItem::StaticTypeId())) {
@@ -1350,9 +1256,7 @@ Base::Result<void> ComboBox::PrepareContainerForItemOverride(
                 container);
         comboItem.SetIsSelected(GetIsSelected(index));
         comboItem.SetIsTabStop(true);
-        return {};
     }
-    return {};
 }
 
 void ComboBox::ClearContainerForItemOverride(
@@ -1391,7 +1295,7 @@ void ComboBox::SynchronizeContainers() noexcept {
 void ComboBox::OnContainersChanged() noexcept {
     Selector::OnContainersChanged();
     SynchronizeContainers();
-    static_cast<void>(UpdateSelectionBox());
+    UpdateSelectionBox();
 }
 
 void ComboBox::OnApplyTemplate()
@@ -1473,12 +1377,8 @@ void ComboBox::OnApplyTemplate()
     if (dropDownBorder_ != nullptr) {
         dropDownBorder_->SetMaxSize({1.0e12, GetMaxDropDownHeight()});
     }
-    Base::Result<void> selectionUpdated =
-        UpdateSelectionBox();
-    if (!selectionUpdated) {
-        return;
-    }
-    static_cast<void>(UpdateEditableVisualState());
+    UpdateSelectionBox();
+    UpdateEditableVisualState();
 }
 
 void ComboBox::OnTemplateDetached() noexcept {
@@ -1506,7 +1406,7 @@ void ComboBox::OnTemplateDetached() noexcept {
 void ComboBox::OnSelectionChanged(
     const SelectionChangedEvent& event) {
     Selector::OnSelectionChanged(event);
-    static_cast<void>(UpdateSelectionBox());
+    UpdateSelectionBox();
     SynchronizeContainers();
     if (GetIsDropDownOpen()) {
         SetIsDropDownOpen(false);
@@ -1559,7 +1459,7 @@ void ComboBox::OnPropertyChanged(
                prop == ItemsControl::ItemsSourceProperty ||
                prop == ItemsControl::ItemTemplateProperty ||
                prop == ItemsControl::DisplayMemberPathProperty) {
-        static_cast<void>(UpdateSelectionBox());
+        UpdateSelectionBox();
     } else if (prop == UIElement::IsMouseOverProperty ||
                prop == UIElement::IsEnabledProperty) {
         UpdateVisualState(true);
@@ -1579,7 +1479,7 @@ void ComboBox::OnSelectedProjectionChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
     if (&object == selectedProjection_) {
-        static_cast<void>(UpdateSelectionBox());
+        UpdateSelectionBox();
     }
 }
 
@@ -1622,8 +1522,7 @@ void ComboBox::OnEditableTextChanged(
     synchronizingEditableText_ = false;
 }
 
-Base::Result<void>
-ComboBox::UpdateSelectionBox() noexcept {
+void ComboBox::UpdateSelectionBox() noexcept {
     Base::StringView text;
     TextBlock* selectedProjection = nullptr;
     Base::Ref<Base::Object> selected =
@@ -1785,7 +1684,6 @@ ComboBox::UpdateSelectionBox() noexcept {
         SetCurrentValue(TextProperty, value);
     }
     UpdateEditableVisualState();
-    return {};
 }
 
 void ComboBox::UpdateEditableVisualState() noexcept {
@@ -2087,19 +1985,15 @@ TabItem* TabControl::GetSelectedTab() const noexcept {
     return nullptr;
 }
 
-Base::Result<Ref<FrameworkElement>> TabControl::GetContainerForItemOverride() const noexcept {
-    Base::Result<Ref<TabItem>> made = Base::MakeRef<TabItem>();
-    if (!made) return made.GetStatus();
-    return Ref<FrameworkElement>(std::move(made).Value());
+Base::Ref<FrameworkElement> TabControl::GetContainerForItemOverride() const noexcept {
+    return Base::MakeRef<TabItem>();
 }
 
-Base::Result<void> TabControl::PrepareContainerForItemOverride(
+void TabControl::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
-    Base::Result<void> prepared =
-        Selector::PrepareContainerForItemOverride(container, item, index);
-    if (!prepared) return prepared.GetStatus();
+    Selector::PrepareContainerForItemOverride(container, item, index);
 
     if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), TabItem::StaticTypeId())) {
@@ -2115,7 +2009,6 @@ Base::Result<void> TabControl::PrepareContainerForItemOverride(
         }
         tabItem.SetIsSelected(index == GetSelectedIndex());
     }
-    return {};
 }
 
 void TabControl::OnApplyTemplate() noexcept {

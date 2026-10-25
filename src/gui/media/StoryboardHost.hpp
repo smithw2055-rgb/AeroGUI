@@ -56,9 +56,9 @@ public:
         const Aero::NameScope* names = nullptr;
         Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr;
 
-        Base::Result<bool> EvaluateComparison(
+        bool EvaluateComparison(
             const Aero::Interactivity::ComparisonCondition& condition) noexcept;
-        Base::Result<bool> BehaviorsAllowExecution() noexcept;
+        bool BehaviorsAllowExecution() noexcept;
         void Invoke(Base::Object*, Aero::RoutedEventArgs&) noexcept;
     };
     struct AnimationEventSubscription {

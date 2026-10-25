@@ -136,7 +136,7 @@ CollectionView* CollectionViewSource::GetDefaultView(
         }
         ++index;
     }
-    Base::Result<Ref<CollectionView>> created =
+    Ref<CollectionView> created =
         Base::MakeRef<CollectionView>(source);
     if (!created) return nullptr;
     DefaultViewEntry entry;
@@ -145,7 +145,7 @@ CollectionView* CollectionViewSource::GetDefaultView(
             Base::Ref<Base::Object>::TryFromBorrowed(*sourceObj));
         entry.rawSource = source;
     }
-    entry.view = std::move(created).Value();
+    entry.view = std::move(created);
     CollectionView* view = entry.view.Get();
     views.PushBack(std::move(entry));
     return view;

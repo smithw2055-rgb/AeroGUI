@@ -23,7 +23,7 @@ inline bool IsSpatialGradientBrush(const Brush* brush) noexcept {
         TryCast<RadialGradientBrush>(brush) != nullptr;
 }
 
-Base::Result<void> PaintBrushRect(
+void PaintBrushRect(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
@@ -32,7 +32,7 @@ Base::Result<void> PaintBrushRect(
 
 // Ellipse/rounded-rect pen as an annulus (same construction as StrokeRect).
 // LinearGradientBrush maps through `bounds`; do not Flatten+tessellate.
-Base::Result<void> PaintBrushRoundedStroke(
+void PaintBrushRoundedStroke(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
@@ -40,7 +40,7 @@ Base::Result<void> PaintBrushRoundedStroke(
     double cornerRadius,
     bool isRtl = false) noexcept;
 
-Base::Result<void> PaintBrushGeometry(
+void PaintBrushGeometry(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Base::Span<const Point> vertices,

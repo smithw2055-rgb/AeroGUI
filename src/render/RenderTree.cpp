@@ -1,6 +1,5 @@
 #include <cstdio>
 #include "DisplayList.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "RenderTree.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ElementTree.hpp"
@@ -10,10 +9,6 @@
 #include "gui/core/EventRouter.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Base/Assert.hpp>
-#include <Aero/Controls/Decorators.hpp>
-#include <Aero/Controls/Menus.hpp>
-#include <Aero/Controls/Popup.hpp>
-#include <Aero/Documents.hpp>
 #include <Aero/Media/Effects.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Transform2D.hpp>
@@ -149,132 +144,101 @@ std::uint64_t DisplayList::StableHash() const noexcept {
     return hash;
 }
 
-Base::Result<void> DisplayListBuilder::PushClip(Rect clip) noexcept {
-    if (!IsValidLayoutRect(clip)) {
-        return InvalidArgument("Render clip must be finite and nonnegative");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+void DisplayListBuilder::PushClip(Rect clip) noexcept {
+    if (!IsValidLayoutRect(clip) || finished_) return;
     CmdPushClip cmd{clip};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PushClip;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
     ++clipDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::PopClip() noexcept {
-    if (clipDepth_ == 0U) {
-        return InvalidState("Render clip stack underflow");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+void DisplayListBuilder::PopClip() noexcept {
+    if (clipDepth_ == 0U || finished_) return;
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PopClip;
     h.payloadOffset = 0U;
     list_.headers_.PushBack(h);
     --clipDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::PushOpacity(double opacity) noexcept {
-    if (!IsValidOpacity(opacity)) {
-        return InvalidArgument("Render opacity must be within [0, 1]");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+void DisplayListBuilder::PushOpacity(double opacity) noexcept {
+    if (!IsValidOpacity(opacity) || finished_) return;
     CmdPushOpacity cmd{opacity};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PushOpacity;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
     ++opacityDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::PopOpacity() noexcept {
-    if (opacityDepth_ == 0U) {
-        return InvalidState("Render opacity stack underflow");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+void DisplayListBuilder::PopOpacity() noexcept {
+    if (opacityDepth_ == 0U || finished_) return;
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PopOpacity;
     h.payloadOffset = 0U;
     list_.headers_.PushBack(h);
     --opacityDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::PushTransform(
+void DisplayListBuilder::PushTransform(
     Transform2D value) noexcept {
-    return PushTransform(Base::ToProjective(value));
+    PushTransform(Base::ToProjective(value));
 }
 
-Base::Result<void> DisplayListBuilder::PushTransform(
+void DisplayListBuilder::PushTransform(
     ProjectiveTransform2D value) noexcept {
-    if (!IsFinite(value)) {
-        return InvalidArgument("Render transform must contain finite values");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (!IsFinite(value) || finished_) return;
     CmdPushTransform cmd{value};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PushTransform;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
     ++transformDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::PopTransform() noexcept {
-    if (transformDepth_ == 0U) {
-        return InvalidState("Render transform stack underflow");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+void DisplayListBuilder::PopTransform() noexcept {
+    if (transformDepth_ == 0U || finished_) return;
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::PopTransform;
     h.payloadOffset = 0U;
     list_.headers_.PushBack(h);
     --transformDepth_;
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::FillRect(
+void DisplayListBuilder::FillRect(
     Rect rect,
     Color color) noexcept {
-    if (!IsValidLayoutRect(rect) || !IsFinite(color)) {
-        return InvalidArgument("FillRect requires valid geometry and color");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (!IsValidLayoutRect(rect) || !IsFinite(color) || finished_) return;
     CmdFillRect cmd{rect, color};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::FillRect;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::FillRoundedRect(
+void DisplayListBuilder::FillRoundedRect(
     Rect rect,
     Color color,
     double cornerRadius) noexcept {
     if (!IsValidLayoutRect(rect) || !IsFinite(color) ||
-        !std::isfinite(cornerRadius) || cornerRadius < 0.0) {
-        return InvalidArgument(
-            "FillRoundedRect requires valid geometry, color, and corner radius");
+        !std::isfinite(cornerRadius) || cornerRadius < 0.0 || finished_) {
+        return;
     }
     const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
     cornerRadius = std::clamp(cornerRadius, 0.0, maxRadius);
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdRoundedRect cmd{rect, color, static_cast<float>(cornerRadius), 0.0f};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::FillRoundedRect;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::FillGradientQuad(
+void DisplayListBuilder::FillGradientQuad(
     const Point points[4],
     const Color colors[4]) noexcept {
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (finished_) return;
     CmdGradientQuad cmd{};
     for (int i = 0; i < 4; ++i) {
         cmd.points[i] = points[i];
@@ -285,20 +249,18 @@ Base::Result<void> DisplayListBuilder::FillGradientQuad(
     h.paintKind = 0U;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::FillGradientQuad(
+void DisplayListBuilder::FillGradientQuad(
     const Point points[4],
     const Point uvs[4],
     std::uint8_t paintKind,
     const float uniforms[8],
     std::uintptr_t gradientBrush,
     std::uint8_t wrapMode) noexcept {
-    if (paintKind == 0U || gradientBrush == 0U || uniforms == nullptr) {
-        return InvalidArgument("GPU gradient fill requires paint and brush");
+    if (paintKind == 0U || gradientBrush == 0U || uniforms == nullptr || finished_) {
+        return;
     }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdGradientQuad cmd{};
     cmd.gradientBrush = gradientBrush;
     for (int i = 0; i < 4; ++i) {
@@ -313,70 +275,59 @@ Base::Result<void> DisplayListBuilder::FillGradientQuad(
     h.wrapMode = wrapMode;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::StrokeRect(
+void DisplayListBuilder::StrokeRect(
     Rect rect,
     Color color,
     double thickness,
     double cornerRadius) noexcept {
     if (!IsValidLayoutRect(rect) || !IsFinite(color) ||
         !std::isfinite(thickness) || thickness < 0.0 ||
-        !std::isfinite(cornerRadius) || cornerRadius < 0.0) {
-        return InvalidArgument(
-            "StrokeRect requires valid geometry, color, and thickness");
+        !std::isfinite(cornerRadius) || cornerRadius < 0.0 || finished_) {
+        return;
     }
     const double maxRadius = std::fmin(rect.width, rect.height) * 0.5;
     cornerRadius = std::clamp(cornerRadius, 0.0, maxRadius);
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdStrokeRect cmd{rect, color, static_cast<float>(thickness), static_cast<float>(cornerRadius)};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::StrokeRect;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawAnalyticalShadow(
+void DisplayListBuilder::DrawAnalyticalShadow(
     Rect rect, Color color, float cornerRadius, float blurRadius, Point offset) noexcept {
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (finished_) return;
     CmdAnalyticalShadow cmd{rect, color, cornerRadius, blurRadius, offset};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::DrawAnalyticalShadow;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawImage(
+void DisplayListBuilder::DrawImage(
     RenderImageId image,
     Rect destination,
     Rect sourceUv,
     Color tint,
     std::uint8_t wrapMode) noexcept {
     if (image == InvalidRenderImageId || !IsValidLayoutRect(destination) ||
-        !IsValidImageUv(sourceUv) || !IsFinite(tint)) {
-        return InvalidArgument(
-            "DrawImage requires a valid image, destination, UV rectangle, and tint");
+        !IsValidImageUv(sourceUv) || !IsFinite(tint) || finished_) {
+        return;
     }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdDrawImage cmd{image, destination, sourceUv, tint};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::DrawImage;
     h.wrapMode = wrapMode;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawMesh(
+void DisplayListBuilder::DrawMesh(
     RenderMeshId mesh,
     Color tint) noexcept {
-    if (mesh == InvalidRenderMeshId || !IsFinite(tint)) {
-        return InvalidArgument("DrawMesh requires a valid mesh and tint");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (mesh == InvalidRenderMeshId || !IsFinite(tint) || finished_) return;
     CmdDrawSolidMesh cmd{};
     cmd.mesh = mesh;
     cmd.tint = tint;
@@ -384,10 +335,9 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     h.kind = RenderCommandKind::DrawSolidMesh;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawMesh(
+void DisplayListBuilder::DrawMesh(
     RenderMeshId mesh,
     std::uint8_t paintKind,
     const float uniforms[8],
@@ -401,10 +351,9 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     Transform2D inverse,
     std::uint8_t wrapMode) noexcept {
     if (mesh == InvalidRenderMeshId || paintKind == 0U ||
-        gradientBrush == 0U || uniforms == nullptr) {
-        return InvalidArgument("GPU DrawMesh requires paint and brush");
+        gradientBrush == 0U || uniforms == nullptr || finished_) {
+        return;
     }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
     CmdDrawGradientMesh cmd{};
     cmd.mesh = mesh;
     cmd.tint = Color{1.0F, 1.0F, 1.0F, 1.0F};
@@ -423,33 +372,27 @@ Base::Result<void> DisplayListBuilder::DrawMesh(
     h.wrapMode = wrapMode;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawGlyphRun(
+void DisplayListBuilder::DrawGlyphRun(
     RenderGlyphRunId glyphRun,
     Color tint) noexcept {
-    if (glyphRun == InvalidRenderGlyphRunId || !IsFinite(tint)) {
-        return InvalidArgument("DrawGlyphRun requires a valid glyph run and tint");
-    }
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
+    if (glyphRun == InvalidRenderGlyphRunId || !IsFinite(tint) || finished_) return;
     CmdDrawGlyphRun cmd{glyphRun, tint};
     RenderCommandHeader h{};
     h.kind = RenderCommandKind::DrawGlyphRun;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
-Base::Result<void> DisplayListBuilder::DrawTriangles(
+void DisplayListBuilder::DrawTriangles(
     const Point* vertices,
     std::uint32_t vertexCount,
     const std::uint32_t* indices,
     std::uint32_t indexCount,
     Color color) noexcept {
-    if (finished_) return InvalidState("DisplayListBuilder has already been finished");
-    if (vertices == nullptr || vertexCount == 0U || indices == nullptr || indexCount == 0U) {
-        return {};
+    if (finished_ || vertices == nullptr || vertexCount == 0U || indices == nullptr || indexCount == 0U) {
+        return;
     }
     CmdDrawTriangles cmd{};
     cmd.color = color;
@@ -462,7 +405,6 @@ Base::Result<void> DisplayListBuilder::DrawTriangles(
     h.kind = RenderCommandKind::DrawTriangles;
     h.payloadOffset = AppendPayload(cmd);
     list_.headers_.PushBack(h);
-    return {};
 }
 
 Base::Result<DisplayList> DisplayListBuilder::Finish() noexcept {
@@ -492,9 +434,13 @@ void RenderFrame::Clear() noexcept {
     pixelWidth_ = 0U;
     pixelHeight_ = 0U;
     dpiScale_ = 1.0;
+    cachedHash_ = 0U;
 }
 
 std::uint64_t RenderFrame::StableHash() const noexcept {
+    if (cachedHash_ != 0U) {
+        return cachedHash_;
+    }
     std::uint64_t hash = 1469598103934665603ULL;
     // P4.3: version_ is a generation marker, not content (see
     // elementRevision above). The descriptor version stays available via
@@ -549,6 +495,7 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
         // revision already versions content changes, so hash it only.
         hash = HashScalar(hash, ramp.revision);
     }
+    cachedHash_ = (hash != 0U ? hash : 1U);
     return hash;
 }
 
@@ -874,24 +821,16 @@ Base::Result<void> RenderTree::Initialize() noexcept {
     return {};
 }
 
-Base::Result<void> RenderTree::VerifyElement(
+void RenderTree::VerifyElement(
     const ::Aero::Media::Visual& element) const noexcept {
+    AERO_ASSERT(dispatcher_ != nullptr);
     Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) {
-        return access;
-    }
-    if (!initialized_) {
-        return InvalidState("RenderTree must be initialized before use");
-    }
-    if (&element.GetDispatcher() != dispatcher_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::WrongThread,
-            "Visual belongs to another Dispatcher");
-    }
-    if (committing_) {
-        return InvalidState("Render tree mutation during commit is not allowed");
-    }
-    return {};
+    AERO_ASSERT(access && "Cross-thread access to RenderTree");
+    (void)access;
+    AERO_ASSERT(initialized_ && "RenderTree must be initialized before use");
+    AERO_ASSERT(&element.GetDispatcher() == dispatcher_ && "Visual belongs to another Dispatcher");
+    (void)element;
+    AERO_ASSERT(!committing_ && "Render tree mutation during commit is not allowed");
 }
 
 Base::Result<void> RenderTree::SetRoot(
@@ -931,8 +870,7 @@ Base::Result<void> RenderTree::SetRoot(
         return {};
     }
 
-    Base::Result<void> verified = VerifyElement(*root);
-    if (!verified) return verified.GetStatus();
+    VerifyElement(*root);
     if (root_ == root) return {};
     if (root_ != nullptr || ElementTree::RenderTreeOf(*root) != nullptr ||
         (*root).RenderAttached() || root->GetVisualParent() != nullptr) {
@@ -965,10 +903,8 @@ Base::Result<void> RenderTree::SetRoot(
 Base::Result<void> RenderTree::Attach(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) return verified.GetStatus();
-    verified = VerifyElement(child);
-    if (!verified) return verified.GetStatus();
+    VerifyElement(parent);
+    VerifyElement(child);
     if ((child).RenderAttached() &&
         (child).GetVisualParent() == &parent &&
         ElementTree::RenderTreeOf(child) == this) {
@@ -1001,9 +937,7 @@ Base::Result<void> RenderTree::Attach(
     }
     dirty_.Reserve(dirty_.Size() + required);
 
-    Base::Result<void> invalidated = Invalidate(
-        parent, RenderInvalidation::Children);
-    if (!invalidated) return invalidated.GetStatus();
+    Invalidate(parent, RenderInvalidation::Children);
 
     (child).RenderAttached() = true;
     (child).NodeId() = nextNodeId_++;
@@ -1022,8 +956,7 @@ Base::Result<void> RenderTree::Attach(
 Base::Result<void> RenderTree::Detach(
     ::Aero::Media::Visual& parent,
     ::Aero::Media::Visual& child) noexcept {
-    Base::Result<void> verified = VerifyElement(parent);
-    if (!verified) return verified.GetStatus();
+    VerifyElement(parent);
     if (!(child).RenderAttached() ||
         ElementTree::RenderTreeOf(child) != this) {
         return {};
@@ -1034,9 +967,7 @@ Base::Result<void> RenderTree::Detach(
     if (attachParent == nullptr) attachParent = &parent;
 
     if (ElementTree::RenderTreeOf(*attachParent) == this) {
-        Base::Result<void> invalidated = Invalidate(
-            *attachParent, RenderInvalidation::Children);
-        if (!invalidated) return invalidated.GetStatus();
+        Invalidate(*attachParent, RenderInvalidation::Children);
     }
 
     auto clear = [&](auto&& self,
@@ -1064,15 +995,14 @@ Base::Result<void> RenderTree::Detach(
     return {};
 }
 
-Base::Result<void> RenderTree::QueueDirty(
+void RenderTree::QueueDirty(
     ::Aero::Media::Visual& element) noexcept {
-    if ((element).RenderQueued()) return {};
+    if ((element).RenderQueued()) return;
     Base::Result<Aero::VisualLease> lease =
         Aero::VisualLease::Acquire(element);
-    if (!lease) return lease.GetStatus();
+    if (!lease) return;
     dirty_.PushBack(std::move(lease).Value());
     (element).RenderQueued() = true;
-    return {};
 }
 
 void RenderTree::RemoveQueued(::Aero::Media::Visual& element) noexcept {
@@ -1147,14 +1077,12 @@ void RenderTree::MarkCommittedSubtree(
     }
 }
 
-Base::Result<void> RenderTree::Invalidate(
+void RenderTree::Invalidate(
     ::Aero::Media::Visual& element,
     RenderInvalidation invalidation) noexcept {
-    Base::Result<void> verified = VerifyElement(element);
-    if (!verified) return verified.GetStatus();
+    VerifyElement(element);
     if (ElementTree::RenderTreeOf(element) != this) {
-        return InvalidState(
-            "Visual is not attached to this RenderTree");
+        return;
     }
 
     (element).RenderDirtyFlags() |=
@@ -1182,34 +1110,45 @@ Base::Result<void> RenderTree::Invalidate(
         dirtySubtree(dirtySubtree, element);
     }
 
-    Base::Vector<::Aero::Media::Visual*> path;
+    ::Aero::Media::Visual* unqueued[64];
+    std::uint32_t count = 0U;
+    Base::Vector<::Aero::Media::Visual*> overflow;
+
     for (::Aero::Media::Visual* current = &element; current != nullptr;
          current = (*current).RenderAttached()
              ? (*current).GetVisualParent() : nullptr) {
-        Base::Result<void> currentVerified = VerifyElement(*current);
-        if (!currentVerified) return currentVerified.GetStatus();
-        path.PushBack(current);
+        if ((*current).RenderQueued()) {
+            break; // Ancestor is already in the dirty queue with its entire parent chain.
+        }
+        VerifyElement(*current);
+
+        if (count < 64U) {
+            unqueued[count++] = current;
+        } else {
+            overflow.PushBack(current);
+        }
     }
 
-    Base::Vector<Aero::VisualLease> leases;
-    leases.Reserve(path.Size());
-    for (::Aero::Media::Visual* current : path) {
-        if ((*current).RenderQueued()) continue;
+    if (count == 0U && overflow.Empty()) {
+        return;
+    }
+
+    dirty_.Reserve(dirty_.Size() + count + overflow.Size());
+    for (std::uint32_t i = 0U; i < count; ++i) {
+        ::Aero::Media::Visual* current = unqueued[i];
         Base::Result<Aero::VisualLease> lease =
             Aero::VisualLease::Acquire(*current);
-        if (!lease) return lease.GetStatus();
-        leases.PushBack(std::move(lease).Value());
-    }
-    dirty_.Reserve(dirty_.Size() + leases.Size());
-
-    std::uint32_t leaseIndex = 0U;
-    for (::Aero::Media::Visual* current : path) {
-        if ((*current).RenderQueued()) continue;
-        dirty_.PushBack(
-            std::move(leases[leaseIndex++]));
+        if (!lease) continue;
+        dirty_.PushBack(std::move(lease).Value());
         (*current).RenderQueued() = true;
     }
-    return {};
+    for (::Aero::Media::Visual* current : overflow) {
+        Base::Result<Aero::VisualLease> lease =
+            Aero::VisualLease::Acquire(*current);
+        if (!lease) continue;
+        dirty_.PushBack(std::move(lease).Value());
+        (*current).RenderQueued() = true;
+    }
 }
 
 } // namespace Aero::Render
@@ -1227,12 +1166,9 @@ Media::Visual::InvalidateRenderDrawing() noexcept {
         RenderValid() = false;
         return;
     }
-    Base::Result<void> invalidated =
-        ElementTree::RenderTreeOf(*this)->Invalidate(
-            *this,
-            RenderInvalidation::Drawing);
-    AERO_ASSERT(invalidated);
-    (void)invalidated;
+    ElementTree::RenderTreeOf(*this)->Invalidate(
+        *this,
+        RenderInvalidation::Drawing);
 }
 
 void
@@ -1246,11 +1182,9 @@ Media::Visual::InvalidateRenderState() noexcept {
         RenderValid() = false;
         return;
     }
-    Base::Result<void> invalidated =
-        ElementTree::RenderTreeOf(*this)->Invalidate(
-            *this,
-            RenderInvalidation::State);
-    AERO_ASSERT(invalidated);
+    ElementTree::RenderTreeOf(*this)->Invalidate(
+        *this,
+        RenderInvalidation::State);
 }
 
 } // namespace Aero
@@ -1361,7 +1295,7 @@ Base::Result<void> RenderTree::SetOverlays(
     // is no longer valid.
     ++structureVersion_;
     if (root_ != nullptr) {
-        return Invalidate(
+        Invalidate(
             *root_,
             RenderInvalidation::Children);
     }
@@ -1605,27 +1539,12 @@ RenderMaskSnapshot RenderTree::BuildMaskSnapshot(
 
 bool RenderTree::IsEmittedChild(
     const ::Aero::Media::Visual& child) noexcept {
-    const Meta::TypeId childType = child.RuntimeType();
-    const Meta::TypeRegistry& childTypes =
-        DependencyObjectAccess::PropertyRegistry((child)).Types();
-    // Popup-style visuals remain logical/template children so bindings,
-    // layout and routed events keep their WPF shape. They must never be
-    // emitted inline, though: an open popup is committed exactly once via
-    // the overlay list, and a closed popup is omitted altogether.
-    const bool overlayHost =
-        childTypes.IsDerivedFrom(
-            childType,
-            Controls::Primitives::Popup::StaticTypeId()) ||
-        childTypes.IsDerivedFrom(
-            childType,
-            Controls::ContextMenu::StaticTypeId()) ||
-        childTypes.IsDerivedFrom(
-            childType,
-            Documents::AdornerLayer::StaticTypeId());
-    if (overlayHost) return false;
-    // Open overlay instances additionally pass IsOverlay(); callers check
-    // both so an open popup is committed exactly once via the overlay list.
-    return true;
+    // Popup-style visuals (Popup, ContextMenu, AdornerLayer) remain
+    // logical/template children so bindings, layout and routed events keep
+    // their WPF shape. They must never be emitted inline, though: an open
+    // popup is committed exactly once via the overlay list, and a closed
+    // popup is omitted altogether.
+    return !child.IsOverlayHostFlag();
 }
 
 void RenderTree::ResolveCommandGradients(
@@ -2152,6 +2071,7 @@ Base::Result<void> RenderTree::RefreshInPlace(
         return {};
     }
     currentFrame_.version_ = ++commitVersion_;
+    currentFrame_.cachedHash_ = 0U;
     MarkCommittedSubtree(*root_, true);
     dirty_.Clear();
     committedStructureVersion_ = structureVersion_;
@@ -2287,6 +2207,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         committedStructureVersion_ == structureVersion_) {
         committing_ = true;
         currentFrame_.version_ = ++commitVersion_;
+        currentFrame_.cachedHash_ = 0U;
         currentFrame_.logicalSize_ = logicalSize_;
         currentFrame_.pixelWidth_ = pixelWidth_;
         currentFrame_.pixelHeight_ = pixelHeight_;
@@ -2376,15 +2297,3 @@ void RenderTree::RenderCommitHook(void* context) noexcept {
 }
 
 } // namespace Aero::Render
-
-namespace Aero {
-
-void FrameworkElement::SetResources(
-    Base::Ref<ResourceDictionary> value) noexcept {
-    (void)Aero::AssignResourceDictionary(
-        EnsureOwnedResources(resources_),
-        std::move(value),
-        "FrameworkElement Resources is already assigned");
-}
-
-} // namespace Aero

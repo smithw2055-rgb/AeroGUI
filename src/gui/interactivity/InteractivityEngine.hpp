@@ -206,10 +206,10 @@ public:
         dataTemplateTriggerSubscriptions;
     Base::Status animationEventStatus;
 
-    Base::Result<bool> DataTemplateTriggerValuesMatch(
+    bool DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept;
-    Base::Result<bool> EvaluateTriggerComparison(
+    bool EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected,
         Base::StringView comparison) noexcept;
@@ -225,7 +225,7 @@ public:
     Base::Result<void> EvaluateDataTemplateTrigger(
         Aero::Controls::DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept;
-    Base::Result<bool> StyleDataTriggerValuesMatch(
+    bool StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept;
     Base::Result<void> EvaluateStyleDataTrigger(

@@ -116,14 +116,12 @@ StreamGeometryContext StreamGeometry::Open() noexcept {
     return StreamGeometryContext(this);
 }
 
-Result<void> StreamGeometry::AppendCommand(const Command& command) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
+void StreamGeometry::AppendCommand(const Command& command) noexcept {
+    if (!WritePreamble()) return;
     data_.Clear();
     InvalidateBounds();
     commands_.PushBack(command);
     WritePostscript();
-    return {};
 }
 
 void StreamGeometry::ReplayCommands(FlattenSink& sink) const noexcept {
@@ -221,55 +219,43 @@ StreamGeometryContext& StreamGeometryContext::operator=(
 
 StreamGeometryContext::~StreamGeometryContext() {
     if (!closed_) {
-        static_cast<void>(Close());
+        Close();
     }
 }
 
-Result<void> StreamGeometryContext::BeginFigure(
+void StreamGeometryContext::BeginFigure(
     Point startPoint,
     bool isFilled,
     bool isClosed) noexcept {
-    if (owner_ == nullptr || closed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "StreamGeometryContext is not open");
-    }
+    if (owner_ == nullptr || closed_) return;
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::BeginFigure;
     command.p0 = startPoint;
     command.filled = isFilled;
     command.closed = isClosed;
-    return owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
 }
 
-Result<void> StreamGeometryContext::LineTo(
+void StreamGeometryContext::LineTo(
     Point point,
     bool isStroked,
     bool isSmoothJoin) noexcept {
-    if (owner_ == nullptr || closed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "StreamGeometryContext is not open");
-    }
+    if (owner_ == nullptr || closed_) return;
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::LineTo;
     command.p0 = point;
     command.isStroked = isStroked;
     command.isSmoothJoin = isSmoothJoin;
-    return owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
 }
 
-Result<void> StreamGeometryContext::BezierTo(
+void StreamGeometryContext::BezierTo(
     Point controlPoint1,
     Point controlPoint2,
     Point endPoint,
     bool isStroked,
     bool isSmoothJoin) noexcept {
-    if (owner_ == nullptr || closed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "StreamGeometryContext is not open");
-    }
+    if (owner_ == nullptr || closed_) return;
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::BezierTo;
     command.p0 = controlPoint1;
@@ -277,29 +263,25 @@ Result<void> StreamGeometryContext::BezierTo(
     command.p2 = endPoint;
     command.isStroked = isStroked;
     command.isSmoothJoin = isSmoothJoin;
-    return owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
 }
 
-Result<void> StreamGeometryContext::QuadraticBezierTo(
+void StreamGeometryContext::QuadraticBezierTo(
     Point controlPoint,
     Point endPoint,
     bool isStroked,
     bool isSmoothJoin) noexcept {
-    if (owner_ == nullptr || closed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "StreamGeometryContext is not open");
-    }
+    if (owner_ == nullptr || closed_) return;
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::QuadraticBezierTo;
     command.p0 = controlPoint;
     command.p1 = endPoint;
     command.isStroked = isStroked;
     command.isSmoothJoin = isSmoothJoin;
-    return owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
 }
 
-Result<void> StreamGeometryContext::ArcTo(
+void StreamGeometryContext::ArcTo(
     Point point,
     Size size,
     double rotationAngle,
@@ -307,11 +289,7 @@ Result<void> StreamGeometryContext::ArcTo(
     SweepDirection sweepDirection,
     bool isStroked,
     bool isSmoothJoin) noexcept {
-    if (owner_ == nullptr || closed_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "StreamGeometryContext is not open");
-    }
+    if (owner_ == nullptr || closed_) return;
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::ArcTo;
     command.p0 = point;
@@ -322,38 +300,31 @@ Result<void> StreamGeometryContext::ArcTo(
         sweepDirection == SweepDirection::Clockwise;
     command.isStroked = isStroked;
     command.isSmoothJoin = isSmoothJoin;
-    return owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
 }
 
-Result<void> StreamGeometryContext::PolyLineTo(
+void StreamGeometryContext::PolyLineTo(
     const Point* points,
     std::uint32_t count,
     bool isStroked,
     bool isSmoothJoin) noexcept {
-    if (points == nullptr && count != 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "StreamGeometryContext PolyLineTo requires a point buffer");
-    }
+    if (points == nullptr || count == 0U) return;
     for (std::uint32_t index = 0U; index < count; ++index) {
-        Result<void> added = LineTo(points[index], isStroked, isSmoothJoin);
-        if (!added) return added.GetStatus();
+        LineTo(points[index], isStroked, isSmoothJoin);
     }
-    return {};
 }
 
-Result<void> StreamGeometryContext::Close() noexcept {
+void StreamGeometryContext::Close() noexcept {
     if (owner_ == nullptr || closed_) {
         closed_ = true;
         owner_ = nullptr;
-        return {};
+        return;
     }
     StreamGeometry::Command command;
     command.kind = StreamGeometry::CommandKind::Close;
-    Result<void> added = owner_->AppendCommand(command);
+    owner_->AppendCommand(command);
     closed_ = true;
     owner_ = nullptr;
-    return added;
 }
 
 } // namespace Aero::Media

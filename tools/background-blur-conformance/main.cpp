@@ -354,8 +354,7 @@ bool VerifySliderCommands(
                 Input::RoutedCommand::StaticTypeId()) {
             return false;
         }
-        Base::Result<bool> canExecute = command->CanExecute(parameter, slider);
-        if (!canExecute || !canExecute.Value()) return false;
+        if (!command->CanExecute(parameter, slider)) return false;
         command->Execute(parameter, slider);
         AdvanceView(view, timeInSeconds, 16U);
         return true;

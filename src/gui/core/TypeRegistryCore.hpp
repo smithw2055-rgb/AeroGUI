@@ -389,7 +389,7 @@ public:
         Base::Object& object,
         MetadataPropertyChangedCallback callback,
         void* callbackContext = nullptr) const noexcept;
-    Base::Result<bool> UnsubscribePropertyChanged(
+    bool UnsubscribePropertyChanged(
         Base::Object& object,
         std::uint64_t subscription) const noexcept;
     void* TryCastToInterface(

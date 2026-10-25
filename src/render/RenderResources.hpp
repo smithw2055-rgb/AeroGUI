@@ -69,7 +69,7 @@ struct TextResources {
         Base::IAllocator&) noexcept = nullptr;
     void (*destroy)(
         void*, ::Aero::Controls::TextBlockLayout*) noexcept = nullptr;
-    Base::Result<std::uint32_t> (*collect)(
+    std::uint32_t (*collect)(
         void*, ::Aero::Controls::TextBlockLayout*) noexcept = nullptr;
 };
 

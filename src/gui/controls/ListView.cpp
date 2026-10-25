@@ -198,14 +198,9 @@ ListView::SynchronizeColumnHeaders() noexcept {
     columnHeaders_->SetText(text.View());
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 ListView::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<ListViewItem>>
-        made =
-            Base::MakeRef<ListViewItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<ListViewItem>();
 }
 
 

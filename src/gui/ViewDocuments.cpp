@@ -136,17 +136,15 @@ Base::Result<void> ResourceHost::CommitLayer(
             Base::Result<void> rebuilt =
                 RebuildDynamicEnvironment();
             if (rebuilt) return {};
-            Base::Result<bool> removed =
+            const bool removed =
                 target.RemoveMerged(dictionary);
             Base::Result<void> restored =
-                removed && removed.Value()
+                removed
                 ? RebuildDynamicEnvironment()
                 : Base::Result<void>(
-                      removed
-                      ? Base::Status::Failure(
-                            Base::ErrorCode::InvalidState,
-                            "View resource merge rollback lost its dictionary")
-                      : removed.GetStatus());
+                      Base::Status::Failure(
+                          Base::ErrorCode::InvalidState,
+                          "View resource merge rollback lost its dictionary"));
             return restored
                 ? Base::Result<void>(rebuilt.GetStatus())
                 : restored;
@@ -568,6 +566,10 @@ Base::Result<void> MountRoot(ViewFrame& state,
             return ViewInvalidState(
                 "View already has a mounted root");
         }
+        if (availableSize.width <= 0.0 && availableSize.height <= 0.0 &&
+            (state.viewport.logicalSize.width > 0.0 || state.viewport.logicalSize.height > 0.0)) {
+            availableSize = state.viewport.logicalSize;
+        }
         const bool needsViewport =
             state.viewport.logicalSize.width != availableSize.width ||
             state.viewport.logicalSize.height != availableSize.height ||
@@ -608,7 +610,7 @@ Base::Result<void> MountRoot(ViewFrame& state,
         state.root = std::move(requestedRoot);
         const auto rollbackRoot = [&]() noexcept {
             if (state.Animations() != nullptr) {
-                static_cast<void>(state.Animations()->RemoveAll());
+                state.Animations()->RemoveAll();
             }
             if (state.Storyboards() != nullptr) {
                 state.Storyboards()->storyboardSessions.Clear();
@@ -784,9 +786,7 @@ Base::Result<void> DetachMountedRoot(ViewFrame& state,
             return {};
         }
         if (state.Animations() != nullptr) {
-            Base::Result<void> removed =
-                state.Animations()->RemoveAll();
-            if (!removed) return removed.GetStatus();
+            state.Animations()->RemoveAll();
         }
         if (state.Storyboards() != nullptr) {
             state.Storyboards()->storyboardSessions.Clear();
@@ -839,6 +839,7 @@ Base::Result<void> MountViewDocument(
     }
     Base::Result<void> valid = ValidateDocumentRoot(state, document.Root());
     if (!valid) return valid.GetStatus();
+
     state.loadedDocument =
         Aero::Markup::TakeXamlDocument(document);
     return MountRoot(state, 

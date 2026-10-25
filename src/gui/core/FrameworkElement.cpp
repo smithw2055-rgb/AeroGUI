@@ -454,11 +454,11 @@ void FrameworkElement::SetWidth(double value) noexcept {
 }
 
 void FrameworkElement::SetFontFamily(StringView value) noexcept {
-    Result<Ref<Media::FontFamily>> family =
+    Ref<Media::FontFamily> family =
         Base::MakeRef<Media::FontFamily>();
     if (!family) { AERO_ASSERT(false); return; }
     family->SetSource(value);
-    SetFontFamily(std::move(family).Value());
+    SetFontFamily(std::move(family));
 }
 
 // from src/gui/controls/Layout.cpp
@@ -648,6 +648,14 @@ const ResourceDictionary& FrameworkElement::GetResources() const noexcept {
     return EnsureOwnedResources(resources_);
 }
 
+void FrameworkElement::SetResources(
+    Base::Ref<ResourceDictionary> value) noexcept {
+    (void)Aero::AssignResourceDictionary(
+        EnsureOwnedResources(resources_),
+        std::move(value),
+        "FrameworkElement Resources is already assigned");
+}
+
 Result<ResourceValue> FrameworkElement::FindResource(
     const ResourceKey& key) const noexcept {
     return FrameworkResourceResolver::Lookup(
@@ -799,11 +807,8 @@ AERO_DESCRIBE(FrameworkElement) {
     using namespace ::Aero::Input;
     using namespace ::Aero::Media;
     // WPF TextElement/Control.Foreground defaults to Brushes.Black.
-    Base::Ref<Brush> defaultForeground{};
-    if (Base::Result<Base::Ref<Brush>> made =
-            MakeSolidColorBrush(Color{0.0F, 0.0F, 0.0F, 1.0F})) {
-        defaultForeground = std::move(made).Value();
-    }
+    Base::Ref<Brush> defaultForeground =
+        MakeSolidColorBrush(Color{0.0F, 0.0F, 0.0F, 1.0F});
     Register<FrameworkElement>(context)
         .Event(FrameworkElement::LoadedEvent, RoutingStrategy::Direct)
         .Event(FrameworkElement::UnloadedEvent, RoutingStrategy::Direct)

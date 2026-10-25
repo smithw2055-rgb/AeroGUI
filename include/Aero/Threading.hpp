@@ -191,7 +191,7 @@ private:
 
     void InsertReadyLocked(const TaskRecord& record) noexcept;
     void InsertDelayedLocked(const TaskRecord& record) noexcept;
-    Result<void> PromoteDueLocked(DispatcherTime nowMicroseconds) noexcept;
+    void PromoteDueLocked(DispatcherTime nowMicroseconds) noexcept;
 
     void CompactReadyLocked(bool force) noexcept;
     void CompactDelayedLocked(bool force) noexcept;

@@ -223,8 +223,7 @@ public:
     AnimationUsingKeyFrames() noexcept : AnimationTimeline(StaticTypeId()) {}
 
     void AddKeyFrame(Ref<TKeyFrame> value) noexcept {
-        Result<void> writable = WritePreamble();
-        if (!writable) { AERO_ASSERT(false); return; }
+        if (!WritePreamble()) { AERO_ASSERT(false); return; }
         if (!value) { AERO_ASSERT(false); return; }
         keyFrames_.PushBack(std::move(value));
         WritePostscript();

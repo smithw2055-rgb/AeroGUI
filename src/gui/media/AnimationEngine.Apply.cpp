@@ -193,7 +193,7 @@ T SampleKeyFrames(
     return sampled;
 }
 
-Base::Result<bool> AnimationEngine::ApplyTrack(
+bool AnimationEngine::ApplyTrack(
     Track& track,
     AnimationTime nowMicroseconds) noexcept {
     if (track.state == AnimationState::Stopped ||
@@ -285,8 +285,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.from + (track.to - track.from) * eased);
     } else if (track.kind == Track::Kind::CustomDouble) {
         if (!track.customDouble) {
-            return InvalidAnimation(
-                "Custom DoubleAnimation object is unavailable");
+            return false;
         }
         const double sampled =
             track.customDouble->GetCurrentValue(
@@ -294,19 +293,18 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
                 track.defaultDestinationValue,
                 progress);
         if (!std::isfinite(sampled)) {
-            return InvalidAnimation(
-                "Custom DoubleAnimation returned a non-finite value");
+            return false;
         }
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<double>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Color) {
         const Base::Color color = LerpColor(
             track.fromColor, track.toColor, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Color>::Encode(color);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Point) {
         const Base::Point point = LerpPoint(
@@ -314,7 +312,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Point>::Encode(
                 point);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Rect) {
         const Base::Rect rect = LerpRect(
@@ -322,7 +320,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Rect>::Encode(
                 rect);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind ==
         Track::Kind::Thickness) {
@@ -331,21 +329,21 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Thickness>::
                 Encode(thickness);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Integer) {
         const double eased = Ease(progress, track.easing);
         Base::Result<Meta::PropertyValue> encoded = EncodeIntegerWidth(
             LerpInteger(track.fromInteger, track.toInteger, eased),
             track.integerWidth);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Size) {
         const Base::Size size = LerpSize(
             track.fromSize, track.toSize, Ease(progress, track.easing));
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Size>::Encode(size);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::Matrix) {
         const double eased = Ease(progress, track.easing);
@@ -353,7 +351,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.fromMatrix, track.toMatrix, eased);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Transform2D>::Encode(matrix);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::DoubleKeyFrames) {
         const double sampledValue = SampleKeyFrames<double>(
@@ -370,7 +368,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             LerpColor);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Color>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::PointKeyFrames) {
         const Base::Point sampled = SampleKeyFrames<Base::Point>(
@@ -378,7 +376,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             LerpPoint);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Point>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::ThicknessKeyFrames) {
         const Base::Thickness sampled = SampleKeyFrames<Base::Thickness>(
@@ -386,14 +384,14 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             LerpThickness);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Thickness>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::IntegerKeyFrames) {
         const std::int64_t sampled = SampleKeyFrames<std::int64_t>(
             track.integerFrames, track.fromInteger, sampleTime, LerpInteger);
         Base::Result<Meta::PropertyValue> encoded =
             EncodeIntegerWidth(sampled, track.integerWidth);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::SizeKeyFrames) {
         const Base::Size sampled = SampleKeyFrames<Base::Size>(
@@ -401,14 +399,14 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             LerpSize);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Size>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
     } else if (track.kind == Track::Kind::MatrixKeyFrames) {
         const Base::Transform2D sampled = SampleKeyFrames<Base::Transform2D>(
             track.matrixFrames, track.fromMatrix, sampleTime, LerpMatrix);
         Base::Result<Meta::PropertyValue> encoded =
             Meta::ValueCodec<Base::Transform2D>::Encode(sampled);
-        if (!encoded) return encoded.GetStatus();
+        if (!encoded) return false;
         value = std::move(encoded).Value();
         } else {
         value = track.discreteBaseValue;
@@ -429,14 +427,14 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         Base::Result<Base::Color> color =
             Meta::ValueCodec<Base::Color>::Decode(
                 value);
-        if (!color) return color.GetStatus();
-        Base::Result<Base::Ref<Brush>> brush =
+        if (!color) return false;
+        Base::Ref<Brush> brush =
             MakeSolidColorBrush(color.Value());
-        if (!brush) return brush.GetStatus();
+        if (!brush) return false;
         value = Meta::PropertyValue::FromObject(
             Brush::StaticTypeId(),
             Base::Ref<Base::Object>(
-                std::move(brush).Value()));
+                std::move(brush)));
     }
     if (targetProperty != nullptr &&
         targetProperty->ValueType() ==
@@ -444,11 +442,11 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
         value.Type() == Meta::TypeOf<double>()) {
         Base::Result<double> numeric =
             Meta::ValueCodec<double>::Decode(value);
-        if (!numeric) return numeric.GetStatus();
+        if (!numeric) return false;
         Base::Result<Meta::PropertyValue> length =
             Meta::ValueCodec<Length>::Encode(
                 Length::Pixels(numeric.Value()));
-        if (!length) return length.GetStatus();
+        if (!length) return false;
         value = std::move(length).Value();
     }
     if (UIElement* element = TryCast<UIElement>(track.target)) {
@@ -488,7 +486,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
     }
     Base::Result<void> applied = values_->SetAnimationValue(
         *track.target, track.property, value);
-    if (!applied) return applied.GetStatus();
+    if (!applied) return false;
     track.valueApplied = true;
     ++diagnostics_.appliedValueCount;
 
@@ -498,8 +496,7 @@ Base::Result<bool> AnimationEngine::ApplyTrack(
             track.completedCounted = true;
         }
         if (track.timing.fillBehavior == FillBehavior::Stop) {
-            Base::Result<void> cleared = ClearTrackValue(track);
-            if (!cleared) return cleared.GetStatus();
+            ClearTrackValue(track);
             track.state = AnimationState::Stopped;
         } else {
             track.state = AnimationState::Filling;

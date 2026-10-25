@@ -107,16 +107,23 @@ public:
         Meta::DependencyPropertyHandle property,
         const DiscreteAnimation& animation) noexcept;
 
-    Base::Result<void> Pause(AnimationHandle handle) noexcept;
-    Base::Result<void> Resume(AnimationHandle handle) noexcept;
-    Base::Result<void> Seek(
+    Base::Result<AnimationHandle> BeginTimeline(
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        const Media::Animation::Timeline& timeline,
+        const TimelineTiming& timing,
+        Meta::Registry* metadata = nullptr) noexcept;
+
+    bool Pause(AnimationHandle handle) noexcept;
+    bool Resume(AnimationHandle handle) noexcept;
+    bool Seek(
         AnimationHandle handle,
         AnimationTime offsetMicroseconds) noexcept;
-    Base::Result<void> Stop(AnimationHandle handle) noexcept;
-    Base::Result<void> Remove(AnimationHandle handle) noexcept;
-    Base::Result<std::uint32_t> RemoveTarget(
+    bool Stop(AnimationHandle handle) noexcept;
+    bool Remove(AnimationHandle handle) noexcept;
+    std::uint32_t RemoveTarget(
         ::Aero::DependencyObject& target) noexcept;
-    Base::Result<void> RemoveAll() noexcept;
+    void RemoveAll() noexcept;
 
     Base::Result<std::uint32_t> Tick(
         AnimationTime nowMicroseconds) noexcept;
@@ -173,8 +180,8 @@ private:
         Meta::DependencyPropertyHandle property = {}) noexcept;
     Track* FindTrack(AnimationHandle handle) noexcept;
     const Track* FindTrack(AnimationHandle handle) const noexcept;
-    Base::Result<void> ClearTrackValue(Track& track) noexcept;
-    Base::Result<bool> ApplyTrack(
+    void ClearTrackValue(Track& track) noexcept;
+    bool ApplyTrack(
         Track& track,
         AnimationTime nowMicroseconds) noexcept;
     void CompactStopped() noexcept;

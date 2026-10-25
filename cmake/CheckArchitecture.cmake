@@ -1137,7 +1137,7 @@ aero_forbid_text(
     "Reload source/cache ownership belongs to Gui/Markup")
 aero_require_text(
     "include/Aero/View.hpp"
-    "Result<void> SetViewport(const ViewViewport& viewport) noexcept;"
+    "bool SetViewport(const ViewViewport& viewport) noexcept;"
     "Installed View must support atomic logical/pixel/DPI viewport updates")
 aero_require_text(
     "include/Aero/View.hpp"
@@ -2989,7 +2989,7 @@ aero_forbid_text(
     "Root Aero:: aliases for App::ShutdownMode must not return")
 aero_require_text(
     "include/AeroApp/Window.hpp"
-    "Result<bool> ShowDialog()"
+    "bool ShowDialog()"
     "Window must expose WPF ShowDialog")
 aero_require_text(
     "include/AeroApp/Window.hpp"

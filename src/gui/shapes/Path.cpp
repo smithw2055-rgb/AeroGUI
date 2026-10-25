@@ -589,8 +589,8 @@ void Path::ResetGeometry() noexcept {
     geometryDirty_ = true;
 }
 
-Base::Result<void> Path::EnsureGeometry() noexcept {
-    if (!geometryDirty_) return {};
+bool Path::EnsureGeometry() noexcept {
+    if (!geometryDirty_) return true;
     geometryVertices_.Clear();
     geometryIndices_.Clear();
     pathPoints_.Clear();
@@ -603,7 +603,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
     Base::Ref<Geometry> geometry = GetData();
     if (!geometry) {
         geometryDirty_ = false;
-        return {};
+        return true;
     }
     if (GetIsMeasuring()) {
         geometryBounds_ = geometry->GetBounds();
@@ -625,7 +625,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 geometryBounds_ = bounds;
             }
         }
-        return {};
+        return true;
     }
 
     bool hasBounds = false;
@@ -661,7 +661,7 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
             double dashOffset = 0.0;
             Base::Result<void> resolved =
                 ResolvePathDashes(*this, dashes, dashOffset);
-            if (!resolved) return resolved.GetStatus();
+            if (!resolved) return false;
 
             const PathTransformInfo info = CalculatePathTransform(
                 GetStretch(), geometryBounds_, GetRenderSize());
@@ -691,11 +691,11 @@ Base::Result<void> Path::EnsureGeometry() noexcept {
                 dashOffset,
                 strokeVertices_,
                 strokeIndices_);
-            if (!stroked) return stroked.GetStatus();
+            if (!stroked) return false;
         }
     }
     geometryDirty_ = false;
-    return {};
+    return true;
 }
 
 void Path::ReleaseMesh() noexcept {
@@ -752,17 +752,20 @@ void Path::AttachMeshResources(
     if (force) InvalidateVisual();
 }
 
-Base::Result<void> Path::EnsureMesh() noexcept {
-    Base::Result<void> geometry =
-        EnsureGeometry();
-    if (!geometry) {
-        return geometry.GetStatus();
+bool Path::EnsureMesh() noexcept {
+    if (!EnsureGeometry()) {
+        return false;
     }
     auto* tree = VisualTree(this);
     auto* services = tree != nullptr ? tree->MeshResources() : nullptr;
     if (services == nullptr ||
         services->create == nullptr) {
-        return {};
+        return true;
+    }
+    if (meshServiceGeneration_ != services->generation) {
+        mesh_ = InvalidRenderMeshId;
+        strokeMesh_ = InvalidRenderMeshId;
+        meshServiceGeneration_ = services->generation;
     }
     if (mesh_ == InvalidRenderMeshId &&
         !geometryVertices_.Empty()) {
@@ -772,7 +775,7 @@ Base::Result<void> Path::EnsureMesh() noexcept {
                 geometryVertices_.AsSpan(),
                 geometryIndices_.AsSpan());
         if (!created) {
-            return created.GetStatus();
+            return false;
         }
         mesh_ = created.Value();
     }
@@ -783,23 +786,18 @@ Base::Result<void> Path::EnsureMesh() noexcept {
                 services->context,
                 strokeVertices_.AsSpan(),
                 strokeIndices_.AsSpan());
-        if (!created) return created.GetStatus();
+        if (!created) return false;
         strokeMesh_ = created.Value();
     }
-    return {};
+    return true;
 }
 
 Size Path::MeasureOverride(
     Size availableSize) noexcept {
-    Base::Result<void> geometry =
-        EnsureGeometry();
-    if (!geometry) return Size{};
+    if (!EnsureGeometry()) return Size{};
     const PathStrokeParams stroke = ResolvePathStroke(*this);
     const double strokeOffset = (stroke.brush && stroke.thickness > 0.0)
         ? stroke.thickness * 0.5
-        : 0.0;
-    const double strokeExtent = (stroke.brush && stroke.thickness > 0.0)
-        ? stroke.thickness
         : 0.0;
 
     const Size natural{
@@ -892,9 +890,7 @@ void Path::OnRender(
         lastRenderWidth_ = target.width;
         lastRenderHeight_ = target.height;
     }
-    Base::Result<void> mesh =
-        EnsureMesh();
-    if (!mesh) return;
+    if (!EnsureMesh()) return;
     if ((mesh_ == InvalidRenderMeshId &&
          strokeMesh_ == InvalidRenderMeshId &&
          geometryIndices_.Empty()) ||
@@ -908,38 +904,26 @@ void Path::OnRender(
     if (mesh_ != InvalidRenderMeshId || !geometryIndices_.Empty()) {
         Base::Ref<Brush> fill = GetFill();
         if (fill) {
-            Base::Result<void> transform =
-                builder.PushTransform(Transform2D{
-                    info.scaleX, 0.0, 0.0, info.scaleY,
-                    info.offsetX, info.offsetY});
-            if (transform) {
-                const bool spatial = IsSpatialGradientBrush(fill.Get());
-                if (spatial && !geometryIndices_.Empty()) {
-                    Base::Result<void> drawn = PaintBrushGeometry(
-                        builder,
-                        fill,
-                        geometryVertices_.AsSpan(),
-                        geometryIndices_.AsSpan(),
-                        geometryBounds_,
-                        false,
-                        mesh_);
-                    if (!drawn) {
-                        static_cast<void>(builder.PopTransform());
-                        return;
-                    }
-                } else if (!spatial && mesh_ != InvalidRenderMeshId) {
-                    Color fillColor = ::Aero::Media::SampleBrush(fill);
-                    if (fillColor.alpha > 0.0F) {
-                        Base::Result<void> drawn =
-                            builder.DrawMesh(mesh_, fillColor);
-                        if (!drawn) {
-                            static_cast<void>(builder.PopTransform());
-                            return;
-                        }
-                    }
+            builder.PushTransform(Transform2D{
+                info.scaleX, 0.0, 0.0, info.scaleY,
+                info.offsetX, info.offsetY});
+            const bool spatial = IsSpatialGradientBrush(fill.Get());
+            if (spatial && !geometryIndices_.Empty()) {
+                PaintBrushGeometry(
+                    builder,
+                    fill,
+                    geometryVertices_.AsSpan(),
+                    geometryIndices_.AsSpan(),
+                    geometryBounds_,
+                    false,
+                    mesh_);
+            } else if (!spatial && mesh_ != InvalidRenderMeshId) {
+                Color fillColor = ::Aero::Media::SampleBrush(fill);
+                if (fillColor.alpha > 0.0F) {
+                    builder.DrawMesh(mesh_, fillColor);
                 }
-                static_cast<void>(builder.PopTransform());
             }
+            builder.PopTransform();
         }
     }
     if (strokeMesh_ != InvalidRenderMeshId || !strokeIndices_.Empty()) {
@@ -953,7 +937,7 @@ void Path::OnRender(
                     geometryBounds_.width * info.scaleX,
                     geometryBounds_.height * info.scaleY
                 };
-                Base::Result<void> drawn = PaintBrushGeometry(
+                PaintBrushGeometry(
                     builder,
                     stroke,
                     strokeVertices_.AsSpan(),
@@ -961,13 +945,10 @@ void Path::OnRender(
                     transformedBounds,
                     false,
                     strokeMesh_);
-                if (!drawn) return;
             } else if (!spatial && strokeMesh_ != InvalidRenderMeshId) {
                 Color strokeColor = ::Aero::Media::SampleBrush(stroke);
                 if (strokeColor.alpha > 0.0F) {
-                    Base::Result<void> drawn =
-                        builder.DrawMesh(strokeMesh_, strokeColor);
-                    if (!drawn) return;
+                    builder.DrawMesh(strokeMesh_, strokeColor);
                 }
             }
         }

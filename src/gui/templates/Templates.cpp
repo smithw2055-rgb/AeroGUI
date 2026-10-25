@@ -93,8 +93,7 @@ bool TemplateTriggerCondition::IsMet(
     }
     // Pass nullptr metadata: text conversion failures fall back to false (matching
     // legacy operator== behavior) without aborting template condition checks.
-    Base::Result<bool> matched = ComparePropertyValues(current, value, nullptr);
-    return matched && matched.Value();
+    return ComparePropertyValues(current, value, nullptr);
 }
 
 namespace {
@@ -317,7 +316,7 @@ TemplateBuilder::ProjectContentCore(
     projection.presenter = presenter;
     projection.contentHost = contentHost;
     projection.content = content;
-    projection.originalVisualParent = content->GetVisualParent();
+    ::Aero::Media::Visual* currentVisualParent = content->GetVisualParent();
 
     auto restore = [&]() noexcept {
         (void)state.tree->DetachVisual(
@@ -342,15 +341,15 @@ TemplateBuilder::ProjectContentCore(
         if (!logical) return logical.GetStatus();
         projection.attachedLogical = true;
     }
-    if (projection.originalVisualParent != nullptr) {
+    if (currentVisualParent != nullptr) {
         Aero::VisualAttachment original;
-        original.visualParent = projection.originalVisualParent;
+        original.visualParent = currentVisualParent;
         original.child = content;
         original.visualAttached = true;
         original.layoutAttached = state.Layout() != nullptr &&
-            ::Aero::TryCast<::Aero::UIElement>(projection.originalVisualParent) != nullptr;
+            ::Aero::TryCast<::Aero::UIElement>(currentVisualParent) != nullptr;
         original.renderAttached = state.RenderTree() != nullptr &&
-            ::Aero::TryCast<::Aero::FrameworkElement>(projection.originalVisualParent) != nullptr &&
+            ::Aero::TryCast<::Aero::FrameworkElement>(currentVisualParent) != nullptr &&
             ::Aero::TryCast<::Aero::FrameworkElement>(content) != nullptr;
         Base::Result<void> detached = state.tree->DetachVisual(original);
         if (!detached) {
@@ -359,7 +358,19 @@ TemplateBuilder::ProjectContentCore(
             }
             return detached.GetStatus();
         }
-        projection.detachedOriginalVisual = true;
+        bool isInsideOwner = (currentVisualParent == &owner);
+        for (const ::Aero::Media::Visual* p = currentVisualParent;
+             !isInsideOwner && p != nullptr;
+             p = p->GetVisualParent()) {
+            if (p == &owner) {
+                isInsideOwner = true;
+                break;
+            }
+        }
+        if (!isInsideOwner) {
+            projection.detachedOriginalVisual = true;
+            projection.originalVisualParent = currentVisualParent;
+        }
     }
 
     Base::Result<Aero::VisualAttachment> projected =
@@ -585,14 +596,10 @@ Base::Result<void> TemplateProgram::Configure(
     return {};
 }
 
-Base::Result<void> TemplateProgram::SetBaseUri(
+void TemplateProgram::SetBaseUri(
     const Base::ResourceUri& value) noexcept {
-    if (sealed) {
-        return InvalidTemplate(
-            "Cannot modify a sealed TemplateProgram");
-    }
+    AERO_ASSERT(!sealed && "Cannot modify a sealed TemplateProgram");
     baseUri = value;
-    return {};
 }
 
 Base::Result<void> TemplateProgram::AddNamespace(
@@ -690,14 +697,10 @@ Base::Result<void> DeferredObjectProgram::Configure(
     return {};
 }
 
-Base::Result<void> DeferredObjectProgram::SetBaseUri(
+void DeferredObjectProgram::SetBaseUri(
     const Base::ResourceUri& value) noexcept {
-    if (sealed) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program is sealed");
-    }
+    AERO_ASSERT(!sealed && "Deferred object program is sealed");
     baseUri = value;
-    return {};
 }
 
 Base::Result<void> DeferredObjectProgram::Seal() noexcept {
@@ -913,10 +916,11 @@ Base::Result<void> FrameworkTemplateState::Configure(DataTemplate& value, Contro
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> FrameworkTemplateState::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
+void FrameworkTemplateState::SetBaseUri(DataTemplate& value, const Base::ResourceUri& uri) noexcept {
     Controls::DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->program.SetBaseUri(uri);
+    if (state != nullptr) {
+        state->program.SetBaseUri(uri);
+    }
 }
 
 const Base::ResourceUri& FrameworkTemplateState::BaseUri(const DataTemplate& value) noexcept {
@@ -925,12 +929,11 @@ const Base::ResourceUri& FrameworkTemplateState::BaseUri(const DataTemplate& val
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+void FrameworkTemplateState::SetAuthoredVisualTree(DataTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     Controls::DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate VisualTree assignment is invalid");
-    state->authoredVisualTree = tree;
-    return {};
+    if (state != nullptr && !state->program.sealed && tree) {
+        state->authoredVisualTree = tree;
+    }
 }
 
 void FrameworkTemplateState::ClearAuthoredVisualTree(DataTemplate& value) noexcept {
@@ -938,12 +941,11 @@ void FrameworkTemplateState::ClearAuthoredVisualTree(DataTemplate& value) noexce
     if (state != nullptr) state->authoredVisualTree.Reset();
 }
 
-Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
+void FrameworkTemplateState::AddAuthoredTrigger(DataTemplate& value, Base::Ref<Aero::TriggerBase> trigger) noexcept {
     Controls::DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    if (!trigger || state->program.factory != nullptr) return Base::Status::Failure(Base::ErrorCode::InvalidState, "DataTemplate Trigger cannot be added after sealing");
-    state->authoredTriggers.PushBack(std::move(trigger));
-    return {};
+    if (state != nullptr && trigger && state->program.factory == nullptr) {
+        state->authoredTriggers.PushBack(std::move(trigger));
+    }
 }
 
 void FrameworkTemplateState::ClearAuthoredTriggers(DataTemplate& value) noexcept {
@@ -1049,10 +1051,11 @@ Base::Result<void> FrameworkTemplateState::Configure(ItemsPanelTemplate& value, 
     return state->program.Configure(factory, context, std::move(owner));
 }
 
-Base::Result<void> FrameworkTemplateState::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
+void FrameworkTemplateState::SetBaseUri(ItemsPanelTemplate& value, const Base::ResourceUri& uri) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    return state->program.SetBaseUri(uri);
+    if (state != nullptr) {
+        state->program.SetBaseUri(uri);
+    }
 }
 
 const Base::ResourceUri& FrameworkTemplateState::BaseUri(const ItemsPanelTemplate& value) noexcept {
@@ -1061,12 +1064,11 @@ const Base::ResourceUri& FrameworkTemplateState::BaseUri(const ItemsPanelTemplat
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
+void FrameworkTemplateState::SetAuthoredVisualTree(ItemsPanelTemplate& value, const Base::Ref<Base::Object>& tree) noexcept {
     Controls::ItemsPanelTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
-    if (state->program.sealed || !tree) return Base::Status::Failure(Base::ErrorCode::InvalidState, "ItemsPanelTemplate VisualTree assignment is invalid");
-    state->authoredVisualTree = tree;
-    return {};
+    if (state != nullptr && !state->program.sealed && tree) {
+        state->authoredVisualTree = tree;
+    }
 }
 
 void FrameworkTemplateState::ClearAuthoredVisualTree(ItemsPanelTemplate& value) noexcept {
@@ -1235,24 +1237,22 @@ Base::Result<void> FrameworkTemplateState::AddDynamicResource(
     return {};
 }
 
-Base::Result<void> FrameworkTemplateState::SetAuthoredVisualTree(
+void FrameworkTemplateState::SetAuthoredVisualTree(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
-    if (state->sealed || !value) return InvalidTemplate("ControlTemplate authored visual tree is invalid");
-    state->authoredVisualTree = value;
-    return {};
+    if (state != nullptr && !state->sealed && value) {
+        state->authoredVisualTree = value;
+    }
 }
 
-Base::Result<void> FrameworkTemplateState::AddAuthoredVisualStateGroup(
+void FrameworkTemplateState::AddAuthoredVisualStateGroup(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
-    if (state->sealed || !value) return InvalidTemplate("ControlTemplate authored visual state group is invalid");
-    state->authoredVisualStateGroups.PushBack(value);
-    return {};
+    if (state != nullptr && !state->sealed && value) {
+        state->authoredVisualStateGroups.PushBack(value);
+    }
 }
 
 void FrameworkTemplateState::ClearAuthoredVisualTree(ControlTemplate& value) noexcept {
@@ -1456,13 +1456,12 @@ Base::Result<Base::String> FrameworkTemplateState::EnsureAuthoredName(
 }
 
 
-Base::Result<void> FrameworkTemplateState::AddAuthoredTrigger(
+void FrameworkTemplateState::AddAuthoredTrigger(
     FrameworkTemplate& templateValue, Base::Ref<Base::Object> trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (!trigger || state->sealed) return Base::Status::Failure(Base::ErrorCode::InvalidState, "Template Trigger cannot be added after sealing");
-    state->authoredTriggers.PushBack(std::move(trigger));
-    return {};
+    if (state != nullptr && trigger && !state->sealed) {
+        state->authoredTriggers.PushBack(std::move(trigger));
+    }
 }
 
 const Base::Ref<Base::Object>& FrameworkTemplateState::AuthoredVisualTree(const ControlTemplate& value) noexcept {
@@ -1514,10 +1513,11 @@ const Base::ResourceUri& FrameworkTemplateState::BaseUri(const FrameworkTemplate
     return state != nullptr ? state->program.baseUri : empty;
 }
 
-Base::Result<void> FrameworkTemplateState::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
+void FrameworkTemplateState::SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept {
     FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    return state->program.SetBaseUri(uri);
+    if (state != nullptr) {
+        state->program.SetBaseUri(uri);
+    }
 }
 
 Base::Result<void> FrameworkTemplateState::AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
@@ -1625,12 +1625,8 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 }
                 if (templateState->program.baseUri.Empty() &&
                     !FrameworkTemplateState::BaseUri(*baseTemplate).Empty()) {
-                    Base::Result<void> uri =
-                        templateState->program.SetBaseUri(
-                            FrameworkTemplateState::BaseUri(*baseTemplate));
-                    if (!uri) {
-                        return uri.GetStatus();
-                    }
+                    templateState->program.SetBaseUri(
+                        FrameworkTemplateState::BaseUri(*baseTemplate));
                 }
                 for (const TemplateNamespace& space :
                     FrameworkTemplateState::Namespaces(*baseTemplate)) {
@@ -2089,21 +2085,21 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     return stored.handle;
 }
 
-Base::Result<bool> TemplateEngine::Clear(
+bool TemplateEngine::Clear(
     TemplateHandle handle) noexcept {
     const std::uint32_t index = FindInstance(handle);
     if (index == UINT32_MAX) return false;
     Base::Result<void> cleared = ClearAt(index);
-    if (!cleared) return cleared.GetStatus();
+    if (!cleared) return false;
     return true;
 }
 
-Base::Result<bool> TemplateEngine::Clear(
+bool TemplateEngine::Clear(
     Control& control) noexcept {
     const std::uint32_t index = FindInstance(control);
     if (index == UINT32_MAX) return false;
     Base::Result<void> cleared = ClearAt(index);
-    if (!cleared) return cleared.GetStatus();
+    if (!cleared) return false;
     return true;
 }
 
@@ -2788,7 +2784,7 @@ void AddTemplateTrigger(
     if (!value) {
         return;
     }
-    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
+    ::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
         static_cast<FrameworkTemplate&>(owner), value);
 }
 
@@ -2805,13 +2801,13 @@ void SetDeferredTemplateVisualTree(
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
     if constexpr (std::is_same_v<T, ControlTemplate>) {
-        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<ControlTemplate&>(object), value);
     } else if constexpr (std::is_same_v<T, DataTemplate>) {
-        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<DataTemplate&>(object), value);
     } else {
-        (void)::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
+        ::Aero::Controls::FrameworkTemplateState::SetAuthoredVisualTree(
             static_cast<ItemsPanelTemplate&>(object), value);
     }
 }
@@ -2836,7 +2832,7 @@ void AddTemplateVisualStateGroup(
     Base::Object& object,
     const Base::Ref<Base::Object>& value,
     void*) noexcept {
-    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredVisualStateGroup(
+    ::Aero::Controls::FrameworkTemplateState::AddAuthoredVisualStateGroup(
         static_cast<ControlTemplate&>(object), value);
 }
 
@@ -2890,7 +2886,7 @@ void AddDataTemplateTrigger(
     if (!retained) {
         return;
     }
-    (void)::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
+    ::Aero::Controls::FrameworkTemplateState::AddAuthoredTrigger(
         static_cast<DataTemplate&>(owner), std::move(retained));
 }
 

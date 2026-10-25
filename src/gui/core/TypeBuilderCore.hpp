@@ -90,7 +90,7 @@ ValueTypeRegistration MakeValueTypeRegistration() noexcept {
 }
 
 template<class T>
-Base::Result<Base::Ref<Base::Object>>
+Base::Ref<Base::Object>
 CreateDefaultObject() noexcept {
     static_assert(std::is_base_of_v<Base::Object, T>,
         "Default metadata factories require Object-derived types");
@@ -98,13 +98,7 @@ CreateDefaultObject() noexcept {
         "Default metadata factories require default-constructible types");
     static_assert(!std::is_abstract_v<T>,
         "Default metadata factories cannot construct abstract types");
-    Base::Ref<T> created = Base::MakeRef<T>();
-    if (!created) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Failed to allocate default object");
-    }
-    return Base::Ref<Base::Object>(std::move(created));
+    return Base::Ref<Base::Object>(Base::MakeRef<T>());
 }
 
 template<auto Member>

@@ -38,10 +38,10 @@ struct ImeCandidateWindow {
 class AERO_GUI_API ITextCompositionClient {
 public:
     virtual ~ITextCompositionClient() = default;
-    virtual Result<void> BeginComposition() noexcept = 0;
-    virtual Result<void> UpdateComposition(StringView text) noexcept = 0;
-    virtual Result<void> CommitComposition(StringView text) noexcept = 0;
-    virtual Result<void> CancelComposition() noexcept = 0;
+    virtual void BeginComposition() noexcept = 0;
+    virtual void UpdateComposition(StringView text) noexcept = 0;
+    virtual void CommitComposition(StringView text) noexcept = 0;
+    virtual void CancelComposition() noexcept = 0;
 };
 
 class AERO_GUI_API ITextInputMethodHost {
@@ -49,7 +49,7 @@ public:
     virtual ~ITextInputMethodHost() = default;
     virtual void SetClient(ITextCompositionClient* client) noexcept = 0;
     virtual void SetCandidateWindow(const ImeCandidateWindow& value) noexcept = 0;
-    virtual Result<void> CancelNativeComposition() noexcept = 0;
+    virtual void CancelNativeComposition() noexcept = 0;
 };
 
 

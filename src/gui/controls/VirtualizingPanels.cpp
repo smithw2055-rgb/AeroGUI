@@ -39,7 +39,7 @@ VirtualizingStackPanel::VirtualizingStackPanel(TypeId runtimeType) noexcept
 
 VirtualizingStackPanel::~VirtualizingStackPanel() {
     if (generator_ != nullptr) {
-        static_cast<void>(generator_->Detach());
+        generator_->Detach();
     }
 }
 
@@ -537,14 +537,12 @@ void VirtualizingStackPanel::HandleItemsChanged(
     InvalidateArrange();
 }
 
-Base::Result<void>
+bool
 VirtualizingStackPanel::AttachGenerator(
     ItemContainerGenerator& generator,
     std::uint32_t itemCount) noexcept {
     if (generator_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "VirtualizingStackPanel already has a generator");
+        return false;
     }
     generator_ = &generator;
     itemExtents_.Clear();
@@ -553,7 +551,7 @@ VirtualizingStackPanel::AttachGenerator(
     SetMainExtent(GetItemOffset(itemCount));
     ClampOffsets();
     CalculateRealizationRange();
-    return {};
+    return true;
 }
 
 void VirtualizingStackPanel::DetachGenerator(
@@ -838,20 +836,18 @@ double WrapSlotHeight(const VirtualizingWrapPanel& panel, Size available) noexce
 
 } // namespace
 
-Base::Result<void> VirtualizingPanel::AttachGenerator(
+bool VirtualizingPanel::AttachGenerator(
     ItemContainerGenerator& generator,
     std::uint32_t itemCount) noexcept {
     if (generator_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "VirtualizingPanel already has a generator");
+        return false;
     }
     generator_ = &generator;
     itemExtents_.Clear();
     for (std::uint32_t index = 0U; index < itemCount; ++index) {
         itemExtents_.PushBack(1.0);
     }
-    return {};
+    return true;
 }
 
 void VirtualizingPanel::DetachGenerator(

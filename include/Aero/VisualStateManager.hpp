@@ -28,8 +28,7 @@ public:
 
     StringView GetName() const noexcept { return name_.View(); }
     void SetName(StringView value) noexcept {
-        Base::Result<void> assigned = name_.Assign(value);
-        if (!assigned) { AERO_ASSERT(false); return; }
+        static_cast<void>(name_.Assign(value));
     }
     Span<const Ref<Base::Object>> GetSetters() const noexcept { return {setters_.Data(), setters_.Size()}; }
     void AddSetter(Ref<Base::Object> value) noexcept { setters_.PushBack(std::move(value)); }
@@ -56,18 +55,14 @@ public:
     StringView GetTo() const noexcept { return to_.View(); }
     StringView GetGeneratedDuration() const noexcept { return generatedDuration_.View(); }
     void SetFrom(StringView value) noexcept {
-        Base::Result<void> assigned = from_.Assign(value);
-        if (!assigned) { AERO_ASSERT(false); return; }
+        static_cast<void>(from_.Assign(value));
     }
     void SetTo(StringView value) noexcept {
-        Base::Result<void> assigned = to_.Assign(value);
-        if (!assigned) { AERO_ASSERT(false); return; }
+        static_cast<void>(to_.Assign(value));
     }
     void SetGeneratedDuration(StringView value) noexcept {
-        Result<Media::Animation::Duration> valid = Media::Animation::Duration::TryParse(value);
-        if (!valid) { AERO_ASSERT(false); return; }
-        Base::Result<void> assigned = generatedDuration_.Assign(value);
-        if (!assigned) { AERO_ASSERT(false); return; }
+        if (!Media::Animation::Duration::TryParse(value)) { AERO_ASSERT(false); return; }
+        static_cast<void>(generatedDuration_.Assign(value));
     }
     Ref<Media::Animation::EasingFunctionBase> GetGeneratedEasingFunction() const noexcept {
         return generatedEasingFunction_;
@@ -97,8 +92,7 @@ public:
 
     StringView GetName() const noexcept { return name_.View(); }
     void SetName(StringView value) noexcept {
-        Base::Result<void> assigned = name_.Assign(value);
-        if (!assigned) { AERO_ASSERT(false); return; }
+        static_cast<void>(name_.Assign(value));
     }
     Span<const Ref<VisualState>> GetStates() const noexcept { return {states_.Data(), states_.Size()}; }
     void AddState(Ref<VisualState> value) noexcept { states_.PushBack(std::move(value)); }
@@ -144,11 +138,8 @@ public:
     VisualStateManager(const VisualStateManager&) = delete;
     VisualStateManager& operator=(const VisualStateManager&) = delete;
 
-private:
-    friend class Controls::VisualStateManagerExecution;
-    friend struct Controls::FrameworkTemplateState;
+protected:
     VisualStateManager() noexcept = default;
-    void* impl_ = nullptr;
 };
 
 } // namespace Aero

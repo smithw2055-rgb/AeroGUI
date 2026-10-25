@@ -228,7 +228,7 @@ void MouseDragElementBehavior::OnDetaching() noexcept {
             Aero::InputRouter* input =
                 ElementTree::InputOf(*associated);
             if (input != nullptr) {
-                static_cast<void>(input->ReleasePointer(pointerId_));
+                input->ReleasePointer(pointerId_);
             }
         }
         associated->SetRenderTransform(originalTransform_);
@@ -347,7 +347,7 @@ void MouseDragElementBehavior::OnMouseUp(
         Aero::InputRouter* input =
             ElementTree::InputOf(*associated);
         if (input != nullptr) {
-            static_cast<void>(input->ReleasePointer(pointerId_));
+            input->ReleasePointer(pointerId_);
         }
         args.SetHandled(true);
     }
@@ -371,7 +371,7 @@ void BackgroundEffectBehavior::OnAttached() noexcept {
     if (associated == nullptr) { AERO_ASSERT(false); return; }
     originalFill_ = GetShapeFill(*associated);
     originalEffect_ = associated->GetEffect();
-    static_cast<void>(Refresh());
+    Refresh();
 }
 
 void BackgroundEffectBehavior::OnDetaching() noexcept {
@@ -386,7 +386,7 @@ void BackgroundEffectBehavior::OnDetaching() noexcept {
 }
 
 void BackgroundEffectBehavior::OnLayoutUpdated() noexcept {
-    static_cast<void>(Refresh());
+    Refresh();
 }
 
 void BackgroundEffectBehavior::OnBehaviorPropertyChanged(
@@ -394,18 +394,18 @@ void BackgroundEffectBehavior::OnBehaviorPropertyChanged(
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {
     auto& behavior = static_cast<BackgroundEffectBehavior&>(object);
     if (behavior.GetIsAttached()) {
-        static_cast<void>(behavior.Refresh());
+        behavior.Refresh();
     }
 }
 
-Base::Result<void> BackgroundEffectBehavior::Refresh() noexcept {
-    if (updating_) return {};
+void BackgroundEffectBehavior::Refresh() noexcept {
+    if (updating_) return;
     FrameworkElement* target = GetAssociatedObject();
     Base::Ref<FrameworkElement> source = GetSource();
-    if (target == nullptr || !source) return {};
+    if (target == nullptr || !source) return;
     Base::Result<Base::Ref<Media::Brush>> background =
         ReadBackground(*source);
-    if (!background) return background.GetStatus();
+    if (!background) return;
     Base::Ref<Media::Brush> projected = background.Value();
     if (background->RuntimeType() ==
         Media::ImageBrush::StaticTypeId()) {
@@ -415,7 +415,7 @@ Base::Result<void> BackgroundEffectBehavior::Refresh() noexcept {
                     background.Value().Get()),
                 *source,
                 *target);
-        if (!image) return image.GetStatus();
+        if (!image) return;
         projectedImage_ = std::move(image).Value();
         projected = Base::Ref<Media::Brush>(projectedImage_);
     } else {
@@ -425,7 +425,6 @@ Base::Result<void> BackgroundEffectBehavior::Refresh() noexcept {
     Base::Result<void> fill = SetShapeFill(*target, std::move(projected));
     if (fill) target->SetEffect(GetEffect());
     updating_ = false;
-    return fill;
 }
 
 } // namespace Aero::Interactivity

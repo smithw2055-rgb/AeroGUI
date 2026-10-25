@@ -5,9 +5,9 @@
 #include "OpenGL33RenderDevice.hpp"
 
 #if defined(_WIN32)
-#include "render/platform/win32/OpenGLWindow.hpp"
+#include "OpenGLWindowWin32.hpp"
 #elif defined(__linux__) || defined(__unix__)
-#include "render/platform/x11/OpenGLWindow.hpp"
+#include "OpenGLWindowX11.hpp"
 #endif
 
 #include <new>

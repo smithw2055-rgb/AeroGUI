@@ -21,19 +21,18 @@ Base::Status WaitFailure(const char* message) noexcept {
 } // namespace
 #endif
 
-Base::Result<bool> IWindow::WaitEventFor(
+bool IWindow::WaitEventFor(
     WindowEvent& event,
     std::uint32_t timeoutMilliseconds) noexcept {
-    Base::Result<bool> ready = PollEvent(event);
-    if (!ready || ready.Value() || !IsOpen()) return ready;
+    if (PollEvent(event)) return true;
+    if (!IsOpen()) return false;
 
 #if defined(_WIN32)
     const NativeWindowHandle native = NativeHandle();
     if (native.system != WindowSystem::Win32) return false;
     const DWORD waited = MsgWaitForMultipleObjectsEx(
         0U, nullptr, timeoutMilliseconds, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-    if (waited == WAIT_TIMEOUT) return false;
-    if (waited == WAIT_FAILED) return WaitFailure("Win32 message wait failed");
+    if (waited == WAIT_TIMEOUT || waited == WAIT_FAILED) return false;
     return PollEvent(event);
 #elif AERO_PLATFORM_HAS_X11_WINDOW
     const NativeWindowHandle native = NativeHandle();
@@ -52,8 +51,7 @@ Base::Result<bool> IWindow::WaitEventFor(
     do {
         waited = ::poll(&descriptor, 1U, timeout);
     } while (waited < 0 && errno == EINTR);
-    if (waited < 0) return WaitFailure("X11 event wait failed");
-    if (waited == 0) return false;
+    if (waited <= 0) return false;
     return PollEvent(event);
 #else
     static_cast<void>(timeoutMilliseconds);

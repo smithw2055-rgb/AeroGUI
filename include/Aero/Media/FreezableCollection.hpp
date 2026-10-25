@@ -34,8 +34,7 @@ public:
         return index < items_.Size() ? Ref<Base::Object>(items_[index]) : Ref<Base::Object>{};
     }
     void Add(Ref<T> item) noexcept {
-        Result<void> writable = WritePreamble();
-        if (!writable) { AERO_ASSERT(false); return; }
+        if (!WritePreamble()) { AERO_ASSERT(false); return; }
         if (!item) { AERO_ASSERT(false); return; }
         EnsureItemHandler();
         T* retained = item.Get();

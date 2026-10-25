@@ -13,18 +13,13 @@ namespace Aero::Media {
 namespace {
 
 
-void AssertOk(Base::Result<void> result) noexcept {
-    AERO_ASSERT(result);
-    (void)result;
-}
-
-Result<void> EmitTriangles(
+void EmitTriangles(
     ::Aero::Render::DisplayListBuilder& builder,
     const Base::Vector<Point>& vertices,
     const Base::Vector<std::uint32_t>& indices,
     Color color) noexcept {
-    if (color.alpha <= 0.0F || indices.Size() < 3U) return {};
-    return builder.DrawTriangles(
+    if (color.alpha <= 0.0F || indices.Size() < 3U) return;
+    builder.DrawTriangles(
         vertices.Data(), static_cast<std::uint32_t>(vertices.Size()),
         indices.Data(), static_cast<std::uint32_t>(indices.Size()),
         color);
@@ -54,7 +49,7 @@ bool ResolveStrokePaint(
     return true;
 }
 
-Result<void> StrokeContours(
+void StrokeContours(
     ::Aero::Render::DisplayListBuilder& builder,
     const Pen& pen,
     const Base::Ref<Brush>& brush,
@@ -92,7 +87,7 @@ Result<void> StrokeContours(
         dashOffset,
         vertices,
         indices);
-    if (!stroked) return stroked.GetStatus();
+    if (!stroked) return;
     if (spatial) {
         Rect bounds = geometryBounds;
         const double half = pen.GetThickness() * 0.5;
@@ -102,24 +97,25 @@ Result<void> StrokeContours(
             bounds.width += half * 2.0;
             bounds.height += half * 2.0;
         }
-        return PaintBrushGeometry(
+        PaintBrushGeometry(
             builder,
             brush,
             vertices.AsSpan(),
             indices.AsSpan(),
             bounds);
+        return;
     }
-    return EmitTriangles(builder, vertices, indices, color);
+    EmitTriangles(builder, vertices, indices, color);
 }
 
-Result<void> StrokePenGeometry(
+void StrokePenGeometry(
     ::Aero::Render::DisplayListBuilder& builder,
     const Pen& pen,
     const Geometry& geometry) noexcept {
     Base::Ref<Brush> brush;
     Color color{};
     bool spatial = false;
-    if (!ResolveStrokePaint(pen, brush, color, spatial)) return {};
+    if (!ResolveStrokePaint(pen, brush, color, spatial)) return;
     Base::Vector<Point> points;
     Base::Vector<std::uint32_t> starts;
     Base::Vector<std::uint32_t> counts;
@@ -127,7 +123,7 @@ Result<void> StrokePenGeometry(
     StrokeContourSink sink(points, starts, counts, closed);
     geometry.Flatten(sink);
     sink.Finish();
-    return StrokeContours(
+    StrokeContours(
         builder, pen, brush, color, spatial, geometry.GetBounds(), points,
         starts, counts, closed);
 }
@@ -136,51 +132,51 @@ Result<void> StrokePenGeometry(
 
 void DrawingContext::PushClip(
     Base::Rect clip) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PushClip(clip));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PushClip(clip);
 }
 
 void DrawingContext::PopClip() noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PopClip());
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PopClip();
 }
 
 void DrawingContext::PushOpacity(
     double opacity) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PushOpacity(opacity));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PushOpacity(opacity);
 }
 
 void DrawingContext::PopOpacity() noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PopOpacity());
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PopOpacity();
 }
 
 void DrawingContext::PushTransform(
     Base::Transform2D transform) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PushTransform(transform));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PushTransform(transform);
 }
 
 void DrawingContext::PopTransform() noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .PopTransform());
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .PopTransform();
 }
 
 void DrawingContext::DrawRectangle(
     Base::Rect bounds,
     Base::Color color) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .FillRect(bounds, color));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .FillRect(bounds, color);
 }
 
 void DrawingContext::DrawRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush) noexcept {
-    AssertOk(Media::PaintBrushRect(
+    Media::PaintBrushRect(
         ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
-        bounds));
+        bounds);
 }
 
 void DrawingContext::DrawRectangle(
@@ -199,27 +195,27 @@ void DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     Base::Color color,
     double radius) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .FillRoundedRect(bounds, color, radius));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .FillRoundedRect(bounds, color, radius);
 }
 
 void DrawingContext::DrawRoundedRectangle(
     Base::Rect bounds,
     const Base::Ref<Media::Brush>& brush,
     double radius) noexcept {
-    AssertOk(Media::PaintBrushRect(
+    Media::PaintBrushRect(
         ::Aero::Render::DrawingBridge::Builder(*this),
         brush,
         bounds,
-        radius));
+        radius);
 }
 
 void DrawingContext::DrawRectangleOutline(
     Base::Rect bounds,
     Base::Color color,
     double thickness) noexcept {
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .StrokeRect(bounds, color, thickness));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .StrokeRect(bounds, color, thickness);
 }
 
 void DrawingContext::DrawRectangleOutline(
@@ -229,8 +225,8 @@ void DrawingContext::DrawRectangleOutline(
     const Base::Color color =
         Media::SampleBrush(brush);
     if (color.alpha > 0.0F) {
-        AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-              .StrokeRect(bounds, color, thickness));
+        ::Aero::Render::DrawingBridge::Builder(*this)
+            .StrokeRect(bounds, color, thickness);
     }
 }
 
@@ -242,10 +238,10 @@ void DrawingContext::DrawLine(
     LineGeometry line;
     line.SetStartPoint(start);
     line.SetEndPoint(end);
-    AssertOk(StrokePenGeometry(
+    StrokePenGeometry(
         ::Aero::Render::DrawingBridge::Builder(*this),
         *pen,
-        line));
+        line);
 }
 
 void DrawingContext::DrawGeometry(
@@ -267,14 +263,13 @@ void DrawingContext::DrawGeometry(
         Base::Vector<std::uint32_t> indices;
         Result<void> filled = TessellateFillContours(
             fillPoints, fillContours, vertices, indices);
-        if (!filled) { AERO_ASSERT(false); return; }
-        Result<void> drawn = PaintBrushGeometry(
+        if (!filled) return;
+        PaintBrushGeometry(
             builder,
             brush,
             vertices.AsSpan(),
             indices.AsSpan(),
             geometry.GetBounds());
-        if (!drawn) { AERO_ASSERT(false); return; }
         Base::Ref<Brush> strokeBrush;
         Color strokeColor{};
         bool strokeSpatial = false;
@@ -282,9 +277,9 @@ void DrawingContext::DrawGeometry(
                 *pen, strokeBrush, strokeColor, strokeSpatial)) {
             return;
         }
-        AssertOk(StrokeContours(
+        StrokeContours(
             builder, *pen, strokeBrush, strokeColor, strokeSpatial,
-            geometry.GetBounds(), strokePoints, starts, counts, closed));
+            geometry.GetBounds(), strokePoints, starts, counts, closed);
         return;
     }
     if (brush) {
@@ -292,17 +287,16 @@ void DrawingContext::DrawGeometry(
         Base::Vector<std::uint32_t> indices;
         Result<void> filled = TessellateGeometryFill(
             geometry, vertices, indices);
-        if (!filled) { AERO_ASSERT(false); return; }
-        Result<void> drawn = PaintBrushGeometry(
+        if (!filled) return;
+        PaintBrushGeometry(
             builder,
             brush,
             vertices.AsSpan(),
             indices.AsSpan(),
             geometry.GetBounds());
-        if (!drawn) { AERO_ASSERT(false); return; }
     }
     if (!pen) return;
-    AssertOk(StrokePenGeometry(builder, *pen, geometry));
+    StrokePenGeometry(builder, *pen, geometry);
 }
 
 void DrawingContext::DrawEllipse(
@@ -336,8 +330,8 @@ void DrawingContext::DrawImage(
     Base::Rect bounds,
     Base::Rect sourceUv) noexcept {
     if (imageId == 0U || bounds.width <= 0.0 || bounds.height <= 0.0) return;
-    AssertOk(::Aero::Render::DrawingBridge::Builder(*this)
-        .DrawImage(imageId, bounds, sourceUv));
+    ::Aero::Render::DrawingBridge::Builder(*this)
+        .DrawImage(imageId, bounds, sourceUv);
 }
 
 } // namespace Aero::Media

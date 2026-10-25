@@ -103,10 +103,7 @@ Grid::Grid() noexcept
 
 void Grid::SetColumnDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return;
+    if (!CheckAccess() || !ValidateDefinitions(definitions)) return;
     Base::Vector<GridLength> next;
     next.Assign(definitions);
     columns_ = std::move(next);
@@ -115,10 +112,7 @@ void Grid::SetColumnDefinitions(
 }
 void Grid::SetRowDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> valid = ValidateDefinitions(definitions);
-    if (!valid) return;
+    if (!CheckAccess() || !ValidateDefinitions(definitions)) return;
     Base::Vector<GridLength> next;
     next.Assign(definitions);
     rows_ = std::move(next);
@@ -210,9 +204,8 @@ bool Grid::ValidateValueCore(
             return false;
         }
         Base::Vector<GridLength> parsed;
-        return static_cast<bool>(
-            Controls::Grid::ParseDefinitions(
-                value.AsString(), parsed));
+        return Controls::Grid::ParseDefinitions(
+            value.AsString(), parsed);
     }
     return Panel::ValidateValueCore(property, value);
 }
@@ -686,16 +679,16 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
 
     Base::Vector<double> columns;
     Base::Vector<double> rows;
-    Base::Result<void> resolved = ResolveTracks(
-        {columns_.Data(), columns_.Size()},
-        {desiredColumns_.Data(), desiredColumns_.Size()},
-        finalSize.width, columns, maxCols.AsSpan());
-    if (!resolved) return finalSize;
-    resolved = ResolveTracks(
-        {rows_.Data(), rows_.Size()},
-        {desiredRows_.Data(), desiredRows_.Size()},
-        finalSize.height, rows, maxRows.AsSpan());
-    if (!resolved) return finalSize;
+    if (!ResolveTracks(
+            {columns_.Data(), columns_.Size()},
+            {desiredColumns_.Data(), desiredColumns_.Size()},
+            finalSize.width, columns, maxCols.AsSpan()) ||
+        !ResolveTracks(
+            {rows_.Data(), rows_.Size()},
+            {desiredRows_.Data(), desiredRows_.Size()},
+            finalSize.height, rows, maxRows.AsSpan())) {
+        return finalSize;
+    }
 
     const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     for (UIElement* child : LayoutChildren()) {
@@ -776,16 +769,15 @@ double Grid::MaxHeightAt(std::uint32_t index) const noexcept {
     }
     return 1.0e12;
 }
-Base::Result<void> Grid::ValidateDefinitions(
+bool Grid::ValidateDefinitions(
     Base::Span<const GridLength> definitions) const noexcept {
     for (const GridLength& definition : definitions) {
         if (!std::isfinite(definition.value) || definition.value < 0.0 ||
             (definition.unit == GridUnitType::Star && definition.value <= 0.0)) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-                "Grid track definition is invalid");
+            return false;
         }
     }
-    return {};
+    return true;
 }
 std::uint32_t Grid::GetChildRow(const UIElement& child) const noexcept {
     return child.GetValue(RowProperty);
@@ -805,7 +797,7 @@ std::uint32_t Grid::GetChildColumnSpan(
         1U,
         child.GetValue(ColumnSpanProperty));
 }
-Base::Result<void> Grid::ResolveTracks(
+bool Grid::ResolveTracks(
     Base::Span<const GridLength> definitions,
     Base::Span<const double> desired,
     double available,
@@ -814,8 +806,7 @@ Base::Result<void> Grid::ResolveTracks(
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
     if (!std::isfinite(available) || available < 0.0 ||
         (!desired.Empty() && desired.Size() != count)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Grid track resolution input is invalid");
+        return false;
     }
     resolved.Resize(count, 0.0);
     double occupied = 0.0;
@@ -866,7 +857,7 @@ Base::Result<void> Grid::ResolveTracks(
             }
         }
     }
-    return {};
+    return true;
 }
 
 namespace {
@@ -994,13 +985,13 @@ Base::Result<GridLength> Controls::Grid::ConvertLength(
     return GridLength::Pixel(pixels.Value());
 }
 
-Base::Result<void> Controls::Grid::ParseDefinitions(
+bool Controls::Grid::ParseDefinitions(
     Base::StringView text,
     Base::Vector<GridLength>& output) noexcept {
     output.Clear();
     const Base::StringView value =
         ::Aero::Base::ValueConversion::Trim(text);
-    if (value.Empty()) return {};
+    if (value.Empty()) return true;
     std::uint32_t start = 0U;
     while (start <= value.SizeBytes()) {
         std::uint32_t end = start;
@@ -1012,18 +1003,16 @@ Base::Result<void> Controls::Grid::ParseDefinitions(
             ::Aero::Base::ValueConversion::Trim(
                 value.Substr(start, end - start));
         if (token.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Grid definitions contain an empty track");
+            return false;
         }
         Base::Result<GridLength> parsed =
             ConvertGridLength(token);
-        if (!parsed) return parsed.GetStatus();
+        if (!parsed) return false;
         output.PushBack(parsed.Value());
         if (end == value.SizeBytes()) break;
         start = end + 1U;
     }
-    return {};
+    return true;
 }
 
 } // namespace Aero

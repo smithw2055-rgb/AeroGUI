@@ -29,7 +29,9 @@ class AERO_GUI_API AdornerLayer : public FrameworkElement {
     AERO_DECLARE_TYPE(AdornerLayer, FrameworkElement)
 
 public:
-    AdornerLayer() noexcept : FrameworkElement(StaticTypeId()) {}
+    AdornerLayer() noexcept : FrameworkElement(StaticTypeId()) {
+        SetOverlayHostFlag(true);
+    }
 
     void Add(Ref<Adorner> adorner) noexcept;
     void Remove(Adorner& adorner) noexcept;

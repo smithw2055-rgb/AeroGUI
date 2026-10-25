@@ -131,13 +131,13 @@ public:
     Base::Result<void> Clear(
         DependencyObject& object,
         const Style& style) noexcept;
-    Base::Result<void> SetBindingTriggerState(
+    void SetBindingTriggerState(
         DependencyObject& object,
         const Style& style,
         std::uint32_t triggerIndex,
         bool active) noexcept;
     // Tree/object ownership code calls this before destroying an object.
-    Base::Result<bool> DetachObject(
+    bool DetachObject(
         DependencyObject& object) noexcept;
     const Style* AppliedStyle(
         const DependencyObject& object)
@@ -153,7 +153,7 @@ public:
     }
     // Thin DataBind pump: flushes deferred property-trigger re-evals queued
     // while EffectiveValueEngine was flushing.
-    Base::Result<std::uint32_t> Flush() noexcept;
+    std::uint32_t Flush() noexcept;
 
 private:
     ::Aero::StyleProviderSession providerSession_;

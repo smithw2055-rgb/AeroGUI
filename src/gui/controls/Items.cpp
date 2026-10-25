@@ -219,13 +219,12 @@ void ItemCollection::Insert(
         1U});
 }
 
-Base::Result<Base::Ref<Base::Object>>
+Base::Ref<Base::Object>
 ItemCollection::RemoveAt(
     std::uint32_t index) noexcept {
     if (index >= items_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "ItemCollection remove index is out of range");
+        AERO_ASSERT(false);
+        return {};
     }
     Base::Ref<Base::Object> removed =
         std::move(items_[index]);
@@ -244,13 +243,12 @@ ItemCollection::RemoveAt(
     return removed;
 }
 
-Base::Result<void> ItemCollection::Replace(
+void ItemCollection::Replace(
     std::uint32_t index,
     Base::Ref<Base::Object> item) noexcept {
     if (!item || index >= items_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "ItemCollection replacement is invalid");
+        AERO_ASSERT(false);
+        return;
     }
     items_[index] = std::move(item);
     Notify({
@@ -259,19 +257,17 @@ Base::Result<void> ItemCollection::Replace(
         index,
         1U,
         1U});
-    return {};
 }
 
-Base::Result<void> ItemCollection::Move(
+void ItemCollection::Move(
     std::uint32_t oldIndex,
     std::uint32_t newIndex) noexcept {
     if (oldIndex >= items_.Size() ||
         newIndex >= items_.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "ItemCollection move index is out of range");
+        AERO_ASSERT(false);
+        return;
     }
-    if (oldIndex == newIndex) return {};
+    if (oldIndex == newIndex) return;
     Base::Ref<Base::Object> moving =
         std::move(items_[oldIndex]);
     if (oldIndex < newIndex) {
@@ -294,7 +290,6 @@ Base::Result<void> ItemCollection::Move(
         newIndex,
         1U,
         1U});
-    return {};
 }
 
 void ItemCollection::Reset() noexcept {
@@ -308,16 +303,15 @@ void ItemCollection::Reset() noexcept {
         0U});
 }
 
-Base::Result<void> ItemCollection::Reset(
+void ItemCollection::Reset(
     Base::Span<const Base::Ref<Base::Object>>
         items) noexcept {
     Base::Vector<Base::Ref<Base::Object>> replacement;
     replacement.Reserve(items.Size());
     for (const Base::Ref<Base::Object>& item : items) {
         if (!item) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "ItemCollection reset item must not be null");
+            AERO_ASSERT(false);
+            continue;
         }
         replacement.PushBack(item);
     }
@@ -329,7 +323,6 @@ Base::Result<void> ItemCollection::Reset(
         0U,
         oldCount,
         items_.Size()});
-    return {};
 }
 
 
@@ -348,7 +341,7 @@ ItemsControl::ItemsControl(TypeId runtimeType) noexcept
 
 ItemsControl::~ItemsControl() {
     if (generator_ != nullptr) {
-        static_cast<void>(generator_->Detach());
+        generator_->Detach();
     }
     static_cast<void>(
         items_.RemoveItemsChanged(localHandler_));
@@ -411,7 +404,7 @@ void ItemsControl::OnApplyTemplate() noexcept {
 
 void ItemsControl::OnTemplateDetached() noexcept {
     if (generator_ != nullptr) {
-        static_cast<void>(generator_->Detach());
+        generator_->Detach();
     }
     itemsHost_ = nullptr;
     defaultItemsPresenter_.Reset();
@@ -685,19 +678,15 @@ void ItemsControl::OnPropertyChanged(
     Control::OnPropertyChanged(args);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 ItemsControl::GetContainerForItemOverride() const noexcept {
     // WPF/Noesis GetContainerForItemOverride returns ContentPresenter so
     // ItemContainerStyle TargetType="ContentPresenter" can apply. A generated
     // ContentControl rejects that style and aborts item UI activation.
-    Base::Result<Base::Ref<ContentPresenter>> made =
-        Base::MakeRef<ContentPresenter>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<ContentPresenter>();
 }
 
-Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
+void ItemsControl::PrepareContainerForItemOverride(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
@@ -709,7 +698,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     if (!item ||
         !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
-        return {};
+        return;
     }
 
     const Base::Ref<DataTemplate> resolved =
@@ -717,14 +706,14 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     const HierarchicalDataTemplate* hierarchical =
         TryCast<HierarchicalDataTemplate>(resolved.Get());
     if (hierarchical == nullptr) {
-        return {};
+        return;
     }
 
     const Base::Ref<Base::Object> hierarchicalSource =
         hierarchical->GetItemsSource();
     const Base::Ref<Base::Object> hierarchicalTemplate =
         hierarchical->GetItemTemplate();
-    if (!hierarchicalSource && !hierarchicalTemplate) return {};
+    if (!hierarchicalSource && !hierarchicalTemplate) return;
 
     auto& childItems = static_cast<ItemsControl&>(container);
     Base::Ref<DataTemplate> childItemTemplate;
@@ -737,7 +726,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     }
     if (!hierarchicalSource) {
         childItems.SetItemTemplate(std::move(childItemTemplate));
-        return {};
+        return;
     }
     if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalSource->RuntimeType(),
@@ -748,18 +737,17 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
             static_cast<TreeViewItem&>(container).SetHierarchicalContent(
                 hierarchicalSource,
                 std::move(childItemTemplate));
-            return {};
+            return;
         }
         childItems.SetItemTemplate(std::move(childItemTemplate));
         childItems.SetItemsSource(hierarchicalSource);
-        return {};
+        return;
     }
 
     auto* bindings = ElementTree::BindingsOf(childItems);
     if (bindings == nullptr || bindings->Metadata() == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "HierarchicalDataTemplate Binding services are unavailable");
+        AERO_ASSERT(false);
+        return;
     }
     const auto& binding =
         static_cast<const Data::Binding&>(*hierarchicalSource);
@@ -771,7 +759,7 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
                 const_cast<Data::Binding&>(binding)),
             item,
             std::move(childItemTemplate));
-        return {};
+        return;
     }
     childItems.SetItemTemplate(std::move(childItemTemplate));
     Data::MetadataBindingDescriptor descriptor;
@@ -795,8 +783,8 @@ Base::Result<void> ItemsControl::PrepareContainerForItemOverride(
     descriptor.fallbackValue = binding.GetFallbackValue();
     descriptor.targetNullValue = binding.GetTargetNullValue();
     Base::Result<void> queued = bindings->QueueDeferred(descriptor);
-    if (!queued) return queued.GetStatus();
-    return bindings->ActivateDeferredWhenReady(childItems);
+    if (!queued) return;
+    static_cast<void>(bindings->ActivateDeferredWhenReady(childItems));
 }
 
 void ItemsControl::ClearContainerForItemOverride(
@@ -834,16 +822,16 @@ Base::Ref<DataTemplate> ItemsControl::ResolveItemTemplate(
     return GetTemplateForItemOverride(item, index);
 }
 
-Base::Result<Base::Ref<FrameworkElement>> ItemsControl::CreateContainer(
+Base::Ref<FrameworkElement> ItemsControl::CreateContainer(
     const Base::Ref<Base::Object>&) noexcept {
     return GetContainerForItemOverride();
 }
 
-Base::Result<void> ItemsControl::PrepareContainer(
+void ItemsControl::PrepareContainer(
     FrameworkElement& container,
     const Base::Ref<Base::Object>& item,
     std::uint32_t index) noexcept {
-    return PrepareContainerForItemOverride(container, item, index);
+    PrepareContainerForItemOverride(container, item, index);
 }
 
 void ItemsControl::ClearContainer(FrameworkElement& container) noexcept {
@@ -967,12 +955,12 @@ public:
         void* subtreeContext) noexcept;
     ~GeneratorState() noexcept;
 
-    Base::Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
-    Base::Result<void> AttachVirtualized(
+    bool Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
+    bool AttachVirtualized(
         ItemsControl& owner,
         VirtualizingPanel& itemsHost) noexcept;
-    Base::Result<bool> Detach() noexcept;
-    Base::Result<void> Refresh() noexcept;
+    void Detach() noexcept;
+    bool Refresh() noexcept;
     Base::Result<bool> SetRealizationRange(
         std::uint32_t firstIndex,
         std::uint32_t count) noexcept;
@@ -1108,19 +1096,20 @@ ItemContainerGenerator::GeneratorState::GeneratorState(
           &ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged) {}
 
 ItemContainerGenerator::GeneratorState::~GeneratorState() noexcept {
-    static_cast<void>(Detach());
+    Detach();
 }
 
-Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
+bool ItemContainerGenerator::GeneratorState::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
     if (owner_ != nullptr ||
         ItemContainerGenerator::OwnerHasGenerator(owner) ||
         VisualTree(owner) != tree_ ||
         VisualTree(itemsHost) != tree_) {
-        return Base::Status::Failure(
+        lastError_ = Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator attach state is invalid");
+        return false;
     }
     owner.AddItemsChanged(changedHandler_);
     owner_ = &owner;
@@ -1128,8 +1117,7 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
     virtualizingHost_ = nullptr;
     firstGeneratedIndex_ = 0U;
     ItemContainerGenerator::SetOwnerGenerator(owner, facade_);
-    Base::Result<void> refreshed = Refresh();
-    if (!refreshed) {
+    if (!Refresh()) {
         static_cast<void>(
             owner.RemoveItemsChanged(
                 changedHandler_));
@@ -1142,12 +1130,13 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Attach(
         owner_ = nullptr;
         host_ = nullptr;
         ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
-        return refreshed.GetStatus();
+        return false;
     }
-    return {};
+    lastError_ = {};
+    return true;
 }
 
-Base::Result<void>
+bool
 ItemContainerGenerator::GeneratorState::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingPanel& itemsHost) noexcept {
@@ -1155,9 +1144,10 @@ ItemContainerGenerator::GeneratorState::AttachVirtualized(
         ItemContainerGenerator::OwnerHasGenerator(owner) ||
         VisualTree(owner) != tree_ ||
         VisualTree(itemsHost) != tree_) {
-        return Base::Status::Failure(
+        lastError_ = Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Virtualized item generator attach state is invalid");
+        return false;
     }
     owner.AddItemsChanged(changedHandler_);
     owner_ = &owner;
@@ -1165,16 +1155,17 @@ ItemContainerGenerator::GeneratorState::AttachVirtualized(
     virtualizingHost_ = &itemsHost;
     firstGeneratedIndex_ = 0U;
     ItemContainerGenerator::SetOwnerGenerator(owner, facade_);
-    Base::Result<void> attached =
-        ItemContainerGenerator::AttachHostGenerator(itemsHost, *facade_, owner.GetCount());
-    if (!attached) {
+    if (!ItemContainerGenerator::AttachHostGenerator(itemsHost, *facade_, owner.GetCount())) {
         static_cast<void>(
             owner.RemoveItemsChanged(changedHandler_));
         ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
         owner_ = nullptr;
         host_ = nullptr;
         virtualizingHost_ = nullptr;
-        return attached.GetStatus();
+        lastError_ = Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Virtualizing host attach failed");
+        return false;
     }
     Base::Result<bool> realized =
         SetRealizationRangeInternal(
@@ -1182,39 +1173,32 @@ ItemContainerGenerator::GeneratorState::AttachVirtualized(
             itemsHost.desiredCount_,
             true);
     if (!realized) {
-        ItemContainerGenerator::DetachHostGenerator(itemsHost, *facade_);
+        lastError_ = realized.GetStatus();
         static_cast<void>(
             owner.RemoveItemsChanged(changedHandler_));
+        ItemContainerGenerator::DetachHostGenerator(itemsHost, *facade_);
         ItemContainerGenerator::SetOwnerGenerator(owner, nullptr);
         owner_ = nullptr;
         host_ = nullptr;
         virtualizingHost_ = nullptr;
-        return realized.GetStatus();
+        return false;
     }
     ItemContainerGenerator::NotifyOwnerContainersChanged(owner);
-    return {};
+    lastError_ = {};
+    return true;
 }
 
-Base::Result<bool> ItemContainerGenerator::GeneratorState::Detach() noexcept {
-    if (owner_ == nullptr) return false;
+void ItemContainerGenerator::GeneratorState::Detach() noexcept {
+    if (owner_ == nullptr) return;
     static_cast<void>(
         owner_->RemoveItemsChanged(
             changedHandler_));
-    Base::Status firstError;
     for (std::uint32_t index = records_.Size();
         index > 0U; --index) {
-        Base::Result<void> detached =
-            DetachRecord(records_[index - 1U]);
-        if (!detached && firstError.IsOk()) {
-            firstError = detached.GetStatus();
-        }
+        static_cast<void>(DetachRecord(records_[index - 1U]));
     }
     records_.Clear();
-    Base::Result<void> released =
-        ReleaseRecycledContainers();
-    if (!released && firstError.IsOk()) {
-        firstError = released.GetStatus();
-    }
+    static_cast<void>(ReleaseRecycledContainers());
     if (virtualizingHost_ != nullptr) {
         ItemContainerGenerator::DetachHostGenerator(*virtualizingHost_, *facade_);
     }
@@ -1223,9 +1207,6 @@ Base::Result<bool> ItemContainerGenerator::GeneratorState::Detach() noexcept {
     host_ = nullptr;
     virtualizingHost_ = nullptr;
     firstGeneratedIndex_ = 0U;
-    return firstError.IsOk()
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(firstError);
 }
 
 Base::Result<ItemContainerGenerator::GeneratorState::Record>
@@ -1422,16 +1403,14 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         recycledContainers_.PopBack();
         ++recycledContainerUseCount_;
     } else {
-        Base::Result<Base::Ref<FrameworkElement>> made =
+        Base::Ref<FrameworkElement> made =
             owner_->GetContainerForItemOverride();
-        if (!made || !made.Value()) {
-            if (!made) return made.GetStatus();
+        if (!made) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState,
                 "ItemsControl returned null container");
         }
-        record.container =
-            std::move(made).Value();
+        record.container = std::move(made);
         ++createdContainerCount_;
     }
 
@@ -1793,8 +1772,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
         (void)DetachRecord(record);
         return subtreeAttached.GetStatus();
     }
-    Base::Result<void> prepared = owner_->PrepareContainerForItemOverride(container, record.item, index);
-    if (!prepared) { (void)DetachRecord(record); return prepared.GetStatus(); }
+    owner_->PrepareContainerForItemOverride(container, record.item, index);
     Base::Result<void> projected = ProjectGeneratedContent(record);
     if (!projected) {
         (void)DetachRecord(record);
@@ -2124,12 +2102,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
         DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             container.RuntimeType(), Control::StaticTypeId()) &&
         (static_cast<Control&>(container)).IsTemplateApplied()) {
-        Base::Result<bool> cleared =
-            templates_->Clear(static_cast<Control&>(container));
-        if (!cleared) {
-            capture(Base::Result<void>(
-                cleared.GetStatus()));
-        }
+        static_cast<void>(templates_->Clear(static_cast<Control&>(container)));
     }
     UIElement* content = nullptr;
     if (!record.itemIsOwnContainer && contentControl != nullptr) {
@@ -2321,11 +2294,12 @@ ItemContainerGenerator::GeneratorState::SetRealizationRange(
     return changed;
 }
 
-Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
+bool ItemContainerGenerator::GeneratorState::Refresh() noexcept {
     if (owner_ == nullptr || host_ == nullptr) {
-        return Base::Status::Failure(
+        lastError_ = Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "ItemContainerGenerator is not attached");
+        return false;
     }
     if (virtualizingHost_ != nullptr) {
         Base::Result<bool> realized =
@@ -2333,17 +2307,22 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
                 virtualizingHost_->desiredFirstIndex_,
                 virtualizingHost_->desiredCount_,
                 true);
-        return realized
-            ? Base::Result<void>()
-            : Base::Result<void>(
-                realized.GetStatus());
+        if (!realized) {
+            lastError_ = realized.GetStatus();
+            return false;
+        }
+        lastError_ = {};
+        return true;
     }
     firstGeneratedIndex_ = 0U;
     for (std::uint32_t index = records_.Size();
         index > 0U; --index) {
         Base::Result<void> detached =
             DetachRecord(records_[index - 1U]);
-        if (!detached) return detached.GetStatus();
+        if (!detached) {
+            lastError_ = detached.GetStatus();
+            return false;
+        }
     }
     records_.Clear();
     records_.Reserve(owner_->GetCount());
@@ -2352,38 +2331,39 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::Refresh() noexcept {
         Base::Result<Record> made =
             CreateRecord(index);
         if (!made) {
-            const Base::Status error = made.GetStatus();
+            lastError_ = made.GetStatus();
             for (std::uint32_t cleanup = records_.Size();
                 cleanup > 0U; --cleanup) {
                 static_cast<void>(
                     DetachRecord(records_[cleanup - 1U]));
             }
             records_.Clear();
-            return error;
+            return false;
         }
         Record record = std::move(made).Value();
         Base::Result<void> attached =
             AttachRecord(record, index);
         if (!attached) {
-            const Base::Status error = attached.GetStatus();
+            lastError_ = attached.GetStatus();
             for (std::uint32_t cleanup = records_.Size();
                 cleanup > 0U; --cleanup) {
                 static_cast<void>(
                     DetachRecord(records_[cleanup - 1U]));
             }
             records_.Clear();
-            return error;
+            return false;
         }
         records_.PushBack(
                 std::move(record));
     }
-    return {};
+    lastError_ = {};
+    return true;
 }
 
 Base::Result<void> ItemContainerGenerator::GeneratorState::ApplyChange(
     const ItemsChangedEvent& event) noexcept {
     if (event.action == ItemsChangeAction::Reset) {
-        return Refresh();
+        return Refresh() ? Base::Result<void>() : Base::Result<void>(lastError_);
     }
     if (event.action == ItemsChangeAction::Add) {
         for (std::uint32_t offset = 0U;
@@ -2484,7 +2464,7 @@ Base::Result<void> ItemContainerGenerator::GeneratorState::ApplyChange(
             std::move(moving);
         return ReorderVisuals();
     }
-    return Refresh();
+    return Refresh() ? Base::Result<void>() : Base::Result<void>(lastError_);
 }
 
 void ItemContainerGenerator::GeneratorState::OnItemsChanged(
@@ -2560,40 +2540,30 @@ ItemContainerGenerator::~ItemContainerGenerator() noexcept {
     state_ = nullptr;
 }
 
-Base::Result<void> ItemContainerGenerator::Attach(
+bool ItemContainerGenerator::Attach(
     ItemsControl& owner,
     Panel& itemsHost) noexcept {
     auto* runtime = state_;
-    return runtime != nullptr
-        ? runtime->Attach(owner, itemsHost)
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "ItemContainerGenerator is not initialized"));
+    return runtime != nullptr && runtime->Attach(owner, itemsHost);
 }
 
-Base::Result<void> ItemContainerGenerator::AttachVirtualized(
+bool ItemContainerGenerator::AttachVirtualized(
     ItemsControl& owner,
     VirtualizingPanel& itemsHost) noexcept {
     auto* runtime = state_;
-    return runtime != nullptr
-        ? runtime->AttachVirtualized(owner, itemsHost)
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "ItemContainerGenerator is not initialized"));
+    return runtime != nullptr && runtime->AttachVirtualized(owner, itemsHost);
 }
 
-Base::Result<bool> ItemContainerGenerator::Detach() noexcept {
+void ItemContainerGenerator::Detach() noexcept {
     auto* runtime = state_;
-    return runtime != nullptr ? runtime->Detach() : Base::Result<bool>(false);
+    if (runtime != nullptr) {
+        runtime->Detach();
+    }
 }
 
-Base::Result<void> ItemContainerGenerator::Refresh() noexcept {
+bool ItemContainerGenerator::Refresh() noexcept {
     auto* runtime = state_;
-    return runtime != nullptr
-        ? runtime->Refresh()
-        : Base::Result<void>(Base::Status::Failure(
-              Base::ErrorCode::NotInitialized,
-              "ItemContainerGenerator is not initialized"));
+    return runtime != nullptr && runtime->Refresh();
 }
 
 void ItemContainerGenerator::SetRealizationRange(
@@ -2704,7 +2674,7 @@ void ItemContainerGenerator::NotifyOwnerContainersChanged(
     owner.OnContainersChanged();
 }
 
-Base::Result<void> ItemContainerGenerator::AttachHostGenerator(
+bool ItemContainerGenerator::AttachHostGenerator(
     VirtualizingPanel& host,
     ItemContainerGenerator& generator,
     std::uint32_t itemCount) noexcept {

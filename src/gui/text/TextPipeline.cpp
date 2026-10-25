@@ -447,19 +447,15 @@ Base::Result<void> SelectFontPath(
             : "No installed primary font was found");
 }
 
-Base::Result<void> ConfigureTypeface(
+void ConfigureTypeface(
     Text::Typeface& typeface,
     Base::StringView family,
     Base::StringView language,
     Base::StringView defaultFamily) noexcept {
-    Base::Result<void> assigned =
-        typeface.SetFamily(
-            family.Empty() ? defaultFamily : family);
-    if (!assigned) return assigned.GetStatus();
+    typeface.SetFamily(family.Empty() ? defaultFamily : family);
     if (!language.Empty()) {
-        assigned = typeface.SetLanguage(language);
+        typeface.SetLanguage(language);
     }
-    return assigned;
 }
 
 class TextBlockLayoutProxy
@@ -598,9 +594,8 @@ public:
                 *fonts_, layoutRequest);
         if (!shaped) return shaped.GetStatus();
         if (request.arrangeToAvailableWidth) {
-            shaped = layout.Arrange(
+            layout.Arrange(
                 static_cast<float>(request.availableSize.width));
-            if (!shaped) return shaped.GetStatus();
         }
         output.glyphRuns.Clear();
         output.desiredSize = {
@@ -803,18 +798,17 @@ Base::Result<void> TextPipeline::Initialize(
                 if (!selected) return false;
 
                 Text::Typeface typeface(state->allocator);
-                Base::Result<void> status = ConfigureTypeface(
+                ConfigureTypeface(
                     typeface,
                     candidate,
                     state->language.View(),
                     state->primaryFamily.View());
-                if (!status) return false;
 
                 Text::FontSource source;
                 source.kind = Text::FontSourceKind::File;
                 source.identifier = path.View();
                 Text::FontFace face;
-                status = state->fonts.LoadFace(
+                const Base::Result<void> status = state->fonts.LoadFace(
                     state->fontProvider.Identity().id,
                     source,
                     typeface,
@@ -899,21 +893,19 @@ Base::Result<void> TextPipeline::Initialize(
     }
     if (status) {
         Text::Typeface typeface(allocator_);
-        status = ConfigureTypeface(
+        ConfigureTypeface(
             typeface,
             options.primaryFamily,
             state_->language.View(),
             state_->primaryFamily.View());
-        if (status) {
-            Text::FontSource source;
-            source.kind = Text::FontSourceKind::File;
-            source.identifier = state_->primaryPath.View();
-            status = state_->fonts.LoadFace(
-                state_->fontProvider.Identity().id,
-                source,
-                typeface,
-                state_->primaryFace);
-        }
+        Text::FontSource source;
+        source.kind = Text::FontSourceKind::File;
+        source.identifier = state_->primaryPath.View();
+        status = state_->fonts.LoadFace(
+            state_->fontProvider.Identity().id,
+            source,
+            typeface,
+            state_->primaryFace);
     }
 
     if (status) {
@@ -936,12 +928,11 @@ Base::Result<void> TextPipeline::Initialize(
                 continue;
             }
             Text::Typeface typeface(allocator_);
-            status = ConfigureTypeface(
+            ConfigureTypeface(
                 typeface,
                 family,
                 state_->language.View(),
                 Base::StringView("Microsoft YaHei"));
-            if (!status) break;
             Text::FontSource source;
             source.kind = Text::FontSourceKind::File;
             source.identifier = path.View();
@@ -1083,7 +1074,7 @@ TextPipeline::SynchronizeBackend(
     return true;
 }
 
-Base::Result<std::uint32_t>
+std::uint32_t
 TextPipeline::CollectGarbage() noexcept {
     if (state_ == nullptr || state_->layout == nullptr) {
         return 0U;

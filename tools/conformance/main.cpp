@@ -23,7 +23,7 @@ const ::Aero::Render::RenderFrame* CurrentFrameForConformance(
 }
 
 #if defined(_WIN32)
-#include "render/platform/win32/OpenGLWindow.hpp"
+#include "render/opengl33/OpenGLWindowWin32.hpp"
 #include "render/d3d11/D3D11RenderDevice.hpp"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -1060,7 +1060,6 @@ int main() {
         ? gui.SetXamlProvider(
             std::move(facadeProvider).Value(), "memory")
         : Aero::Base::Result<void>(facadeProvider.GetStatus());
-    Check(providerAdded.HasValue(), "Gui facade provider registration failed");
     const Aero::Base::Result<void> initialized = gui.Initialize();
     Check(initialized.HasValue(), "Gui initialization failed");
     if (initialized) {

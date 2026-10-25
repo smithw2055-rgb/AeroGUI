@@ -192,12 +192,12 @@ public:
         return {};
     }
 
-    static Base::Result<bool> Remove(
+    static bool Remove(
         Base::Object& owner,
         Documents::Inline& value) noexcept {
         Base::Result<void> access =
             static_cast<::Aero::DependencyObject&>(owner).VerifyAccess();
-        if (!access) return access.GetStatus();
+        if (!access) return false;
         if (value.GetParent() != &owner) return false;
 
         if (IsTextBlock(owner)) {
@@ -244,15 +244,12 @@ public:
         return false;
     }
 
-    static Base::Result<void> Clear(Base::Object& owner) noexcept {
+    static void Clear(Base::Object& owner) noexcept {
         while (GetCount(owner) != 0U) {
             Documents::Inline* value = At(owner, GetCount(owner) - 1U);
             if (value == nullptr) break;
-            Base::Result<bool> removed = Remove(owner, *value);
-            if (!removed) return removed.GetStatus();
-            if (!removed.Value()) break;
+            if (!Remove(owner, *value)) break;
         }
-        return {};
     }
 
     struct InlineStyleContext {
@@ -389,16 +386,14 @@ public:
         return flattened.SizeBytes();
     }
 
-    static Base::Result<bool> IsUtf8Boundary(
+    static bool IsUtf8Boundary(
         const Controls::TextBlock& owner,
         std::uint32_t offset) noexcept {
         Base::String flattened;
         Base::Result<void> copied = AppendText(owner, flattened);
-        if (!copied) return copied.GetStatus();
+        if (!copied) return false;
         if (offset > flattened.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "TextPointer offset exceeds the document text");
+            return false;
         }
         if (offset == 0U || offset == flattened.SizeBytes()) return true;
         const unsigned char byte = static_cast<unsigned char>(
@@ -566,12 +561,10 @@ void InlineCollection::Add(
     if (!added) { AERO_ASSERT(false); return; }
 }
 
-Base::Result<bool> InlineCollection::Remove(
+bool InlineCollection::Remove(
     Inline& value) noexcept {
     if (owner_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "InlineCollection is not bound to an owner");
+        return false;
     }
     return Aero::Controls::TextBlockDocumentHelper::Remove(*owner_, value);
 }
@@ -580,7 +573,7 @@ void InlineCollection::Clear() noexcept {
     if (owner_ == nullptr) {
         return;
     }
-    (void)Aero::Controls::TextBlockDocumentHelper::Clear(*owner_);
+    Aero::Controls::TextBlockDocumentHelper::Clear(*owner_);
 }
 
 Span::~Span() {
@@ -678,11 +671,8 @@ Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
     }
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
-    Base::Result<bool> boundary =
-        Aero::Controls::TextBlockDocumentHelper::IsUtf8Boundary(
-            *container_, resolved);
-    if (!boundary) return boundary.GetStatus();
-    if (!boundary.Value()) {
+    if (!Aero::Controls::TextBlockDocumentHelper::IsUtf8Boundary(
+            *container_, resolved)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "TextPointer offset splits a UTF-8 sequence");
@@ -856,11 +846,7 @@ void ClearSpanInlines(
 void PopulateDocumentsMetadata(::Aero::Meta::Registration& context) noexcept {
     using namespace Aero::Meta;
     using namespace Aero::Media;
-    const auto makeBrush = [](Base::Color color) noexcept {
-        Base::Result<Base::Ref<Brush>> made = MakeSolidColorBrush(color);
-        return made ? std::move(made).Value() : Base::Ref<Brush>{};
-    };
-    const Base::Ref<Brush> black = makeBrush({0.0F, 0.0F, 0.0F, 1.0F});
+    const Base::Ref<Brush> black = MakeSolidColorBrush({0.0F, 0.0F, 0.0F, 1.0F});
 
     Register<TextElement>(context, TypeFlags::Abstract)
         .AddOwner(TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<FontFamily>{}, Inherits | AffectsMeasure)

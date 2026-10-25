@@ -22,17 +22,15 @@ void Window::Show() noexcept {
     if (host_ == nullptr) {
         Application* application = Application::Current();
         if (application != nullptr && application->host_ != nullptr) {
-            static_cast<void>(application->host_->ShowWindow(*this));
+            application->host_->ShowWindow(*this);
         }
     }
     if (host_ == nullptr) {
         return;
     }
-    Base::Result<void> shown = host_->Show();
-    if (shown) {
-        NotifySourceInitialized();
-        NotifyActivated();
-    }
+    host_->Show();
+    NotifySourceInitialized();
+    NotifyActivated();
 }
 
 bool Window::ShowDialog() noexcept {
@@ -46,9 +44,9 @@ bool Window::ShowDialog() noexcept {
         dialogActive_ = false;
         return false;
     }
-    Base::Result<bool> result = application->host_->RunDialog(*this);
+    const bool result = application->host_->RunDialog(*this);
     dialogActive_ = false;
-    return result.HasValue() ? result.Value() : false;
+    return result;
 }
 
 Nullable<bool> Window::GetDialogResult() const noexcept {

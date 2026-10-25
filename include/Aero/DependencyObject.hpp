@@ -163,7 +163,7 @@ private:
         PropertyProviderToken token, const PropertyValue& value) noexcept;
     Result<void> ApplyLocalExpressionInternal(DependencyPropertyHandle property,
         const PropertyExpression& expression) noexcept;
-    Result<bool> InvalidateBaseValueInternal(DependencyPropertyHandle property) noexcept;
+    bool InvalidateBaseValueInternal(DependencyPropertyHandle property) noexcept;
     Result<void> ApplyAnimationValueInternal(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     Result<void> ApplyInheritedValueInternal(DependencyPropertyHandle property, const PropertyValue* value) noexcept;
     Result<void> RecomputeEffectiveValueInternal(DependencyPropertyHandle property) noexcept;
@@ -185,11 +185,11 @@ private:
     void NotifyValueChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
     PropertyInvalidationFlags AccumulateInvalidations(FrameworkPropertyMetadataOptions metadataFlags) noexcept;
 
-    Result<bool> ClearProviderContributionInternal(DependencyPropertyHandle property,
+    bool ClearProviderContributionInternal(DependencyPropertyHandle property,
         PropertyProviderToken token) noexcept;
-    Result<bool> ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
-    Result<bool> ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
-    Result<bool> ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
+    bool ClearProviderOriginInternal(DependencyPropertyHandle property, std::uint32_t origin) noexcept;
+    bool ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
+    bool ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
     Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
     bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
 

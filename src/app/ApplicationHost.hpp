@@ -19,11 +19,11 @@ class IApplicationHost {
 public:
     virtual ~IApplicationHost() = default;
     virtual void RequestExit(int exitCode) noexcept = 0;
-    virtual Base::Result<void> ShowWindow(Window& window) noexcept = 0;
+    virtual void ShowWindow(Window& window) noexcept = 0;
     virtual std::uint32_t WindowCount() const noexcept = 0;
     virtual Window* WindowAt(std::uint32_t index) const noexcept = 0;
     virtual void SetMainWindow(Window* window) noexcept = 0;
-    virtual Base::Result<bool> RunDialog(Window& window) noexcept = 0;
+    virtual bool RunDialog(Window& window) noexcept = 0;
 };
 
 // One host bridge is created per hosted Window. This intentionally points at
@@ -32,7 +32,7 @@ public:
 class IWindowHost {
 public:
     virtual ~IWindowHost() = default;
-    virtual Base::Result<void> Show() noexcept = 0;
+    virtual void Show() noexcept = 0;
     virtual void Close() noexcept = 0;
     virtual bool IsOpen() const noexcept = 0;
     virtual Platform::NativeWindowHandle NativeHandle() const noexcept = 0;

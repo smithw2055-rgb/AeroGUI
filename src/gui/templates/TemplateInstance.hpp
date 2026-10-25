@@ -88,9 +88,9 @@ public:
     Base::Result<TemplateHandle> Apply(
         Control& control,
         const ControlTemplate& plan) noexcept;
-    Base::Result<bool> Clear(
+    bool Clear(
         TemplateHandle handle) noexcept;
-    Base::Result<bool> Clear(
+    bool Clear(
         Control& control) noexcept;
     DependencyObject* FindName(
         TemplateHandle handle,

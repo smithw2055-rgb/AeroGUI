@@ -125,7 +125,7 @@ MenuItem::OnApplyTemplate() noexcept {
             Popup::StaticTypeId())
         ? static_cast<Popup*>(submenu)
         : nullptr;
-    static_cast<void>(SynchronizeMenuTemplate());
+    SynchronizeMenuTemplate();
 }
 
 void MenuItem::OnTemplateDetached() noexcept {
@@ -142,7 +142,7 @@ void MenuItem::OnTemplateDetached() noexcept {
     HeaderedItemsControl::OnTemplateDetached();
 }
 
-Base::Result<void>
+void
 MenuItem::SynchronizeMenuTemplate() noexcept {
     if (gestureText_ != nullptr) {
         gestureText_->SetText(GetInputGestureText());
@@ -169,7 +169,6 @@ MenuItem::SynchronizeMenuTemplate() noexcept {
                     SetPlacementTarget({}));
         }
     }
-    return {};
 }
 
 static ItemsControl* GetParentItemsControl(MenuItem& item) noexcept {
@@ -283,8 +282,7 @@ void MenuItem::OnPropertyChanged(
         prop == IsCheckableProperty ||
         prop == IsCheckedProperty ||
         prop == IsSubmenuOpenProperty) {
-        static_cast<void>(
-            SynchronizeMenuTemplate());
+        SynchronizeMenuTemplate();
         if (prop == IsSubmenuOpenProperty && !args.GetNewValue().AsBoolean()) {
             CloseAllSubmenus(*this);
             if (!GetIsMouseOver()) {
@@ -366,34 +364,28 @@ MenuItem* MenuBase::FindItem(Base::Object* source) const noexcept {
     return nullptr;
 }
 
-Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
+void MenuBase::Invoke(MenuItem& item) noexcept {
     if (item.GetCount() != 0U) {
         const bool willOpen = !item.GetIsSubmenuOpen();
         if (willOpen) {
             CloseSiblingSubmenus(item);
         }
         item.SetIsSubmenuOpen(willOpen);
-        return {};
+        return;
     }
     if (item.GetIsCheckable()) {
         item.SetIsChecked(!item.GetIsChecked());
     }
     RoutedEventArgs event;
     if (auto* events = ElementTree::EventsOf(*this)) {
-        Base::Result<void> raised =
-            events->RaiseEvent(item, MenuItem::ClickEvent, &event);
-        if (!raised) return raised.GetStatus();
+        static_cast<void>(events->RaiseEvent(item, MenuItem::ClickEvent, &event));
     }
     ICommand* command = item.GetCommand();
     if (command != nullptr) {
         const Value parameter = item.GetCommandParameter();
         Aero::InputRouter* input = ElementTree::InputOf(*this);
         if (input != nullptr) {
-            Base::Result<bool> executed =
-                input->Execute(*command, parameter, item);
-            if (!executed) {
-                return executed.GetStatus();
-            }
+            static_cast<void>(input->Execute(*command, parameter, item));
         } else {
             command->Execute(parameter, &item);
         }
@@ -408,7 +400,6 @@ Base::Result<void> MenuBase::Invoke(MenuItem& item) noexcept {
     } else {
         CloseAllSubmenus(*this);
     }
-    return {};
 }
 
 void MenuBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
@@ -417,9 +408,8 @@ void MenuBase::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
     }
     MenuItem* item = FindItem(args.GetOriginalSource());
     if (item == nullptr) return;
-    (*item).SetHighlightedState( true);
-    Base::Result<void> invoked = Invoke(*item);
-    if (!invoked) return;
+    (*item).SetHighlightedState(true);
+    Invoke(*item);
     static_cast<void>(item->Focus());
     args.SetHandled(true);
 }
@@ -444,23 +434,20 @@ void MenuBase::OnKeyDown(KeyEventArgs& args) {
                 item->SetIsSubmenuOpen(true));
         }
     } else {
-        static_cast<void>(
-            Invoke(*item));
+        Invoke(*item);
     }
     args.SetHandled(true);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 MenuBase::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<MenuItem>> made =
-        Base::MakeRef<MenuItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<MenuItem>();
 }
 
 ContextMenu::ContextMenu() noexcept
-    : MenuBase(StaticTypeId()) {}
+    : MenuBase(StaticTypeId()) {
+    SetOverlayHostFlag(true);
+}
 
 ContextMenu::~ContextMenu() = default;
 
@@ -798,12 +785,9 @@ void ToolBar::OnPropertyChanged(
     }
 }
 
-Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 StatusBar::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<StatusBarItem>> item =
-        Base::MakeRef<StatusBarItem>();
-    if (!item) return item.GetStatus();
-    return Base::Ref<FrameworkElement>(std::move(item).Value());
+    return Base::MakeRef<StatusBarItem>();
 }
 
 AERO_DESCRIBE(ToolBar) {

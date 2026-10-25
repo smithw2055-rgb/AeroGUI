@@ -39,13 +39,13 @@ using namespace Aero::Render;
 void Panel::OnRender(
     ::Aero::Media::DrawingContext& context) noexcept {
     auto& builder = Aero::Render::DrawingBridge::Builder(context);
-    static_cast<void>(PaintBrushRect(
+    PaintBrushRect(
         builder,
         GetBackground(),
         Rect{
             0.0, 0.0,
             GetRenderSize().width,
-            GetRenderSize().height}));
+            GetRenderSize().height});
 }
 StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
 
@@ -828,10 +828,10 @@ void Panel::ClearChildrenCore() noexcept {
 
 Ref<Base::Object> Panel::GetChildrenObject() const noexcept {
     if (!childrenView_) {
-        Base::Result<Ref<PanelChildrenView>> made =
+        Ref<PanelChildrenView> made =
             Base::MakeRef<PanelChildrenView>(const_cast<Panel&>(*this));
-        if (!made || !made.Value()) return {};
-        childrenView_ = Ref<Base::Object>(std::move(made).Value());
+        if (!made) return {};
+        childrenView_ = Ref<Base::Object>(std::move(made));
     }
     return childrenView_;
 }

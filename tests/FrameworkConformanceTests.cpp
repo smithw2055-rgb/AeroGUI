@@ -3427,18 +3427,16 @@ bool TestMenuTooltipForegroundAndFocus() {
     }
     CHECK(foreground->GetOpacity() < 0.05);
 
-    Result<bool> scoped = layoutRoot->Focus();
+    const bool scoped = layoutRoot->Focus();
     CHECK(scoped);
-    CHECK(scoped.Value());
     Pump(view, 0.016);
     CHECK(start->GetIsKeyboardFocused());
     CHECK(!layoutRoot->GetIsKeyboardFocused());
     CHECK(start->GetIsChecked().GetHasValue());
     CHECK(start->GetIsChecked().GetValue());
 
-    Result<bool> layoutFocused = layoutRoot->Focus();
-    CHECK(layoutFocused);
-    CHECK(!layoutFocused.Value());
+    const bool layoutFocused = layoutRoot->Focus();
+    CHECK(!layoutFocused);
     Pump(view, 0.016);
     CHECK(start->GetIsKeyboardFocused());
     CHECK(!layoutRoot->GetIsKeyboardFocused());
@@ -3665,8 +3663,8 @@ bool TestCheckedVisualStateRevertsArrowOpacity() {
     CHECK(startArrow != nullptr && settingsArrow != nullptr);
     CHECK(PathFillOpacity(*startArrow) < 0.05);
 
-    Result<bool> focused = start->Focus();
-    CHECK(focused && focused.Value());
+    const bool focused = start->Focus();
+    CHECK(focused);
     static_cast<void>(VisualStateManager::GoToState(*start, "Checked", false));
     Pump(view, 0.05);
     CHECK(start->GetIsKeyboardFocused());
@@ -3677,8 +3675,8 @@ bool TestCheckedVisualStateRevertsArrowOpacity() {
     }
     CHECK(PathFillOpacity(*startArrow) > 0.8);
 
-    Result<bool> moved = settings->Focus();
-    CHECK(moved && moved.Value());
+    const bool moved = settings->Focus();
+    CHECK(moved);
     Pump(view, 0.35);
     CHECK(settings->GetIsKeyboardFocused());
     CHECK(!start->GetIsKeyboardFocused());
@@ -4623,11 +4621,11 @@ bool TestStreamGeometryContextFlatten() {
     CHECK(true);
     StreamGeometry built;
     StreamGeometryContext context = built.Open();
-    CHECK(context.BeginFigure({0.0, 0.0}, true, false));
-    CHECK(context.LineTo({10.0, 0.0}, true, false));
-    CHECK(context.BezierTo({10.0, 10.0}, {20.0, 10.0}, {20.0, 0.0}, true, false));
-    CHECK(context.QuadraticBezierTo({30.0, 10.0}, {30.0, 0.0}, true, false));
-    CHECK(context.Close());
+    context.BeginFigure({0.0, 0.0}, true, false);
+    context.LineTo({10.0, 0.0}, true, false);
+    context.BezierTo({10.0, 10.0}, {20.0, 10.0}, {20.0, 0.0}, true, false);
+    context.QuadraticBezierTo({30.0, 10.0}, {30.0, 0.0}, true, false);
+    context.Close();
     PointSink actual;
     built.Flatten(actual);
     CHECK(true);

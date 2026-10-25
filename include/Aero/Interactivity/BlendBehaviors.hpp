@@ -96,7 +96,7 @@ private:
     Ref<Media::ImageBrush> projectedImage_;
     bool updating_ = false;
 
-    Result<void> Refresh() noexcept;
+    void Refresh() noexcept;
 };
 
 } // namespace Aero::Interactivity

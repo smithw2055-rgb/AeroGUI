@@ -108,7 +108,7 @@ public:
     bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
     Base::Point PointFromScreen(Base::Point point) const noexcept;
     bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
-    Result<Ref<Base::Object>> AcquireLifetime() noexcept;
+    Ref<Base::Object> AcquireLifetime() noexcept;
     void InvalidateRenderDrawing() noexcept;
     void InvalidateRenderState() noexcept;
     RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
@@ -136,6 +136,8 @@ public:
         return false;
     }
 
+    bool IsOverlayHostFlag() const noexcept { return (visualFlags_ & kFlagIsOverlayHost) != 0U; }
+
 protected:
     virtual std::uint32_t GetVisualChildrenCount() const noexcept { return 0U; }
     virtual Visual* GetVisualChild(std::uint32_t) const noexcept { return nullptr; }
@@ -145,6 +147,13 @@ protected:
     virtual void OnVisualChildrenChanged(Visual* visualAdded, Visual* visualRemoved) noexcept {
         static_cast<void>(visualAdded);
         static_cast<void>(visualRemoved);
+    }
+    void SetOverlayHostFlag(bool isOverlayHost) noexcept {
+        if (isOverlayHost) {
+            visualFlags_ = static_cast<std::uint8_t>(visualFlags_ | kFlagIsOverlayHost);
+        } else {
+            visualFlags_ = static_cast<std::uint8_t>(visualFlags_ & static_cast<std::uint8_t>(~kFlagIsOverlayHost));
+        }
     }
 
 private:
@@ -168,6 +177,7 @@ private:
     static constexpr std::uint8_t kFlagRendering = 1U << 3U;
     static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
     static constexpr std::uint8_t kFlagIsOverlay = 1U << 5U;
+    static constexpr std::uint8_t kFlagIsOverlayHost = 1U << 6U;
     bool LoadedFlag() const noexcept { return (visualFlags_ & kFlagLoaded) != 0U; }
     bool IsOverlayFlag() const noexcept { return (visualFlags_ & kFlagIsOverlay) != 0U; }
 

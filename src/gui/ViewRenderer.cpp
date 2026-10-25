@@ -50,7 +50,7 @@ void DestroyTextLayout(void*, ::Aero::Controls::TextBlockLayout* layout) noexcep
     delete static_cast<Render::TextRenderer*>(layout);
 }
 
-Base::Result<std::uint32_t> CollectTextLayout(void*, ::Aero::Controls::TextBlockLayout* layout) noexcept {
+std::uint32_t CollectTextLayout(void*, ::Aero::Controls::TextBlockLayout* layout) noexcept {
     if (layout != nullptr) {
         return static_cast<Render::TextRenderer*>(layout)->CollectGarbage();
     }
@@ -266,8 +266,6 @@ Base::Result<void> ViewRenderer::Init(
             data.Images()->ReleaseBackendResources(
                 previousImages);
         }
-        data.SyncVisualRenderResources(
-            data.RootVisual(), nullptr, nullptr, false);
         if (data.Text() != nullptr) {
             Base::Result<bool> detached =
                 data.Text()->SynchronizeBackend(
@@ -296,21 +294,13 @@ Base::Result<void> ViewRenderer::Init(
         data.Tree()->SetMeshResources(data.GetMeshResources());
         data.Tree()->SetTextLayout(data.Text() != nullptr ? data.Text()->Layout() : nullptr);
     }
-    data.SyncVisualRenderResources(
-        data.RootVisual(),
-        data.Text() != nullptr ? data.Text()->Layout() : nullptr,
-        data.GetMeshResources(),
-        true);
 
     Aero::Media::Visual* rootVisual =
         data.RootVisual();
     if (rootVisual != nullptr) {
-        status = data.RenderTree()->Invalidate(
+        data.RenderTree()->Invalidate(
             *rootVisual,
             Aero::Render::RenderInvalidation::All);
-    }
-    if (!status) {
-        return status.GetStatus();
     }
 
     device_ = std::move(device);

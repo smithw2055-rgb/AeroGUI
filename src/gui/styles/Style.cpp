@@ -950,9 +950,7 @@ Base::Result<void> StyleEngine::VerifyTarget(
 Base::Result<void> StyleEngine::Apply(
     DependencyObject& object,
     const Style& style) noexcept {
-    Base::Result<void> hooked =
-        triggerEngine_->EnableDataBindPhase(object);
-    if (!hooked) return hooked.GetStatus();
+    triggerEngine_->EnableDataBindPhase(object);
     Base::Result<void> verified = VerifyTarget(object, style);
     if (!verified) {
         return verified.GetStatus();
@@ -965,9 +963,8 @@ Base::Result<void> StyleEngine::Apply(
         triggerEngine_->RemovePendingTriggerEvaluation(object);
         triggerEngine_->UnsubscribeTriggers(
             object, *applications_[existing].style);
-        Base::Result<void> triggers = triggerEngine_->ClearTriggerSetters(
+        triggerEngine_->ClearTriggerSetters(
             object, *applications_[existing].style);
-        if (!triggers) return triggers.GetStatus();
         Base::Result<void> cleared = ClearSetters(
             object, *applications_[existing].style);
         if (!cleared) {
@@ -1007,19 +1004,18 @@ Base::Result<void> StyleEngine::Apply(
     if (requiresSubscription) {
         Base::Result<void> attached = AttachSetterBindings(object, style);
         if (!attached) return attached.GetStatus();
-        Base::Result<void> subscribed =
-            triggerEngine_->SubscribeTriggers(object, style);
-        if (!subscribed) return subscribed.GetStatus();
+        triggerEngine_->SubscribeTriggers(object, style);
     }
-    return triggerEngine_->EvaluateTriggers(object, style);
+    triggerEngine_->EvaluateTriggers(object, style);
+    return {};
 }
 
-Base::Result<void> StyleEngine::SetBindingTriggerState(
+void StyleEngine::SetBindingTriggerState(
     DependencyObject& object,
     const Style& style,
     std::uint32_t triggerIndex,
     bool active) noexcept {
-    return triggerEngine_->SetBindingTriggerState(
+    triggerEngine_->SetBindingTriggerState(
         object, style, triggerIndex, active);
 }
 
@@ -1033,9 +1029,7 @@ Base::Result<void> StyleEngine::Clear(
     const std::uint32_t existing = FindApplication(object);
     const Style* actual = existing != UINT32_MAX ? applications_[existing].style : &style;
     triggerEngine_->UnsubscribeTriggers(object, *actual);
-    Base::Result<void> triggers =
-        triggerEngine_->ClearTriggerSetters(object, *actual);
-    if (!triggers) return triggers.GetStatus();
+    triggerEngine_->ClearTriggerSetters(object, *actual);
     Base::Result<void> cleared = ClearSetters(object, *actual);
     if (!cleared) {
         return cleared.GetStatus();
@@ -1052,7 +1046,7 @@ Base::Result<void> StyleEngine::Clear(
     return {};
 }
 
-Base::Result<bool> StyleEngine::DetachObject(
+bool StyleEngine::DetachObject(
     DependencyObject& object) noexcept {
     const std::uint32_t existing = FindApplication(object);
     if (existing == UINT32_MAX) {
@@ -1060,13 +1054,8 @@ Base::Result<bool> StyleEngine::DetachObject(
     }
     triggerEngine_->RemovePendingTriggerEvaluation(object);
     triggerEngine_->UnsubscribeTriggers(object, *applications_[existing].style);
-    Base::Result<void> triggers =
-        triggerEngine_->ClearTriggerSetters(object, *applications_[existing].style);
-    if (!triggers) return triggers.GetStatus();
-    Base::Result<void> cleared = ClearSetters(object, *applications_[existing].style);
-    if (!cleared) {
-        return cleared.GetStatus();
-    }
+    triggerEngine_->ClearTriggerSetters(object, *applications_[existing].style);
+    (void)ClearSetters(object, *applications_[existing].style);
     objectIndexMap_.Erase(&object);
     if (existing + 1U != applications_.Size()) {
         applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
@@ -1340,7 +1329,7 @@ void StyleEngine::SetTriggerActionHandler(
     triggerEngine_->SetTriggerActionHandler(handler, context);
 }
 
-Base::Result<std::uint32_t> StyleEngine::Flush() noexcept {
+std::uint32_t StyleEngine::Flush() noexcept {
     if (triggerEngine_ == nullptr) {
         return 0U;
     }

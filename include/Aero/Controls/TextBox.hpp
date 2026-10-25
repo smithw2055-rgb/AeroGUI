@@ -42,10 +42,10 @@ public:
     virtual void Undo() noexcept;
     virtual void Redo() noexcept;
     void AttachScrollViewer(ScrollViewer* viewer) noexcept;
-    Result<void> BeginComposition() noexcept override;
-    Result<void> UpdateComposition(StringView text) noexcept override;
-    Result<void> CommitComposition(StringView text) noexcept override;
-    Result<void> CancelComposition() noexcept override;
+    void BeginComposition() noexcept override;
+    void UpdateComposition(StringView text) noexcept override;
+    void CommitComposition(StringView text) noexcept override;
+    void CancelComposition() noexcept override;
     std::uint32_t HitTestText(Point position) const noexcept;
     bool LineHorizontal(double direction) noexcept override;
     bool LineVertical(double direction) noexcept override;
@@ -245,7 +245,7 @@ private:
     void* plainPolicy_ = nullptr;
     bool updatingTextProperty_ = false;
 
-    Result<void> SynchronizeModel() noexcept;
+    bool SynchronizeModel() noexcept;
     void OnTextPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept;
 };
 

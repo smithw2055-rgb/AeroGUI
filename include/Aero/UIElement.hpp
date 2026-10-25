@@ -355,7 +355,7 @@ class EventRouter;
     bool RemoveHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,
         Meta::TypeId argsType) noexcept;
     void CleanupHandlers() noexcept;
-    Result<void> EnsureRoutedHandlers() noexcept;
+    bool EnsureRoutedHandlers() noexcept;
     Rare& EnsureRare() noexcept;
 
     LayoutHot layout_{};

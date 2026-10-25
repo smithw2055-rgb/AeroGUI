@@ -398,8 +398,7 @@ bool UIElement::Focus() noexcept {
     if (input == nullptr) {
         return false;
     }
-    Base::Result<bool> res = input->SetFocus(this);
-    return res.HasValue() ? res.Value() : false;
+    return input->SetFocus(this);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -580,25 +579,22 @@ void UIElement::CleanupHandlers() noexcept {
 
 // from src/gui/controls/Layout.cpp
 
-Base::Result<void> UIElement::EnsureRoutedHandlers() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+bool UIElement::EnsureRoutedHandlers() noexcept {
+    if (!VerifyAccess()) return false;
     auto* state = static_cast<UIElementHandlerState*>(
         (rare_ != nullptr ? rare_->routedHandlers : nullptr));
-    if (state != nullptr) return Base::Result<void>();
+    if (state != nullptr) return true;
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
     void* memory = allocator.Allocate({
         sizeof(UIElementHandlerState),
         alignof(UIElementHandlerState),
         Base::MemoryTag::Ui});
     if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Routed event handler state allocation failed");
+        return false;
     }
     state = new (memory) UIElementHandlerState();
     EnsureRare().routedHandlers = state;
-    return Base::Result<void>();
+    return true;
 }
 
 void UIElement::OnPreviewMouseDown(MouseButtonEventArgs&) {}
@@ -816,19 +812,10 @@ void UIElement::AddHandlerErased(
         return;
     }
 
-    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
-    if (state == nullptr) {
-        Base::IAllocator& allocator = Base::GetDefaultAllocator();
-        void* memory = allocator.Allocate({
-            sizeof(UIElementHandlerState),
-            alignof(UIElementHandlerState),
-            Base::MemoryTag::Ui});
-        if (memory == nullptr) {
-            return;
-        }
-        state = new (memory) UIElementHandlerState();
-        EnsureRare().routedHandlers = state;
+    if (!EnsureRoutedHandlers()) {
+        return;
     }
+    auto* state = static_cast<UIElementHandlerState*>(rare_->routedHandlers);
     if (state->nextSequence == 0U) {
         return;
     }
@@ -863,8 +850,7 @@ bool UIElement::CancelDrag() noexcept {
     if (input == nullptr) {
         return false;
     }
-    Base::Result<bool> res = input->CancelDrag();
-    return res.HasValue() ? res.Value() : false;
+    return input->CancelDrag();
 }
 
 // from src/gui/input/Input.cpp
@@ -895,8 +881,7 @@ bool UIElement::CapturePointer(std::uint32_t pointerId) noexcept {
     if (input == nullptr) {
         return false;
     }
-    Base::Result<void> res = input->CapturePointer(pointerId, *this);
-    return res.HasValue();
+    return input->CapturePointer(pointerId, *this);
 }
 
 bool UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
@@ -904,8 +889,7 @@ bool UIElement::ReleasePointer(std::uint32_t pointerId) noexcept {
     if (input == nullptr) {
         return false;
     }
-    Base::Result<bool> res = input->ReleasePointer(pointerId);
-    return res.HasValue() ? res.Value() : false;
+    return input->ReleasePointer(pointerId);
 }
 
 UIElement::Rare& UIElement::EnsureRare() noexcept {

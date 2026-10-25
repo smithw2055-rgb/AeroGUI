@@ -61,18 +61,8 @@ Base::Result<Input::PointerDispatchResult> DispatchPointer(
     if (state.Overlays() == nullptr) {
         return dispatched;
     }
-    Base::Result<void> toolTip =
-        state.Overlays()->UpdateToolTipForPointer(
-            input, target);
-    if (!toolTip) {
-        return toolTip.GetStatus();
-    }
-    Base::Result<void> contextMenu =
-        state.Overlays()->OpenContextMenuForPointer(
-            input, target);
-    if (!contextMenu) {
-        return contextMenu.GetStatus();
-    }
+    state.Overlays()->UpdateToolTipForPointer(input, target);
+    state.Overlays()->OpenContextMenuForPointer(input, target);
     return dispatched;
 }
 
@@ -97,14 +87,8 @@ DispatchKeyboard(
             Input::KeyboardAction::Down &&
         input.key ==
             Input::KeyboardKeyEscape) {
-        Base::Result<bool> dismissed =
-            state.Overlays() != nullptr
-                ? state.Overlays()->DismissTopOverlayForEscape()
-                : Base::Result<bool>(false);
-        if (!dismissed) {
-            return dismissed.GetStatus();
-        }
-        if (dismissed.Value()) {
+        if (state.Overlays() != nullptr &&
+            state.Overlays()->DismissTopOverlayForEscape()) {
             Input::KeyboardDispatchResult
                 result;
             result.routed = true;
@@ -249,11 +233,11 @@ bool View::KeyDown(Input::Key key) noexcept {
     if (!active_ || state_ == nullptr) return false;
     std::uint32_t currentModifiers = Input::DeviceState::LastModifiers();
     const std::uint32_t rawKey = static_cast<std::uint32_t>(key);
-    if (rawKey == 0x10U || rawKey == 0xA0U || rawKey == 0xA1U) {
+    if (key == Input::Key::Shift || key == Input::Key::LeftShift || key == Input::Key::RightShift) {
         currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Shift);
-    } else if (rawKey == 0x11U || rawKey == 0xA2U || rawKey == 0xA3U) {
+    } else if (key == Input::Key::Control || key == Input::Key::LeftCtrl || key == Input::Key::RightCtrl) {
         currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Control);
-    } else if (rawKey == 0x12U || rawKey == 0xA4U || rawKey == 0xA5U) {
+    } else if (key == Input::Key::Alt || key == Input::Key::LeftAlt || key == Input::Key::RightAlt) {
         currentModifiers |= static_cast<std::uint32_t>(Input::KeyboardModifiers::Alt);
     }
     Input::DeviceState::SetLastModifiers(currentModifiers);
@@ -271,11 +255,11 @@ bool View::KeyUp(Input::Key key) noexcept {
     if (!active_ || state_ == nullptr) return false;
     std::uint32_t currentModifiers = Input::DeviceState::LastModifiers();
     const std::uint32_t rawKey = static_cast<std::uint32_t>(key);
-    if (rawKey == 0x10U || rawKey == 0xA0U || rawKey == 0xA1U) {
+    if (key == Input::Key::Shift || key == Input::Key::LeftShift || key == Input::Key::RightShift) {
         currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Shift);
-    } else if (rawKey == 0x11U || rawKey == 0xA2U || rawKey == 0xA3U) {
+    } else if (key == Input::Key::Control || key == Input::Key::LeftCtrl || key == Input::Key::RightCtrl) {
         currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Control);
-    } else if (rawKey == 0x12U || rawKey == 0xA4U || rawKey == 0xA5U) {
+    } else if (key == Input::Key::Alt || key == Input::Key::LeftAlt || key == Input::Key::RightAlt) {
         currentModifiers &= ~static_cast<std::uint32_t>(Input::KeyboardModifiers::Alt);
     }
     Input::DeviceState::SetLastModifiers(currentModifiers);
@@ -328,61 +312,4 @@ bool View::TouchUp(
     return active_ && state_ != nullptr && DispatchTouch(
         state_, Input::PointerAction::Up, x, y, id);
 }
-
-
-// ---- Section: Focus queue (merged from ViewFocus.cpp) ----
-
-FocusHost::FocusHost(ViewFrame& owner) noexcept
-    : view(&owner),
-      pendingFocusTargets(owner.allocator) {}
-
-void FocusHost::Bind() noexcept {
-    // Input is read on demand from the ElementTree hub via Input().
-}
-
-Aero::InputManager* FocusHost::Input() const noexcept {
-    return view != nullptr ? view->Input() : nullptr;
-}
-
-Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
-        Base::Ref<Aero::UIElement> retained =
-            Base::Ref<Aero::UIElement>::FromBorrowed(target);
-        for (const Base::WeakRef<Aero::UIElement>& pending :
-             pendingFocusTargets) {
-            Base::Ref<Aero::UIElement> existing = pending.Lock();
-            if (existing.Get() == &target) return {};
-        }
-        pendingFocusTargets.PushBack(
-            Base::WeakRef<Aero::UIElement>(retained));
-        return {};
-    }
-
-Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
-        Aero::InputManager* input = Input();
-        if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
-        std::uint32_t focusedCount = 0U;
-        std::uint32_t output = 0U;
-        for (std::uint32_t index = 0U;
-             index < pendingFocusTargets.Size(); ++index) {
-            Base::Ref<Aero::UIElement> target =
-                pendingFocusTargets[index].Lock();
-            if (!target) continue;
-            if (!target->GetIsLoaded()) {
-                if (output != index) {
-                    pendingFocusTargets[output] =
-                        std::move(pendingFocusTargets[index]);
-                }
-                ++output;
-                continue;
-            }
-            if (!target->GetIsEnabled()) continue;
-            Base::Result<bool> focused = input->SetFocus(target.Get());
-            if (!focused) return focused.GetStatus();
-            if (focused.Value()) ++focusedCount;
-        }
-        pendingFocusTargets.Resize(output);
-        return focusedCount;
-    }
-
-
 } // namespace Aero

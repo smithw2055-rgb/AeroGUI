@@ -677,20 +677,18 @@ UIElement* PointerStateMachine::CapturedNode(std::uint32_t pointerId) noexcept {
     return element;
 }
 
-Base::Result<void> PointerStateMachine::CapturePointer(
+bool PointerStateMachine::CapturePointer(
     std::uint32_t pointerId, UIElement& target) noexcept {
-    Base::Result<void> access = root_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (root_ == nullptr || !root_->CheckAccess()) return false;
     ElementTree* tree = VisualTree(root_);
     if (tree == nullptr || VisualTree(target) != tree || !target.GetIsLoaded()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Pointer capture target must be loaded in the input tree");
+        return false;
     }
     Base::Result<VisualHandle> handle = tree->GetHandle(target);
-    if (!handle) return handle.GetStatus();
+    if (!handle) return false;
     Base::Result<HitTestResult> local = hitTests_->RootToLocal(
         *root_, target, {});
-    if (!local) return local.GetStatus();
+    if (!local) return false;
     const std::uint32_t index = FindCapture(pointerId);
     if (index != UINT32_MAX) {
         ::Aero::Media::Visual* previousVisual =
@@ -702,23 +700,21 @@ Base::Result<void> PointerStateMachine::CapturePointer(
             captureChanged_.Invoke(pointerId, previous, false);
             captureChanged_.Invoke(pointerId, &target, true);
         }
-        return {};
+        return true;
     }
     captures_.PushBack({pointerId, handle.Value()});
     if (!captureChanged_.Empty()) {
         captureChanged_.Invoke(pointerId, &target, true);
     }
-    return {};
+    return true;
 }
 
-Base::Result<bool> PointerStateMachine::ReleasePointer(
+bool PointerStateMachine::ReleasePointer(
     std::uint32_t pointerId) noexcept {
-    Base::Result<void> access = root_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (root_ == nullptr || !root_->CheckAccess()) return false;
     const std::uint32_t index = FindCapture(pointerId);
     if (index == UINT32_MAX) return false;
-    Base::Result<void> state = UpdatePressed(pointerId, nullptr);
-    if (!state) return state.GetStatus();
+    if (!UpdatePressed(pointerId, nullptr)) return false;
     ::Aero::Media::Visual* visual = VisualTree(root_)->ResolveHandle(
         captures_[index].target);
     UIElement* target =
@@ -874,9 +870,7 @@ Base::Result<PointerDispatchResult> PointerStateMachine::Dispatch(
     if (commands_ != nullptr &&
         (input.action == PointerAction::Down ||
          input.action == PointerAction::Up)) {
-        Base::Result<bool> command =
-            commands_->ProcessInput(*result.hit.target, input);
-        if (!command) return command.GetStatus();
+        commands_->ProcessInput(*result.hit.target, input);
     }
     if (input.action == PointerAction::Up) {
         const std::uint32_t index = FindCapture(input.pointerId);
@@ -1091,7 +1085,7 @@ void DragDropState::Clear() noexcept {
     active_ = false;
 }
 
-Base::Result<bool> DragDropState::Cancel() noexcept {
+bool DragDropState::Cancel() noexcept {
     if (!active_) return false;
     UIElement* target = Resolve(target_);
     if (target != nullptr) {
@@ -1102,13 +1096,11 @@ Base::Result<bool> DragDropState::Cancel() noexcept {
             UIElement::DragLeaveEvent,
             {},
             leaveEffects);
-        if (!left) return left.GetStatus();
+        if (!left) return false;
     }
     Base::Result<void> completed = Complete(
         DragDropEffects::None, true);
-    return completed
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(completed.GetStatus());
+    return completed.HasValue();
 }
 
 Base::Result<void> DragDropState::DispatchPointer(
@@ -1311,13 +1303,12 @@ static UIElement* FindFirstFocusableDescendant(
     return nullptr;
 }
 
-Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
+bool FocusState::SetFocus(UIElement* node) noexcept {
     if (node == nullptr) return ClearFocus();
     Base::Result<VisualHandle> next = tree_->GetHandle(*node);
-    if (!next) return next.GetStatus();
+    if (!next) return false;
     if (!node->GetIsLoaded() || !node->GetIsEnabled()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Keyboard focus target must be loaded and enabled");
+        return false;
     }
     // WPF UIElement.Focus() on a non-focusable target returns false.
     // FocusManager.IsFocusScope grids (Menu3D LayoutRoot) are the exception:
@@ -1374,7 +1365,7 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
             static_cast<void>(
                 (*previous).SetKeyboardFocusedState( true));
             static_cast<void>(setFocusWithin(*previous, true));
-            return lost.GetStatus();
+            return false;
         }
     }
     (*node).SetKeyboardFocusedState( true);
@@ -1392,19 +1383,18 @@ Base::Result<bool> FocusState::SetFocus(UIElement* node) noexcept {
                 (*previous).SetKeyboardFocusedState( true));
             static_cast<void>(setFocusWithin(*previous, true));
         }
-        return gained.GetStatus();
+        return false;
     }
     focused_ = next.Value();
-    Base::Result<void> remembered = RememberFocus(*node);
-    if (!remembered) return remembered.GetStatus();
+    static_cast<void>(RememberFocus(*node));
     return true;
 }
 
-Base::Result<bool> FocusState::ClearFocus() noexcept {
+bool FocusState::ClearFocus() noexcept {
     UIElement* previous = FocusedNode();
     if (previous == nullptr) return false;
     Base::Result<void> access = previous->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (!access) return false;
     (*previous).SetKeyboardFocusedState( false);
     auto setFocusWithin = [](UIElement& element, bool value) noexcept {
         ::Aero::Media::Visual* current = &element;
@@ -1424,28 +1414,26 @@ Base::Result<bool> FocusState::ClearFocus() noexcept {
         static_cast<void>(
             (*previous).SetKeyboardFocusedState( true));
         static_cast<void>(setFocusWithin(*previous, true));
-        return lost.GetStatus();
+        return false;
     }
     focused_ = {};
     return true;
 }
 
-Base::Result<bool> FocusState::MoveFocus(
+bool FocusState::MoveFocus(
     FocusNavigationDirection direction,
     bool wrap) noexcept {
     UIElement* current = FocusedNode();
     UIElement* scope = FindNavigationScope(current);
     if (scope == nullptr || !scope->GetIsLoaded()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Focus navigation requires a loaded UIElement root");
+        return false;
     }
     Base::Vector<FocusCandidate> candidates(
         &Base::GetDefaultAllocator());
     std::uint32_t order = 0U;
     Base::Result<void> collected =
         CollectCandidates(*scope, candidates, order);
-    if (!collected) return collected.GetStatus();
-    if (candidates.Empty()) return false;
+    if (!collected || candidates.Empty()) return false;
 
     std::uint32_t currentIndex = UINT32_MAX;
     for (std::uint32_t index = 0U;
@@ -1521,20 +1509,17 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
     if (result.target == nullptr) {
         if (input.action == KeyboardAction::Down &&
             input.key == KeyboardKeyTab) {
-            Base::Result<bool> moved = focus_->MoveFocus(
+            result.focusMoved = focus_->MoveFocus(
                 HasKeyboardModifier(input.modifiers,
                     KeyboardModifiers::Shift)
                     ? FocusNavigationDirection::Previous
                     : FocusNavigationDirection::Next);
-            if (!moved) return moved.GetStatus();
-            result.focusMoved = moved.Value();
             result.target = focus_->FocusedNode();
         }
         return result;
     }
     if (!result.target->GetIsEnabled()) {
-        Base::Result<bool> cleared = focus_->ClearFocus();
-        if (!cleared) return cleared.GetStatus();
+        focus_->ClearFocus();
         result.target = nullptr;
         return result;
     }
@@ -1554,21 +1539,17 @@ Base::Result<KeyboardDispatchResult> KeyboardState::Dispatch(
     if (commands_ != nullptr &&
         input.action == KeyboardAction::Down &&
         !args.GetHandled()) {
-        Base::Result<bool> command =
+        result.commandExecuted =
             commands_->ProcessInput(*result.target, input);
-        if (!command) return command.GetStatus();
-        result.commandExecuted = command.Value();
     }
     if (input.action == KeyboardAction::Down &&
         input.key == KeyboardKeyTab &&
         !args.GetHandled() && !result.commandExecuted) {
-        Base::Result<bool> moved = focus_->MoveFocus(
+        result.focusMoved = focus_->MoveFocus(
             HasKeyboardModifier(input.modifiers,
                 KeyboardModifiers::Shift)
                 ? FocusNavigationDirection::Previous
                 : FocusNavigationDirection::Next);
-        if (!moved) return moved.GetStatus();
-        result.focusMoved = moved.Value();
     }
     return result;
 }

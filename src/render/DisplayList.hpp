@@ -161,8 +161,6 @@ struct CmdDrawGradientMesh {
     Transform2D inverse;
 };
 
-using CmdDrawMesh = CmdDrawGradientMesh;
-
 class DisplayList {
 public:
     DisplayList() noexcept = default;
@@ -200,40 +198,40 @@ class DisplayListBuilder {
 public:
     DisplayListBuilder() noexcept = default;
 
-    Base::Result<void> PushClip(Rect clip) noexcept;
-    Base::Result<void> PopClip() noexcept;
-    Base::Result<void> PushOpacity(double opacity) noexcept;
-    Base::Result<void> PopOpacity() noexcept;
-    Base::Result<void> PushTransform(Transform2D value) noexcept;
-    Base::Result<void> PushTransform(ProjectiveTransform2D value) noexcept;
-    Base::Result<void> PopTransform() noexcept;
-    Base::Result<void> FillRect(Rect rect, Color color) noexcept;
-    Base::Result<void> FillRoundedRect(
+    void PushClip(Rect clip) noexcept;
+    void PopClip() noexcept;
+    void PushOpacity(double opacity) noexcept;
+    void PopOpacity() noexcept;
+    void PushTransform(Transform2D value) noexcept;
+    void PushTransform(ProjectiveTransform2D value) noexcept;
+    void PopTransform() noexcept;
+    void FillRect(Rect rect, Color color) noexcept;
+    void FillRoundedRect(
         Rect rect, Color color, double cornerRadius) noexcept;
-    Base::Result<void> FillGradientQuad(
+    void FillGradientQuad(
         const Point points[4], const Color colors[4]) noexcept;
-    Base::Result<void> FillGradientQuad(
+    void FillGradientQuad(
         const Point points[4],
         const Point uvs[4],
         std::uint8_t paintKind,
         const float uniforms[8],
         std::uintptr_t gradientBrush,
         std::uint8_t wrapMode = 0U) noexcept;
-    Base::Result<void> StrokeRect(
+    void StrokeRect(
         Rect rect, Color color, double thickness,
         double cornerRadius = 0.0) noexcept;
-    Base::Result<void> DrawAnalyticalShadow(
+    void DrawAnalyticalShadow(
         Rect rect, Color color, float cornerRadius, float blurRadius, Point offset) noexcept;
-    Base::Result<void> DrawImage(
+    void DrawImage(
         RenderImageId image,
         Rect destination,
         Rect sourceUv,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F},
         std::uint8_t wrapMode = 0U) noexcept;
-    Base::Result<void> DrawMesh(
+    void DrawMesh(
         RenderMeshId mesh,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    Base::Result<void> DrawMesh(
+    void DrawMesh(
         RenderMeshId mesh,
         std::uint8_t paintKind,
         const float uniforms[8],
@@ -246,10 +244,10 @@ public:
         bool hasInverse,
         Transform2D inverse,
         std::uint8_t wrapMode = 0U) noexcept;
-    Base::Result<void> DrawGlyphRun(
+    void DrawGlyphRun(
         RenderGlyphRunId glyphRun,
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F}) noexcept;
-    Base::Result<void> DrawTriangles(
+    void DrawTriangles(
         const Point* vertices,
         std::uint32_t vertexCount,
         const std::uint32_t* indices,

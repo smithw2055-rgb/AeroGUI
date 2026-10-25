@@ -61,12 +61,11 @@ bool TemplateHasTypeFlag(
 }
 
 template <typename TTemplate>
-inline Base::Result<void> ApplyTemplateBaseUriIfEmpty(
+inline void ApplyTemplateBaseUriIfEmpty(
     TTemplate& tpl, const Base::ResourceUri* uri) noexcept {
     if (uri != nullptr && ::Aero::Controls::FrameworkTemplateState::BaseUri(tpl).Empty()) {
-        return ::Aero::Controls::FrameworkTemplateState::SetBaseUri(tpl, *uri);
+        ::Aero::Controls::FrameworkTemplateState::SetBaseUri(tpl, *uri);
     }
-    return {};
 }
 
 Aero::ResourceDictionary* ResolveTemplateResources(
@@ -217,13 +216,13 @@ struct XamlTemplateSchemaFacet::State {
         if (!copied) return copied.GetStatus();
 
         if (services.baseUri != nullptr) {
-            Base::Result<void> baseUri =
-                isControlTemplate
-                    ? ApplyTemplateBaseUriIfEmpty(static_cast<ControlTemplate&>(object), services.baseUri)
-                    : isDataTemplateFamily
-                          ? ApplyTemplateBaseUriIfEmpty(static_cast<DataTemplate&>(object), services.baseUri)
-                          : ApplyTemplateBaseUriIfEmpty(static_cast<ItemsPanelTemplate&>(object), services.baseUri);
-            if (!baseUri) return baseUri.GetStatus();
+            if (isControlTemplate) {
+                ApplyTemplateBaseUriIfEmpty(static_cast<ControlTemplate&>(object), services.baseUri);
+            } else if (isDataTemplateFamily) {
+                ApplyTemplateBaseUriIfEmpty(static_cast<DataTemplate&>(object), services.baseUri);
+            } else {
+                ApplyTemplateBaseUriIfEmpty(static_cast<ItemsPanelTemplate&>(object), services.baseUri);
+            }
         }
         if (isDataTemplateFamily || isItemsPanelTemplate) {
             const Base::Ref<Base::Object>* authored = nullptr;

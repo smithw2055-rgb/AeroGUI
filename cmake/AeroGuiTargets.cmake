@@ -82,6 +82,7 @@ set(_aero_gui_input_sources
     src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
     src/gui/input/OverlayHost.cpp
+    src/gui/input/FocusHost.cpp
     src/gui/input/InputEnumsDescribe.cpp)
 
 set(_aero_gui_triggers_sources
@@ -98,6 +99,7 @@ set(_aero_gui_interactivity_sources
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
     src/gui/media/AnimationEngine.Apply.cpp
+    src/gui/media/AnimationEngine.Timeline.cpp
     src/gui/media/Animation.cpp
     src/gui/media/Brushes.cpp
     src/gui/media/Effects.cpp
@@ -458,11 +460,11 @@ aero_verify_windows_exports(
 
 if(AERO_ENABLE_WGL_SURFACE)
     target_sources(AeroRenderOpenGL33 PRIVATE
-        src/render/platform/win32/OpenGLWindow.cpp)
+        src/render/opengl33/OpenGLWindowWin32.cpp)
 endif()
 if(AERO_ENABLE_GLX_SURFACE)
     target_sources(AeroRenderOpenGL33 PRIVATE
-        src/render/platform/x11/OpenGLWindow.cpp)
+        src/render/opengl33/OpenGLWindowX11.cpp)
 endif()
 
 if(AERO_ENABLE_WGL_SURFACE)

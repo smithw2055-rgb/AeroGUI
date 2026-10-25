@@ -873,12 +873,14 @@ Base::Result<PropertyValue> ConvertColorToBrush(
     Base::Result<Base::Color> color =
         Meta::ValueCodec<Base::Color>::Decode(value);
     if (!color) return color.GetStatus();
-    Base::Result<Base::Ref<Media::Brush>> brush =
+    Base::Ref<Media::Brush> brush =
         Media::MakeSolidColorBrush(color.Value());
-    if (!brush) return brush.GetStatus();
+    if (!brush) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create brush");
+    }
     return PropertyValue::FromObject(
         Media::Brush::StaticTypeId(),
-        Base::Ref<Base::Object>(std::move(brush).Value()));
+        Base::Ref<Base::Object>(std::move(brush)));
 }
 
 // A TwoWay object binding may intentionally expose a concrete source object

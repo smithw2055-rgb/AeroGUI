@@ -3415,11 +3415,10 @@ Registry::SubscribePropertyChanged(
         notification->context);
 }
 
-Base::Result<bool> Registry::UnsubscribePropertyChanged(
+bool Registry::UnsubscribePropertyChanged(
     Base::Object& object,
     std::uint64_t subscription) const noexcept {
-    if (!IsReady()) return MetadataNotReady();
-    if (subscription == 0U) return false;
+    if (!IsReady() || subscription == 0U) return false;
     const ::Aero::PropertyChangeNotificationFacet* notification =
         RuntimeData().FindPropertyChangeNotification(
             object.RuntimeType());
@@ -3461,10 +3460,8 @@ Registry::CreateObject(TypeId type) const noexcept {
             Base::ErrorCode::Unsupported,
             "Metadata type has no constructible factory");
     }
-    Base::Result<Base::Ref<Base::Object>> created =
-        factory->factory();
-    if (!created) return created.GetStatus();
-    if (!created.Value()) {
+    Base::Ref<Base::Object> created = factory->factory();
+    if (!created) {
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
             "Metadata factory returned a null object");

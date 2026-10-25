@@ -124,7 +124,7 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     if (!shaped) return shaped.GetStatus();
 
     if (request.arrangeToAvailableWidth && std::isfinite(layoutRequest.maxWidth)) {
-        static_cast<void>(layout.Arrange(layoutRequest.maxWidth));
+        layout.Arrange(layoutRequest.maxWidth);
     }
 
     output.desiredSize = ::Aero::Size{
@@ -262,7 +262,7 @@ void TextRenderer::ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept {
     }
 }
 
-Base::Result<std::uint32_t> TextRenderer::CollectGarbage() noexcept {
+std::uint32_t TextRenderer::CollectGarbage() noexcept {
     return 0U;
 }
 

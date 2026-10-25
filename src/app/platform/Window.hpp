@@ -94,12 +94,12 @@ public:
 
     virtual Base::Result<void> Create(
         const WindowDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> Show() noexcept = 0;
-    virtual Base::Result<bool> PollEvent(
+    virtual void Show() noexcept = 0;
+    virtual bool PollEvent(
         WindowEvent& event) noexcept = 0;
-    virtual Base::Result<bool> WaitEvent(
+    virtual bool WaitEvent(
         WindowEvent& event) noexcept = 0;
-    virtual Base::Result<bool> WaitEventFor(
+    virtual bool WaitEventFor(
         WindowEvent& event,
         std::uint32_t timeoutMilliseconds) noexcept;
     virtual void Close() noexcept = 0;

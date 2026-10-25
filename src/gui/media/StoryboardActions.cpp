@@ -350,10 +350,9 @@ StoryboardHost::ExecuteAnimationAction(
             return view->Focus()->QueueFocus(*target);
         }
         if (!target->GetIsEnabled()) return {};
-        Base::Result<bool> focused = Input()->SetFocus(target);
         // Focus is best-effort. A failed SetFocus must not fail the
         // EventTrigger (QuestLog MouseEnter → SelectAction).
-        static_cast<void>(focused);
+        static_cast<void>(Input()->SetFocus(target));
         return {};
     }
 
@@ -474,11 +473,13 @@ StoryboardHost::ExecuteAnimationAction(
                     }
                 }
                 if (index != UINT32_MAX) {
-                    Base::Result<Base::Ref<Base::Object>> removed =
+                    Base::Ref<Base::Object> removed =
                         items.GetItems().RemoveAt(index);
                     return removed
                         ? Base::Result<void>()
-                        : Base::Result<void>(removed.GetStatus());
+                        : Base::Result<void>(Base::Status::Failure(
+                              Base::ErrorCode::NotFound,
+                              "Failed to remove item from ItemCollection"));
                 }
             }
             current = TryCast<Media::Visual>(current->GetLogicalParent()) != nullptr ? TryCast<Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
@@ -524,8 +525,7 @@ StoryboardHost::ExecuteAnimationAction(
                     existing.handles.AsSpan());
                 for (Model::AnimationHandle handle :
                      existing.handles) {
-                    static_cast<void>(
-                        Animations()->Remove(handle));
+                    Animations()->Remove(handle);
                 }
                 for (std::uint32_t next = index + 1U;
                      next < storyboardSessions.Size();
@@ -550,8 +550,7 @@ StoryboardHost::ExecuteAnimationAction(
         if (!started) {
             for (Model::AnimationHandle handle :
                  completion.handles) {
-                static_cast<void>(
-                    Animations()->Remove(handle));
+                Animations()->Remove(handle);
             }
             return started.GetStatus();
         }
@@ -566,8 +565,7 @@ StoryboardHost::ExecuteAnimationAction(
             if (!named) {
                 for (Model::AnimationHandle handle :
                      completion.handles) {
-                    static_cast<void>(
-                        Animations()->Remove(handle));
+                    Animations()->Remove(handle);
                 }
                 return named.GetStatus();
             }
@@ -602,16 +600,17 @@ StoryboardHost::ExecuteAnimationAction(
             if (session.storyboard.Get() != control.GetStoryboard().Get()) continue;
             found = true;
             for (Model::AnimationHandle handle : session.handles) {
-                Base::Result<void> result;
                 if (control.GetControlOption() == ControlStoryboardAction::Option::Stop) {
-                    result = Animations()->Stop(handle);
-                    if (result) {
+                    if (Animations()->Stop(handle)) {
                         stopped.PushBack(handle);
                     }
-                } else if (control.GetControlOption() == ControlStoryboardAction::Option::Pause) result = Animations()->Pause(handle);
-                else if (control.GetControlOption() == ControlStoryboardAction::Option::Resume) result = Animations()->Resume(handle);
-                else return Base::Status::Failure(Base::ErrorCode::Unsupported, "ControlStoryboardAction option is not implemented");
-                if (!result) return result.GetStatus();
+                } else if (control.GetControlOption() == ControlStoryboardAction::Option::Pause) {
+                    Animations()->Pause(handle);
+                } else if (control.GetControlOption() == ControlStoryboardAction::Option::Resume) {
+                    Animations()->Resume(handle);
+                } else {
+                    return Base::Status::Failure(Base::ErrorCode::Unsupported, "ControlStoryboardAction option is not implemented");
+                }
             }
         }
         if (control.GetControlOption() ==
@@ -696,27 +695,26 @@ StoryboardHost::ExecuteAnimationAction(
         storyboardSessions[sessionIndex];
     for (Model::AnimationHandle handle :
          session.handles) {
-        Base::Result<void> result;
         if (type ==
             PauseStoryboard::
                 StaticTypeId()) {
-            result = Animations()->Pause(handle);
+            Animations()->Pause(handle);
         } else if (type ==
             ResumeStoryboard::
                 StaticTypeId()) {
-            result = Animations()->Resume(handle);
+            Animations()->Resume(handle);
         } else if (type ==
             StopStoryboard::
                 StaticTypeId()) {
-            result = Animations()->Stop(handle);
+            Animations()->Stop(handle);
         } else if (type ==
             RemoveStoryboard::
                 StaticTypeId()) {
-            result = Animations()->Remove(handle);
+            Animations()->Remove(handle);
         } else if (type ==
             SeekStoryboard::
                 StaticTypeId()) {
-            result = Animations()->Seek(
+            Animations()->Seek(
                 handle,
                 static_cast<
                     SeekStoryboard&>(
@@ -727,7 +725,6 @@ StoryboardHost::ExecuteAnimationAction(
                 Base::ErrorCode::Unsupported,
                 "Controllable Storyboard action is unsupported");
         }
-        if (!result) return result.GetStatus();
     }
     if (type ==
             StopStoryboard::StaticTypeId() ||
@@ -758,15 +755,13 @@ namespace Aero {
 using namespace Media::Animation;
 
 
-Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
+bool StoryboardHost::AnimationEventState::EvaluateComparison(
             const Interactivity::ComparisonCondition& condition) noexcept {
             const Base::Ref<Data::Binding> binding =
                 condition.GetLeftOperand();
             if (!binding || runtime == nullptr ||
                 runtime->Metadata() == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidState,
-                    "ConditionBehavior requires a bound left operand");
+                return false;
             }
             Base::Result<Meta::PropertyValue> current =
                 Base::Status::Failure(Base::ErrorCode::NotFound, "Value not found");
@@ -781,9 +776,7 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                     nullptr);
             } else {
                 if (binding->GetElementName().Empty()) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::Unsupported,
-                        "ConditionBehavior currently requires Binding ElementName");
+                    return false;
                 }
                 Base::Object* source = nullptr;
                 if (dataTemplateContext != nullptr) {
@@ -797,18 +790,16 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                           binding->GetElementName());
                 }
                 if (source == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "ConditionBehavior Binding ElementName was not found");
+                    return false;
                 }
                 Base::Result<Meta::BindingPathPlan> plan =
                     Meta::BindingPathPlan::Compile(
                         *runtime->Metadata(),
                         source->RuntimeType(), binding->GetPath().GetPath());
-                if (!plan) return plan.GetStatus();
+                if (!plan) return false;
                 current = plan.Value().Get(*runtime->Metadata(), *source);
             }
-            if (!current) return current.GetStatus();
+            if (!current) return false;
             return ComparePropertyValues(
                 current.Value(),
                 condition.GetRightOperand(),
@@ -817,22 +808,18 @@ Base::Result<bool> StoryboardHost::AnimationEventState::EvaluateComparison(
                     condition.GetComparisonOperator()));
         }
 
-Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution() noexcept {
+bool StoryboardHost::AnimationEventState::BehaviorsAllowExecution() noexcept {
             for (const Base::Ref<Base::Object>& behavior :
                  trigger->GetBehaviors()) {
                 if (!behavior) continue;
                 if (behavior->RuntimeType() !=
                     Interactivity::ConditionBehavior::StaticTypeId()) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::Unsupported,
-                        "EventTrigger contains an unsupported behavior");
+                    return false;
                 }
                 const Base::Ref<Interactivity::ConditionalExpression> expression =
                     static_cast<Interactivity::ConditionBehavior&>(*behavior).GetExpression();
                 if (!expression) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidState,
-                        "ConditionBehavior has no expression");
+                    return false;
                 }
                 const bool conjunction = expression->GetChaining() ==
                     Interactivity::ConditionalExpression::ForwardChaining::And;
@@ -842,9 +829,8 @@ Base::Result<bool> StoryboardHost::AnimationEventState::BehaviorsAllowExecution(
                      expression->GetConditions()) {
                     if (!condition) continue;
                     hasCondition = true;
-                    Base::Result<bool> matches = EvaluateComparison(*condition);
-                    if (!matches) return matches.GetStatus();
-                    expressionResult = matches.Value();
+                    const bool matches = EvaluateComparison(*condition);
+                    expressionResult = matches;
                     if (conjunction && !expressionResult) return false;
                     if (!conjunction && expressionResult) break;
                 }
@@ -860,11 +846,9 @@ void StoryboardHost::AnimationEventState::Invoke(
                 owner == nullptr) {
                 return;
             }
-            Base::Result<bool> allowed = BehaviorsAllowExecution();
-            if (!allowed) {
+            if (!BehaviorsAllowExecution()) {
                 return;
             }
-            if (!allowed.Value()) return;
             for (const Base::Ref<Interactivity::TriggerAction>& action :
                  trigger->GetActions()) {
                 if (!action) continue;

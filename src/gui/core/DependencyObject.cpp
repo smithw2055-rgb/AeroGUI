@@ -559,13 +559,10 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<bool> DependencyObject::ClearAnimationValueInternal(
+bool DependencyObject::ClearAnimationValueInternal(
     DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
-        auto* storedEntry = FindStoredEntry(property);
+    if (!VerifyReady() || !VerifyMutationAllowed()) return false;
+    auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->HasAnimation()) return false;
     storedEntry->ClearAnimation();
     return true;
@@ -593,13 +590,10 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
+bool DependencyObject::InvalidateBaseValueInternal(
     DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
-        auto* storedEntry = FindStoredEntry(property);
+    if (!VerifyReady() || !VerifyMutationAllowed()) return false;
+    auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->HasCurrent()) return false;
     storedEntry->ClearCurrent();
     return true;
@@ -607,13 +601,10 @@ Base::Result<bool> DependencyObject::InvalidateBaseValueInternal(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<bool> DependencyObject::ClearLocalExpressionInternal(
+bool DependencyObject::ClearLocalExpressionInternal(
     DependencyPropertyHandle property) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
-        auto* storedEntry = FindStoredEntry(property);
+    if (!VerifyReady() || !VerifyMutationAllowed()) return false;
+    auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr || !storedEntry->HasExpression()) return false;
     ReleaseExpression(*const_cast<StoredValueEntry*>(storedEntry));
     storedEntry->ClearCurrent();
@@ -649,13 +640,10 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
+bool DependencyObject::ClearProviderOriginInternal(
     DependencyPropertyHandle property, std::uint32_t origin) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
-        auto* storedEntry = FindStoredEntry(property);
+    if (!VerifyReady() || !VerifyMutationAllowed()) return false;
+    auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr) return false;
     PropertyProviderSet* providers = storedEntry->ProvidersMutable();
     const bool removed = providers != nullptr &&
@@ -668,13 +656,10 @@ Base::Result<bool> DependencyObject::ClearProviderOriginInternal(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<bool> DependencyObject::ClearProviderContributionInternal(
+bool DependencyObject::ClearProviderContributionInternal(
     DependencyPropertyHandle property, PropertyProviderToken token) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
-        auto* storedEntry = FindStoredEntry(property);
+    if (!VerifyReady() || !VerifyMutationAllowed()) return false;
+    auto* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr) return false;
     PropertyProviderSet* providers = storedEntry->ProvidersMutable();
     const bool removed = providers != nullptr && providers->Remove(token);

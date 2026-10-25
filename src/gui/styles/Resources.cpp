@@ -601,30 +601,23 @@ Base::Result<void> ResourceDictionary::Add(
         source);
 }
 
-Base::Result<void> ResourceDictionary::StoreResource(
+bool ResourceDictionary::StoreResource(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (!key.IsValid() ||
         value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
+        return false;
     }
     Base::Result<Access*> storage = EnsureState();
-    if (!storage) {
-        return storage.GetStatus();
-    }
-    if (storage->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
+    if (!storage || storage->sealed) {
+        return false;
     }
     Access::Entry* entry =
         FindLocal(*storage.Value(), key);
     if (entry == nullptr) {
-        return Add(key, value, source);
+        return static_cast<bool>(Add(key, value, source));
     }
     entry->value = value;
     entry->source = source;
@@ -632,22 +625,22 @@ Base::Result<void> ResourceDictionary::StoreResource(
         *storage.Value(),
         CallbackKey(key),
         ResourceChangeKind::Replaced);
-    return {};
+    return true;
 }
 
-Base::Result<void> ResourceDictionary::StoreResource(
+bool ResourceDictionary::StoreResource(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
-        return resourceKey.GetStatus();
+        return false;
     }
     return StoreResource(resourceKey.Value(), value, source);
 }
 
-Base::Result<void> ResourceDictionary::StoreResource(
+bool ResourceDictionary::StoreResource(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
@@ -655,15 +648,13 @@ Base::Result<void> ResourceDictionary::StoreResource(
         ResourceKey::FromType(key), value, source);
 }
 
-Base::Result<void> ResourceDictionary::StoreResource(
+bool ResourceDictionary::StoreResource(
     Base::StringView key,
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (type == Meta::InvalidTypeId || !object) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
+        return false;
     }
     return StoreResource(
         key,
@@ -675,21 +666,21 @@ bool ResourceDictionary::Set(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(StoreResource(key, value, source));
+    return StoreResource(key, value, source);
 }
 
 bool ResourceDictionary::Set(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(StoreResource(key, value, source));
+    return StoreResource(key, value, source);
 }
 
 bool ResourceDictionary::Set(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(StoreResource(key, value, source));
+    return StoreResource(key, value, source);
 }
 
 bool ResourceDictionary::Set(
@@ -697,7 +688,7 @@ bool ResourceDictionary::Set(
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return static_cast<bool>(StoreResource(key, type, object, source));
+    return StoreResource(key, type, object, source);
 }
 
 bool ResourceDictionary::Remove(
@@ -863,16 +854,14 @@ Base::Result<void> ResourceDictionary::AddMerged(
     return {};
 }
 
-Base::Result<bool> ResourceDictionary::RemoveMerged(
+bool ResourceDictionary::RemoveMerged(
     ResourceDictionary& dictionary) noexcept {
     if (state_ == nullptr ||
         dictionary.state_ == nullptr) {
         return false;
     }
     if (state_->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
+        return false;
     }
     for (std::uint32_t index = 0U;
          index < state_->merged.Size();

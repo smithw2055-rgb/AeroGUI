@@ -646,7 +646,7 @@ Base::Result<void> Gui::LoadComponent(
     return {};
 }
 
-Base::Result<bool> Gui::TakeLoadedDocument(
+bool Gui::TakeLoadedDocument(
     Base::Object& root,
     Markup::XamlDocument& document) noexcept {
     GuiRuntime& state = *state_;
@@ -658,7 +658,7 @@ Base::Result<bool> Gui::TakeLoadedDocument(
         Base::Result<Markup::XamlDocument> adopted =
             Markup::AdoptXamlDocument(
                 std::move(pending), *state.allocator);
-        if (!adopted) return adopted.GetStatus();
+        if (!adopted) return false;
         document = std::move(adopted).Value();
         state.RemovePendingDocument(index);
         return true;

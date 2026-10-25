@@ -619,13 +619,11 @@ void TextBlock::OnRender(
     auto& builder = Aero::Render::DrawingBridge::Builder(context);
     const Color background = ::Aero::Media::SampleBrush(GetBackground());
     if (background.alpha > 0.0F) {
-        Base::Result<void> filled =
-            builder.FillRect(
-                {0.0, 0.0,
-                 GetRenderSize().width,
-                 GetRenderSize().height},
-                background);
-        if (!filled) return;
+        builder.FillRect(
+            {0.0, 0.0,
+             GetRenderSize().width,
+             GetRenderSize().height},
+            background);
     }
     const Thickness padding =
         GetValue(PaddingProperty);
@@ -635,7 +633,7 @@ void TextBlock::OnRender(
         Base::Transform2D origin;
         origin.dx = padding.left;
         origin.dy = padding.top;
-        if (!builder.PushTransform(origin)) return;
+        builder.PushTransform(origin);
     }
     struct RichTextLineClip {
         float x = 0.0F;
@@ -656,10 +654,8 @@ void TextBlock::OnRender(
 
     if (!hasStyledRanges || textHitRegions_.Empty()) {
         for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            Base::Result<void> drawn =
-                builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
-                    Color{0.0F, 0.0F, 0.0F, 1.0F}));
-            if (!drawn) return;
+            builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
+                Color{0.0F, 0.0F, 0.0F, 1.0F}));
         }
     } else {
         struct StyleSpan {
@@ -770,29 +766,29 @@ void TextBlock::OnRender(
                     std::max(0.0, static_cast<double>(line.y)),
                     std::max(0.0, static_cast<double>(line.right - line.x) + extraLeft + extraRight),
                     std::max(0.0, static_cast<double>(line.height))};
-                if (!builder.PushClip(clip)) return;
+                builder.PushClip(clip);
                 bool skewed = false;
                 if (span.italic) {
                     Base::Transform2D italic;
                     italic.m21 = -0.16;
                     italic.dx = 0.16 * (line.y + line.height);
-                    if (!builder.PushTransform(italic)) return;
+                    builder.PushTransform(italic);
                     skewed = true;
                 }
                 for (RenderGlyphRunId glyphRun : glyphRuns_) {
-                    if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+                    builder.DrawGlyphRun(glyphRun, tint);
                 }
                 if (span.bold) {
                     Base::Transform2D embolden;
                     embolden.dx = 0.4;
-                    if (!builder.PushTransform(embolden)) return;
+                    builder.PushTransform(embolden);
                     for (RenderGlyphRunId glyphRun : glyphRuns_) {
-                        if (!builder.DrawGlyphRun(glyphRun, tint)) return;
+                        builder.DrawGlyphRun(glyphRun, tint);
                     }
-                    if (!builder.PopTransform()) return;
+                    builder.PopTransform();
                 }
-                if (skewed && !builder.PopTransform()) return;
-                if (!builder.PopClip()) return;
+                if (skewed) builder.PopTransform();
+                builder.PopClip();
             }
         }
     }
@@ -804,13 +800,13 @@ void TextBlock::OnRender(
         const double y = std::max(
             0.0,
             glyphRunSize_.height - thickness * 1.5);
-        static_cast<void>(builder.FillRect(
+        builder.FillRect(
             {0.0, y, glyphRunSize_.width, thickness},
             ::Aero::Media::SampleBrush(GetForeground(), 0.5,
-                Color{0.0F, 0.0F, 0.0F, 1.0F})));
+                Color{0.0F, 0.0F, 0.0F, 1.0F}));
     }
     if (shiftGlyphs) {
-        static_cast<void>(builder.PopTransform());
+        builder.PopTransform();
     }
     return;
 }

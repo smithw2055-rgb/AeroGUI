@@ -312,7 +312,7 @@ Base::Result<void> LoadFromUri(
             // of a large tree (Inventory) can take several seconds; waiting
             // until that finishes looks like a hung process with no window.
             if (owner != nullptr && owner->visible && nativeWindow) {
-                static_cast<void>(nativeWindow->Show());
+                nativeWindow->Show();
             }
             width = nativeWindow->ClientWidth();
             height = nativeWindow->ClientHeight();
@@ -415,11 +415,11 @@ Base::Result<void> LoadFromUri(
                 nativeWindow->NativeHandle();
             void* nativeHandle = reinterpret_cast<void*>(handle.window);
             clipboard.SetOwnerWindow(nativeHandle);
-            Base::Result<void> inputAttached =
-                inputMethod.Attach(nativeHandle);
-            if (!inputAttached) {
+            if (!inputMethod.Attach(nativeHandle)) {
                 nativeWindow->Close();
-                return inputAttached.GetStatus();
+                return Base::Status::Failure(
+                    Base::ErrorCode::InternalError,
+                    "Win32 failed to attach IME to window");
             }
 #endif
             return {};
@@ -554,9 +554,7 @@ Base::Result<void> LoadFromUri(
             bool handled = false;
             for (;;) {
                 Platform::WindowEvent event;
-                Base::Result<bool> received = nativeWindow->PollEvent(event);
-                if (!received) return received.GetStatus();
-                if (!received.Value()) break;
+                if (!nativeWindow->PollEvent(event)) break;
                 handled = true;
                 Base::Result<void> status = HandleEvent(event);
                 if (!status) return status.GetStatus();
@@ -575,11 +573,9 @@ Base::Result<void> LoadFromUri(
                 return false;
             }
             Platform::WindowEvent event;
-            Base::Result<bool> received = blockUntilEvent
+            const bool handled = blockUntilEvent
                 ? nativeWindow->WaitEvent(event)
                 : nativeWindow->WaitEventFor(event, timeoutMilliseconds);
-            if (!received) return received.GetStatus();
-            bool handled = received.Value();
             if (handled) {
                 Base::Result<void> status = HandleEvent(event);
                 if (!status) return status.GetStatus();
@@ -650,22 +646,18 @@ Base::Result<void> LoadFromUri(
             return {};
         }
 
-        Base::Result<void> Show() noexcept {
+        void Show() noexcept override {
             if (closeRequested || !nativeWindow) {
-                return HostFailure(
-                    Base::ErrorCode::InvalidState,
-                    "Window native host is unavailable");
+                return;
             }
             if (!firstFrameRendered) {
-                Base::Result<void> rendered = RenderFrame(true);
-                if (!rendered) return rendered.GetStatus();
+                static_cast<void>(RenderFrame(true));
             }
-            Base::Result<void> shown = nativeWindow->Show();
-            if (shown && window != nullptr) {
+            nativeWindow->Show();
+            if (window != nullptr) {
                 window->NotifyContentRendered();
                 frameRequested = true;
             }
-            return shown;
         }
 
         void Close() noexcept override {
@@ -972,22 +964,21 @@ Base::Result<void> LoadFromUri(
         return {};
     }
 
-    Base::Result<void> ShowWindow(Window& value) noexcept override {
+    void ShowWindow(Window& value) noexcept override {
         WindowHost* existing = FindWindow(value);
-        if (existing != nullptr) return {};
-        Base::Ref<Window> owner = Base::Ref<Window>::TryFromBorrowed(value);
-        if (!owner) {
-            return HostFailure(
-                Base::ErrorCode::InvalidArgument,
-                "Window.Show requires a Window created with Base::MakeRef");
+        if (existing != nullptr) {
+            existing->Show();
+            return;
         }
+        Base::Ref<Window> owner = Base::Ref<Window>::TryFromBorrowed(value);
+        if (!owner) return;
         Base::Result<WindowHost*> allocated = CreateWindowHost();
-        if (!allocated) return allocated.GetStatus();
+        if (!allocated) return;
         WindowHost* host = allocated.Value();
         Base::Result<void> loaded = host->LoadProgrammatic(std::move(owner));
         if (!loaded) {
             RemoveWindowAt(windows.Size() - 1U);
-            return loaded.GetStatus();
+            return;
         }
         if (application->GetMainWindow() == nullptr) {
             application->AttachMainWindow(host->window);
@@ -995,17 +986,14 @@ Base::Result<void> LoadFromUri(
         Base::Result<void> rendered = host->RenderFrame();
         if (!rendered) {
             RemoveWindowAt(windows.Size() - 1U);
-            return rendered.GetStatus();
+            return;
         }
-        return {};
     }
 
-    Base::Result<bool> RunDialog(Window& dialog) noexcept override {
+    bool RunDialog(Window& dialog) noexcept override {
         WindowHost* host = FindWindow(dialog);
         if (host == nullptr) {
-            return HostFailure(
-                Base::ErrorCode::InvalidState,
-                "Window.ShowDialog requires a hosted window");
+            return false;
         }
         struct SuspendedWindows {
             Base::Vector<std::uintptr_t> handles;
@@ -1078,24 +1066,23 @@ Base::Result<void> LoadFromUri(
                 WindowHost* candidate = windows[index];
                 if (candidate == nullptr) continue;
                 Base::Result<bool> pumped = candidate->PumpEvents();
-                if (!pumped) return pumped.GetStatus();
+                if (!pumped) return false;
                 handledEvent = handledEvent || pumped.Value();
             }
             if (exitRequested || !host->IsOpen()) break;
             for (WindowHost* candidate : windows) {
                 if (candidate != nullptr && candidate->IsOpen()) {
                     Base::Result<void> rendered = candidate->RenderFrame();
-                    if (!rendered) return rendered.GetStatus();
+                    if (!rendered) return false;
                 }
             }
             if (!handledEvent && host->IsOpen()) {
                 Base::Result<bool> waited = host->WaitForActivity(16U, false);
-                if (!waited) return waited.GetStatus();
+                if (!waited) return false;
             }
         }
         const ::Aero::Nullable<bool> accepted = dialog.GetDialogResult();
-        return Base::Result<bool>(
-            accepted.GetHasValue() && accepted.GetValue());
+        return accepted.GetHasValue() && accepted.GetValue();
     }
 
     std::uint32_t WindowCount() const noexcept override {

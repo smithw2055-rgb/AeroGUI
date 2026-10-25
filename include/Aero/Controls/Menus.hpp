@@ -73,7 +73,7 @@ private:
     TextBlock* gestureText_ = nullptr;
     TextBlock* checkGlyph_ = nullptr;
     Primitives::Popup* submenuPopup_ = nullptr;
-    Result<void> SynchronizeMenuTemplate() noexcept;
+    void SynchronizeMenuTemplate() noexcept;
     void SetRoleState(MenuItemRole value) noexcept;
 };
 
@@ -85,13 +85,13 @@ public:
 
 protected:
     explicit MenuBase(TypeId runtimeType) noexcept;
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 
 private:
     MenuItem* FindItem(Base::Object* source) const noexcept;
-    Result<void> Invoke(MenuItem& item) noexcept;
+    void Invoke(MenuItem& item) noexcept;
 };
 
 class AERO_GUI_API Menu : public MenuBase {
@@ -233,7 +233,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(bool, IsSizingGripVisible);
 
 protected:
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
 };
 
 } // namespace Aero::Controls

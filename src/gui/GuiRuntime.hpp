@@ -17,6 +17,7 @@
 #include <Aero/Media/TextureProvider.hpp>
 #include <Aero/Threading.hpp>
 #include <Aero/Base/Hash.hpp>
+#include <Aero/Resources.hpp>
 
 #include <cstdint>
 
@@ -87,6 +88,10 @@ struct GuiRuntime final : public Base::Object {
     Base::Vector<XamlProviderChangeRecord> xamlChanges;
     Base::Vector<XamlProviderChangeRecord> textureChanges;
     Base::Vector<PendingXamlDocument> pendingDocuments;
+    ResourceDictionary cachedLightTheme;
+    ResourceDictionary cachedDarkTheme;
+    bool hasCachedLightTheme = false;
+    bool hasCachedDarkTheme = false;
 
     Base::Result<Markup::XamlDocument> Load(
         const Markup::LoadState* state,

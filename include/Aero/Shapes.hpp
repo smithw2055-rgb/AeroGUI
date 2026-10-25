@@ -175,8 +175,8 @@ public:
     Path() noexcept;
     ~Path() override;
 
-    Result<void> EnsureGeometry() noexcept;
-    Result<void> EnsureMesh() noexcept;
+    bool EnsureGeometry() noexcept;
+    bool EnsureMesh() noexcept;
     void ResetGeometry() noexcept;
     void AttachMeshResources(void* services, bool force = false) noexcept;
     void ReleaseMesh() noexcept;

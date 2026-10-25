@@ -202,7 +202,7 @@ public:
 protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
 
 private:
     TextBlock* columnHeaders_ = nullptr;

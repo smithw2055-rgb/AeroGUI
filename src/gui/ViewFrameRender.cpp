@@ -1,5 +1,4 @@
 #include "gui/ViewFrame.hpp"
-#include <Aero/Shapes.hpp>
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
 
@@ -35,128 +34,13 @@ bool Media::CompositionTarget::RemoveRendering(
 }
 
 
-void ViewFrame::AttachTextLayout(
-        Aero::Media::Visual& node,
-        ::Aero::Controls::TextBlockLayout* service,
-        bool invalidate) noexcept {
-        if (metadata == nullptr) return;
-        const Meta::TypeId type = node.RuntimeType();
-        if (type == Controls::TextBlock::StaticTypeId() ||
-            metadata->Types().IsDerivedFrom(type, Controls::TextBlock::StaticTypeId())) {
-            (*static_cast<Controls::TextBlock*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-        if (type == Controls::TextBox::StaticTypeId() ||
-            metadata->Types().IsDerivedFrom(type, Controls::TextBox::StaticTypeId())) {
-            (*static_cast<Controls::TextBox*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-        if (type == Controls::PasswordBox::StaticTypeId() ||
-            metadata->Types().IsDerivedFrom(type, Controls::PasswordBox::StaticTypeId())) {
-            (*static_cast<Controls::PasswordBox*>(&node)).AttachTextLayout(
-                service,
-                invalidate);
-            return;
-        }
-    }
-
-Aero::Render::MeshResources*
- ViewFrame::GetMeshResources() noexcept {
-        return publicRenderer.Resources().meshes;
-    }
-
-Aero::Render::ImageResources*
- ViewFrame::GetImageResources() noexcept {
-        return publicRenderer.Resources().images;
-    }
-
-void ViewFrame::AttachPathResources(
-        Aero::Media::Visual& node,
-        Aero::Render::MeshResources* service,
-        bool invalidate) noexcept {
-        if (metadata == nullptr) return;
-        const Meta::TypeId type = node.RuntimeType();
-        if (type == Shapes::Path::StaticTypeId() ||
-            metadata->Types().IsDerivedFrom(
-                type,
-                Shapes::Path::StaticTypeId())) {
-            (*static_cast<Shapes::Path*>(&node)).AttachMeshResources(
-                service,
-                invalidate);
-        }
-    }
-
-void ViewFrame::SyncVisualRenderResources(
-    Aero::Media::Visual* rootVisual,
-    ::Aero::Controls::TextBlockLayout* textService,
-    Aero::Render::MeshResources* meshService,
-    bool invalidate,
-    bool ancestorsVisible) noexcept {
-    if (rootVisual == nullptr) return;
-    bool effectivelyVisible = ancestorsVisible;
-    if (Aero::UIElement* element =
-            ::Aero::TryCast<::Aero::UIElement>(rootVisual);
-        element != nullptr) {
-        effectivelyVisible =
-            ancestorsVisible &&
-            element->GetVisibility() ==
-                Aero::Visibility::Visible;
-    }
-    const bool shouldInvalidate = invalidate && effectivelyVisible;
-    if (textService != nullptr || !invalidate) {
-        AttachTextLayout(*rootVisual, textService, shouldInvalidate);
-    }
-    if (meshService != nullptr || !invalidate) {
-        AttachPathResources(*rootVisual, meshService, shouldInvalidate);
-    }
-    for (Aero::Media::Visual* child : (*rootVisual).RenderChildren()) {
-        SyncVisualRenderResources(
-            child,
-            textService,
-            meshService,
-            invalidate,
-            effectivelyVisible);
-    }
+Aero::Render::MeshResources* ViewFrame::GetMeshResources() noexcept {
+    return publicRenderer.Resources().meshes;
 }
 
-void ViewFrame::VisitTextElements(
-    Aero::Media::Visual* rootVisual,
-    ::Aero::Controls::TextBlockLayout* service,
-    bool invalidate,
-    bool ancestorsVisible) noexcept {
-    SyncVisualRenderResources(rootVisual, service, nullptr, invalidate, ancestorsVisible);
+Aero::Render::ImageResources* ViewFrame::GetImageResources() noexcept {
+    return publicRenderer.Resources().images;
 }
-
-void ViewFrame::VisitPaths(
-    Aero::Media::Visual* rootVisual,
-    Aero::Render::MeshResources* service,
-    bool invalidate,
-    bool ancestorsVisible) noexcept {
-    SyncVisualRenderResources(rootVisual, nullptr, service, invalidate, ancestorsVisible);
-}
-
-void ViewFrame::TextLifecycleHook(
-        const Aero::ElementTreeLifecycleEvent& event,
-        void* context) noexcept {
-        auto* runtime = static_cast<ViewFrame*>(context);
-        if (runtime == nullptr || event.node == nullptr) {
-            return;
-        }
-        runtime->AttachTextLayout(
-            *event.node,
-            event.loaded && runtime->Text() != nullptr
-                ? runtime->Text()->Layout()
-                : nullptr);
-        runtime->AttachPathResources(
-            *event.node,
-            event.loaded
-                ? runtime->GetMeshResources()
-                : nullptr);
-    }
 
 const ::Aero::Render::RenderFrame* ViewFrame::CurrentFrame(
     const View& view) noexcept

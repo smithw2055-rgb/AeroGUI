@@ -9,6 +9,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Meta.hpp>
+#include <Aero/Base/Assert.hpp>
 #include <cstdlib>
 #include <cstring>
 
@@ -48,7 +49,7 @@ bool TryExtractNumeric(const Meta::PropertyValue& value, long double& output) no
 
 } // namespace
 
-Base::Result<bool> ComparePropertyValues(
+bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
     Meta::PropertyValue expected,
     const Meta::Registry* metadata,
@@ -189,7 +190,7 @@ Base::Result<bool> ComparePropertyValues(
     return false;
 }
 
-Base::Result<bool> ComparePropertyValues(
+bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
     Meta::PropertyValue expected,
     const Meta::Registry* metadata,
@@ -245,17 +246,12 @@ Base::Result<bool> ComparePropertyValues(
     return ComparePropertyValues(actual, std::move(expected), metadata, op);
 }
 
-Base::Result<bool> TriggerPlan::IsConditionMet(
+bool TriggerPlan::IsConditionMet(
     const DependencyObject& object) const noexcept {
     Base::Result<PropertyValue> current = object.GetValue(property);
-    if (!current) return current.GetStatus();
+    if (!current) return false;
     const Meta::Registry* metadata = Meta::CurrentObjectFactory().metadata;
-    Base::Result<bool> matched = ComparePropertyValues(
-        current.Value(), value, metadata);
-    if (!matched) {
-        return current.Value() == value;
-    }
-    return matched.Value();
+    return ComparePropertyValues(current.Value(), value, metadata);
 }
 
 TriggerEngine::TriggerEngine(
@@ -273,10 +269,10 @@ TriggerEngine::~TriggerEngine() noexcept {
     // P3.2: no frame-hook registration; nothing to unregister.
 }
 
-Base::Result<void> TriggerEngine::SubscribeTriggers(
+void TriggerEngine::SubscribeTriggers(
     DependencyObject& object, const Style& style) noexcept {
     if (StyleRuntimeTriggerMask(style) == 0ULL) {
-        return {};
+        return;
     }
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
@@ -304,7 +300,6 @@ Base::Result<void> TriggerEngine::SubscribeTriggers(
         object.AddValueChangedHandler(
             property, propertyChangedHandler_);
     }
-    return {};
 }
 
 void TriggerEngine::UnsubscribeTriggers(
@@ -340,21 +335,19 @@ void TriggerEngine::UnsubscribeTriggers(
     }
 }
 
-Base::Result<void> TriggerEngine::EvaluateTriggers(
+void TriggerEngine::EvaluateTriggers(
     DependencyObject& object, const Style& style) noexcept {
     const std::uint32_t applicationIndex =
         FindApplication(object);
     if (applicationIndex == UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Style application was not found while evaluating triggers");
+        return;
     }
     StyleApplication& application =
         applications_[applicationIndex];
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
     if (triggers.Empty()) {
-        return {};
+        return;
     }
 
     std::uint64_t activeMask = 0ULL;
@@ -394,10 +387,7 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
                 application.bindingTriggerKnown[index] != 0U &&
                 application.bindingTriggerStates[index] != 0U;
         } else {
-            Base::Result<bool> met =
-                trigger.IsConditionMet(object);
-            if (!met) return met.GetStatus();
-            active = met.Value();
+            active = trigger.IsConditionMet(object);
         }
         setActive(index, active);
         if (!anyStateChanged) {
@@ -411,12 +401,10 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
 
     // Short-circuit: if no trigger flipped its active state, no setters or flush needed.
     if (!anyStateChanged) {
-        return {};
+        return;
     }
 
-    Base::Result<void> cleared =
-        ClearTriggerSetters(object, style);
-    if (!cleared) return cleared.GetStatus();
+    ClearTriggerSetters(object, style);
 
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
@@ -448,18 +436,12 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
             } else if (IsDeferredBindingSetterValue(setter.value)) {
                 continue;
             }
-            Base::Result<void> applied =
-                values_.SetTriggerValue(
-                    object, setter.property,
-                    setterValue);
-            if (!applied) {
-                return applied.GetStatus();
-            }
+            (void)values_.SetTriggerValue(
+                object, setter.property,
+                setterValue);
         }
     }
-    Base::Result<std::uint32_t> flushed =
-        values_.Flush();
-    if (!flushed) return flushed.GetStatus();
+    (void)values_.Flush();
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
@@ -478,33 +460,30 @@ Base::Result<void> TriggerEngine::EvaluateTriggers(
         if (active == wasActive) continue;
         currentApp.triggerStates[index] =
             active ? 1U : 0U;
-        Base::Result<void> actions =
-            ExecuteTriggerActions(
-                object,
-                active
-                    ? trigger.enterActions.AsSpan()
-                    : trigger.exitActions.AsSpan());
-        if (!actions) {
-            lastActionStatus_ = actions.GetStatus();
-            return actions.GetStatus();
-        }
+        ExecuteTriggerActions(
+            object,
+            active
+                ? trigger.enterActions.AsSpan()
+                : trigger.exitActions.AsSpan());
     }
-    return {};
 }
 
-Base::Result<void> TriggerEngine::ExecuteTriggerActions(
+void TriggerEngine::ExecuteTriggerActions(
     DependencyObject& object,
     Base::Span<const Base::Ref<Base::Object>>
         actions) noexcept {
     if (actions.Empty() ||
         triggerActionHandler_ == nullptr) {
-        return {};
+        return;
     }
-    return triggerActionHandler_(
+    Base::Result<void> res = triggerActionHandler_(
         object, actions, triggerActionContext_);
+    if (!res) {
+        lastActionStatus_ = res.GetStatus();
+    }
 }
 
-Base::Result<void> TriggerEngine::ClearTriggerSetters(
+void TriggerEngine::ClearTriggerSetters(
     DependencyObject& object, const Style& style) noexcept {
     const Base::Span<const TriggerPlan> triggers =
         StyleRuntimeTriggers(style);
@@ -547,12 +526,9 @@ Base::Result<void> TriggerEngine::ClearTriggerSetters(
                 if (!first) continue;
             }
             clearedMask |= propMask;
-            Base::Result<void> cleared =
-                values_.ClearTriggerValue(object, property);
-            if (!cleared) return cleared.GetStatus();
+            (void)values_.ClearTriggerValue(object, property);
         }
     }
-    return {};
 }
 
 void TriggerEngine::OnPropertyChanged(
@@ -570,51 +546,34 @@ void TriggerEngine::OnPropertyChanged(
         if (!trigger.IsBindingTrigger() &&
             trigger.property == args.GetProperty()) {
             if (values_.IsFlushing()) {
-                Base::Result<void> queued =
-                    QueueTriggerEvaluation(object);
-                if (!queued) {
-                    lastActionStatus_ =
-                        queued.GetStatus();
-                }
+                QueueTriggerEvaluation(object);
             } else {
-                Base::Result<void> evaluated =
-                    EvaluateTriggers(object, style);
-                if (!evaluated) {
-                    lastActionStatus_ =
-                        evaluated.GetStatus();
-                }
+                EvaluateTriggers(object, style);
             }
             return;
         }
     }
 }
 
-Base::Result<void> TriggerEngine::EnableDataBindPhase(
+void TriggerEngine::EnableDataBindPhase(
     DependencyObject& object) noexcept {
     Dispatcher& dispatcher = object.GetDispatcher();
     if (dataBindPhaseEnabled_) {
-        return dispatcher_ == &dispatcher
-            ? Base::Result<void>()
-            : Base::Result<void>(
-                Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "StyleEngine objects must share one Dispatcher"));
+        AERO_ASSERT(dispatcher_ == &dispatcher && "StyleEngine objects must share one Dispatcher");
+        return;
     }
-    // P3.2: no hook registration; ViewFrame drives TriggerPhaseHook().
     dispatcher_ = &dispatcher;
     dataBindPhaseEnabled_ = true;
-    return {};
 }
 
-Base::Result<void> TriggerEngine::QueueTriggerEvaluation(
+void TriggerEngine::QueueTriggerEvaluation(
     DependencyObject& object) noexcept {
     for (DependencyObject* pending :
          pendingTriggerEvaluations_) {
-        if (pending == &object) return {};
+        if (pending == &object) return;
     }
     pendingTriggerEvaluations_.PushBack(
         &object);
-    return {};
 }
 
 void TriggerEngine::RemovePendingTriggerEvaluation(
@@ -635,7 +594,7 @@ void TriggerEngine::RemovePendingTriggerEvaluation(
     }
 }
 
-Base::Result<std::uint32_t>
+std::uint32_t
 TriggerEngine::FlushPendingTriggerEvaluations() noexcept {
     Base::Vector<DependencyObject*> pending =
         std::move(pendingTriggerEvaluations_);
@@ -645,11 +604,9 @@ TriggerEngine::FlushPendingTriggerEvaluations() noexcept {
         const std::uint32_t index =
             FindApplication(*object);
         if (index == UINT32_MAX) continue;
-        Base::Result<void> evaluated =
-            EvaluateTriggers(
-                *object,
-                *applications_[index].style);
-        if (!evaluated) return evaluated.GetStatus();
+        EvaluateTriggers(
+            *object,
+            *applications_[index].style);
         ++evaluatedCount;
     }
     return evaluatedCount;
@@ -663,15 +620,10 @@ void TriggerEngine::TriggerPhaseHook(
         !manager->lastActionStatus_.IsOk()) {
         return;
     }
-    Base::Result<std::uint32_t> flushed =
-        manager->FlushPendingTriggerEvaluations();
-    if (!flushed) {
-        manager->lastActionStatus_ =
-            flushed.GetStatus();
-    }
+    manager->FlushPendingTriggerEvaluations();
 }
 
-Base::Result<void> TriggerEngine::SetBindingTriggerState(
+void TriggerEngine::SetBindingTriggerState(
     DependencyObject& object,
     const Style& style,
     std::uint32_t triggerIndex,
@@ -681,14 +633,12 @@ Base::Result<void> TriggerEngine::SetBindingTriggerState(
         applications_[applicationIndex].style != &style ||
         triggerIndex >= StyleRuntimeTriggers(style).Size() ||
         !StyleRuntimeTriggers(style)[triggerIndex].IsBindingTrigger()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Style DataTrigger application was not found");
+        return;
     }
     StyleApplication& application = applications_[applicationIndex];
     application.bindingTriggerKnown[triggerIndex] = 1U;
     application.bindingTriggerStates[triggerIndex] = active ? 1U : 0U;
-    return EvaluateTriggers(object, style);
+    EvaluateTriggers(object, style);
 }
 
 void TriggerEngine::SetTriggerActionHandler(

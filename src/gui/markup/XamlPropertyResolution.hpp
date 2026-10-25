@@ -97,10 +97,12 @@ inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
         auto color = ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Decode(value);
         if (!color) return color.GetStatus();
         auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
-        if (!brush) return brush.GetStatus();
+        if (!brush) {
+            return ::Aero::Base::Status::Failure(::Aero::Base::ErrorCode::OutOfMemory, "Failed to create brush");
+        }
         return ::Aero::Meta::Value::FromObject(
             ::Aero::Media::Brush::StaticTypeId(),
-            ::Aero::Base::Ref<::Aero::Base::Object>(std::move(brush).Value()));
+            ::Aero::Base::Ref<::Aero::Base::Object>(std::move(brush)));
     }
 
     if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {

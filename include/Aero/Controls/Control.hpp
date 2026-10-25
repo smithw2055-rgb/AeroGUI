@@ -284,8 +284,8 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    Result<void> ValidateContent(UIElement* content) const noexcept;
-    Result<void> UpdatePresentedText() noexcept;
+    bool ValidateContent(UIElement* content) const noexcept;
+    void UpdatePresentedText() noexcept;
     void ApplyContent() noexcept;
     bool IsOnlyAttachedContent(const UIElement& content) const noexcept;
 

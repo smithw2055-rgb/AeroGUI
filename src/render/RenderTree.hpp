@@ -229,6 +229,7 @@ private:
     std::uint32_t pixelWidth_ = 0U;
     std::uint32_t pixelHeight_ = 0U;
     double dpiScale_ = 1.0;
+    mutable std::uint64_t cachedHash_ = 0U;
 };
 
 Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept;
@@ -262,7 +263,7 @@ public:
     Base::Result<void> Detach(
         ::Aero::Media::Visual& parent,
         ::Aero::Media::Visual& child) noexcept;
-    Base::Result<void> Invalidate(
+    void Invalidate(
         ::Aero::Media::Visual& visual,
         RenderInvalidation invalidation =
             RenderInvalidation::Drawing) noexcept;
@@ -284,6 +285,9 @@ public:
 
     const ::Aero::Render::RenderFrame& CurrentFrame() const noexcept {
         return currentFrame_;
+    }
+    std::uint32_t DirtyCount() const noexcept {
+        return dirty_.Size();
     }
     ::Aero::Render::RenderDiagnostics Diagnostics() const noexcept;
     Base::Status LastCommitStatus() const noexcept {
@@ -339,9 +343,9 @@ private:
     bool viewportDirty_ = false;
     bool committing_ = false;
 
-    Base::Result<void> VerifyElement(
+    void VerifyElement(
         const ::Aero::Media::Visual& visual) const noexcept;
-    Base::Result<void> QueueDirty(
+    void QueueDirty(
         ::Aero::Media::Visual& visual) noexcept;
     void RemoveQueued(::Aero::Media::Visual& visual) noexcept;
     void MarkCommittedSubtree(

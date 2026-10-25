@@ -52,7 +52,7 @@ public:
     Grid() noexcept;
 
     static Base::Result<GridLength> ConvertLength(Base::StringView text) noexcept;
-    static Base::Result<void> ParseDefinitions(
+    static bool ParseDefinitions(
         Base::StringView text, Base::Vector<GridLength>& output) noexcept;
     void AddColumnDefinition(Ref<ColumnDefinition> definition) noexcept;
     void AddRowDefinition(Ref<RowDefinition> definition) noexcept;
@@ -98,8 +98,8 @@ private:
     GridLength RowAt(std::uint32_t index) const noexcept;
     double MaxWidthAt(std::uint32_t index) const noexcept;
     double MaxHeightAt(std::uint32_t index) const noexcept;
-    Result<void> ValidateDefinitions(Span<const GridLength> definitions) const noexcept;
-    Result<void> ResolveTracks(Span<const GridLength> definitions, Span<const double> desired, double available,
+    bool ValidateDefinitions(Span<const GridLength> definitions) const noexcept;
+    bool ResolveTracks(Span<const GridLength> definitions, Span<const double> desired, double available,
         Base::Vector<double>& resolved, Span<const double> maxLimits = {}) const noexcept;
 
     std::uint32_t GetColumnCount() const noexcept;

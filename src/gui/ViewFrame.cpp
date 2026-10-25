@@ -394,7 +394,7 @@ void DetachViewUi(
                     if (auto* childVis = ::Aero::TryCast<Aero::Media::Visual>(child)) {
                         addReachable(childVis);
                     } else {
-                        if (state.Animations() != nullptr) (void)state.Animations()->RemoveTarget(*child);
+                        if (state.Animations() != nullptr) state.Animations()->RemoveTarget(*child);
                         if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*child);
                         if (state.Values() != nullptr) (void)state.Values()->DetachObject(*child);
                     }
@@ -409,15 +409,13 @@ void DetachViewUi(
             if (state.Tree() != nullptr) {
                 state.Tree()->DetachPropertyDependencyGraph(
                     *node, state.Animations(), detachedPropertyObjects);
-            } else {
-                // No tree hub: skip property-graph detach (engines already torn down).
             }
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
                 auto& itemsControl = *static_cast<Controls::ItemsControl*>(node);
                 if (auto* gen = itemsControl.GetItemContainerGenerator()) {
-                    (void)gen->Detach();
+                    gen->Detach();
                 }
                 for (std::uint32_t i = 0U; i < state.trackedItemsControls.Size(); ++i) {
                     if (state.trackedItemsControls[i] == &itemsControl) {
@@ -427,7 +425,7 @@ void DetachViewUi(
                 }
             }
             if (state.Animations() != nullptr) {
-                (void)state.Animations()->RemoveTarget(*node);
+                state.Animations()->RemoveTarget(*node);
             }
             if (state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
@@ -441,7 +439,9 @@ void DetachViewUi(
                     (void)state.Templates()->Clear(control);
                 }
             }
-            if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*node);
+            if (state.Bindings() != nullptr) {
+                (void)state.Bindings()->DetachObject(*node);
+            }
             Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr && state.Styles() != nullptr) {
                 if (state.Interactivity() != nullptr) {
@@ -618,8 +618,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             if (itemsControl.GetCount() == generator->GetGeneratedCount()) {
                 return {};
             }
-            Base::Result<void> refreshed = generator->Refresh();
-            if (!refreshed) {
+            if (!generator->Refresh()) {
                 return {};
             }
             Base::Result<void> generatedUiApplied = ApplyViewUi(*this, *host);
@@ -646,7 +645,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             return created.GetStatus();
         }
         Controls::ItemContainerGenerator* generator = created.Value();
-        Base::Result<void> attached;
+        bool attached = false;
         if (metadata->Types().IsDerivedFrom(
                 host->RuntimeType(),
                 Controls::VirtualizingPanel::StaticTypeId())) {
@@ -664,7 +663,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
         Base::Result<void> generatedUiApplied = ApplyViewUi(*this, *host);
         if (!generatedUiApplied) {
             DetachViewUi(*this, host, {});
-            static_cast<void>(generator->Detach());
+            generator->Detach();
             delete generator;
             return generatedUiApplied.GetStatus();
         }
@@ -701,12 +700,6 @@ Base::Result<void> ViewFrame::VisitAndAttach(
                     static_cast<Controls::PasswordBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
                 }
             }
-            AttachTextLayout(
-                *node,
-                Text() != nullptr
-                    ? Text()->Layout()
-                    : nullptr);
-            AttachPathResources(*node, GetMeshResources());
             if (metadata->Types().IsDerivedFrom(
                     type,
                     Controls::ItemsControl::StaticTypeId())) {
@@ -731,30 +724,7 @@ Base::Result<void> ViewFrame::VisitAndAttach(
         return {};
     }
 
-void ViewFrame::ClearTextInputHosts(
-        Aero::Media::Visual* node) noexcept {
-        if (node == nullptr) return;
-        if (metadata->Types().IsDerivedFrom(
-                node->RuntimeType(),
-                Controls::TextBox::StaticTypeId())) {
-            static_cast<void>(
-                static_cast<Controls::TextBox*>(node)->
-                    SetInputMethodHost(nullptr));
-        }
-        if (metadata->Types().IsDerivedFrom(
-                node->RuntimeType(),
-                Controls::PasswordBox::
-                    StaticTypeId())) {
-            static_cast<void>(
-                static_cast<
-                    Controls::PasswordBox*>(node)->
-                    SetInputMethodHost(nullptr));
-        }
-        for (Aero::Media::Visual* child :
-             (*node).RenderChildren()) {
-            ClearTextInputHosts(child);
-        }
-    }
+
 
 
 namespace {
@@ -804,11 +774,9 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
             deviceGenerationChanged = true;
             Aero::Media::Visual* rootVisual = state.RootVisual();
             if (rootVisual != nullptr) {
-                Base::Result<void> invalidated = state.RenderTree()->Invalidate(
+                state.RenderTree()->Invalidate(
                     *rootVisual, Aero::Render::RenderInvalidation::All);
-                if (!invalidated) return invalidated.GetStatus();
             }
-            state.VisitPaths(rootVisual, state.GetMeshResources(), true);
             if (state.Tree() != nullptr) {
                 state.Tree()->SetMeshResources(state.GetMeshResources());
             }
@@ -822,8 +790,13 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
             deviceGenerationChanged || fontProviderChanged);
         if (!synchronized) return synchronized.GetStatus();
         if (synchronized.Value()) {
-            state.VisitTextElements(
-                state.RootVisual(), state.Text()->Layout(), true);
+            if (state.RootVisual() != nullptr) {
+                if (auto* element = ::Aero::TryCast<::Aero::UIElement>(state.RootVisual())) {
+                    element->InvalidateMeasure();
+                }
+                state.RenderTree()->Invalidate(
+                    *state.RootVisual(), Aero::Render::RenderInvalidation::All);
+            }
         }
     }
     if (state.Images() != nullptr) {
@@ -838,9 +811,8 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
         if (synchronized.Value()) {
             Aero::Media::Visual* rootVisual = state.RootVisual();
             if (rootVisual != nullptr) {
-                Base::Result<void> invalidated = state.RenderTree()->Invalidate(
+                state.RenderTree()->Invalidate(
                     *rootVisual, Aero::Render::RenderInvalidation::All);
-                if (!invalidated) return invalidated.GetStatus();
             }
         }
     }
@@ -912,11 +884,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
             }
         }
         if (state.Styles() != nullptr) {
-            Base::Result<std::uint32_t> styleTriggers =
-                state.Styles()->Flush();
-            if (!styleTriggers) {
-                return styleTriggers.GetStatus();
-            }
+            state.Styles()->Flush();
         }
         if (state.Interactivity() != nullptr) {
             state.Interactivity()->FlushPendingStyleDataTriggerEvaluations();
@@ -946,9 +914,9 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         if (state.Animations()->Diagnostics().appliedValueCount != 0U) {
             if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
                 if (state.RenderTree() != nullptr &&
-                    state.RenderTree()->Diagnostics().dirtyCount == 0U) {
-                    static_cast<void>(state.RenderTree()->Invalidate(
-                        *rootVisual, ::Aero::Render::RenderInvalidation::Drawing));
+                    state.RenderTree()->DirtyCount() == 0U) {
+                    state.RenderTree()->Invalidate(
+                        *rootVisual, ::Aero::Render::RenderInvalidation::Drawing);
                 }
             }
         }
@@ -1044,8 +1012,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     }
 
     if (state.Text() != nullptr) {
-        Base::Result<std::uint32_t> collected = state.Text()->CollectGarbage();
-        if (!collected) return collected.GetStatus();
+        state.Text()->CollectGarbage();
     }
     result.frameNumber = ++state.frameNumber;
     const Aero::LayoutDiagnostics layoutDiagnostics =
@@ -1093,18 +1060,16 @@ Base::Result<std::uint32_t> AdvanceViewClocks(
     if (state.Tree() != nullptr) {
         actionCount += state.Tree()->AdvanceRepeatButtonTime(elapsedMilliseconds);
     }
-    Base::Result<std::uint32_t> toolTips =
+    const std::uint32_t toolTips =
         state.Overlays() != nullptr
-            ? state.Overlays()->AdvanceToolTipTime(
-                elapsedMilliseconds)
-            : Base::Result<std::uint32_t>(0U);
-    if (!toolTips) return toolTips.GetStatus();
-    if (actionCount > UINT32_MAX - toolTips.Value()) {
+            ? state.Overlays()->AdvanceToolTipTime(elapsedMilliseconds)
+            : 0U;
+    if (actionCount > UINT32_MAX - toolTips) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Control timing action count overflow");
     }
-    actionCount += toolTips.Value();
+    actionCount += toolTips;
     if (state.options.automaticAnimationClock) {
         return actionCount;
     }
@@ -1155,7 +1120,9 @@ void ViewFrame::BeginDestroyInteractions() noexcept {
             Overlays()->activeToolTip.Reset();
             Overlays()->toolTipTarget.Reset();
         }
-        ClearTextInputHosts(RootVisual());
+        if (options.textInputMethodHost != nullptr) {
+            options.textInputMethodHost->SetClient(nullptr);
+        }
     }
 
 void ViewFrame::FinishDestroyInteractions() noexcept {
@@ -1164,8 +1131,7 @@ void ViewFrame::FinishDestroyInteractions() noexcept {
                 generator = itemGenerators.Back();
             itemGenerators.PopBack();
             if (generator != nullptr) {
-                static_cast<void>(
-                    generator->Detach());
+                generator->Detach();
                 delete generator;
                 generator = nullptr;
             }

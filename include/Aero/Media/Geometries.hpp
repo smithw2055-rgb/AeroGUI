@@ -229,16 +229,16 @@ public:
     StreamGeometryContext& operator=(StreamGeometryContext&& other) noexcept;
     ~StreamGeometryContext();
 
-    Result<void> BeginFigure(Point startPoint, bool isFilled, bool isClosed) noexcept;
-    Result<void> LineTo(Point point, bool isStroked, bool isSmoothJoin) noexcept;
-    Result<void> BezierTo(Point controlPoint1, Point controlPoint2, Point endPoint, bool isStroked,
+    void BeginFigure(Point startPoint, bool isFilled, bool isClosed) noexcept;
+    void LineTo(Point point, bool isStroked, bool isSmoothJoin) noexcept;
+    void BezierTo(Point controlPoint1, Point controlPoint2, Point endPoint, bool isStroked,
         bool isSmoothJoin) noexcept;
-    Result<void> QuadraticBezierTo(Point controlPoint, Point endPoint, bool isStroked, bool isSmoothJoin) noexcept;
-    Result<void> ArcTo(Point point, Size size, double rotationAngle, bool isLargeArc, SweepDirection sweepDirection,
+    void QuadraticBezierTo(Point controlPoint, Point endPoint, bool isStroked, bool isSmoothJoin) noexcept;
+    void ArcTo(Point point, Size size, double rotationAngle, bool isLargeArc, SweepDirection sweepDirection,
         bool isStroked,
         bool isSmoothJoin) noexcept;
-    Result<void> PolyLineTo(const Point* points, std::uint32_t count, bool isStroked, bool isSmoothJoin) noexcept;
-    Result<void> Close() noexcept;
+    void PolyLineTo(const Point* points, std::uint32_t count, bool isStroked, bool isSmoothJoin) noexcept;
+    void Close() noexcept;
 
 private:
     friend class StreamGeometry;
@@ -432,7 +432,7 @@ private:
         double rotation = 0.0;
     };
 
-    Result<void> AppendCommand(const Command& command) noexcept;
+    void AppendCommand(const Command& command) noexcept;
     void ReplayCommands(FlattenSink& sink) const noexcept;
     void InvalidateBounds() noexcept {
         bounds_ = {};

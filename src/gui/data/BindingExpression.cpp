@@ -43,9 +43,7 @@ Base::Status BindingExpression::UpdateSource() noexcept {
     if (engine == nullptr || !engine->Contains(handle_)) {
         return InvalidExpression();
     }
-    Base::Result<bool> updated = engine->UpdateSource(handle_);
-    if (!updated) return updated.GetStatus();
-    if (!updated.Value()) {
+    if (!engine->UpdateSource(handle_)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "BindingExpression cannot update the source");
@@ -59,9 +57,7 @@ Base::Status BindingExpression::UpdateTarget() noexcept {
     if (engine == nullptr || !engine->Contains(handle_)) {
         return InvalidExpression();
     }
-    Base::Result<bool> updated = engine->UpdateTarget(handle_);
-    if (!updated) return updated.GetStatus();
-    if (!updated.Value()) return InvalidExpression();
+    if (!engine->UpdateTarget(handle_)) return InvalidExpression();
     return {};
 }
 
@@ -674,9 +670,9 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     return stored.handle;
 }
 
-Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
+bool BindingEngine::Detach(BindingHandle handle) noexcept {
     if (!dispatcher_->CheckAccess()) {
-        return dispatcher_->VerifyAccess().GetStatus();
+        return false;
     }
     if (handle.value == 0U) {
         return false;
@@ -697,12 +693,9 @@ Base::Result<bool> BindingEngine::Detach(BindingHandle handle) noexcept {
     return false;
 }
 
-Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
-    if (!dispatcher_->CheckAccess()) {
-        return dispatcher_->VerifyAccess().GetStatus();
-    }
-    if (!initialized_) {
-        return InvalidState("BindingEngine is not ready to update a source");
+bool BindingEngine::UpdateSource(BindingHandle handle) noexcept {
+    if (!dispatcher_->CheckAccess() || !initialized_) {
+        return false;
     }
     BindingRecord* record = FindRecord(handle);
     if (record == nullptr) {
@@ -717,19 +710,16 @@ Base::Result<bool> BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     return true;
 }
 
-Base::Result<bool> BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
-    if (!dispatcher_->CheckAccess()) {
-        return dispatcher_->VerifyAccess().GetStatus();
-    }
-    if (!initialized_) {
-        return InvalidState("BindingEngine is not ready to update a target");
+bool BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
+    if (!dispatcher_->CheckAccess() || !initialized_) {
+        return false;
     }
     BindingRecord* record = FindRecord(handle);
     if (record == nullptr) return false;
     record->sourceDirty = true;
     if (!flushing_) {
         Base::Result<std::uint32_t> flushed = Flush();
-        if (!flushed) return flushed.GetStatus();
+        if (!flushed) return false;
     }
     return true;
 }

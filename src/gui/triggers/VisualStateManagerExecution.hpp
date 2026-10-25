@@ -22,19 +22,19 @@ public:
         AnimationEngine& animations,
         Meta::DependencyPropertyRegistry& properties) noexcept;
 
-    static Base::Result<bool> GoToState(
+    static bool GoToState(
         VisualStateManager& manager,
         Control& control,
         Base::StringView groupName,
         Base::StringView stateName,
         bool useTransitions = true) noexcept;
 
-    static Base::Result<bool> ClearState(
+    static bool ClearState(
         VisualStateManager& manager,
         Control& control,
         Base::StringView groupName) noexcept;
 
-    static Base::Result<std::uint32_t> Clear(
+    static std::uint32_t Clear(
         VisualStateManager& manager,
         Control& control) noexcept;
 

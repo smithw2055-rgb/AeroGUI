@@ -98,7 +98,7 @@ public:
         : execute_(ExecuteCallback(std::forward<FExec>(execute))),
           canExecute_(CanExecuteCallback(std::forward<FCanExec>(canExecute))) {}
 
-    Result<bool> CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
+    bool CanExecute(const Value& parameter, UIElement* = nullptr) noexcept override {
         if (!canExecute_) { return true; }
         Result<T> decoded = Meta::ValueCodec<T>::Decode(parameter);
         if (!decoded) { return false; }

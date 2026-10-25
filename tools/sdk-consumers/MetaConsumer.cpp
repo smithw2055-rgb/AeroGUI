@@ -48,8 +48,8 @@ struct HasPropertyRegistry<T, std::void_t<decltype(
     std::declval<T&>().PropertyRegistry())>>
     : std::true_type {};
 
-using RawFactory = Aero::Result<
-    Aero::Ref<Aero::Object>> (*)() noexcept;
+using RawFactory =
+    Aero::Ref<Aero::Object> (*)() noexcept;
 
 template<class T, class = void>
 struct HasRawFactoryOverload : std::false_type {};

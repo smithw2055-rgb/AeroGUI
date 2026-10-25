@@ -48,7 +48,7 @@ public:
     Base::Result<CommandBindingHandle> AddBinding(
         UIElement& owner,
         const CommandBinding& binding) noexcept;
-    Base::Result<bool> RemoveBinding(
+    bool RemoveBinding(
         CommandBindingHandle handle) noexcept;
     Base::Result<InputBindingHandle> AddInputBinding(
         UIElement& owner,
@@ -58,7 +58,7 @@ public:
         ICommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
-    Base::Result<bool> Execute(
+    bool Execute(
         ICommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
@@ -66,14 +66,14 @@ public:
         RoutedCommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
-    Base::Result<bool> Execute(
+    bool Execute(
         RoutedCommand& command,
         const Meta::Value& parameter,
         UIElement& target) noexcept;
-    Base::Result<bool> ProcessInput(
+    bool ProcessInput(
         UIElement& target,
         const KeyboardInput& input) noexcept;
-    Base::Result<bool> ProcessInput(
+    bool ProcessInput(
         UIElement& target,
         const PointerInput& input) noexcept;
 
@@ -158,9 +158,9 @@ public:
 
     Base::Result<PointerDispatchResult> Dispatch(
         const PointerInput& input) noexcept;
-    Base::Result<void> CapturePointer(
+    bool CapturePointer(
         std::uint32_t pointerId, UIElement& target) noexcept;
-    Base::Result<bool> ReleasePointer(
+    bool ReleasePointer(
         std::uint32_t pointerId) noexcept;
     UIElement* CapturedNode(
         std::uint32_t pointerId) noexcept;
@@ -228,7 +228,7 @@ public:
         std::uint32_t pointerId,
         const Meta::Value& data,
         DragDropEffects allowedEffects) noexcept;
-    Base::Result<bool> Cancel() noexcept;
+    bool Cancel() noexcept;
     Base::Result<void> DispatchPointer(
         const PointerInput& input) noexcept;
     bool IsDragging() const noexcept { return active_; }
@@ -269,9 +269,9 @@ public:
 
     UIElement* FocusedNode() noexcept;
     UIElement* FocusedElement(UIElement& scope) noexcept;
-    Base::Result<bool> SetFocus(UIElement* node) noexcept;
-    Base::Result<bool> ClearFocus() noexcept;
-    Base::Result<bool> MoveFocus(
+    bool SetFocus(UIElement* node) noexcept;
+    bool ClearFocus() noexcept;
+    bool MoveFocus(
         FocusNavigationDirection direction,
         bool wrap = true) noexcept;
 
@@ -387,8 +387,8 @@ public:
     Base::Result<Input::HitTestResult> HitTest(::Aero::Media::Visual& root, Base::Point position) const noexcept { return hitTests_.HitTest(root, position); }
     Base::Result<Input::HitTestResult> RootToLocal(::Aero::Media::Visual& root, ::Aero::Media::Visual& target, Base::Point position) const noexcept { return hitTests_.RootToLocal(root, target, position); }
 
-    Base::Result<void> CapturePointer(std::uint32_t pointerId, UIElement& target) noexcept { return pointer_.CapturePointer(pointerId, target); }
-    Base::Result<bool> ReleasePointer(std::uint32_t pointerId) noexcept { return pointer_.ReleasePointer(pointerId); }
+    bool CapturePointer(std::uint32_t pointerId, UIElement& target) noexcept { return pointer_.CapturePointer(pointerId, target); }
+    bool ReleasePointer(std::uint32_t pointerId) noexcept { return pointer_.ReleasePointer(pointerId); }
     Base::Result<void> BeginDrag(
         UIElement& source,
         std::uint32_t pointerId,
@@ -397,7 +397,7 @@ public:
         return dragDrop_.Begin(
             source, pointerId, data, allowedEffects);
     }
-    Base::Result<bool> CancelDrag() noexcept {
+    bool CancelDrag() noexcept {
         return dragDrop_.Cancel();
     }
     bool IsDragging() const noexcept {
@@ -414,12 +414,12 @@ public:
 
     UIElement* GetFocusedElement() noexcept { return focus_.FocusedNode(); }
     UIElement* GetFocusedElement(UIElement& scope) noexcept { return focus_.FocusedElement(scope); }
-    Base::Result<bool> SetFocus(UIElement* element) noexcept { return focus_.SetFocus(element); }
-    Base::Result<bool> ClearFocus() noexcept { return focus_.ClearFocus(); }
-    Base::Result<bool> MoveFocus(FocusNavigationDirection direction, bool wrap = true) noexcept { return focus_.MoveFocus(direction, wrap); }
+    bool SetFocus(UIElement* element) noexcept { return focus_.SetFocus(element); }
+    bool ClearFocus() noexcept { return focus_.ClearFocus(); }
+    bool MoveFocus(FocusNavigationDirection direction, bool wrap = true) noexcept { return focus_.MoveFocus(direction, wrap); }
 
     Base::Result<CommandBindingHandle> AddCommandBinding(UIElement& owner, const CommandBinding& binding) noexcept { return commands_.AddBinding(owner, binding); }
-    Base::Result<bool> RemoveCommandBinding(CommandBindingHandle handle) noexcept { return commands_.RemoveBinding(handle); }
+    bool RemoveCommandBinding(CommandBindingHandle handle) noexcept { return commands_.RemoveBinding(handle); }
     Base::Result<InputBindingHandle> AddInputBinding(UIElement& owner, Base::Ref<InputBinding> binding) noexcept { return commands_.AddInputBinding(owner, std::move(binding)); }
     void AddRequerySuggested(const RequerySuggestedHandler& handler) noexcept { commands_.AddRequerySuggested(handler); }
     bool RemoveRequerySuggested(const RequerySuggestedHandler& handler) noexcept { return commands_.RemoveRequerySuggested(handler); }
@@ -427,8 +427,8 @@ public:
 
     bool CanExecute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
     bool CanExecute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.CanExecute(command, parameter, target); }
-    Base::Result<bool> Execute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
-    Base::Result<bool> Execute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
+    bool Execute(ICommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
+    bool Execute(RoutedCommand& command, const Meta::Value& parameter, UIElement& target) noexcept { return commands_.Execute(command, parameter, target); }
 
 private:
     CommandState commands_;

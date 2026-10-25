@@ -48,19 +48,17 @@ struct Status  {
     static constexpr Status OutOfMemory(const char* message = "Out of memory") noexcept { return {ErrorCode::OutOfMemory, message}; }
 };
 
-namespace Detail {
-
 template<typename, typename = void>
-struct HasArrowOperator : std::false_type {};
+struct ResultHasArrowOperator : std::false_type {};
 
 template<typename U>
-struct HasArrowOperator<U, std::void_t<decltype(std::declval<U&>().operator->())>> : std::true_type {};
+struct ResultHasArrowOperator<U, std::void_t<decltype(std::declval<U&>().operator->())>> : std::true_type {};
 
 template<typename U>
-constexpr decltype(auto) ArrowHelper(U& val) noexcept {
+constexpr decltype(auto) ResultArrowHelper(U& val) noexcept {
     if constexpr (std::is_pointer_v<U>) {
         return val;
-    } else if constexpr (HasArrowOperator<U>::value) {
+    } else if constexpr (ResultHasArrowOperator<U>::value) {
         return val.operator->();
     } else {
         return &val;
@@ -68,17 +66,15 @@ constexpr decltype(auto) ArrowHelper(U& val) noexcept {
 }
 
 template<typename U>
-constexpr decltype(auto) ArrowHelper(const U& val) noexcept {
+constexpr decltype(auto) ResultArrowHelper(const U& val) noexcept {
     if constexpr (std::is_pointer_v<U>) {
         return val;
-    } else if constexpr (HasArrowOperator<const U>::value) {
+    } else if constexpr (ResultHasArrowOperator<const U>::value) {
         return val.operator->();
     } else {
         return &val;
     }
 }
-
-} // namespace Detail
 
 template<class T> class Result  {
 public:
@@ -165,12 +161,12 @@ public:
 
     decltype(auto) operator->() noexcept {
         AERO_ASSERT(hasValue_);
-        return Detail::ArrowHelper(storage_.value);
+        return ResultArrowHelper(storage_.value);
     }
 
     decltype(auto) operator->() const noexcept {
         AERO_ASSERT(hasValue_);
-        return Detail::ArrowHelper(storage_.value);
+        return ResultArrowHelper(storage_.value);
     }
 
     Status GetStatus() const noexcept { return hasValue_ ? Status::Ok() : storage_.status; }

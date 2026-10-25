@@ -66,11 +66,11 @@ public:
     Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override;
     void Add(Ref<Base::Object> item) noexcept;
     void Insert(std::uint32_t index, Ref<Base::Object> item) noexcept;
-    Result<Ref<Base::Object>> RemoveAt(std::uint32_t index) noexcept;
-    Result<void> Replace(std::uint32_t index, Ref<Base::Object> item) noexcept;
-    Result<void> Move(std::uint32_t oldIndex, std::uint32_t newIndex) noexcept;
+    Ref<Base::Object> RemoveAt(std::uint32_t index) noexcept;
+    void Replace(std::uint32_t index, Ref<Base::Object> item) noexcept;
+    void Move(std::uint32_t oldIndex, std::uint32_t newIndex) noexcept;
     void Reset() noexcept;
-    Result<void> Reset(Span<const Ref<Base::Object>> items) noexcept;
+    void Reset(Span<const Ref<Base::Object>> items) noexcept;
     void AddItemsChanged(const ItemsChangedHandler& handler) noexcept override { changed_.Add(handler); }
     bool RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept override { return changed_.Remove(handler); }
 
@@ -130,7 +130,7 @@ public:
     ~ItemsControl() override;
 
     virtual Ref<DataTemplate> ResolveItemTemplate(const Ref<Base::Object>& item, std::uint32_t index) const noexcept;
-    virtual Result<void> PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
+    virtual void PrepareContainerForItemOverride(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
     virtual void OnItemsChanged(const ItemsChangedEvent& event) noexcept {
         static_cast<void>(event);
@@ -172,7 +172,7 @@ public:
         static_cast<void>(item);
         return false;
     }
-    virtual Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept;
+    virtual Ref<FrameworkElement> GetContainerForItemOverride() const noexcept;
     virtual void ClearContainerForItemOverride(FrameworkElement& container) noexcept;
     virtual Ref<DataTemplate> GetTemplateForItemOverride(const Ref<Base::Object>& item,
         std::uint32_t index) const noexcept;
@@ -230,7 +230,7 @@ protected:
 
     ItemContainerGenerator* AttachedGenerator() const noexcept { return generator_; }
     [[deprecated("Use PrepareContainerForItemOverride()")]]
-    virtual Result<void> PrepareContainer(FrameworkElement& container, const Ref<Base::Object>& item,
+    virtual void PrepareContainer(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
     virtual void OnContainersChanged() noexcept {
         InvalidateMeasure();
@@ -245,7 +245,7 @@ protected:
     bool EnsureDefaultItemsPresenter() noexcept;
 
     [[deprecated("Use GetContainerForItemOverride()")]]
-    virtual Result< Ref<FrameworkElement>> CreateContainer(const Ref<Base::Object>& item) noexcept;
+    virtual Ref<FrameworkElement> CreateContainer(const Ref<Base::Object>& item) noexcept;
     [[deprecated("Use ClearContainerForItemOverride()")]]
     virtual void ClearContainer(FrameworkElement& container) noexcept;
     Collections::IItemsSource* GetItemsSourceCore() const noexcept { return source_; }
@@ -277,10 +277,10 @@ public:
     ItemContainerGenerator(const ItemContainerGenerator&) = delete;
     ItemContainerGenerator& operator=(const ItemContainerGenerator&) = delete;
 
-    Result<void> Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
-    Result<void> AttachVirtualized(ItemsControl& owner, VirtualizingPanel& itemsHost) noexcept;
-    Result<bool> Detach() noexcept;
-    Result<void> Refresh() noexcept;
+    bool Attach(ItemsControl& owner, Panel& itemsHost) noexcept;
+    bool AttachVirtualized(ItemsControl& owner, VirtualizingPanel& itemsHost) noexcept;
+    void Detach() noexcept;
+    bool Refresh() noexcept;
     void SetRealizationRange(std::uint32_t firstIndex, std::uint32_t count) noexcept;
 
     std::uint32_t GetGeneratedCount() const noexcept;
@@ -303,7 +303,7 @@ private:
     static bool OwnerHasGenerator(const ItemsControl& owner) noexcept;
     static void SetOwnerGenerator(ItemsControl& owner, ItemContainerGenerator* generator) noexcept;
     static void NotifyOwnerContainersChanged(ItemsControl& owner) noexcept;
-    static Result<void> AttachHostGenerator(VirtualizingPanel& host, ItemContainerGenerator& generator,
+    static bool AttachHostGenerator(VirtualizingPanel& host, ItemContainerGenerator& generator,
         std::uint32_t itemCount) noexcept;
     static void DetachHostGenerator(VirtualizingPanel& host, ItemContainerGenerator& generator) noexcept;
     static void HostHandleItemsChanged(VirtualizingPanel& host, const ItemsChangedEvent& event,

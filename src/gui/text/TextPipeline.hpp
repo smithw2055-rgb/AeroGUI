@@ -33,7 +33,7 @@ public:
         RenderDevice& device,
         ::Aero::Render::TextResources* resources,
         bool force = false) noexcept;
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    std::uint32_t CollectGarbage() noexcept;
     void Shutdown() noexcept;
 
     ::Aero::Controls::TextBlockLayout*

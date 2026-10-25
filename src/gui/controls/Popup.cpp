@@ -47,6 +47,7 @@ Popup::Popup() noexcept
 
 Popup::Popup(TypeId runtimeType) noexcept
     : ContentControl(runtimeType) {
+    SetOverlayHostFlag(true);
     static_cast<void>(SetIsHitTestVisible(false));
 }
 

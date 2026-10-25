@@ -35,10 +35,10 @@ public:
 
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept { SetValue(FontFamilyProperty, std::move(value)); }
     void SetFontFamily(StringView value) noexcept {
-        Result<Ref<Media::FontFamily>> family = Base::MakeRef<Media::FontFamily>();
+        Ref<Media::FontFamily> family = Base::MakeRef<Media::FontFamily>();
         if (!family) { AERO_ASSERT(false); return; }
         family->SetSource(value);
-        SetFontFamily(std::move(family).Value());
+        SetFontFamily(std::move(family));
     }
     void SetFontSize(double value) noexcept { SetValue(FontSizeProperty, value); }
     void SetFontWeight(FontWeight value) noexcept { SetValue(FontWeightProperty, value); }
@@ -94,7 +94,7 @@ public:
     Inline* GetItem(std::uint32_t index) const noexcept;
     InlineCollectionView GetView() const noexcept;
     void Add(Ref<Inline> value) noexcept;
-    Result<bool> Remove(Inline& value) noexcept;
+    bool Remove(Inline& value) noexcept;
     void Clear() noexcept;
 
 private:

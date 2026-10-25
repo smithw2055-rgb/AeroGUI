@@ -33,10 +33,10 @@ public:
 
     Base::Result<void> Create(
         const WindowDescriptor& descriptor) noexcept override;
-    Base::Result<void> Show() noexcept override;
-    Base::Result<bool> PollEvent(
+    void Show() noexcept override;
+    bool PollEvent(
         WindowEvent& event) noexcept override;
-    Base::Result<bool> WaitEvent(
+    bool WaitEvent(
         WindowEvent& event) noexcept override;
     void Close() noexcept override;
 

@@ -201,7 +201,7 @@ private:
     Color initialColor_{};
 };
 
-AERO_GUI_API Result<Ref<Brush>> MakeSolidColorBrush(Color color) noexcept;
+AERO_GUI_API Ref<Brush> MakeSolidColorBrush(Color color) noexcept;
 
 class AERO_GUI_API GradientBrush : public Brush {
     AERO_DECLARE_TYPE(GradientBrush, Brush)

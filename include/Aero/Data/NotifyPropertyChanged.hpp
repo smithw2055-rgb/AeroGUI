@@ -37,7 +37,7 @@ public:
     static Base::Result<std::uint64_t> SubscribePropertyChanged(Base::Object& object, PropertyChangedCallback callback,
         void* callbackContext,
         void*) noexcept { return static_cast<TDerived&>(object).Subscribe(callback, callbackContext); }
-    static Base::Result<bool> UnsubscribePropertyChanged(Base::Object& object, std::uint64_t subscription,
+    static bool UnsubscribePropertyChanged(Base::Object& object, std::uint64_t subscription,
         void*) noexcept { return static_cast<TDerived&>(object).Unsubscribe(subscription); }
 
 private:
@@ -57,7 +57,7 @@ private:
             callback, callbackContext, id});
         return id;
     }
-    Base::Result<bool> Unsubscribe(std::uint64_t subscription) noexcept {
+    bool Unsubscribe(std::uint64_t subscription) noexcept {
         if (subscription == 0U) return false;
         for (std::uint32_t index = 0U; index < handlers_.Size(); ++index) {
             if (handlers_[index].id != subscription) { continue; }

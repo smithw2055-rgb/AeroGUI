@@ -37,13 +37,10 @@ namespace Media {
 
 // from src/gui/core/ElementTree.cpp
 
-Base::Result<Base::Ref<Base::Object>>
+Base::Ref<Base::Object>
 Visual::AcquireLifetime() noexcept {
     if (!lifetime_) {
-        Base::Result<Base::Ref<Aero::VisualLifetime>> created =
-            Base::MakeRef<Aero::VisualLifetime>(*this);
-        if (!created) return created.GetStatus();
-        lifetime_ = std::move(created).Value();
+        lifetime_ = Base::MakeRef<Aero::VisualLifetime>(*this);
     }
     return lifetime_;
 }

@@ -44,7 +44,7 @@ protected:
     ~VirtualizingPanel() override = default;
 
     // Shared by stack and wrap virtualization. Stack keeps its own extent tree.
-    virtual Result<void> AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept;
+    virtual bool AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept;
     virtual void DetachGenerator(ItemContainerGenerator& generator) noexcept;
     virtual void HandleItemsChanged(const Collections::ItemsChangedEvent& event, std::uint32_t itemCount) noexcept;
 
@@ -106,7 +106,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
     virtual void CalculateRealizationRange() noexcept;
 
-    Result<void> AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept override;
+    bool AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept override;
     void DetachGenerator(ItemContainerGenerator& generator) noexcept override;
     void HandleItemsChanged(const ItemsChangedEvent& event, std::uint32_t itemCount) noexcept override;
 

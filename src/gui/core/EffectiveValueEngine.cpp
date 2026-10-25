@@ -1490,8 +1490,8 @@ Base::Result<bool> EffectiveValueEngine::ClearProviderContribution(
             "Property provider contribution is invalid");
     }
     if ((object).FindStoredEntry( property) == nullptr) return false;
-    Base::Result<bool> cleared = (object).ClearProviderContributionInternal( property, token);
-    if (!cleared || !cleared.Value()) return cleared;
+    const bool cleared = (object).ClearProviderContributionInternal( property, token);
+    if (!cleared) return false;
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
     return true;
@@ -1511,10 +1511,9 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
         &keys);
     for (MemberId key : keys) {
         DependencyPropertyHandle property{key};
-        Base::Result<bool> cleared =
+        const bool cleared =
             (object).ClearProviderOriginInternal( property, origin);
-        if (!cleared) return cleared.GetStatus();
-        if (!cleared.Value()) continue;
+        if (!cleared) continue;
         ++removed;
         Base::Result<void> queued = QueueObjectProperty(object, property);
         if (!queued) return queued.GetStatus();
@@ -1535,9 +1534,8 @@ Base::Result<void> EffectiveValueEngine::ClearLocalExpression(
     DependencyObject& object, DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     if ((object).FindStoredEntry( property) == nullptr) return {};
-    Base::Result<bool> cleared = (object).ClearLocalExpressionInternal( property);
-    if (!cleared) return cleared.GetStatus();
-    if (!cleared.Value()) return {};
+    const bool cleared = (object).ClearLocalExpressionInternal( property);
+    if (!cleared) return {};
     return QueueObjectProperty(object, property);
 }
 
@@ -1554,9 +1552,8 @@ Base::Result<void> EffectiveValueEngine::ClearAnimationValue(
     DependencyObject& object, DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     if ((object).FindStoredEntry( property) == nullptr) return {};
-    Base::Result<bool> cleared = (object).ClearAnimationValueInternal( property);
-    if (!cleared) return cleared.GetStatus();
-    if (!cleared.Value()) return {};
+    const bool cleared = (object).ClearAnimationValueInternal( property);
+    if (!cleared) return {};
     return QueueObjectProperty(object, property);
 }
 
@@ -1565,8 +1562,7 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
     DependencyPropertyHandle property) noexcept {
     Base::Result<void> ready = VerifyMutable();
     if (!ready) return ready.GetStatus();
-    Base::Result<bool> invalidated = (object).InvalidateBaseValueInternal( property);
-    if (!invalidated) return invalidated.GetStatus();
+    (object).InvalidateBaseValueInternal( property);
     Base::Result<void> queued = QueueObjectProperty(object, property);
     if (!queued) return queued.GetStatus();
     return QueueDescendants(object, property);
@@ -1654,10 +1650,9 @@ Base::Result<std::uint32_t> DependencyObject::ClearAllProviderOrigin(
         },
         &keys);
     for (MemberId key : keys) {
-        Base::Result<bool> cleared =
-            ClearProviderOriginInternal(DependencyPropertyHandle{key}, origin);
-        if (!cleared) return cleared.GetStatus();
-        if (cleared.Value()) ++removed;
+        if (ClearProviderOriginInternal(DependencyPropertyHandle{key}, origin)) {
+            ++removed;
+        }
     }
     return removed;
 }
@@ -1739,7 +1734,7 @@ void DependencyObject::DetachPropertyDependencyObjects(
     }
 
     if (::Aero::TryCast<Aero::Media::Visual>(&object) == nullptr) {
-        if (animations != nullptr) (void)animations->RemoveTarget(object);
+        if (animations != nullptr) animations->RemoveTarget(object);
         if (bindings != nullptr) (void)bindings->DetachObject(object);
         if (values != nullptr) (void)values->DetachObject(object);
     }

@@ -370,13 +370,13 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
         return true;
     }
 
-Base::Result<bool> InteractivityEngine::DataTemplateTriggerValuesMatch(
+bool InteractivityEngine::DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
     return ComparePropertyValues(actual, std::move(expected), Metadata());
 }
 
-Base::Result<bool> InteractivityEngine::EvaluateTriggerComparison(
+bool InteractivityEngine::EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected,
         Base::StringView comparison) noexcept {
@@ -1316,7 +1316,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
             Storyboards()->CancelStoryboardCompletionSessions(session.handles.AsSpan());
             if (Animations() != nullptr) {
                 for (AnimationHandle handle : session.handles) {
-                    static_cast<void>(Animations()->Remove(handle));
+                    Animations()->Remove(handle);
                 }
             }
             for (std::uint32_t next = index + 1U;
@@ -1338,7 +1338,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
             if (Animations() != nullptr) {
                 for (AnimationHandle handle :
                      session.handles) {
-                    static_cast<void>(Animations()->Remove(handle));
+                    Animations()->Remove(handle);
                 }
             }
             for (std::uint32_t next = index + 1U;
@@ -1690,12 +1690,10 @@ Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
                 state.names,
                 nullptr);
         if (!actual) return actual.GetStatus();
-        Base::Result<bool> matches = EvaluateTriggerComparison(
+        const bool active = EvaluateTriggerComparison(
             actual.Value(),
             state.trigger->GetAuthoredValue(),
             state.trigger->GetComparison());
-        if (!matches) return matches.GetStatus();
-        const bool active = matches.Value();
         if (active == state.active) return false;
         Base::Result<bool> allowed = ConditionBehaviorsAllowExecution(
             state.trigger->GetBehaviors(), *state.owner, state.names);
@@ -2094,7 +2092,7 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
         return {};
     }
 
-Base::Result<bool> InteractivityEngine::StyleDataTriggerValuesMatch(
+bool InteractivityEngine::StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
     return ComparePropertyValues(actual, std::move(expected), Metadata());
@@ -2124,9 +2122,8 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
             : Metadata()->GetProperty(
                   *state.metadataSource, state.metadataProperty);
         if (!actual) return actual.GetStatus();
-        Base::Result<bool> matches = StyleDataTriggerValuesMatch(
+        const bool matches = StyleDataTriggerValuesMatch(
             actual.Value(), state.expected);
-        if (!matches) return matches.GetStatus();
         if (state.aggregate != nullptr) {
             if (state.conditionIndex >= state.aggregate->known.Size() ||
                 state.conditionIndex >= state.aggregate->active.Size()) {
@@ -2136,7 +2133,7 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
             }
             state.aggregate->known[state.conditionIndex] = 1U;
             state.aggregate->active[state.conditionIndex] =
-                matches.Value() ? 1U : 0U;
+                matches ? 1U : 0U;
             bool allKnown = true;
             bool allActive = true;
             for (std::uint32_t index = 0U;
@@ -2150,17 +2147,19 @@ Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
             if (!allKnown) {
                 return {};
             }
-            return Styles()->SetBindingTriggerState(
+            Styles()->SetBindingTriggerState(
                 *state.target,
                 *state.style,
                 state.triggerIndex,
                 allActive);
+            return {};
         }
-        return Styles()->SetBindingTriggerState(
+        Styles()->SetBindingTriggerState(
             *state.target,
             *state.style,
             state.triggerIndex,
-            matches.Value());
+            matches);
+        return {};
     }
 
 void InteractivityEngine::FlushPendingStyleDataTriggerEvaluations() noexcept {

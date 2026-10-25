@@ -3,7 +3,6 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
-#include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -56,15 +55,15 @@ struct EditableTextState {
     std::uint32_t GraphemeCount() const noexcept {
         return graphemeOffsets.Empty() ? 0U : graphemeOffsets.Size() - 1U;
     }
-    Base::Result<void> EnsureIndexCapacity(std::uint32_t newTextBytes) noexcept;
-    Base::Result<void> EnsureGap(std::uint32_t requiredBytes) noexcept;
-    Base::Result<void> MoveGap(std::uint32_t byteOffset) noexcept;
-    Base::Result<void> RebuildIndexes() noexcept;
-    Base::Result<void> CopyByteRange(
+    void EnsureIndexCapacity(std::uint32_t newTextBytes) noexcept;
+    void EnsureGap(std::uint32_t requiredBytes) noexcept;
+    void MoveGap(std::uint32_t byteOffset) noexcept;
+    void RebuildIndexes() noexcept;
+    void CopyByteRange(
         std::uint32_t start,
         std::uint32_t count,
         Base::String& output) const noexcept;
-    Base::Result<void> ReplaceBytes(
+    void ReplaceBytes(
         std::uint32_t byteStart,
         std::uint32_t removedBytes,
         Base::StringView replacement) noexcept;
@@ -76,7 +75,7 @@ struct EditableTextState {
         std::uint32_t insertedCount,
         std::uint32_t insertedCodePoints) noexcept;
     void TrimHistory(Base::Vector<EditRecord>& history) noexcept;
-    Base::Result<void> Replace(
+    bool Replace(
         TextRange range,
         Base::StringView replacement,
         bool recordHistory,
@@ -95,8 +94,8 @@ public:
     EditableTextModel(const EditableTextModel&) = delete;
     EditableTextModel& operator=(const EditableTextModel&) = delete;
 
-    Base::Result<void> SetText(Base::StringView text) noexcept;
-    Base::Result<void> Snapshot(Base::String& output) const noexcept;
+    bool SetText(Base::StringView text) noexcept;
+    void Snapshot(Base::String& output) const noexcept;
 
     std::uint32_t SizeBytes() const noexcept;
     std::uint32_t CodePointCount() const noexcept;
@@ -106,43 +105,43 @@ public:
 
     TextSelection Selection() const noexcept;
     std::uint32_t Caret() const noexcept;
-    Base::Result<void> SetSelection(
+    void SetSelection(
         std::uint32_t anchor,
         std::uint32_t caret) noexcept;
-    Base::Result<void> SelectAll() noexcept;
+    void SelectAll() noexcept;
 
-    Base::Result<void> ReplaceRange(
+    bool ReplaceRange(
         TextRange range,
         Base::StringView replacement) noexcept;
-    Base::Result<void> ReplaceSelection(
+    bool ReplaceSelection(
         Base::StringView replacement) noexcept;
-    Base::Result<void> DeleteBackward() noexcept;
-    Base::Result<void> DeleteForward() noexcept;
+    bool DeleteBackward() noexcept;
+    bool DeleteForward() noexcept;
 
-    Base::Result<std::uint32_t> ByteOffsetForGrapheme(
+    std::uint32_t ByteOffsetForGrapheme(
         std::uint32_t graphemeIndex) const noexcept;
-    Base::Result<std::uint32_t> GraphemeIndexForByteOffset(
+    std::uint32_t GraphemeIndexForByteOffset(
         std::uint32_t byteOffset) const noexcept;
-    Base::Result<TextRange> LineRange(
+    TextRange LineRange(
         std::uint32_t lineIndex) const noexcept;
 
-    Base::Result<void> SetMaximumLength(
+    bool SetMaximumLength(
         std::uint32_t graphemeCount) noexcept;
     std::uint32_t MaximumLength() const noexcept;
-    Base::Result<void> SetReadOnly(bool value) noexcept;
+    void SetReadOnly(bool value) noexcept;
     bool IsReadOnly() const noexcept;
 
     bool CanUndo() const noexcept;
     bool CanRedo() const noexcept;
-    Base::Result<void> Undo() noexcept;
-    Base::Result<void> Redo() noexcept;
+    bool Undo() noexcept;
+    bool Redo() noexcept;
     void ClearHistory() noexcept;
 
 private:
     Base::IAllocator* allocator_ = nullptr;
     std::optional<EditableTextState> state_;
 
-    Base::Result<void> EnsureState() noexcept;
+    void EnsureState() noexcept;
 };
 
 } // namespace Aero::Text

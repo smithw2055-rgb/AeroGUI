@@ -41,14 +41,14 @@ public:
     Base::Result<void> DismissOverlaysForPointer(
         const Input::PointerInput& pointer,
         Aero::UIElement* target) noexcept;
-    Base::Result<bool> DismissTopOverlayForEscape() noexcept;
-    Base::Result<void> OpenContextMenuForPointer(
+    bool DismissTopOverlayForEscape() noexcept;
+    void OpenContextMenuForPointer(
         const Input::PointerInput& pointer,
         Aero::UIElement* hitTarget) noexcept;
-    Base::Result<void> UpdateToolTipForPointer(
+    void UpdateToolTipForPointer(
         const Input::PointerInput& pointer,
         Aero::UIElement* hitTarget) noexcept;
-    Base::Result<std::uint32_t> AdvanceToolTipTime(
+    std::uint32_t AdvanceToolTipTime(
         std::uint32_t elapsedMilliseconds) noexcept;
 
 private:

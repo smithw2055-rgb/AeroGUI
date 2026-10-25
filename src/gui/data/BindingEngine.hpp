@@ -233,9 +233,9 @@ public:
         descriptor.mode = mode;
         return Attach(descriptor);
     }
-    Base::Result<bool> Detach(BindingHandle handle) noexcept;
-    Base::Result<bool> UpdateSource(BindingHandle handle) noexcept;
-    Base::Result<bool> UpdateTarget(BindingHandle handle) noexcept;
+    bool Detach(BindingHandle handle) noexcept;
+    bool UpdateSource(BindingHandle handle) noexcept;
+    bool UpdateTarget(BindingHandle handle) noexcept;
     BindingHandle FindBinding(
         DependencyObject& target,
         DependencyPropertyHandle property) const noexcept;

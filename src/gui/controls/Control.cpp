@@ -90,13 +90,13 @@ void Control::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) 
 void Control::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     if (GetTemplateRoot() != nullptr) return;
     auto& builder = Aero::Render::DrawingBridge::Builder(context);
-    static_cast<void>(PaintBrushRect(
+    PaintBrushRect(
         builder,
         GetBackground(),
         Rect{
             0.0, 0.0,
             GetRenderSize().width,
-            GetRenderSize().height}));
+            GetRenderSize().height});
 }
 
 // ============================================================================
@@ -264,9 +264,8 @@ void ContentControl::EnsureFallbackPresenter() noexcept {
         return;
     }
     if (!fallbackPresenter_) {
-        Base::Result<Ref<ContentPresenter>> made = Base::MakeRef<ContentPresenter>();
-        if (!made) return;
-        fallbackPresenter_ = std::move(made).Value();
+        fallbackPresenter_ = Base::MakeRef<ContentPresenter>();
+        if (!fallbackPresenter_) return;
         UIElement* existingContent = ownedContent_ ? TryCast<UIElement>(ownedContent_.Get()) : nullptr;
         if (existingContent != nullptr && existingContent->GetVisualParent() == this) {
             if (ElementTree* tree = VisualTree(this)) {
@@ -550,14 +549,14 @@ void ContentPresenter::ApplyContent() noexcept {
     if (content_ == nullptr ||
         !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
-        Base::Result<Base::Ref<TextBlock>> made = Base::MakeRef<TextBlock>();
+        Base::Ref<TextBlock> made = Base::MakeRef<TextBlock>();
         if (made) {
-            Base::Ref<Base::Object> owned = std::move(made).Value();
+            Base::Ref<Base::Object> owned = made;
             auto* tb = static_cast<TextBlock*>(owned.Get());
             HostUiElement(owned, *tb);
         }
     }
-    static_cast<void>(UpdatePresentedText());
+    UpdatePresentedText();
 }
 
 void ContentPresenter::OnContentPropertyChanged(
@@ -577,21 +576,21 @@ void ContentPresenter::OnPropertyChanged(
     FrameworkElement::OnPropertyChanged(args);
 }
 
-Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
+void ContentPresenter::UpdatePresentedText() noexcept {
     if (appliedTemplate_ != nullptr) {
-        return {};
+        return;
     }
     if (content_ == nullptr ||
         !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             content_->RuntimeType(), TextBlock::StaticTypeId())) {
-        return {};
+        return;
     }
     if (contentValue_.Kind() == Meta::ValueKind::Object && !contentValue_.IsNullObject()) {
         auto* obj = contentValue_.AsObject().Get();
         if (obj == content_ ||
             DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
                 obj->RuntimeType(), UIElement::StaticTypeId())) {
-            return {};
+            return;
         }
     }
     Base::String text;
@@ -603,7 +602,7 @@ Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
     case Meta::ValueKind::Double:
         {
             Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, contentValue_);
-            if (!formatted) return formatted.GetStatus();
+            if (!formatted) return;
         }
         break;
     case Meta::ValueKind::Object:
@@ -637,7 +636,7 @@ Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
         }
         break;
     default:
-        return {};
+        return;
     }
     auto* textBlock = static_cast<TextBlock*>(content_);
     textBlock->SetText(text.View());
@@ -654,7 +653,6 @@ Base::Result<void> ContentPresenter::UpdatePresentedText() noexcept {
             }
         }
     }
-    return {};
 }
 
 void ContentPresenter::SetContentSource(Base::StringView value) noexcept {
@@ -671,10 +669,7 @@ bool ContentPresenter::IsOnlyAttachedContent(const UIElement& content) const noe
 }
 
 void ContentPresenter::SetContent(UIElement* content) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> validated = ValidateContent(content);
-    if (!validated) return;
+    if (!CheckAccess() || !ValidateContent(content)) return;
     if (content == content_) return;
     if (content_ != nullptr && content_->GetVisualParent() == this) {
         if (ElementTree* tree = VisualTree(this)) {
@@ -705,10 +700,7 @@ void ContentPresenter::SetOwnedContent(
     if (!contentObject || contentObject.Get() != &content) {
         return;
     }
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
-    Base::Result<void> validated = ValidateContent(&content);
-    if (!validated) return;
+    if (!CheckAccess() || !ValidateContent(&content)) return;
     if (content_ != nullptr && content_ != &content && content_->GetVisualParent() == this) {
         if (ElementTree* tree = VisualTree(this)) {
             DetachVisualAttachment(tree, this, content_);
@@ -729,21 +721,14 @@ void ContentPresenter::SetOwnedContent(
     InvalidateMeasure();
 }
 
-Base::Result<void> ContentPresenter::ValidateContent(UIElement* content) const noexcept {
+bool ContentPresenter::ValidateContent(UIElement* content) const noexcept {
     if (content == this) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content cannot be itself");
+        return false;
     }
     if (content == nullptr) {
-        if (!LayoutChildren().Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState,
-                "ContentPresenter content must be detached before clearing it");
-        }
-    } else if (!LayoutChildren().Empty() && !IsOnlyAttachedContent(*content)) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "ContentPresenter content must be its only attached layout child");
+        return LayoutChildren().Empty();
     }
-    return {};
+    return LayoutChildren().Empty() || IsOnlyAttachedContent(*content);
 }
 
 Size ContentPresenter::MeasureOverride(Size availableSize) noexcept {

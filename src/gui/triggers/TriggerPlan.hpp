@@ -77,7 +77,7 @@ struct TriggerPlan {
     }
     // Property-trigger condition eval lives on the plan; binding triggers use
     // recorded StyleApplication binding state instead.
-    Base::Result<bool> IsConditionMet(
+    bool IsConditionMet(
         const DependencyObject& object) const noexcept;
     Base::Vector<StyleTriggerSetter> setters;
     Base::Vector<Base::Ref<Base::Object>> enterActions;
@@ -93,19 +93,19 @@ enum class PropertyComparisonOperator : std::uint8_t {
     GreaterThanOrEqual
 };
 
-Base::Result<bool> ComparePropertyValues(
+bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
     Meta::PropertyValue expected,
     const Meta::Registry* metadata = nullptr,
     PropertyComparisonOperator op = PropertyComparisonOperator::Equal) noexcept;
 
-Base::Result<bool> ComparePropertyValues(
+bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
     Meta::PropertyValue expected,
     const Meta::Registry* metadata,
     Base::StringView comparison) noexcept;
 
-inline Base::Result<bool> IsTriggerConditionMet(
+inline bool IsTriggerConditionMet(
     const DependencyObject& object,
     const TriggerPlan& trigger) noexcept {
     return trigger.IsConditionMet(object);

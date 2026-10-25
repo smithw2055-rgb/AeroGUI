@@ -39,9 +39,9 @@ public:
     Win32ImeAdapter() noexcept = default;
     ~Win32ImeAdapter() override;
 
-    Base::Result<void> Attach(void* window) noexcept;
-    Base::Result<bool> AttachActiveWindow() noexcept;
-    Base::Result<bool> Detach() noexcept;
+    bool Attach(void* window) noexcept;
+    bool AttachActiveWindow() noexcept;
+    bool Detach() noexcept;
     bool IsAttached() const noexcept {
         return window_ != nullptr;
     }
@@ -51,7 +51,7 @@ public:
     bool IsComposing() const noexcept {
         return composing_;
     }
-    Base::Result<bool> HandleMessage(
+    bool HandleMessage(
         std::uint32_t message,
         std::uintptr_t wParam,
         std::intptr_t lParam) noexcept;
@@ -59,7 +59,7 @@ public:
         Input::ITextCompositionClient* client) noexcept override;
     void SetCandidateWindow(
         const Input::ImeCandidateWindow& value) noexcept override;
-    Base::Result<void> CancelNativeComposition() noexcept override;
+    void CancelNativeComposition() noexcept override;
 
 private:
     friend std::intptr_t DispatchWin32ImeWindowMessage(

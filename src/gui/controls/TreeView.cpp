@@ -274,13 +274,9 @@ TreeViewItem::SetIsSelected(
     SetCurrentValue(IsSelectedProperty, value);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 TreeViewItem::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<TreeViewItem>> made =
-        Base::MakeRef<TreeViewItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<TreeViewItem>();
 }
 
 void TreeViewItem::SetHierarchicalContent(
@@ -532,12 +528,10 @@ void TreeViewItem::SynchronizeTemplate() noexcept {
         if (scale != nullptr) {
             if (::Aero::AnimationEngine* animations =
                     ElementTree::AnimationsOf(*this)) {
-                static_cast<void>(animations->RemoveTarget(*scale));
-                static_cast<void>(
-                    animations->RemoveTarget(*itemsHostPresenter_));
+                animations->RemoveTarget(*scale);
+                animations->RemoveTarget(*itemsHostPresenter_);
                 if (itemsBorder_ != nullptr) {
-                    static_cast<void>(
-                        animations->RemoveTarget(*itemsBorder_));
+                    animations->RemoveTarget(*itemsBorder_);
                 }
             }
             scale->SetScaleY(expanded ? 1.0 : 0.0);
@@ -790,13 +784,9 @@ TreeView::GetSelectedItem() const noexcept {
     return GetValue(SelectedItemProperty);
 }
 
-Base::Result<Base::Ref<FrameworkElement>>
+Base::Ref<FrameworkElement>
 TreeView::GetContainerForItemOverride() const noexcept {
-    Base::Result<Base::Ref<TreeViewItem>> made =
-        Base::MakeRef<TreeViewItem>();
-    if (!made) return made.GetStatus();
-    return Base::Ref<FrameworkElement>(
-        std::move(made).Value());
+    return Base::MakeRef<TreeViewItem>();
 }
 
 bool TreeView::SelectItem(
@@ -877,7 +867,7 @@ TreeViewItem* TreeView::FindItem(Base::Object* source) const noexcept {
     return nullptr;
 }
 
-Base::Result<void> TreeView::CollectVisibleItems(
+void TreeView::CollectVisibleItems(
     ::Aero::Media::Visual& parent,
     Base::Vector<TreeViewItem*>& items) noexcept {
     for (::Aero::Media::Visual* child :
@@ -899,11 +889,8 @@ Base::Result<void> TreeView::CollectVisibleItems(
                     static_cast<TreeViewItem*>(
                         element));
         }
-        Base::Result<void> nested =
-            CollectVisibleItems(*child, items);
-        if (!nested) return nested.GetStatus();
+        CollectVisibleItems(*child, items);
     }
-    return {};
 }
 
 void TreeView::OnMouseLeftButtonDown(MouseButtonEventArgs& args) {
@@ -1005,12 +992,11 @@ void TreeView::OnKeyDown(KeyEventArgs& args) {
             current = static_cast<TreeViewItem*>(selected.Get());
         } else if (selected) {
             Base::Vector<TreeViewItem*> visible;
-            if (CollectVisibleItems(*this, visible)) {
-                for (TreeViewItem* candidate : visible) {
-                    if (candidate != nullptr && candidate->GetIsSelected()) {
-                        current = candidate;
-                        break;
-                    }
+            CollectVisibleItems(*this, visible);
+            for (TreeViewItem* candidate : visible) {
+                if (candidate != nullptr && candidate->GetIsSelected()) {
+                    current = candidate;
+                    break;
                 }
             }
         }
@@ -1041,8 +1027,8 @@ void TreeView::OnKeyDown(KeyEventArgs& args) {
         return;
     }
     Base::Vector<TreeViewItem*> visible;
-    Base::Result<void> collected = CollectVisibleItems(*this, visible);
-    if (!collected || visible.Empty()) return;
+    CollectVisibleItems(*this, visible);
+    if (visible.Empty()) return;
     std::uint32_t index = UINT32_MAX;
     for (std::uint32_t currentIndex = 0U;
         currentIndex < visible.Size();

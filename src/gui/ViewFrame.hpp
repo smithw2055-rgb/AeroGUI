@@ -59,7 +59,7 @@ inline Base::Status ViewNotInitialized(const char* message) noexcept {
     return Base::Status::NotInitialized(message);
 }
 
-inline Base::Result<void> ValidateViewport(
+inline bool ValidateViewport(
     const ViewViewport& viewport) noexcept {
     if (!IsValidLayoutSize(viewport.logicalSize) ||
         !std::isfinite(viewport.dpiScale) ||
@@ -68,11 +68,9 @@ inline Base::Result<void> ValidateViewport(
             (viewport.pixelWidth == 0U)) ||
         ((viewport.logicalSize.height == 0.0) !=
             (viewport.pixelHeight == 0U))) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "View viewport is invalid");
+        return false;
     }
-    return {};
+    return true;
 }
 
 inline Base::Result<ViewViewport> MakeLogicalViewport(
@@ -102,8 +100,11 @@ inline Base::Result<ViewViewport> MakeLogicalViewport(
         std::floor(pixelWidth + 0.5));
     viewport.pixelHeight = static_cast<std::uint32_t>(
         std::floor(pixelHeight + 0.5));
-    Base::Result<void> valid = ValidateViewport(viewport);
-    if (!valid) return valid.GetStatus();
+    if (!ValidateViewport(viewport)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "View viewport is invalid");
+    }
     return viewport;
 }
 
@@ -287,44 +288,11 @@ struct ViewFrame {
     bool mounted = false;
     bool terminal = false;
 
-    void AttachTextLayout(
-        Aero::Media::Visual& node,
-        ::Aero::Controls::TextBlockLayout* service,
-        bool invalidate = false) noexcept;
-
     Aero::Render::MeshResources*
     GetMeshResources() noexcept;
 
     Aero::Render::ImageResources*
     GetImageResources() noexcept;
-
-    void AttachPathResources(
-        Aero::Media::Visual& node,
-        Aero::Render::MeshResources* service,
-        bool invalidate = false) noexcept;
-
-    void SyncVisualRenderResources(
-        Aero::Media::Visual* rootVisual,
-        ::Aero::Controls::TextBlockLayout* textService,
-        Aero::Render::MeshResources* meshService,
-        bool invalidate = false,
-        bool ancestorsVisible = true) noexcept;
-
-    void VisitTextElements(
-        Aero::Media::Visual* rootVisual,
-        ::Aero::Controls::TextBlockLayout* service,
-        bool invalidate = false,
-        bool ancestorsVisible = true) noexcept;
-
-    void VisitPaths(
-        Aero::Media::Visual* rootVisual,
-        Aero::Render::MeshResources* service,
-        bool invalidate = false,
-        bool ancestorsVisible = true) noexcept;
-
-    static void TextLifecycleHook(
-        const Aero::ElementTreeLifecycleEvent& event,
-        void* context) noexcept;
 
     Aero::Media::Visual* RootVisual() noexcept;
 
@@ -360,8 +328,7 @@ struct ViewFrame {
     Base::Result<void> VisitAndAttach(
         Aero::Media::Visual& rootVisual) noexcept;
 
-    void ClearTextInputHosts(
-        Aero::Media::Visual* node) noexcept;
+
 
     void BeginDestroyInteractions() noexcept;
 
@@ -383,9 +350,8 @@ struct ViewFrame {
 #include "gui/media/StoryboardHost.hpp"
 #include "gui/input/OverlayHost.hpp"
 #include "gui/styles/ResourceHost.hpp"
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Panels.hpp>
-#include <Aero/Controls/Decorators.hpp>
+#include <Aero/VisualTreeHelper.hpp>
+#include <Aero/LogicalTreeHelper.hpp>
 
 namespace Aero {
 
@@ -396,27 +362,22 @@ inline void ForEachVisualAndLogicalChild(Aero::Media::Visual& node, TFn&& fn) {
             fn(child);
         }
     }
-    if (auto* panel = ::Aero::TryCast<Controls::Panel>(&node)) {
-        const std::uint32_t count = panel->GetChildren().GetCount();
-        for (std::uint32_t index = 0U; index < count; ++index) {
-            UIElement* child = panel->GetChildren().GetItem(index);
-            if (child != nullptr && child->GetVisualParent() != &node) {
+    const std::uint32_t visualCount = Aero::Media::VisualTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t i = 0U; i < visualCount; ++i) {
+        if (Aero::Media::Visual* child = Aero::Media::VisualTreeHelper::GetChild(node, i)) {
+            if (child->GetVisualParent() != &node) {
                 fn(child);
             }
         }
     }
-    if (auto* host = ::Aero::TryCast<Controls::ContentControl>(&node)) {
-        if (host->GetTemplateRoot() == nullptr) {
-            UIElement* content = host->GetContentElement();
-            if (content != nullptr && content->GetVisualParent() != host) {
-                fn(content);
+    const std::uint32_t logicalCount = Aero::LogicalTreeHelper::GetChildrenCount(node);
+    for (std::uint32_t i = 0U; i < logicalCount; ++i) {
+        if (DependencyObject* child = Aero::LogicalTreeHelper::GetChild(node, i)) {
+            if (auto* childVis = ::Aero::TryCast<Aero::Media::Visual>(child)) {
+                if (childVis->GetVisualParent() != &node) {
+                    fn(childVis);
+                }
             }
-        }
-    }
-    if (auto* decorator = ::Aero::TryCast<Controls::Decorator>(&node)) {
-        UIElement* child = decorator->GetChild();
-        if (child != nullptr && child->GetVisualParent() != decorator) {
-            fn(child);
         }
     }
 }

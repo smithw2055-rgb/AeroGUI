@@ -517,24 +517,19 @@ Base::Result<void> X11Window::Attach(
 #endif
 }
 
-Base::Result<void> X11Window::Show() noexcept {
+void X11Window::Show() noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
     if (display_ == nullptr ||
         window_ == 0U ||
         !open_) {
-        return WindowFailure(
-            Base::ErrorCode::NotInitialized,
-            "X11 window is not created");
+        return;
     }
     XMapWindow(display_, window_);
     XFlush(display_);
-    return {};
-#else
-    return UnsupportedX11Window();
 #endif
 }
 
-Base::Result<bool> X11Window::PollEvent(
+bool X11Window::PollEvent(
     WindowEvent& event) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
     if (Dequeue(event)) {
@@ -554,11 +549,11 @@ Base::Result<bool> X11Window::PollEvent(
     return false;
 #else
     static_cast<void>(event);
-    return UnsupportedX11Window();
+    return false;
 #endif
 }
 
-Base::Result<bool> X11Window::WaitEvent(
+bool X11Window::WaitEvent(
     WindowEvent& event) noexcept {
 #if AERO_PLATFORM_HAS_X11_WINDOW
     if (Dequeue(event)) {
@@ -575,7 +570,7 @@ Base::Result<bool> X11Window::WaitEvent(
     return Dequeue(event);
 #else
     static_cast<void>(event);
-    return UnsupportedX11Window();
+    return false;
 #endif
 }
 

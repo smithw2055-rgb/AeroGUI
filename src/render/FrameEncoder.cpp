@@ -425,9 +425,10 @@ bool UiFrameEncoder::PrepareGeometrySpace(
     std::uint32_t indexCount) noexcept {
     const std::uint32_t vertexBytes = vertexCount * vertexStride;
     if (currentVertexOffset_ + vertexBytes > DYNAMIC_VB_SIZE ||
-        (currentIndexCount_ + indexCount) * sizeof(uint16_t) > DYNAMIC_IB_SIZE ||
-        (currentVertexCount_ - currentBatchVertexStart_) + vertexCount > 65535U) {
+        (currentIndexCount_ + indexCount) * sizeof(uint16_t) > DYNAMIC_IB_SIZE) {
         CommitBatches();
+    } else if ((currentVertexCount_ - currentBatchVertexStart_) + vertexCount > 65535U) {
+        FlushBatch();
     }
     return EnsureCapacity(vertexBytes, indexCount);
 }

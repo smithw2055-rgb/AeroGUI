@@ -55,7 +55,7 @@ protected:
     virtual void OnSelected(RoutedEventArgs& e);
     virtual void OnUnselected(RoutedEventArgs& e);
     explicit TreeViewItem(TypeId runtimeType) noexcept;
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
@@ -101,12 +101,12 @@ public:
     inline static constexpr RoutedEvent<RoutedEventArgs> SelectedItemChangedEvent{"SelectedItemChanged"};
 
 protected:
-    Result<Ref<FrameworkElement>> GetContainerForItemOverride() const noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 
 private:
     TreeViewItem* FindItem(Base::Object* source) const noexcept;
-    static Result<void> CollectVisibleItems(::Aero::Media::Visual& parent, Base::Vector<TreeViewItem*>& items) noexcept;
+    static void CollectVisibleItems(::Aero::Media::Visual& parent, Base::Vector<TreeViewItem*>& items) noexcept;
 };
 } // namespace Aero::Controls

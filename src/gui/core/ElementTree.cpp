@@ -1541,7 +1541,7 @@ Base::Result<void> ElementTree::ResizeRoot(
     Base::Result<void> resized = layout_->SetRoot(&layoutRoot, availableSize);
     if (!resized) return resized.GetStatus();
     if (renderTree_ != nullptr && renderRoot != nullptr) {
-        return renderTree_->Invalidate(
+        renderTree_->Invalidate(
             *renderRoot, Aero::Render::RenderInvalidation::State);
     }
     return {};

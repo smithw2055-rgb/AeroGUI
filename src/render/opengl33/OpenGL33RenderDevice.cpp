@@ -1092,7 +1092,9 @@ void* OpenGL33RenderDevice::MapVertices(uint32_t bytes) noexcept {
     if (bytes == 0U || gl_.glMapBufferRange == nullptr) return nullptr;
     activeVBBytes_ = bytes;
     uint32_t allocOffset = 0U;
-    const bool wrapped = vbRing_.Allocate(bytes, 64U, allocOffset);
+    // Align to 192U (LCM(64, 24, 32, 16)) so totalVBOffset is always a multiple
+    // of vertex stride (specifically 24B), keeping the glDrawElementsBaseVertex fast path active.
+    const bool wrapped = vbRing_.Allocate(bytes, 192U, allocOffset);
     gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
     GLbitfield access = GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT;
     if (wrapped && gl_.glBufferData != nullptr) {

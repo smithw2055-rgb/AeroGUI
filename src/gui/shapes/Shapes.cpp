@@ -129,7 +129,7 @@ ImageBrushGeometry FitImageBrush(
     return {destination, sourceUv};
 }
 
-[[maybe_unused]] Base::Result<void> PaintImageBrush(
+[[maybe_unused]] void PaintImageBrush(
     ::Aero::Media::DrawingContext& context,
     const ImageBrush& brush,
     Rect bounds) noexcept {
@@ -142,7 +142,7 @@ ImageBrushGeometry FitImageBrush(
             GetPixelWidth() == 0U ||
         brush.
             GetPixelHeight() == 0U) {
-        return {};
+        return;
     }
     const double pixelWidth = static_cast<double>(
         brush.GetPixelWidth());
@@ -168,7 +168,7 @@ ImageBrushGeometry FitImageBrush(
         sourceUv.height, 1.0 - sourceUv.y);
     if (sourceUv.width <= 0.0 ||
         sourceUv.height <= 0.0) {
-        return {};
+        return;
     }
 
     const Rect authoredViewport =
@@ -187,7 +187,7 @@ ImageBrushGeometry FitImageBrush(
             authoredViewport.height * bounds.height};
     if (cell.width <= 0.0 ||
         cell.height <= 0.0) {
-        return {};
+        return;
     }
     const Color tint{
         1.0F, 1.0F, 1.0F,
@@ -198,9 +198,7 @@ ImageBrushGeometry FitImageBrush(
         bounds.width > 0.0 && bounds.height > 0.0;
     const bool clipped = transformed ||
         brush.GetTileMode() != TileMode::None;
-    Base::Result<void> status;
-    if (clipped) status = builder.PushClip(bounds);
-    if (!status) return status.GetStatus();
+    if (clipped) builder.PushClip(bounds);
     if (transformed) {
         Base::Transform2D toNormalized;
         toNormalized.m11 = 1.0 / bounds.width;
@@ -217,17 +215,13 @@ ImageBrushGeometry FitImageBrush(
                 toNormalized,
                 relativeTransform->GetMatrix()),
             fromNormalized);
-        status = builder.PushTransform(absolute);
-        if (!status) {
-            static_cast<void>(builder.PopClip());
-            return status.GetStatus();
-        }
+        builder.PushTransform(absolute);
     }
 
     if (brush.GetTileMode() == TileMode::None) {
         const ImageBrushGeometry geometry =
             FitImageBrush(brush, cell, sourceUv);
-        status = builder.DrawImage(
+        builder.DrawImage(
             image, geometry.destination, geometry.sourceUv, tint);
     } else {
         constexpr std::uint32_t maxTiles = 4096U;
@@ -238,7 +232,7 @@ ImageBrushGeometry FitImageBrush(
             std::floor((bounds.y - cell.y) / cell.height));
         for (std::int64_t row = firstRow;
              cell.y + static_cast<double>(row) * cell.height < bounds.y + bounds.height &&
-             tileCount < maxTiles && status; ++row) {
+             tileCount < maxTiles; ++row) {
             for (std::int64_t column = firstColumn;
                  cell.x + static_cast<double>(column) * cell.width < bounds.x + bounds.width &&
                  tileCount < maxTiles; ++column) {
@@ -262,25 +256,18 @@ ImageBrushGeometry FitImageBrush(
                     geometry.sourceUv.y += geometry.sourceUv.height;
                     geometry.sourceUv.height = -geometry.sourceUv.height;
                 }
-                status = builder.DrawImage(
+                builder.DrawImage(
                     image, geometry.destination, geometry.sourceUv, tint);
-                if (!status) break;
                 ++tileCount;
             }
         }
     }
-    const Base::Status paintStatus = status
-        ? Base::Status::Ok()
-        : status.GetStatus();
     if (transformed) {
-        Base::Result<void> popped = builder.PopTransform();
-        if (status && !popped) status = popped.GetStatus();
+        builder.PopTransform();
     }
     if (clipped) {
-        Base::Result<void> popped = builder.PopClip();
-        if (status && !popped) status = popped.GetStatus();
+        builder.PopClip();
     }
-    return paintStatus.IsOk() ? status : Base::Result<void>(paintStatus);
 }
 
 } // namespace
@@ -408,48 +395,40 @@ void Ellipse::OnRender(
         return;
     }
 
-    auto paintEllipse = [&](Rect bounds, Color color) noexcept
-        -> Base::Result<void> {
+    auto paintEllipse = [&](Rect bounds, Color color) noexcept -> void {
         if (bounds.width <= 0.0 || bounds.height <= 0.0 ||
             color.alpha <= 0.0F) {
-            return {};
+            return;
         }
         Transform2D transform;
         transform.m11 = bounds.width;
         transform.m22 = bounds.height;
         transform.dx = bounds.x;
         transform.dy = bounds.y;
-        Base::Result<void> pushed =
-            builder.PushTransform(transform);
-        if (!pushed) return pushed.GetStatus();
-        Base::Result<void> painted = builder.FillRoundedRect(
+        builder.PushTransform(transform);
+        builder.FillRoundedRect(
             Rect{0.0, 0.0, 1.0, 1.0}, color, 0.5);
-        Base::Result<void> popped = builder.PopTransform();
-        if (!painted) return painted.GetStatus();
-        return popped;
+        builder.PopTransform();
     };
 
     auto paintEllipseBrush = [&](Rect bounds, const Base::Ref<Brush>& brush)
-        noexcept -> Base::Result<void> {
+        noexcept -> void {
         if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0) {
-            return {};
+            return;
         }
         Transform2D transform;
         transform.m11 = bounds.width;
         transform.m22 = bounds.height;
         transform.dx = bounds.x;
         transform.dy = bounds.y;
-        Base::Result<void> pushed = builder.PushTransform(transform);
-        if (!pushed) return pushed.GetStatus();
-        Base::Result<void> painted = ::Aero::Media::PaintBrushRect(
+        builder.PushTransform(transform);
+        ::Aero::Media::PaintBrushRect(
             builder,
             brush,
             Rect{0.0, 0.0, 1.0, 1.0},
             0.5,
             GetFlowDirection() == FlowDirection::RightToLeft);
-        Base::Result<void> popped = builder.PopTransform();
-        if (!painted) return painted.GetStatus();
-        return popped;
+        builder.PopTransform();
     };
 
     const Base::Ref<Brush> fillBrush = GetFill();
@@ -463,10 +442,11 @@ void Ellipse::OnRender(
     const Rect bounds{0.0, 0.0, renderSize.width, renderSize.height};
     const bool hasFill = spatialFill || fill.alpha > 0.0F;
     if (hasFill) {
-        Base::Result<void> painted = spatialFill
-            ? paintEllipseBrush(bounds, fillBrush)
-            : paintEllipse(bounds, fill);
-        if (!painted) return;
+        if (spatialFill) {
+            paintEllipseBrush(bounds, fillBrush);
+        } else {
+            paintEllipse(bounds, fill);
+        }
     }
     if (strokeBrush && thickness > 0.0) {
         // Match AeroGUI Ellipse: fill/stroke as rounded-rect primitives, not
@@ -540,11 +520,10 @@ void StrokeLineSegment(
     transform.m22 = cosine;
     transform.dx = start.x;
     transform.dy = start.y;
-    Base::Result<void> pushed = builder.PushTransform(transform);
-    if (!pushed) return;
-    static_cast<void>(builder.FillRect(
-        Rect{0.0, -thickness * 0.5, length, thickness}, color));
-    static_cast<void>(builder.PopTransform());
+    builder.PushTransform(transform);
+    builder.FillRect(
+        Rect{0.0, -thickness * 0.5, length, thickness}, color);
+    builder.PopTransform();
 }
 
 Base::Result<void> ParsePoints(

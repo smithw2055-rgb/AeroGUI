@@ -482,12 +482,13 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
         return;
     }
     if (uniformThickness > 0.0 && hasBorder && hasBackground) {
-        Base::Result<void> border = paintedBorder
-            ? PaintBrushRect(builder, borderBrush, bounds, radius, isRtl)
-            : (radius > 0.0
-                ? builder.FillRoundedRect(bounds, brush, radius)
-                : builder.FillRect(bounds, brush));
-        if (!border) return;
+        if (paintedBorder) {
+            PaintBrushRect(builder, borderBrush, bounds, radius, isRtl);
+        } else if (radius > 0.0) {
+            builder.FillRoundedRect(bounds, brush, radius);
+        } else {
+            builder.FillRect(bounds, brush);
+        }
         const double inset = std::min(
             uniformThickness,
             std::min(bounds.width * 0.5, bounds.height * 0.5));
@@ -502,51 +503,48 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
             std::max(0.0, radius - inset),
             std::min(inner.width, inner.height) * 0.5);
         if (paintedBackground) {
-            static_cast<void>(PaintBrushRect(builder, background, inner, innerRadius, isRtl));
+            PaintBrushRect(builder, background, inner, innerRadius, isRtl);
         } else if (innerRadius > 0.0) {
-            static_cast<void>(builder.FillRoundedRect(
-                inner, backgroundColor, innerRadius));
+            builder.FillRoundedRect(
+                inner, backgroundColor, innerRadius);
         } else {
-            static_cast<void>(builder.FillRect(inner, backgroundColor));
+            builder.FillRect(inner, backgroundColor);
         }
         return;
     }
     if (hasBackground) {
-        Base::Result<void> fill = paintedBackground
-            ? PaintBrushRect(builder, background, bounds, radius, isRtl)
-            : (radius > 0.0
-                ? builder.FillRoundedRect(bounds, backgroundColor, radius)
-                : builder.FillRect(bounds, backgroundColor));
-        if (!fill) return;
+        if (paintedBackground) {
+            PaintBrushRect(builder, background, bounds, radius, isRtl);
+        } else if (radius > 0.0) {
+            builder.FillRoundedRect(bounds, backgroundColor, radius);
+        } else {
+            builder.FillRect(bounds, backgroundColor);
+        }
     }
     if (!uniform && hasBorder) {
-        const auto fillSide =
-            [&](Rect side) noexcept -> Base::Result<void> {
-                return side.width > 0.0 && side.height > 0.0
-                    ? PaintBrushRect(builder, borderBrush, side, 0.0, isRtl)
-                    : Base::Result<void>();
-            };
-        Base::Result<void> side = fillSide({
+        const auto fillSide = [&](Rect side) noexcept {
+            if (side.width > 0.0 && side.height > 0.0) {
+                PaintBrushRect(builder, borderBrush, side, 0.0, isRtl);
+            }
+        };
+        fillSide({
             0.0, 0.0,
             std::min(bounds.width, thickness.left),
             bounds.height});
-        if (!side) return;
-        side = fillSide({
+        fillSide({
             std::max(0.0, bounds.width - thickness.right),
             0.0,
             std::min(bounds.width, thickness.right),
             bounds.height});
-        if (!side) return;
-        side = fillSide({
+        fillSide({
             0.0, 0.0,
             bounds.width,
             std::min(bounds.height, thickness.top)});
-        if (!side) return;
-        static_cast<void>(fillSide({
+        fillSide({
             0.0,
             std::max(0.0, bounds.height - thickness.bottom),
             bounds.width,
-            std::min(bounds.height, thickness.bottom)}));
+            std::min(bounds.height, thickness.bottom)});
         return;
     }
 }

@@ -721,30 +721,26 @@ const AnimationEngine::Track* AnimationEngine::FindTrack(
     return nullptr;
 }
 
-Base::Result<void> AnimationEngine::Pause(
+bool AnimationEngine::Pause(
     AnimationHandle handle) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return false;
     Track* track = FindTrack(handle);
     if (track == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound, "Animation handle was not found");
+        return false;
     }
     if (track->state == AnimationState::Active) {
         track->state = AnimationState::Paused;
         track->pauseTimeMicroseconds = currentTimeMicroseconds_;
     }
-    return {};
+    return true;
 }
 
-Base::Result<void> AnimationEngine::Resume(
+bool AnimationEngine::Resume(
     AnimationHandle handle) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return false;
     Track* track = FindTrack(handle);
     if (track == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound, "Animation handle was not found");
+        return false;
     }
     if (track->state == AnimationState::Paused) {
         const AnimationTime now = currentTimeMicroseconds_;
@@ -754,18 +750,16 @@ Base::Result<void> AnimationEngine::Resume(
         }
         track->state = AnimationState::Active;
     }
-    return {};
+    return true;
 }
 
-Base::Result<void> AnimationEngine::Seek(
+bool AnimationEngine::Seek(
     AnimationHandle handle,
     AnimationTime offsetMicroseconds) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return false;
     Track* track = FindTrack(handle);
     if (track == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound, "Animation handle was not found");
+        return false;
     }
     track->seekOffsetMicroseconds = offsetMicroseconds;
     track->startTimeMicroseconds = currentTimeMicroseconds_;
@@ -777,16 +771,15 @@ Base::Result<void> AnimationEngine::Seek(
         track->state = AnimationState::Active;
     }
     track->completedCounted = false;
-    return {};
+    return true;
 }
 
-Base::Result<void> AnimationEngine::ClearTrackValue(
+void AnimationEngine::ClearTrackValue(
     Track& track) noexcept {
-    if (track.target == nullptr) return {};
+    if (track.target == nullptr) return;
     if (track.valueApplied) {
-        Base::Result<void> cleared = values_->ClearAnimationValue(
-            *track.target, track.property);
-        if (!cleared) return cleared.GetStatus();
+        static_cast<void>(values_->ClearAnimationValue(
+            *track.target, track.property));
         track.valueApplied = false;
     }
     // HoldEnd clocks leave the last keyframe on the animation layer. Removing
@@ -799,94 +792,80 @@ Base::Result<void> AnimationEngine::ClearTrackValue(
             (prop != nullptr && prop->ValueType() == Meta::TypeOf<Length>())
                 ? Meta::ValueCodec<Length>::Encode(Length::Pixels(track.baseValue))
                 : Meta::ValueCodec<double>::Encode(track.baseValue);
-        if (!rest) return rest.GetStatus();
-        Base::Result<void> restored = values_->SetAnimationValue(
-            *track.target, track.property, rest.Value());
-        if (!restored) return restored.GetStatus();
-        track.valueApplied = true;
+        if (rest) {
+            static_cast<void>(values_->SetAnimationValue(
+                *track.target, track.property, rest.Value()));
+            track.valueApplied = true;
+        }
     } else if (track.kind == Track::Kind::ColorKeyFrames) {
         Base::Result<PropertyValue> rest =
             Meta::ValueCodec<Base::Color>::Encode(track.fromColor);
-        if (!rest) return rest.GetStatus();
-        Base::Result<void> restored = values_->SetAnimationValue(
-            *track.target, track.property, rest.Value());
-        if (!restored) return restored.GetStatus();
-        track.valueApplied = true;
+        if (rest) {
+            static_cast<void>(values_->SetAnimationValue(
+                *track.target, track.property, rest.Value()));
+            track.valueApplied = true;
+        }
     }
-    return {};
 }
 
-Base::Result<void> AnimationEngine::Stop(
+bool AnimationEngine::Stop(
     AnimationHandle handle) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return false;
     Track* track = FindTrack(handle);
     if (track == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound, "Animation handle was not found");
+        return false;
     }
-    Base::Result<void> cleared = ClearTrackValue(*track);
-    if (!cleared) return cleared.GetStatus();
+    ClearTrackValue(*track);
     track->state = AnimationState::Stopped;
     track->target = nullptr;
-    if (values_->IsFlushing()) {
-        return {};
+    if (!values_->IsFlushing()) {
+        static_cast<void>(values_->Flush());
     }
-    Base::Result<std::uint32_t> flushed = values_->Flush();
-    if (!flushed) return flushed.GetStatus();
-    return {};
+    return true;
 }
 
-Base::Result<void> AnimationEngine::Remove(
+bool AnimationEngine::Remove(
     AnimationHandle handle) noexcept {
-    Base::Result<void> stopped = Stop(handle);
-    if (!stopped) return stopped.GetStatus();
+    const bool stopped = Stop(handle);
+    if (!stopped) return false;
     CompactStopped();
-    return {};
+    return true;
 }
 
-Base::Result<std::uint32_t> AnimationEngine::RemoveTarget(
+std::uint32_t AnimationEngine::RemoveTarget(
     ::Aero::DependencyObject& target) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return 0U;
     std::uint32_t removed = 0U;
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
         Track& track = tracks_[index];
         if (track.target != &target) continue;
-        Base::Result<void> cleared = ClearTrackValue(track);
-        if (!cleared) return cleared.GetStatus();
+        ClearTrackValue(track);
         track.state = AnimationState::Stopped;
         track.target = nullptr;
         ++removed;
     }
     CompactStopped();
     if (removed != 0U) {
-        Base::Result<std::uint32_t> flushed = values_->Flush();
-        if (!flushed) return flushed.GetStatus();
+        static_cast<void>(values_->Flush());
     }
     return removed;
 }
 
-Base::Result<void> AnimationEngine::RemoveAll() noexcept {
+void AnimationEngine::RemoveAll() noexcept {
     if (dispatcher_ == nullptr || !dispatcher_->CheckAccess()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::WrongThread,
-            "AnimationEngine removal requires dispatcher access");
+        return;
     }
     bool changed = false;
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
         const bool hadValue = tracks_[index].valueApplied;
-        Base::Result<void> cleared = ClearTrackValue(tracks_[index]);
-        if (!cleared) return cleared.GetStatus();
+        ClearTrackValue(tracks_[index]);
         changed = changed || hadValue;
         tracks_[index].state = AnimationState::Stopped;
     }
     CompactStopped();
     if (changed) {
-        Base::Result<std::uint32_t> flushed = values_->Flush();
-        if (!flushed) return flushed.GetStatus();
+        static_cast<void>(values_->Flush());
     }
-    return {};
 }
 
 
@@ -911,17 +890,10 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
     ++diagnostics_.tickSequence;
     diagnostics_.appliedValueCount = 0U;
     std::uint32_t appliedCount = 0U;
-    Base::Status firstTrackError{};
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
-        Base::Result<bool> applied =
-            ApplyTrack(tracks_[index], currentTimeMicroseconds_);
-        if (!applied) {
-            if (firstTrackError.IsOk()) {
-                firstTrackError = applied.GetStatus();
-            }
-            continue;
+        if (ApplyTrack(tracks_[index], currentTimeMicroseconds_)) {
+            ++appliedCount;
         }
-        if (applied.Value()) ++appliedCount;
     }
     if (appliedCount != 0U) {
         Base::Result<std::uint32_t> flushed = values_->Flush();
@@ -933,7 +905,7 @@ Base::Result<std::uint32_t> AnimationEngine::Tick(
     }
     CompactStopped();
     ticking_ = false;
-    lastTickStatus_ = firstTrackError;
+    lastTickStatus_ = Base::Status::Ok();
     return appliedCount;
 }
 

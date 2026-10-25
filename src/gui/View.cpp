@@ -2,8 +2,10 @@
 #include "gui/GuiRuntime.hpp"
 #include "gui/text/TextPipeline.hpp"
 #include "render/RenderTree.hpp"
+#include "gui/input/InputDevicesState.hpp"
 #include <Aero/BuiltinThemes.generated.hpp>
 #include <Aero/Controls/Panels.hpp>
+#include <Aero/Controls/Decorators.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -76,7 +78,6 @@ void ViewFrame::Shutdown() noexcept {
     BeginDestroyInteractions();
     DetachViewUi(*this);
     FinishDestroyInteractions();
-    SyncVisualRenderResources(RootVisual(), nullptr, nullptr);
     if (HasAttachedRoot()) {
         static_cast<void>(DetachVisualGraph({
             loadedDocument.visualContent.mountEdges.Data(),
@@ -216,10 +217,6 @@ Base::Result<void> ViewFrame::Initialize(
         if (status) {
             status = engines->text.Initialize(
                 *device, nullptr, options.text);
-        }
-        if (status) {
-            engines->tree.SetLifecycleHandler(
-                &TextLifecycleHook, this);
         }
         if (status) status = engines->bindings.Initialize();
         if (status) {
@@ -422,6 +419,21 @@ Base::Result<void> LoadViewBuiltInTheme(
             Base::ErrorCode::InvalidArgument,
             "Built-in theme value is invalid");
     }
+    if (state.gui != nullptr) {
+        const bool hasCached = theme == BuiltInTheme::Light
+            ? state.gui->hasCachedLightTheme
+            : state.gui->hasCachedDarkTheme;
+        if (hasCached) {
+            const ResourceDictionary& cached = theme == BuiltInTheme::Light
+                ? state.gui->cachedLightTheme
+                : state.gui->cachedDarkTheme;
+            Base::Result<ResourceDictionary> shared = cached.Share();
+            if (shared) {
+                state.Resources()->themeResources = std::move(shared.Value());
+                return state.Resources()->RebuildDynamicEnvironment();
+            }
+        }
+    }
     const Base::StringView themeUri =
         theme == BuiltInTheme::Light
         ? Base::StringView(
@@ -433,7 +445,23 @@ Base::Result<void> LoadViewBuiltInTheme(
         std::move(state.Resources()->themeResources);
     Base::Result<void> loaded = LoadViewResources(
         state, ResourceLayer::Theme, themeUri);
-    if (loaded) return {};
+    if (loaded) {
+        if (state.gui != nullptr) {
+            Base::Result<ResourceDictionary> prototype =
+                state.Resources()->themeResources.Share();
+            if (prototype) {
+                static_cast<void>(prototype.Value().Seal());
+                if (theme == BuiltInTheme::Light) {
+                    state.gui->cachedLightTheme = std::move(prototype.Value());
+                    state.gui->hasCachedLightTheme = true;
+                } else {
+                    state.gui->cachedDarkTheme = std::move(prototype.Value());
+                    state.gui->hasCachedDarkTheme = true;
+                }
+            }
+        }
+        return {};
+    }
 
     const std::uint8_t* paletteBytes =
         theme == BuiltInTheme::Light
@@ -490,6 +518,20 @@ Base::Result<void> LoadViewBuiltInTheme(
             ? Base::Result<void>(loaded.GetStatus())
             : Base::Result<void>(restored.GetStatus());
     }
+    if (state.gui != nullptr) {
+        Base::Result<ResourceDictionary> prototype =
+            state.Resources()->themeResources.Share();
+        if (prototype) {
+            static_cast<void>(prototype.Value().Seal());
+            if (theme == BuiltInTheme::Light) {
+                state.gui->cachedLightTheme = std::move(prototype.Value());
+                state.gui->hasCachedLightTheme = true;
+            } else {
+                state.gui->cachedDarkTheme = std::move(prototype.Value());
+                state.gui->hasCachedDarkTheme = true;
+            }
+        }
+    }
     return {};
 }
 
@@ -515,10 +557,7 @@ bool View::SetContent(
     }
     if (root) {
         Markup::XamlDocument document;
-        Base::Result<bool> pending =
-            GetGui().TakeLoadedDocument(*root, document);
-        if (!pending) return false;
-        if (pending.Value()) {
+        if (GetGui().TakeLoadedDocument(*root, document)) {
             return SetContent(std::move(document), availableSize);
         }
     }
@@ -598,6 +637,15 @@ bool View::SetContent(
                 panelHost->GetChildren().Add(std::move(childElement));
             }
         }
+    } else if (auto* decoratorHost = ::Aero::TryCast<Controls::Decorator>(hostRoot.Value())) {
+        Aero::Markup::VisualEdge edge;
+        edge.parent = hostRoot.Value();
+        edge.child = documentRoot.Value();
+        next.visualContent.mountEdges.PushBack(std::move(edge));
+
+        decoratorHost->SetOwnedChild(
+            next.root,
+            *documentRoot.Value());
     } else {
         next.Clear();
         return false;
@@ -616,8 +664,7 @@ bool View::SetViewport(
     if (state_ == nullptr || !state_->initialized) {
         return false;
     }
-    Base::Result<void> valid = ValidateViewport(viewport);
-    if (!valid) return false;
+    if (!ValidateViewport(viewport)) return false;
     Base::Result<void> applied = state_->ApplyViewport(viewport);
     return applied.HasValue();
 }
@@ -701,11 +748,18 @@ bool View::Update(double timeInSeconds) noexcept {
 void View::Activate() noexcept {
     active_ = true;
     hasUpdateTime_ = false;
+    if (state_ != nullptr && state_->Input() != nullptr) {
+        Input::DeviceState::SetActiveRouter(state_->Input());
+    }
 }
 
 void View::Deactivate() noexcept {
     active_ = false;
     hasUpdateTime_ = false;
+    if (state_ != nullptr && state_->Input() != nullptr &&
+        Input::DeviceState::ActiveRouter() == state_->Input()) {
+        Input::DeviceState::SetActiveRouter(nullptr);
+    }
 }
 
 IRenderer& View::GetRenderer() noexcept {

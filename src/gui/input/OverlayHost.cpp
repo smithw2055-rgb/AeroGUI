@@ -415,10 +415,10 @@ Base::Result<void> OverlayHost::DismissOverlaysForPointer(
             : Base::Result<void>();
     }
 
-Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
+bool OverlayHost::DismissTopOverlayForEscape()
         noexcept {
         Base::Result<void> synced = SynchronizeOverlays();
-        if (!synced) return Base::Result<bool>(synced.GetStatus());
+        if (!synced) return false;
         if (activeContextMenu) {
             activeContextMenu->SetIsOpen(false);
             static_cast<void>(activeContextMenu->SetPlacementTarget({}));
@@ -426,9 +426,9 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
             contextMenuTarget.Reset();
             contextMenuHasPosition = false;
             synced = SynchronizeOverlays();
-            if (!synced) return Base::Result<bool>(synced.GetStatus());
+            if (!synced) return false;
             Base::Result<void> restored = RestoreOverlayFocus();
-            return restored ? Base::Result<bool>(true) : Base::Result<bool>(restored.GetStatus());
+            return restored.HasValue();
         }
         for (std::uint32_t index =
                  inputOverlays.Size();
@@ -483,14 +483,11 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                 }
                 synced = SynchronizeOverlays();
                 if (!synced) {
-                    return Base::Result<bool>(synced.GetStatus());
+                    return false;
                 }
                 Base::Result<void> restored =
                     RestoreOverlayFocus();
-                return restored
-                    ? Base::Result<bool>(true)
-                    : Base::Result<bool>(
-                          restored.GetStatus());
+                return restored.HasValue();
             }
             if (Metadata()->Types().IsDerivedFrom(
                     type,
@@ -505,20 +502,17 @@ Base::Result<bool> OverlayHost::DismissTopOverlayForEscape()
                         SetPlacementTarget({}));
                 synced = SynchronizeOverlays();
                 if (!synced) {
-                    return Base::Result<bool>(synced.GetStatus());
+                    return false;
                 }
                 Base::Result<void> restored =
                     RestoreOverlayFocus();
-                return restored
-                    ? Base::Result<bool>(true)
-                    : Base::Result<bool>(
-                          restored.GetStatus());
+                return restored.HasValue();
             }
         }
         return false;
     }
 
-Base::Result<void> OverlayHost::OpenContextMenuForPointer(
+void OverlayHost::OpenContextMenuForPointer(
         const Input::PointerInput& pointer,
         Aero::UIElement* hitTarget)
         noexcept {
@@ -526,7 +520,7 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
                 Input::PointerAction::Down ||
             pointer.changedButton !=
                 Input::MouseButton::Right) {
-            return {};
+            return;
         }
         Aero::Media::Visual* current =
             hitTarget;
@@ -593,15 +587,14 @@ Base::Result<void> OverlayHost::OpenContextMenuForPointer(
                     if (this->Input() != nullptr) {
                         static_cast<void>(this->Input()->SetFocus(menu.Get()));
                     }
-                    return {};
+                    return;
                 }
             }
             current = current->GetVisualParent();
         }
-        return {};
     }
 
-Base::Result<void> OverlayHost::UpdateToolTipForPointer(
+void OverlayHost::UpdateToolTipForPointer(
         const Input::PointerInput& pointer,
         Aero::UIElement* hitTarget)
         noexcept {
@@ -618,11 +611,11 @@ Base::Result<void> OverlayHost::UpdateToolTipForPointer(
             toolTipTarget.Reset();
             toolTipElapsed = 0U;
             toolTipVisibleElapsed = 0U;
-            return {};
+            return;
         }
         if (pointer.action !=
             Input::PointerAction::Move) {
-            return {};
+            return;
         }
         Base::Ref<Controls::ToolTip> next;
         Base::Ref<Aero::UIElement>
@@ -649,7 +642,7 @@ Base::Result<void> OverlayHost::UpdateToolTipForPointer(
         }
         if (next.Get() == pendingToolTip.Get() &&
             nextTarget.Get() == toolTipTarget.Get()) {
-            return {};
+            return;
         }
         if (activeToolTip) {
             activeToolTip->SetIsOpen(false);
@@ -665,11 +658,9 @@ Base::Result<void> OverlayHost::UpdateToolTipForPointer(
         if (pendingToolTip && toolTipTarget) {
             pendingToolTip->SetPlacementTarget(toolTipTarget);
         }
-        return {};
     }
 
-Base::Result<std::uint32_t>
- OverlayHost::AdvanceToolTipTime(
+std::uint32_t OverlayHost::AdvanceToolTipTime(
         std::uint32_t elapsedMilliseconds)
         noexcept {
         if (!pendingToolTip ||

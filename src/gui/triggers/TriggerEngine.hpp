@@ -34,37 +34,36 @@ public:
 
     // Style application lifecycle (trigger side). The style setter application
     // itself remains in StyleEngine; these only manage trigger state.
-    Base::Result<void> SubscribeTriggers(
+    void SubscribeTriggers(
         DependencyObject& object, const Style& style) noexcept;
     void UnsubscribeTriggers(
         DependencyObject& object, const Style& style) noexcept;
-    Base::Result<void> EvaluateTriggers(
+    void EvaluateTriggers(
         DependencyObject& object, const Style& style) noexcept;
-    Base::Result<void> ClearTriggerSetters(
+    void ClearTriggerSetters(
         DependencyObject& object, const Style& style) noexcept;
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    Base::Result<void> ExecuteTriggerActions(
+    void ExecuteTriggerActions(
         DependencyObject& object,
         Base::Span<const Base::Ref<Base::Object>>
             actions) noexcept;
     // P3.2: opts the deferred evaluations into ViewFrame's explicit DataBind
     // phase (formerly registered a frame hook). ViewFrame calls
     // TriggerPhaseHook() directly when phase participation is enabled.
-    Base::Result<void> EnableDataBindPhase(
+    void EnableDataBindPhase(
         DependencyObject& object) noexcept;
     bool DataBindPhaseEnabled() const noexcept {
         return dataBindPhaseEnabled_;
     }
-    Base::Result<void> QueueTriggerEvaluation(
+    void QueueTriggerEvaluation(
         DependencyObject& object) noexcept;
     void RemovePendingTriggerEvaluation(
         DependencyObject& object) noexcept;
-    Base::Result<std::uint32_t>
-        FlushPendingTriggerEvaluations() noexcept;
+    std::uint32_t FlushPendingTriggerEvaluations() noexcept;
     static void TriggerPhaseHook(void* context) noexcept;
-    Base::Result<void> SetBindingTriggerState(
+    void SetBindingTriggerState(
         DependencyObject& object,
         const Style& style,
         std::uint32_t triggerIndex,

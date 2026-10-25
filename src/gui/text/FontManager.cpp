@@ -228,23 +228,18 @@ Base::Result<void> FontManager::ReleaseFace(
     return {};
 }
 
-Base::Result<bool> FontManager::HasCodePoint(
+bool FontManager::HasCodePoint(
     FontFaceHandle face,
     std::uint32_t codePoint) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
+    if (!VerifyReady()) return false;
     if (!face.IsValid() ||
         codePoint > 0x10FFFFU ||
         (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Font coverage query is invalid");
+        return false;
     }
     ProviderRecord* record = FindProvider(face);
     if (record == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Font face provider is missing or its version changed");
+        return false;
     }
     return record->fonts->HasCodePoint(face, codePoint);
 }

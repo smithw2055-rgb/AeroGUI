@@ -776,6 +776,55 @@ inline Model::PointKeyFrame MakeFrame(
     return PointFrame(frame, durationMicroseconds, index, count);
 }
 
+inline Model::ThicknessKeyFrame MakeFrame(
+    const ThicknessKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return ThicknessFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::IntegerKeyFrame MakeFrame(
+    const Int16KeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return IntegerFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::IntegerKeyFrame MakeFrame(
+    const Int32KeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return IntegerFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::IntegerKeyFrame MakeFrame(
+    const Int64KeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return IntegerFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::SizeKeyFrame MakeFrame(
+    const SizeKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return SizeFrame(frame, durationMicroseconds, index, count);
+}
+
+inline Model::MatrixKeyFrame MakeFrame(
+    const MatrixKeyFrame& frame,
+    AnimationTime durationMicroseconds,
+    std::uint32_t index,
+    std::uint32_t count) noexcept {
+    return MatrixFrame(frame, durationMicroseconds, index, count);
+}
+
+
 template <typename TFrame>
 inline void SortKeyFramesByTime(Base::Vector<TFrame>& frames) noexcept {
     for (std::uint32_t index = 1U; index < frames.Size(); ++index) {

@@ -706,18 +706,11 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
     return bindings_[bindings_.Size() - 1U].handle;
 }
 
-Base::Result<bool> CommandState::RemoveBinding(
+bool CommandState::RemoveBinding(
     CommandBindingHandle handle) noexcept {
     ::Aero::Media::Visual* root = tree_->Root();
-    if (root == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Command binding removal requires an ElementTree root");
-    }
-    Base::Result<void> access = root->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!handle.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Command binding handle is invalid");
+    if (root == nullptr || !root->CheckAccess() || !handle.IsValid()) {
+        return false;
     }
     for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
         if (bindings_[index].handle.value != handle.value) continue;
@@ -771,7 +764,7 @@ bool CommandState::CanExecute(
     return command.CanExecute(parameter, &target);
 }
 
-Base::Result<bool> CommandState::Execute(
+bool CommandState::Execute(
     ICommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
@@ -829,7 +822,7 @@ bool CommandState::CanExecute(
     return args.GetCanExecute();
 }
 
-Base::Result<bool> CommandState::Execute(
+bool CommandState::Execute(
     RoutedCommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
@@ -870,20 +863,20 @@ Base::Result<bool> CommandState::Execute(
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return invoked;
 }
 
-Base::Result<bool> CommandState::ProcessInput(
+bool CommandState::ProcessInput(
     UIElement& target,
     const KeyboardInput& input) noexcept {
     if (input.action != KeyboardAction::Down || !target.GetIsEnabled()) return false;
     Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
+    if (!verified) return false;
 
     PruneStaleBindings();
     PruneStaleInputBindings();
-    Base::Result<bool> result(false);
+    bool result = false;
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
@@ -919,20 +912,20 @@ Base::Result<bool> CommandState::ProcessInput(
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return result;
 }
 
-Base::Result<bool> CommandState::ProcessInput(
+bool CommandState::ProcessInput(
     UIElement& target,
     const PointerInput& input) noexcept {
     if (!target.GetIsEnabled()) return false;
     Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
+    if (!verified) return false;
 
     PruneStaleBindings();
     PruneStaleInputBindings();
-    Base::Result<bool> result(false);
+    bool result = false;
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
@@ -965,7 +958,7 @@ Base::Result<bool> CommandState::ProcessInput(
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return result;
 }
 
