@@ -372,87 +372,57 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
 
 void LayoutEngine::InvalidateMeasure(
     UIElement& element) noexcept {
-    constexpr std::size_t kInlineCapacity = 64U;
-    UIElement* inlinePath[kInlineCapacity];
-    UIElement** path = inlinePath;
-    std::size_t pathCapacity = kInlineCapacity;
-    std::size_t pathCount = 0U;
-    Base::Vector<UIElement*> heapPath;
-
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        if (pathCount >= pathCapacity) {
-            if (path == inlinePath) {
-                heapPath.Reserve(kInlineCapacity * 2U);
-                for (std::size_t i = 0U; i < pathCount; ++i) {
-                    heapPath.PushBack(inlinePath[i]);
-                }
+
+        const bool wasValid = current->GetIsMeasureValid();
+        current->Layout().InvalidateMeasureFlags();
+
+        if (!current->GetIsMeasureQueued()) {
+            const VisualHandle handle = ElementTree::HandleOf(*current);
+            if (handle.IsValid()) {
+                measureQueue_.PushBack(handle);
+                current->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
             }
-            heapPath.PushBack(current);
-            path = heapPath.Data();
-            pathCapacity = heapPath.Capacity();
-            pathCount = heapPath.Size();
-        } else {
-            path[pathCount++] = current;
         }
+
+        // Once an ancestor is already invalid, all of its ancestors up to the root
+        // have already been invalidated and queued.
+        if (current != &element && !wasValid) {
+            break;
+        }
+
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
-    }
-
-    for (std::size_t i = 0U; i < pathCount; ++i) {
-        UIElement* item = path[i];
-        item->Layout().InvalidateMeasureFlags();
-        if (item->GetIsMeasureQueued()) continue;
-        const VisualHandle handle = ElementTree::HandleOf(*item);
-        if (handle.IsValid()) {
-            measureQueue_.PushBack(handle);
-            item->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
-        }
     }
 }
 
 void LayoutEngine::InvalidateArrange(
     UIElement& element) noexcept {
-    constexpr std::size_t kInlineCapacity = 64U;
-    UIElement* inlinePath[kInlineCapacity];
-    UIElement** path = inlinePath;
-    std::size_t pathCapacity = kInlineCapacity;
-    std::size_t pathCount = 0U;
-    Base::Vector<UIElement*> heapPath;
-
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        if (pathCount >= pathCapacity) {
-            if (path == inlinePath) {
-                heapPath.Reserve(kInlineCapacity * 2U);
-                for (std::size_t i = 0U; i < pathCount; ++i) {
-                    heapPath.PushBack(inlinePath[i]);
-                }
+
+        const bool wasValid = current->GetIsArrangeValid();
+        current->Layout().InvalidateArrangeFlags();
+
+        if (!current->GetIsArrangeQueued()) {
+            const VisualHandle handle = ElementTree::HandleOf(*current);
+            if (handle.IsValid()) {
+                arrangeQueue_.PushBack(handle);
+                current->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
             }
-            heapPath.PushBack(current);
-            path = heapPath.Data();
-            pathCapacity = heapPath.Capacity();
-            pathCount = heapPath.Size();
-        } else {
-            path[pathCount++] = current;
         }
+
+        if (current != &element && !wasValid) {
+            break;
+        }
+
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
-    }
-
-    for (std::size_t i = 0U; i < pathCount; ++i) {
-        UIElement* item = path[i];
-        item->Layout().InvalidateArrangeFlags();
-        if (item->GetIsArrangeQueued()) continue;
-        const VisualHandle handle = ElementTree::HandleOf(*item);
-        if (handle.IsValid()) {
-            arrangeQueue_.PushBack(handle);
-            item->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
-        }
     }
 }
 
@@ -738,6 +708,14 @@ void UIElement::ArrangeCore(
     if (!IsValidLayoutSize(render)) {
         AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
         return;
+    }
+    if (framework != nullptr && (framework->GetUseLayoutRounding() ||
+            framework->GetSnapsToDevicePixels())) {
+        const float dpi = static_cast<float>(framework->GetDpiScale());
+        contentSlot.x = RoundLayoutValue(contentSlot.x, dpi);
+        contentSlot.y = RoundLayoutValue(contentSlot.y, dpi);
+        render.width = RoundLayoutValue(render.width, dpi);
+        render.height = RoundLayoutValue(render.height, dpi);
     }
     element.Layout().layoutSlot = contentSlot;
     element.Layout().renderSize = render;
