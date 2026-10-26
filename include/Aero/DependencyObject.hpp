@@ -109,7 +109,7 @@ protected:
         static_cast<void>(value);
         return true;
     }
-    virtual Result<void> VerifyMutationAllowed() const noexcept;
+    virtual bool VerifyMutationAllowed() const noexcept;
 
 private:
     friend class DependencyMutationScope;

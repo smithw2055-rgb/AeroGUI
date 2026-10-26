@@ -265,18 +265,16 @@ inline Base::Result<Base::Object*> ResolveCodeBindingSource(
 
 } // namespace
 
-Result<BindingExpression> BindingOperations::SetBinding(
+BindingExpression BindingOperations::SetBinding(
     DependencyObject* target,
     DependencyPropertyHandle property,
     const Binding& binding) noexcept {
     if (target == nullptr || !property.IsValid()) {
-        return BindingOpsInvalidArgument(
-            "SetBinding requires a target and dependency property");
+        return {};
     }
     BindingEngine* engine = ElementTree::BindingsOf(*target);
     if (engine == nullptr || engine->Metadata() == nullptr) {
-        return BindingOpsNotInitialized(
-            "SetBinding requires a mounted View BindingEngine");
+        return {};
     }
 
     // Replace any existing binding on this property (WPF/Noesis habit).
@@ -284,13 +282,13 @@ Result<BindingExpression> BindingOperations::SetBinding(
 
     Base::Result<Base::Object*> sourceResult =
         ResolveCodeBindingSource(binding, *target, *engine);
-    if (!sourceResult) return sourceResult.GetStatus();
+    if (!sourceResult) return {};
     Base::Object* source = sourceResult.Value();
     const bool isExplicitSource = binding.GetSource() ||
         !binding.GetElementName().Empty() ||
         binding.GetRelativeSource();
     if (isExplicitSource && source == nullptr) {
-        return BindingOpsNotFound("Binding source was not found");
+        return {};
     }
 
     MetadataBindingDescriptor descriptor;
@@ -317,7 +315,7 @@ Result<BindingExpression> BindingOperations::SetBinding(
     descriptor.targetNullValue = binding.GetTargetNullValue();
 
     Base::Result<BindingHandle> attached = engine->Attach(descriptor);
-    if (!attached) return attached.GetStatus();
+    if (!attached) return {};
     return BindingExpression(attached.Value());
 }
 

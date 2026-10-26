@@ -460,8 +460,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     }
 
     Base::String flattened;
-    Base::Result<void> copied = Documents::CopyText(*this, flattened);
-    if (!copied) return Size{};
+    Documents::CopyText(*this, flattened);
 
     Size textAvailable = availableSize;
     if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0) {

@@ -2310,21 +2310,8 @@ Base::Result<void> CaptureControlTemplateChildName(
 
         // NameOf stay consistent with AuthoredNames.
 
-        Base::Result<void> registered =
-
-            const_cast<Aero::NameScope*>(nameScope)->Register(
-
-                authoredName, target);
-
-        if (!registered &&
-
-            registered.GetStatus().code !=
-
-                Base::ErrorCode::AlreadyExists) {
-
-            return registered.GetStatus();
-
-        }
+        const_cast<Aero::NameScope*>(nameScope)->Register(
+            authoredName, target);
 
     }
 

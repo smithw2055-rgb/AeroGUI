@@ -28,7 +28,7 @@ public:
     NameScope(const NameScope&) = delete;
     NameScope& operator=(const NameScope&) = delete;
 
-    Result<void> Register(StringView name, Base::Object& object) noexcept;
+    void Register(StringView name, Base::Object& object) noexcept;
     Base::Object* Find(StringView name) const noexcept;
     StringView NameOf(const Base::Object& object) const noexcept;
     void Clear() noexcept;
@@ -120,13 +120,16 @@ public:
     ResourceDictionary(const ResourceDictionary&) = delete;
     ResourceDictionary& operator=(const ResourceDictionary&) = delete;
 
+    explicit operator bool() const noexcept { return state_ != nullptr; }
+    bool IsValid() const noexcept { return state_ != nullptr; }
+
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Result<void> Add(const ResourceKey& key, const ResourceValue& value,
+    void Add(const ResourceKey& key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(Meta::TypeId key, const ResourceValue& value,
+    void Add(StringView key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
+    void Add(Meta::TypeId key, const ResourceValue& value,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<void> Add(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
+    void Add(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     // Soft-fail like Set: false on missing/invalid/sealed.
     bool Remove(const ResourceKey& key) noexcept;
@@ -141,20 +144,20 @@ public:
     bool Contains(Meta::TypeId key) const noexcept;
     ::Aero::Diagnostics::SourceSpan SourceOf(const ResourceKey& key) const noexcept;
     ::Aero::Diagnostics::SourceSpan SourceOf(StringView key) const noexcept;
-    Result<void> AddMerged(ResourceDictionary& dictionary) noexcept;
+    void AddMerged(ResourceDictionary& dictionary) noexcept;
     bool RemoveMerged(ResourceDictionary& dictionary) noexcept;
     std::uint32_t MergedDictionaryCount() const noexcept;
     // Returns a move-only shared view over the merged dictionary's stable
     // backing store. Mutations through the view affect the merged dictionary.
-    Result<ResourceDictionary> MergedDictionaryAt(std::uint32_t index) const noexcept;
+    ResourceDictionary MergedDictionaryAt(std::uint32_t index) const noexcept;
     // Explicitly retains the stable backing store without making the public
     // dictionary type implicitly copyable.
-    Result<ResourceDictionary> Share() const noexcept;
-    Result<void> Seal() noexcept;
-    Result<ResourceChangeSubscription> SubscribeChanged(ResourceChangedCallback callback, void* context) noexcept;
+    ResourceDictionary Share() const noexcept;
+    void Seal() noexcept;
+    ResourceChangeSubscription SubscribeChanged(ResourceChangedCallback callback, void* context) noexcept;
     bool Unsubscribe(ResourceChangeSubscription subscription) noexcept;
     std::uint32_t Size() const noexcept;
-    Result<ResourceEntrySnapshot> EntryAt(std::uint32_t index) const noexcept;
+    ResourceEntrySnapshot EntryAt(std::uint32_t index) const noexcept;
     std::uint64_t Generation() const noexcept;
 
     bool Set(const ResourceKey& key, const ResourceValue& value, ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
@@ -181,7 +184,7 @@ private:
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
     bool StoreResource(StringView key, Meta::TypeId type, const Ref<Base::Object>& object,
         ::Aero::Diagnostics::SourceSpan source = {}) noexcept;
-    Result<DictionaryState*> EnsureState() noexcept;
+    DictionaryState* EnsureState() noexcept;
     static void AddStateRef(DictionaryState* state) noexcept;
     static void ReleaseState(DictionaryState* state) noexcept;
 

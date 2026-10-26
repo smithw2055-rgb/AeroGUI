@@ -130,8 +130,8 @@ void DependencyObject::RemoveChangeHandler(std::uint32_t index) noexcept {
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-Base::Result<void> DependencyObject::VerifyMutationAllowed() const noexcept {
-    return {};
+bool DependencyObject::VerifyMutationAllowed() const noexcept {
+    return true;
 }
 
 // from src/gui/core/EffectiveValueEngine.cpp
@@ -282,8 +282,11 @@ Base::Result<void> DependencyObject::DropEngineValueStateInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
+    }
         auto* storedEntry = FindStoredEntry(propertyHandle);
     if (storedEntry == nullptr) return {};
     StoredValueEntry& entry = *storedEntry;
@@ -530,8 +533,11 @@ Base::Result<void> DependencyObject::ApplyInheritedValueInternal(
     DependencyPropertyHandle property, const PropertyValue* value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
+    }
     StoredValueEntry* storedEntry = FindStoredEntry(property);
     if (storedEntry == nullptr && value == nullptr) return {};
     if (storedEntry == nullptr) {
@@ -574,8 +580,11 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     DependencyPropertyHandle property, const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
+    }
     if (value.IsUnset()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
         "Animation values cannot be Unset");
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
@@ -617,8 +626,11 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     DependencyPropertyHandle property, const PropertyExpression& expression) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
+    }
     if (!expression.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
         "A property expression requires an evaluate callback");
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
@@ -676,8 +688,11 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
+    }
     Base::Result<void> valid = registry_->ValidateValueFor(property, runtimeType_, value);
     if (!valid) return valid.GetStatus();
     Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
@@ -742,9 +757,10 @@ void DependencyObject::LeaveMutation() noexcept {
 Base::Result<DependencyMutationScope>
 DependencyObject::BeginMutation(
     DependencyPropertyHandle property) noexcept {
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) {
-        return writable.GetStatus();
+    if (!VerifyMutationAllowed()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Cannot mutate a frozen Freezable");
     }
     for (std::uint32_t index = 0U; index < t_mutationDepth; ++index) {
         if (t_mutationStack[index].object == this &&
@@ -898,8 +914,7 @@ void DependencyObject::SetTemplateValue(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return;
-    Base::Result<void> writable = VerifyMutationAllowed();
-    if (!writable) return;
+    if (!VerifyMutationAllowed()) return;
     const Meta::DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr) return;
     const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);

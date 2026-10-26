@@ -352,7 +352,7 @@ public:
         return {};
     }
 
-    static Base::Result<void> AppendText(
+    static void AppendText(
         const Controls::TextBlock& owner,
         Base::String& output) noexcept {
         if (!owner.flatTextValid_) {
@@ -360,29 +360,26 @@ public:
             if (owner.GetValue(RichText::TextProperty).Empty()) {
                 owner.richTextStyleRanges_.Clear();
             }
-            Base::Result<void> built = owner.flatText_.Append(owner.GetText());
-            if (!built) return built.GetStatus();
+            owner.flatText_.Append(owner.GetText());
             InlineStyleContext defaultContext{};
             for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
                 if (!item) continue;
-                built = AppendInline(
+                AppendInline(
                     owner,
                     *static_cast<const Documents::Inline*>(item.Get()),
                     owner.flatText_,
                     owner.richTextStyleRanges_,
                     defaultContext);
-                if (!built) return built.GetStatus();
             }
             owner.flatTextValid_ = true;
         }
-        return output.Append(owner.flatText_.View());
+        output.Append(owner.flatText_.View());
     }
 
-    static Base::Result<std::uint32_t> GetLength(
+    static std::uint32_t GetLength(
         const Controls::TextBlock& owner) noexcept {
         Base::String flattened;
-        Base::Result<void> copied = AppendText(owner, flattened);
-        if (!copied) return copied.GetStatus();
+        AppendText(owner, flattened);
         return flattened.SizeBytes();
     }
 
@@ -390,8 +387,7 @@ public:
         const Controls::TextBlock& owner,
         std::uint32_t offset) noexcept {
         Base::String flattened;
-        Base::Result<void> copied = AppendText(owner, flattened);
-        if (!copied) return false;
+        AppendText(owner, flattened);
         if (offset > flattened.SizeBytes()) {
             return false;
         }
@@ -401,14 +397,12 @@ public:
         return (byte & 0xC0U) != 0x80U;
     }
 
-    static Base::Result<Documents::TextPointer> PositionFromPoint(
+    static Documents::TextPointer PositionFromPoint(
         Controls::TextBlock& owner,
         Aero::Point point,
         bool snap) noexcept {
         if (!owner.GetIsMeasureValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Document text positions require a valid measure pass");
+            return {};
         }
         const TextHitRegion* best = nullptr;
         double bestDistance = 0.0;
@@ -435,9 +429,7 @@ public:
             bestDistance = distance;
         }
         if (best == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Point does not resolve to document text");
+            return {};
         }
         const bool trailing = point.x >
             static_cast<double>(best->x + best->width * 0.5F);
@@ -449,17 +441,10 @@ public:
             Documents::LogicalDirection::Forward);
     }
 
-    static Base::Result<Aero::Rect> CharacterRect(
+    static Aero::Rect CharacterRect(
         const Documents::TextPointer& position) noexcept {
-        if (!position.container_) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "TextPointer is not bound to a container");
-        }
-        if (!position.container_->GetIsMeasureValid()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Document character rectangles require a valid measure pass");
+        if (!position.container_ || !position.container_->GetIsMeasureValid()) {
+            return {};
         }
         const TextHitRegion* selected = nullptr;
         for (const TextHitRegion& hit :
@@ -475,9 +460,7 @@ public:
             selected = &position.container_->textHitRegions_.Back();
         }
         if (selected == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "TextPointer has no arranged character rectangle");
+            return {};
         }
         return Aero::Rect{
             selected->x,
@@ -630,96 +613,83 @@ void Span::ClearOwnedInlines() noexcept {
     if (host != nullptr) host->InvalidateDocumentText();
 }
 
-Base::Result<void> CopyText(
+void CopyText(
     const Controls::TextBlock& container,
     Base::String& output) noexcept {
     output.Clear();
-    return Aero::Controls::TextBlockDocumentHelper::AppendText(
+    Aero::Controls::TextBlockDocumentHelper::AppendText(
         container, output);
 }
 
-Base::Result<std::int32_t> TextPointer::CompareTo(
+std::int32_t TextPointer::CompareTo(
     const TextPointer& other) const noexcept {
     if (!GetIsValid() || !other.GetIsValid() ||
         container_ != other.container_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextPointer comparison requires one document container");
+        return 0;
     }
     return offset_ < other.offset_ ? -1 :
         (offset_ > other.offset_ ? 1 : 0);
 }
 
-Base::Result<TextPointer> TextPointer::GetPositionAtOffset(
+TextPointer TextPointer::GetPositionAtOffset(
     std::int32_t delta,
     LogicalDirection direction) const noexcept {
     if (!container_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextPointer is not bound to a container");
+        return {};
     }
-    Base::Result<std::uint32_t> length =
+    const std::uint32_t length =
         Aero::Controls::TextBlockDocumentHelper::GetLength(*container_);
-    if (!length) return length.GetStatus();
     const std::int64_t destination =
         static_cast<std::int64_t>(offset_) + delta;
     if (destination < 0 ||
-        destination > static_cast<std::int64_t>(length.Value())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "TextPointer offset leaves the document range");
+        destination > static_cast<std::int64_t>(length)) {
+        return {};
     }
     const std::uint32_t resolved =
         static_cast<std::uint32_t>(destination);
     if (!Aero::Controls::TextBlockDocumentHelper::IsUtf8Boundary(
             *container_, resolved)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextPointer offset splits a UTF-8 sequence");
+        return {};
     }
     return TextPointer(*container_, resolved, direction);
 }
 
-Base::Result<TextRange> TextRange::Create(
+TextRange TextRange::Create(
     TextPointer start, TextPointer end) noexcept {
-    Base::Result<std::int32_t> order = start.CompareTo(end);
-    if (!order) return order.GetStatus();
-    if (order.Value() > 0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextRange start must not follow its end");
+    if (!start.GetIsValid() || !end.GetIsValid() ||
+        start.container_ != end.container_) {
+        return {};
+    }
+    const std::int32_t order = start.CompareTo(end);
+    if (order > 0) {
+        return {};
     }
     return TextRange(start, end);
 }
 
-Base::Result<Base::String> TextRange::GetText() const noexcept {
+Base::String TextRange::GetText() const noexcept {
     Base::String text;
-    Base::Result<void> copied = CopyText(text);
-    return copied ? Base::Result<Base::String>(std::move(text)) : Base::Result<Base::String>(copied.GetStatus());
+    CopyText(text);
+    return text;
 }
 
-Base::Result<void> TextRange::CopyText(
+void TextRange::CopyText(
     Base::String& output) const noexcept {
+    output.Clear();
     if (!GetIsValid() || start_.container_ != end_.container_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TextRange is not valid");
+        return;
     }
     Base::String flattened;
-    Base::Result<void> copied = Documents::CopyText(
+    Documents::CopyText(
         *start_.container_, flattened);
-    if (!copied) return copied.GetStatus();
     if (end_.offset_ > flattened.SizeBytes()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "TextRange exceeds the document text");
+        return;
     }
-    output.Clear();
-    return output.Assign(flattened.View().Substr(
+    output.Assign(flattened.View().Substr(
         start_.offset_, GetLength()));
 }
 
-Base::Result<TextPointer> GetPositionFromPoint(
+TextPointer GetPositionFromPoint(
     Controls::TextBlock& container,
     Aero::Point point,
     bool snapToText) noexcept {
@@ -727,7 +697,7 @@ Base::Result<TextPointer> GetPositionFromPoint(
         container, point, snapToText);
 }
 
-Base::Result<Aero::Rect> GetCharacterRect(
+Aero::Rect GetCharacterRect(
     const TextPointer& position) noexcept {
     return Aero::Controls::TextBlockDocumentHelper::CharacterRect(position);
 }
@@ -777,21 +747,14 @@ NavigationService::~NavigationService() noexcept {
     static_cast<void>(Detach());
 }
 
-Base::Result<void> NavigationService::Attach(
+bool NavigationService::Attach(
     Aero::UIElement& root) noexcept {
-    if (root_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            "NavigationService is already attached");
-    }
-    if (!handler_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "NavigationService requires a navigation handler");
+    if (root_ != nullptr || !handler_) {
+        return false;
     }
     root.AddHandler(Hyperlink::RequestNavigateEvent, requestHandler_, true);
     root_ = &root;
-    return {};
+    return true;
 }
 
 bool NavigationService::Detach() noexcept {

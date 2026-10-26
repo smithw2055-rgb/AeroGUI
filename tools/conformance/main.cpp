@@ -236,7 +236,7 @@ void VerifyGradientFreeze() noexcept {
 
     const std::uint32_t beforeFreeze = changedCount;
     Check(brush.CanFreeze(), "valid gradient graph must be freezable");
-    Check(brush.Freeze().HasValue(), "valid gradient graph failed to freeze");
+    Check(brush.Freeze(), "valid gradient graph failed to freeze");
     Check(brush.IsFrozen() && stop->IsFrozen(),
         "Freeze did not recursively commit the gradient graph");
     Check(changedCount == beforeFreeze + 1U,
@@ -250,7 +250,7 @@ void VerifyGradientFreeze() noexcept {
     stop->SetOffset(0.75);
     Check(std::fabs(stop->GetOffset() - frozenOffset) < 0.000001,
         "void mutation changed a frozen object");
-    Check(brush.Freeze().HasValue(), "Freeze must be idempotent");
+    Check(brush.Freeze(), "Freeze must be idempotent");
 }
 
 void VerifyViewport(Aero::View& view) noexcept {

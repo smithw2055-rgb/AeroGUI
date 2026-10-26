@@ -117,7 +117,7 @@ Base::Status InvalidImage(
         message);
 }
 
-Base::Result<void> ClearImageTarget(
+void ClearImageTarget(
     Controls::Image* imageControl,
     Media::ImageBrush* imageBrush) noexcept {
     if (imageControl != nullptr) {
@@ -125,16 +125,15 @@ Base::Result<void> ClearImageTarget(
             Render::InvalidRenderImageId,
             0U,
             0U);
-        return {};
+        return;
     }
     if (imageBrush != nullptr) {
         imageBrush->SetRuntimeImage(
             Render::InvalidRenderImageId,
             0U,
             0U);
-        return {};
+        return;
     }
-    return {};
 }
 
 Base::Result<Base::ResourceUri> ResolveImageUri(
@@ -326,9 +325,7 @@ Base::Result<bool> ImageCache::Synchronize(
             // CroppedBitmap sources resolve through the wrapped bitmap and
             // produce a cropped sub-region of the decoded atlas.
         } else {
-            Base::Result<void> cleared =
-                ClearImageTarget(imageControl, imageBrush);
-            if (!cleared) return cleared.GetStatus();
+            ClearImageTarget(imageControl, imageBrush);
             continue;
         }
         Media::BitmapImage* bitmap =
@@ -347,9 +344,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 inner->RuntimeType() !=
                     Media::BitmapImage::
                         StaticTypeId()) {
-                Base::Result<void> cleared =
-                    ClearImageTarget(imageControl, imageBrush);
-                if (!cleared) return cleared.GetStatus();
+                ClearImageTarget(imageControl, imageBrush);
                 continue;
             }
             bitmap = static_cast<
@@ -367,9 +362,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 documentUri,
                 bitmap->GetUriSource());
         if (!resolved) {
-            Base::Result<void> cleared =
-                ClearImageTarget(imageControl, imageBrush);
-            if (!cleared) return cleared.GetStatus();
+            ClearImageTarget(imageControl, imageBrush);
             continue;
         }
 
@@ -447,9 +440,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 }
             }
             if (!imageStream) {
-                Base::Result<void> cleared =
-                    ClearImageTarget(imageControl, imageBrush);
-                if (!cleared) return cleared.GetStatus();
+                ClearImageTarget(imageControl, imageBrush);
                 continue;
             }
             int width = 0;
@@ -480,9 +471,7 @@ Base::Result<bool> ImageCache::Synchronize(
                 if (decoded != nullptr) {
                     stbi_image_free(decoded);
                 }
-                Base::Result<void> cleared =
-                    ClearImageTarget(imageControl, imageBrush);
-                if (!cleared) return cleared.GetStatus();
+                ClearImageTarget(imageControl, imageBrush);
                 continue;
             }
             const std::uint32_t byteCount =
@@ -529,9 +518,7 @@ Base::Result<bool> ImageCache::Synchronize(
                         record->width - cropX ||
                     cropHeight >
                         record->height - cropY) {
-                    Base::Result<void> cleared =
-                        ClearImageTarget(imageControl, imageBrush);
-                    if (!cleared) return cleared.GetStatus();
+                    ClearImageTarget(imageControl, imageBrush);
                     continue;
                 }
                 const std::uint32_t cropBytes =
@@ -579,9 +566,7 @@ Base::Result<bool> ImageCache::Synchronize(
                         record->height,
                         record->pixels.AsSpan());
                 if (!uploaded) {
-                    Base::Result<void> cleared =
-                        ClearImageTarget(imageControl, imageBrush);
-                    if (!cleared) return cleared.GetStatus();
+                    ClearImageTarget(imageControl, imageBrush);
                     continue;
                 }
                 record->renderImage =

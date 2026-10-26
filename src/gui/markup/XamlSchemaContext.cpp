@@ -966,9 +966,10 @@ Base::Result<void> Schema::AddResource(
               scopeOwner,
               facet->context)
         : nullptr;
-    return resources != nullptr
-        ? resources->Add(key, value)
-        : Base::Result<void>();
+    if (resources != nullptr) {
+        resources->Add(key, value);
+    }
+    return {};
 }
 
 Aero::ResourceDictionary* Schema::ResolveResourceScope(

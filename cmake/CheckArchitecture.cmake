@@ -1900,11 +1900,7 @@ set(aero_result_void_permanent
     "include/Aero/Gui.hpp|SetFontProvider"
     "include/Aero/Gui.hpp|SetTextureProvider"
     "include/Aero/Gui.hpp|SetXamlProvider")
-set(aero_result_void_transitional
-    "include/Aero/Resources.hpp|Add"
-    "include/Aero/Resources.hpp|AddMerged"
-    "include/Aero/View.hpp|SetContent"
-    "include/Aero/View.hpp|SetViewport")
+set(aero_result_void_transitional)
 foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
     file(STRINGS "${aero_public_hpp_file}"
         aero_result_void_matches

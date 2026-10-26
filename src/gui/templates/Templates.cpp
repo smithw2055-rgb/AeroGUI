@@ -960,8 +960,8 @@ Base::Span<const Base::Ref<Aero::TriggerBase>> FrameworkTemplateState::AuthoredT
 
 Base::Result<void> FrameworkTemplateState::RegisterAuthoredName(DataTemplate& value, Base::StringView name, Base::Object& object) noexcept {
     Controls::DataTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
-    return state->authoredNames.Register(name, object);
+    state->authoredNames.Register(name, object);
+    return {};
 }
 
 void FrameworkTemplateState::ClearAuthoredNames(DataTemplate& value) noexcept {
@@ -986,7 +986,8 @@ Base::Result<void> FrameworkTemplateState::Seal(DataTemplate& value) noexcept {
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "DataTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
     if (!program) return program.GetStatus();
-    return state->resources.Seal();
+    state->resources.Seal();
+    return {};
 }
 
 Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
@@ -1087,7 +1088,8 @@ Base::Result<void> FrameworkTemplateState::Seal(ItemsPanelTemplate& value) noexc
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ItemsPanelTemplate state allocation failed");
     Base::Result<void> program = state->program.Seal();
     if (!program) return program.GetStatus();
-    return state->resources.Seal();
+    state->resources.Seal();
+    return {};
 }
 
 Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(const ItemsPanelTemplate& value) noexcept {
@@ -1389,8 +1391,8 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
 Base::Result<void> FrameworkTemplateState::RegisterAuthoredName(
     ControlTemplate& templateValue, Base::StringView name, Base::Object& object) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "ControlTemplate state allocation failed");
-    return state->authoredNames.Register(name, object);
+    state->authoredNames.Register(name, object);
+    return {};
 }
 
 Base::Result<Base::String> FrameworkTemplateState::EnsureAuthoredName(
@@ -1438,12 +1440,8 @@ Base::Result<Base::String> FrameworkTemplateState::EnsureAuthoredName(
             nullptr) {
             continue;
         }
-        Base::Result<void> registered =
-            state->authoredNames.Register(
-                generated, object);
-        if (!registered) {
-            return registered.GetStatus();
-        }
+        state->authoredNames.Register(
+            generated, object);
         Base::String result;
         Base::Result<void> assigned =
             result.Assign(generated);
@@ -1693,11 +1691,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
             if (baseState != nullptr &&
                 (baseState->resources.Size() != 0U ||
                  baseState->resources.MergedDictionaryCount() != 0U)) {
-                Base::Result<void> mergedResources =
-                    templateState->resources.AddMerged(baseState->resources);
-                if (!mergedResources) {
-                    return mergedResources.GetStatus();
-                }
+                templateState->resources.AddMerged(baseState->resources);
             }
         }
     }
@@ -1818,11 +1812,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
     if (!programSealed) {
         return programSealed.GetStatus();
     }
-    Base::Result<void> resourcesSealed =
-        templateState->resources.Seal();
-    if (!resourcesSealed) {
-        return resourcesSealed.GetStatus();
-    }
+    templateState->resources.Seal();
     templateState->sealed = true;
     return {};
 }
@@ -2026,22 +2016,9 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     for (const Aero::Controls::TemplatePart& part :
          instance.parts) {
         if (!part.name.Empty() && part.owner) {
-            Base::Result<void> named =
-                instance.names.Register(
-                    part.name.View(),
-                    *part.owner);
-            if (!named) {
-                buildState.parts =
-                    std::move(instance.parts);
-                buildState.projections =
-                    std::move(instance.projections);
-                buildState.rootVisual =
-                    instance.rootVisual;
-                buildState.rootElement =
-                    instance.rootElement;
-                context.Rollback();
-                return named.GetStatus();
-            }
+            instance.names.Register(
+                part.name.View(),
+                *part.owner);
         }
     }
     buildState.rootVisual = nullptr;

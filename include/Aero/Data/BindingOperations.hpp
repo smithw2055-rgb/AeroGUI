@@ -15,12 +15,12 @@ public:
     // Code-side attach matching XAML {Binding}: builds the same
     // MetadataBindingDescriptor path BindingExtension / style setters use and
     // routes through BindingEngine::Attach without exposing BindingEngine.
-    static Result<BindingExpression> SetBinding(
+    static BindingExpression SetBinding(
         DependencyObject* target,
         DependencyPropertyHandle property,
         const Binding& binding) noexcept;
     template<class TOwner, class TValue>
-    static Result<BindingExpression> SetBinding(
+    static BindingExpression SetBinding(
         DependencyObject* target,
         const DependencyPropertyRef<TOwner, TValue>& property,
         const Binding& binding) noexcept {

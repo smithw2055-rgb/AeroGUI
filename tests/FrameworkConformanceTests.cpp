@@ -4791,10 +4791,10 @@ bool TestTemplateResolveOrder() {
     CHECK(host && selectorTemplate && itemTemplate && implicitTemplate && item);
 
     implicitTemplate->SetDataType(Button::StaticTypeId());
-    CHECK(host->GetResources().Add(
+    host->GetResources().Add(
         implicitTemplate->GetImplicitKey(),
         Aero::Value::FromObject(
-            DataTemplate::StaticTypeId(), implicitTemplate.Value())));
+            DataTemplate::StaticTypeId(), implicitTemplate.Value()));
 
     Ref<DataTemplate> resolved = host->ResolveItemTemplate(item.Value(), 0U);
     CHECK(resolved.Get() == implicitTemplate.Value().Get());
@@ -6082,13 +6082,13 @@ bool TestTutorialRuntimePatterns() {
         Aero::ResourceDictionary* fr =
             french.Value().Root<Aero::ResourceDictionary>();
         CHECK(en != nullptr && fr != nullptr);
-        CHECK(grid->GetResources().AddMerged(*en));
+        grid->GetResources().AddMerged(*en);
         pump( 0.032);
         TextBlock* label = grid->FindName<TextBlock>("Label");
         CHECK(label != nullptr);
         CHECK(label->GetText() == StringView("Hello"));
         grid->GetResources().ClearMergedDictionaries();
-        CHECK(grid->GetResources().AddMerged(*fr));
+        grid->GetResources().AddMerged(*fr);
         pump( 0.048);
         CHECK(label->GetText() == StringView("Bonjour"));
     }

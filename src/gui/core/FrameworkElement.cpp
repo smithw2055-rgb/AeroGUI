@@ -117,16 +117,15 @@ Base::Object* FrameworkElement::FindRegisteredName(
         : nullptr;
 }
 
-Base::Result<void> FrameworkElement::RegisterName(
+void FrameworkElement::RegisterName(
     Base::StringView name,
     Base::Object& scopedElement) noexcept {
     FrameworkRare* rare = EnsureFrameworkRare();
     if (rare == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "FrameworkElement name scope allocation failed");
+        AERO_ASSERT(false);
+        return;
     }
-    return rare->names.Register(name, scopedElement);
+    rare->names.Register(name, scopedElement);
 }
 
 FrameworkElement::~FrameworkElement() {
@@ -207,10 +206,7 @@ FrameworkElement::GetLocalVisualTransform() const noexcept {
     return Base::ToProjective(result);
 }
 
-Base::Result<Value>
-FrameworkElement::GetDataContextResult() const noexcept {
-    return GetValue(DataContextProperty);
-}
+
 
 void FrameworkElement::SetDataContext(
     Value value) noexcept {
@@ -341,13 +337,13 @@ FrameworkElement::StyleTriggerPrototypes() const noexcept {
         : Span<const Ref<Base::Object>>{};
 }
 
-Result<Data::BindingExpression> FrameworkElement::SetBinding(
+Data::BindingExpression FrameworkElement::SetBinding(
     DependencyPropertyHandle property,
     const Data::Binding& binding) noexcept {
     return Data::BindingOperations::SetBinding(this, property, binding);
 }
 
-Result<Data::BindingExpression> FrameworkElement::SetBinding(
+Data::BindingExpression FrameworkElement::SetBinding(
     DependencyPropertyHandle property,
     StringView path) noexcept {
     Data::Binding binding(path);

@@ -17,7 +17,7 @@ public:
     ~NavigationService() noexcept;
 
     void SetHandler(NavigationHandler handler) noexcept { handler_ = std::move(handler); }
-    Result<void> Attach(Aero::UIElement& root) noexcept;
+    bool Attach(Aero::UIElement& root) noexcept;
     bool Detach() noexcept;
     bool GetIsAttached() const noexcept { return root_ != nullptr; }
 

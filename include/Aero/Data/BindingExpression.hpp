@@ -43,6 +43,7 @@ public:
     explicit BindingExpression(BindingHandle handle) noexcept : handle_(handle) {}
 
     bool IsValid() const noexcept;
+    explicit operator bool() const noexcept { return IsValid(); }
     BindingHandle Handle() const noexcept { return handle_; }
     BindingStatus Status() const noexcept;
     Base::Status UpdateSource() noexcept;

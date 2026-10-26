@@ -290,9 +290,7 @@ Base::Ref<Geometry> UIElement::GetClip() const noexcept {
 
 void UIElement::AddInputBinding(
     Base::Ref<Input::InputBinding> binding) noexcept {
-    if (!binding) { AERO_ASSERT(false); return; }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) { AERO_ASSERT(false); return; }
+    if (!binding || !binding->Finalize()) { AERO_ASSERT(false); return; }
     Rare& rare = EnsureRare();
     auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::InputBinding>>*&>(
         rare.inputBindings);
@@ -321,9 +319,7 @@ UIElement::GetInputBindings() const noexcept {
 
 void UIElement::AddCommandBinding(
     Base::Ref<Input::CommandBinding> binding) noexcept {
-    if (!binding) { AERO_ASSERT(false); return; }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) { AERO_ASSERT(false); return; }
+    if (!binding || !binding->Finalize()) { AERO_ASSERT(false); return; }
     Rare& rare = EnsureRare();
     auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*&>(
         rare.commandBindings);

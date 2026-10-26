@@ -86,7 +86,7 @@ public:
     Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
     bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Base::Object* FindName(StringView name) noexcept;
-    Result<void> RegisterName(StringView name, Base::Object& scopedElement) noexcept;
+    void RegisterName(StringView name, Base::Object& scopedElement) noexcept;
     template<class T> T* FindName(StringView name) noexcept {
         return static_cast<T*>(FindNameObject(name, T::StaticTypeId()));
     }
@@ -99,20 +99,20 @@ public:
     void Render(::Aero::Media::DrawingContext& context) noexcept { OnRender(context); }
     // WPF/Noesis-shaped code-side binding attach. Real work lives in
     // BindingOperations → BindingEngine::Attach (same path as {Binding}).
-    Result<Data::BindingExpression> SetBinding(
+    Data::BindingExpression SetBinding(
         DependencyPropertyHandle property,
         const Data::Binding& binding) noexcept;
     template<class TOwner, class TValue>
-    Result<Data::BindingExpression> SetBinding(
+    Data::BindingExpression SetBinding(
         const DependencyPropertyRef<TOwner, TValue>& property,
         const Data::Binding& binding) noexcept {
         return SetBinding(property.Handle(), binding);
     }
-    Result<Data::BindingExpression> SetBinding(
+    Data::BindingExpression SetBinding(
         DependencyPropertyHandle property,
         StringView path) noexcept;
     template<class TOwner, class TValue>
-    Result<Data::BindingExpression> SetBinding(
+    Data::BindingExpression SetBinding(
         const DependencyPropertyRef<TOwner, TValue>& property,
         StringView path) noexcept {
         return SetBinding(property.Handle(), path);
@@ -159,10 +159,7 @@ public:
     void SetHorizontalAlignment(HorizontalAlignment value) noexcept;
     VerticalAlignment GetVerticalAlignment() const noexcept;
     void SetVerticalAlignment(VerticalAlignment value) noexcept;
-    Value GetDataContext() const noexcept {
-        Result<Value> value = GetDataContextResult();
-        return value ? value.Value() : Value::NullObject(Meta::TypeOf<Base::Object>());
-    }
+    Value GetDataContext() const noexcept { return GetValue(DataContextProperty); }
     void SetDataContext(Value value) noexcept;
     void SetDataContext(Ref<Base::Object> value) noexcept {
         SetDataContext(Value::FromObject(Meta::TypeOf<Base::Object>(), std::move(value)));
@@ -275,7 +272,6 @@ private:
     void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
     void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
     void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
-    Result<Value> GetDataContextResult() const noexcept;
     void SetActualSize(double width, double height) noexcept {
         Meta::PropertyValue widthVal(width);
         Meta::PropertyValue heightVal(height);

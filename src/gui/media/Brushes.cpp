@@ -115,8 +115,7 @@ void GradientStop::SetColor(
 
 void GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!stop) { AERO_ASSERT(false); return; }
     if (stopChangedHandler_.Empty()) {
         stopChangedHandler_ = FreezableChangedHandler(
@@ -162,7 +161,7 @@ bool GradientBrush::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!stop->CanFreeze()) return false;
         } else {
-            static_cast<void>(stop->Freeze());
+            stop->Freeze();
         }
     }
     return Brush::FreezeCore(isChecking);

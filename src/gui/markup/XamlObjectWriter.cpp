@@ -6571,34 +6571,18 @@ Base::Result<void> ObjectWriter::RegisterObjectName(
 
 
     NameScopeRecord& scope = nameScopes_[scopeIndex];
-
-    Base::Result<void> localResult = scope.names.Register(
-
-        object.name.View(),
-
-        *object.object);
-
-    if (!localResult) {
-
-        const bool duplicate =
-
-            localResult.GetStatus().code == Base::ErrorCode::AlreadyExists;
-
+    if (scope.names.Find(object.name.View()) != nullptr) {
         return Failure(
-
-            localResult.GetStatus(),
-
-            duplicate
-
-                ? XamlObjectWriterDiagnosticCodes::DuplicateName
-
-                : XamlObjectWriterDiagnosticCodes::InvalidDirective,
-
-            duplicate ? MessageDuplicateName : MessageInvalidDirective,
-
+            Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                MessageDuplicateName.Data()),
+            XamlObjectWriterDiagnosticCodes::DuplicateName,
+            MessageDuplicateName,
             source);
-
     }
+    scope.names.Register(
+        object.name.View(),
+        *object.object);
 
 
 
@@ -7019,35 +7003,20 @@ Base::Result<bool> ObjectWriter::RegisterObjectResource(
 
         : Meta::Value::FromObject(object.type, object.object);
 
-    Base::Result<void> localResult = scope.resources.Add(
-
-        resourceKey.Value(),
-
-        resourceValue,
-
-        source);
-
-    if (!localResult) {
-
-        const bool duplicate =
-
-            localResult.GetStatus().code == Base::ErrorCode::AlreadyExists;
-
+    if (scope.resources.Contains(resourceKey.Value())) {
         return Failure(
-
-            localResult.GetStatus(),
-
-            duplicate
-
-                ? XamlObjectWriterDiagnosticCodes::DuplicateResourceKey
-
-                : XamlObjectWriterDiagnosticCodes::InvalidDirective,
-
-            duplicate ? MessageDuplicateResourceKey : MessageInvalidDirective,
-
+            Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                MessageDuplicateResourceKey.Data()),
+            XamlObjectWriterDiagnosticCodes::DuplicateResourceKey,
+            MessageDuplicateResourceKey,
             source);
-
     }
+
+    scope.resources.Add(
+        resourceKey.Value(),
+        resourceValue,
+        source);
 
 
 
@@ -7139,31 +7108,10 @@ Base::Result<bool> ObjectWriter::RegisterObjectResource(
 
                 if (!aliasKey) return aliasKey.GetStatus();
 
-                Base::Result<void> localAlias =
-
-                    scope.resources.Add(
-
-                        aliasKey.Value(),
-
-                        resourceValue,
-
-                        source);
-
-                if (!localAlias) {
-
-                    return Failure(
-
-                        localAlias.GetStatus(),
-
-                        XamlObjectWriterDiagnosticCodes::
-
-                            ResourceRegistrationFailed,
-
-                        MessageResourceRegistrationFailed,
-
-                        source);
-
-                }
+                scope.resources.Add(
+                    aliasKey.Value(),
+                    resourceValue,
+                    source);
 
                 Base::Result<void> callbackAlias =
 

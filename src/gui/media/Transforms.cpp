@@ -387,8 +387,7 @@ void MatrixTransform::SetMatrixValue(
 
 void TransformGroup::AddChild(
     Base::Ref<Transform> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     if (ContainsTransform(*value, this)) { AERO_ASSERT(false); return; }
     if (childChangedHandler_.Empty()) {
@@ -434,7 +433,7 @@ bool TransformGroup::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!child->CanFreeze()) return false;
         } else {
-            static_cast<void>(child->Freeze());
+            child->Freeze();
         }
     }
     return Transform::FreezeCore(isChecking);

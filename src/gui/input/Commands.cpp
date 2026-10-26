@@ -421,22 +421,20 @@ void CommandBinding::SetCanExecuteName(Base::StringView value) noexcept {
     authored->canExecuteName = std::move(candidate);
 }
 
-Base::Result<void> CommandBinding::Finalize() noexcept {
+bool CommandBinding::Finalize() noexcept {
     if (command_) {
         ReleaseAuthored();
-        return {};
+        return true;
     }
     if (authored_ == nullptr || authored_->commandName.Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "CommandBinding requires Command");
+        return false;
     }
     command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
     if (!command_) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "CommandBinding requires Command");
+        return false;
     }
     ReleaseAuthored();
-    return {};
+    return true;
 }
 
 KeyBinding::~KeyBinding() {
@@ -500,42 +498,38 @@ void KeyBinding::SetModifiersName(
     finalized_ = false;
 }
 
-Base::Result<void> KeyBinding::Finalize() noexcept {
-    if (finalized_) return {};
+bool KeyBinding::Finalize() noexcept {
+    if (finalized_) return true;
     if (authored_ == nullptr && !command_) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "KeyBinding requires Command and Key");
+        return false;
     }
     if (authored_ != nullptr) {
         if (authored_->commandName.Empty() && !command_) {
-            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-                "KeyBinding requires Command and Key");
+            return false;
         }
         if (authored_->keyName.Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-                "KeyBinding requires Command and Key");
+            return false;
         }
         if (!command_) {
             command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
             if (!command_) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-                    "KeyBinding requires Command and Key");
+                return false;
             }
         }
         Base::Result<std::uint32_t> key = ParseKeyName(authored_->keyName.View());
-        if (!key) return key.GetStatus();
+        if (!key) return false;
         Base::Result<std::uint32_t> modifiers = ParseModifiersName(
             authored_->modifiersName.View());
-        if (!modifiers) return modifiers.GetStatus();
+        if (!modifiers) return false;
         Base::Ref<KeyGesture> gesture =
             Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
-        if (!gesture) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+        if (!gesture) return false;
         command_->AddInputGesture(
             Base::Ref<InputGesture>(std::move(gesture)));
     }
     finalized_ = true;
     ReleaseAuthored();
-    return {};
+    return true;
 }
 
 MouseBinding::~MouseBinding() {
@@ -572,25 +566,23 @@ bool MouseBinding::Matches(const PointerInput& input) const noexcept {
     return input.changedButton == button_ && input.action == action_;
 }
 
-Base::Result<void> MouseBinding::Finalize() noexcept {
-    if (finalized_) return {};
+bool MouseBinding::Finalize() noexcept {
+    if (finalized_) return true;
     if (command_) {
         finalized_ = true;
         ReleaseAuthored();
-        return {};
+        return true;
     }
     if (authored_ == nullptr || authored_->commandName.Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "MouseBinding requires Command");
+        return false;
     }
     command_ = RoutedCommand::ResolveAuthored(authored_->commandName.View());
     if (!command_) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "MouseBinding requires Command");
+        return false;
     }
     finalized_ = true;
     ReleaseAuthored();
-    return {};
+    return true;
 }
 
 void RoutedUICommand::SetText(Base::StringView value) noexcept {
@@ -682,8 +674,10 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
     const CommandBinding& binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
     if (!verified) return verified.GetStatus();
-    Base::Result<void> finalized = const_cast<CommandBinding&>(binding).Finalize();
-    if (!finalized) return finalized.GetStatus();
+    if (!const_cast<CommandBinding&>(binding).Finalize()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "CommandBinding requires Command");
+    }
     if (!binding.IsValid()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Command binding requires a command");
@@ -733,8 +727,10 @@ Base::Result<InputBindingHandle> CommandState::AddInputBinding(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "InputBinding cannot be null");
     }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
+    if (!binding->Finalize()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "InputBinding requires Command");
+    }
     if (!binding->GetCommand()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "InputBinding command was not created");

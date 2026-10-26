@@ -119,7 +119,7 @@ protected:
             if (!item) continue;
             if (isChecking) {
                 if (!item->CanFreeze()) return false;
-            } else { static_cast<void>(item->Freeze()); }
+            } else { item->Freeze(); }
         }
         return Freezable::FreezeCore(isChecking);
     }

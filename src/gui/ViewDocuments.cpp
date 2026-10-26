@@ -130,9 +130,7 @@ Base::Result<void> ResourceHost::CommitLayer(
             static_cast<Aero::ResourceDictionary&>(
                 *rootObject);
         if (merge) {
-            Base::Result<void> merged =
-                target.AddMerged(dictionary);
-            if (!merged) return merged.GetStatus();
+            target.AddMerged(dictionary);
             Base::Result<void> rebuilt =
                 RebuildDynamicEnvironment();
             if (rebuilt) return {};

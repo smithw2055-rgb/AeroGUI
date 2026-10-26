@@ -63,7 +63,7 @@ bool ContainsIndex(
     return false;
 }
 
-Base::Result<void> InsertSortedUnique(
+void InsertSortedUnique(
     Base::Vector<std::uint32_t>& values,
     std::uint32_t value) noexcept {
     std::uint32_t index = 0U;
@@ -73,7 +73,7 @@ Base::Result<void> InsertSortedUnique(
     }
     if (index < values.Size() &&
         values[index] == value) {
-        return {};
+        return;
     }
     values.Reserve(values.Size() + 1U);
     values.PushBack(value);
@@ -83,7 +83,6 @@ Base::Result<void> InsertSortedUnique(
         values[current] = values[current - 1U];
     }
     values[index] = value;
-    return {};
 }
 
 bool EqualIndices(
@@ -238,12 +237,7 @@ bool Selector::Select(
         selectedIndices_) {
         selection.PushBack(selected);
     }
-    Base::Result<void> inserted =
-        InsertSortedUnique(selection, index);
-    if (!inserted) {
-        lastSelectionError_ = inserted.GetStatus();
-        return false;
-    }
+    InsertSortedUnique(selection, index);
     return ApplySelection(
         {selection.Data(), selection.Size()},
         index);
@@ -320,12 +314,7 @@ bool Selector::SelectRange(
     }
     for (std::uint32_t index = begin;
         index <= end; ++index) {
-        Base::Result<void> inserted =
-            InsertSortedUnique(selection, index);
-        if (!inserted) {
-            lastSelectionError_ = inserted.GetStatus();
-            return false;
-        }
+        InsertSortedUnique(selection, index);
     }
     return ApplySelection(
         {selection.Data(), selection.Size()},
@@ -349,12 +338,7 @@ bool Selector::ApplySelection(
                 "Selector selection contains an invalid index");
             return false;
         }
-        Base::Result<void> inserted =
-            InsertSortedUnique(normalized, index);
-        if (!inserted) {
-            lastSelectionError_ = inserted.GetStatus();
-            return false;
-        }
+        InsertSortedUnique(normalized, index);
     }
     if (GetSelectionMode() == SelectionMode::Single &&
         normalized.Size() > 1U) {
@@ -671,13 +655,7 @@ void Selector::OnItemsChanged(
                 keep ? value : UINT32_MAX;
         }
         if (keep) {
-            Base::Result<void> inserted =
-                InsertSortedUnique(mapped, value);
-            if (!inserted) {
-                lastSelectionError_ =
-                    inserted.GetStatus();
-                return;
-            }
+            InsertSortedUnique(mapped, value);
         }
     }
     ApplySelection(

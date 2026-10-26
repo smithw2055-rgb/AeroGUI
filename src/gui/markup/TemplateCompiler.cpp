@@ -40,7 +40,7 @@ using namespace Aero::Controls;
 using namespace Aero::Media;
 using Controls::Primitives::Selector;
 using namespace Data;
-using Documents::Inline; // not Documents:: â€?avoid Span collision with Aero::Span
+using Documents::Inline; // not Documents:: -- avoid Span collision with Aero::Span
 using namespace Media::Animation;
 
 Base::Status InvalidTemplateCompiler(
@@ -2124,14 +2124,9 @@ BuildCompiledDeferredTemplate(
                     std::move(named));
             auto* rootElement =
                 static_cast<FrameworkElement*>(root.Get());
-            assigned = rootElement->RegisterName(
+            static_cast<void>(rootElement->RegisterName(
                 blueprint->nodes[index].name.View(),
-                *objects[index]);
-            if (!assigned &&
-                assigned.GetStatus().code !=
-                    Base::ErrorCode::AlreadyExists) {
-                return assigned.GetStatus();
-            }
+                *objects[index]));
         }
         return triggerContext.Get();
     };

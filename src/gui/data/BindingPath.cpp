@@ -693,9 +693,14 @@ Base::Result<void> BindingPathPlan::SetObject(
                     Base::ErrorCode::InvalidArgument,
                     "Binding collection index assignment requires an object");
             }
-            return writable->ReplaceItem(
-                segment.collectionIndex,
-                value.AsObject());
+            if (!writable->ReplaceItem(
+                    segment.collectionIndex,
+                    value.AsObject())) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Binding collection index assignment failed");
+            }
+            return {};
         }
         Base::Ref<Base::Object> item =
             items != nullptr

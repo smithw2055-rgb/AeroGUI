@@ -1460,16 +1460,14 @@ void InteractivityEngine::NotifyLayoutUpdated() noexcept {
     }
 }
 
-Base::Result<Base::Ref<Interactivity::Behavior>>
- InteractivityEngine::CloneBehaviorPrototype(
-        const Interactivity::Behavior& prototype) noexcept {
-        if (Metadata() == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Behavior metadata is unavailable");
-        }
-        return Interactivity::Behavior::ClonePrototype(prototype, *Metadata());
+Base::Ref<Interactivity::Behavior>
+InteractivityEngine::CloneBehaviorPrototype(
+    const Interactivity::Behavior& prototype) noexcept {
+    if (Metadata() == nullptr) {
+        return {};
     }
+    return Interactivity::Behavior::ClonePrototype(prototype, *Metadata());
+}
 
 Base::Object* InteractivityEngine::ResolveBehaviorBindingSource(
         const Data::Binding& binding,
@@ -1494,10 +1492,12 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
         }
         Base::Ref<Interactivity::Behavior> instance;
         if (clonePrototype) {
-            Base::Result<Base::Ref<Interactivity::Behavior>> cloned =
-                CloneBehaviorPrototype(prototype);
-            if (!cloned) return cloned.GetStatus();
-            instance = std::move(cloned).Value();
+            instance = CloneBehaviorPrototype(prototype);
+            if (!instance) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidState,
+                    "Behavior metadata is unavailable or clone failed");
+            }
         } else {
             instance = Base::Ref<Interactivity::Behavior>::TryFromBorrowed(
                 const_cast<Interactivity::Behavior&>(prototype));
@@ -1561,12 +1561,13 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
             record.bindings.PushBack(
                 attached.Value());
         }
-        Base::Result<void> attached = record.instance->Attach(owner);
-        if (!attached) {
+        if (!record.instance->Attach(owner)) {
             for (const Data::BindingHandle handle : record.bindings) {
                 static_cast<void>(Bindings()->Detach(handle));
             }
-            return attached.GetStatus();
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Behavior is already attached to another object");
         }
         attachedBehaviorInstances.PushBack(
             std::move(record));

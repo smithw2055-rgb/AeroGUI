@@ -29,14 +29,14 @@ public:
 
     FrameworkElement* GetAssociatedObject() const noexcept { return associatedObject_; }
     bool GetIsAttached() const noexcept { return associatedObject_ != nullptr; }
-    Result<void> Attach(FrameworkElement& object) noexcept;
+    bool Attach(FrameworkElement& object) noexcept;
     void Detach() noexcept;
     void AddAuthoredBinding(Meta::DependencyPropertyHandle property, Ref<Aero::Data::Binding> binding) noexcept;
     Span<const AuthoredBinding> GetAuthoredBindings() const noexcept { return authoredBindings_.AsSpan(); }
     void CopyAuthoredBindingsTo(Behavior& destination) const noexcept;
     // Instance clone for style/template authored prototypes. Metadata creates
     // the typed object; local DP values + authored bindings are copied here.
-    static Result<Ref<Behavior>> ClonePrototype(const Behavior& prototype, Meta::Registry& metadata) noexcept;
+    static Ref<Behavior> ClonePrototype(const Behavior& prototype, Meta::Registry& metadata) noexcept;
     void NotifyLayoutUpdated() noexcept {
         if (associatedObject_ != nullptr) OnLayoutUpdated();
     }

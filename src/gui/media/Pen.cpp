@@ -94,14 +94,14 @@ bool Pen::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!brush_->CanFreeze()) return false;
         } else {
-            static_cast<void>(brush_->Freeze());
+            brush_->Freeze();
         }
     }
     if (dashStyle_) {
         if (isChecking) {
             if (!dashStyle_->CanFreeze()) return false;
         } else {
-            static_cast<void>(dashStyle_->Freeze());
+            dashStyle_->Freeze();
         }
     }
     return Freezable::FreezeCore(isChecking);

@@ -11,7 +11,7 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
     void SetCommand(Ref<RoutedCommand> value) noexcept { command_ = std::move(value); }
-    virtual Result<void> Finalize() noexcept { return {}; }
+    virtual bool Finalize() noexcept { return true; }
 
 protected:
     explicit InputBinding(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
@@ -35,7 +35,7 @@ public:
     void SetCommandName(StringView value) noexcept;
     void SetKeyName(StringView value) noexcept;
     void SetModifiersName(StringView value) noexcept;
-    Result<void> Finalize() noexcept override;
+    bool Finalize() noexcept override;
     void ReleaseAuthored() noexcept;
 
 private:
@@ -66,7 +66,7 @@ public:
     void SetCommandName(StringView value) noexcept;
 
     bool Matches(const PointerInput& input) const noexcept;
-    Result<void> Finalize() noexcept override;
+    bool Finalize() noexcept override;
     void ReleaseAuthored() noexcept;
 
 private:

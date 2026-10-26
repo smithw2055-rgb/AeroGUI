@@ -383,20 +383,18 @@ void SetViewResourceDictionary(
     Base::Result<Aero::ResourceDictionary*> target =
         state.Resources()->ResolveLayer(layer);
     if (!target) return;
-    Base::Result<Aero::ResourceDictionary> shared =
+    Aero::ResourceDictionary shared =
         dictionary.Share();
     if (!shared) return;
     if (mode == ResourceLoadMode::Merge) {
-        Base::Result<void> merged =
-            target->AddMerged(shared.Value());
-        if (!merged) return;
+        target->AddMerged(shared);
         (void)state.Resources()->RebuildDynamicEnvironment();
         return;
     }
 
     Aero::ResourceDictionary previous =
         std::move(*target.Value());
-    *target.Value() = std::move(shared).Value();
+    *target.Value() = std::move(shared);
     Base::Result<void> rebuilt =
         state.Resources()->RebuildDynamicEnvironment();
     if (rebuilt) return;
@@ -447,15 +445,15 @@ Base::Result<void> LoadViewBuiltInTheme(
         state, ResourceLayer::Theme, themeUri);
     if (loaded) {
         if (state.gui != nullptr) {
-            Base::Result<ResourceDictionary> prototype =
+            ResourceDictionary prototype =
                 state.Resources()->themeResources.Share();
             if (prototype) {
-                static_cast<void>(prototype.Value().Seal());
+                prototype.Seal();
                 if (theme == BuiltInTheme::Light) {
-                    state.gui->cachedLightTheme = std::move(prototype.Value());
+                    state.gui->cachedLightTheme = std::move(prototype);
                     state.gui->hasCachedLightTheme = true;
                 } else {
-                    state.gui->cachedDarkTheme = std::move(prototype.Value());
+                    state.gui->cachedDarkTheme = std::move(prototype);
                     state.gui->hasCachedDarkTheme = true;
                 }
             }
@@ -519,15 +517,15 @@ Base::Result<void> LoadViewBuiltInTheme(
             : Base::Result<void>(restored.GetStatus());
     }
     if (state.gui != nullptr) {
-        Base::Result<ResourceDictionary> prototype =
+        ResourceDictionary prototype =
             state.Resources()->themeResources.Share();
         if (prototype) {
-            static_cast<void>(prototype.Value().Seal());
+            prototype.Seal();
             if (theme == BuiltInTheme::Light) {
-                state.gui->cachedLightTheme = std::move(prototype.Value());
+                state.gui->cachedLightTheme = std::move(prototype);
                 state.gui->hasCachedLightTheme = true;
             } else {
-                state.gui->cachedDarkTheme = std::move(prototype.Value());
+                state.gui->cachedDarkTheme = std::move(prototype);
                 state.gui->hasCachedDarkTheme = true;
             }
         }

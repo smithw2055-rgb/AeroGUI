@@ -46,11 +46,10 @@ public:
     Base::Object* AsObject() noexcept override { return this; }
     // TwoWay collection-index assignment (Player.Slots[i]) writes through
     // the typed collection, not only ObservableObjectCollection.
-    virtual Result<void> ReplaceItem(std::uint32_t index, Ref<Base::Object> item) noexcept {
+    virtual bool ReplaceItem(std::uint32_t index, Ref<Base::Object> item) noexcept {
         (void)index;
         (void)item;
-        return Base::Status::Failure(Base::ErrorCode::ReadOnly,
-            "Binding collection index assignment requires ObservableCollection");
+        return false;
     }
 };
 
@@ -83,11 +82,9 @@ public:
             0U,
             1U});
     }
-    Result<void> Replace(std::uint32_t index, Ref<T> item) noexcept {
+    bool Replace(std::uint32_t index, Ref<T> item) noexcept {
         if (!item || index >= items_.Size()) {
-            return Base::Status::Failure(index >= items_.Size() ? Base::ErrorCode::OutOfRange
-                    : Base::ErrorCode::InvalidArgument,
-                "ObservableCollection replace is invalid");
+            return false;
         }
         items_[index] = std::move(item);
         if (!changed_.Empty()) changed_.Invoke({
@@ -96,24 +93,22 @@ public:
             index,
             1U,
             1U});
-        return {};
+        return true;
     }
-    Result<void> ReplaceItem(std::uint32_t index, Ref<Base::Object> item) noexcept override {
+    bool ReplaceItem(std::uint32_t index, Ref<Base::Object> item) noexcept override {
         if (!item) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "ObservableCollection replace is invalid");
+            return false;
         }
         T* typed = TryCast<T>(item.Get());
         if (typed == nullptr) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-                "ObservableCollection replace item type is incompatible");
+            return false;
         }
         return Replace(index, Ref<T>::FromBorrowed(*typed));
     }
 
-    Result<Ref<T>> RemoveAt(std::uint32_t index) noexcept {
+    Ref<T> RemoveAt(std::uint32_t index) noexcept {
         if (index >= items_.Size()) {
-            return Base::Status::Failure(Base::ErrorCode::OutOfRange,
-                "ObservableCollection remove index is out of range");
+            return {};
         }
         Ref<T> removed = std::move(items_[index]);
         for (std::uint32_t current = index + 1U;

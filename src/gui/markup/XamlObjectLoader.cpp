@@ -1270,12 +1270,11 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     for (std::uint32_t index = 0U;
          index < mergedCount;
          ++index) {
-        Base::Result<ResourceDictionary> merged =
+        ResourceDictionary merged =
             dictionary.MergedDictionaryAt(index);
-        if (!merged) return merged.GetStatus();
         Base::Result<void> resolved =
             ResolveDictionaryDependencies(
-                merged.Value(),
+                merged,
                 owner,
                 options,
                 resourceCount,
@@ -1303,22 +1302,16 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     // so WPF-style DynamicResource values in styles can resolve against an
     // earlier palette or brush dictionary.
     ResourceDictionary ambientResources;
-    Base::Result<void> ambientMerged{};
     // Already-loaded sibling Source dictionaries first so a later merge
     // (Resources.xaml) can StaticResource keys defined in nested merges of
     // an earlier sibling (Colors.Dark inside Brushes.DarkBlue).
     for (PendingResourceMerge& discovered : pending) {
-        if (ambientMerged) {
-            ambientMerged = ambientResources.AddMerged(
-                discovered.source);
-        }
+        ambientResources.AddMerged(discovered.source);
     }
-    if (ambientMerged &&
-        (dictionary.Size() > 0U ||
-         dictionary.MergedDictionaryCount() > 0U)) {
-        ambientMerged = ambientResources.AddMerged(dictionary);
+    if (dictionary.Size() > 0U ||
+        dictionary.MergedDictionaryCount() > 0U) {
+        ambientResources.AddMerged(dictionary);
     }
-    if (!ambientMerged) return ambientMerged.GetStatus();
     const LoadState& loadState = LoadContext();
     LoadState resourceContext = loadState;
     resourceContext.resources = &ambientResources;
@@ -1373,34 +1366,10 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
 Base::Result<void>
 Loader::LoaderState::Operation::CommitResourceDependencies(
     Base::Vector<PendingResourceMerge>& pending) noexcept {
-    std::uint32_t committed = 0U;
-    Base::Status failure = Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "XAML resource merge target is invalid");
-    for (; committed < pending.Size(); ++committed) {
-        PendingResourceMerge& merge = pending[committed];
-        Base::Result<void> added =
+    for (PendingResourceMerge& merge : pending) {
         merge.target.AddMerged(merge.source);
-        if (!added) {
-            failure = added.GetStatus();
-            break;
-        }
     }
-    if (committed == pending.Size()) return {};
-
-    for (std::uint32_t index = committed;
-         index > 0U;
-         --index) {
-        PendingResourceMerge& merge =
-            pending[index - 1U];
-        if (!merge.target.RemoveMerged(merge.source)) {
-            return Base::Result<void>(
-                Base::Status::Failure(
-                    Base::ErrorCode::InvalidState,
-                    "XAML resource dependency rollback failed"));
-        }
-    }
-    return failure;
+    return {};
 }
 
 Base::Result<void> Loader::LoaderState::Operation::AppendDependencies(

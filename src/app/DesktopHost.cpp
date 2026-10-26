@@ -843,7 +843,7 @@ Base::Result<void> LoadFromUri(
                         if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
                             auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
                             if (resDict != &dict) {
-                                static_cast<void>(dict.AddMerged(*resDict));
+                                dict.AddMerged(*resDict);
                             }
                         }
                     }
@@ -854,7 +854,7 @@ Base::Result<void> LoadFromUri(
             auto merged = dict.MergedDictionaryAt(i);
             if (merged) {
                 LoadDictionarySourcesRecursively(
-                    merged.Value(), baseUri, &dict);
+                    merged, baseUri, &dict);
             }
         }
     }

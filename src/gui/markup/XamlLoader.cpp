@@ -121,8 +121,9 @@ Base::Result<void> AddResource(
         return InvalidResource(
             "XAML resource scope is not a ResourceDictionary");
     }
-    return static_cast<ResourceDictionary&>(scopeOwner)
+    static_cast<ResourceDictionary&>(scopeOwner)
         .Add(key, value);
+    return {};
 }
 
 Base::Result<void> AddFrameworkResource(
@@ -136,7 +137,8 @@ Base::Result<void> AddFrameworkResource(
         return InvalidResource(
             "XAML resource scope is not a FrameworkElement");
     }
-    return element->GetResources().Add(key, value);
+    element->GetResources().Add(key, value);
+    return {};
 }
 
 ResourceDictionary* ResolveDictionaryScope(
@@ -173,7 +175,8 @@ Base::Result<void> RegisterFrameworkName(
             Base::ErrorCode::InvalidArgument,
             "XAML name scope is not a FrameworkElement");
     }
-    return element->RegisterName(name, object);
+    element->RegisterName(name, object);
+    return {};
 }
 
 } // namespace

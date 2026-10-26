@@ -239,7 +239,7 @@ public:
     Base::Result<void> AttachDataTemplateClrSubscription(
         Aero::Controls::DataTemplateTriggerInstance& context,
         std::uint32_t triggerIndex) noexcept;
-    Base::Result<Base::Ref<Interactivity::Behavior>> CloneBehaviorPrototype(
+    Base::Ref<Interactivity::Behavior> CloneBehaviorPrototype(
         const Interactivity::Behavior& prototype) noexcept;
     Base::Object* ResolveBehaviorBindingSource(
         const Data::Binding& binding,

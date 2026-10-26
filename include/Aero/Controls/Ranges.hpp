@@ -36,7 +36,7 @@ public:
 
     bool GetIsDragging() const noexcept { return GetValue(IsDraggingProperty); }
     void BeginDrag(std::uint32_t pointerId, Point position) noexcept;
-    Result<ThumbDragDelta> DragTo(std::uint32_t pointerId, Point position) noexcept;
+    ThumbDragDelta DragTo(std::uint32_t pointerId, Point position) noexcept;
     bool EndDrag(std::uint32_t pointerId) noexcept;
 
     void UpdateVisualState(bool useTransitions = true) noexcept;

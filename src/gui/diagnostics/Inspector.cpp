@@ -193,13 +193,8 @@ using namespace Aero::Threading;
     FrameworkElement* element =
         ::Aero::TryCast<::Aero::FrameworkElement>(&(target));
     if (element != nullptr) {
-        Base::Result<Value> context =
-            element->GetDataContextResult();
-        if (!context) {
-            return context.GetStatus();
-        }
         output.dataContext =
-            std::move(context).Value();
+            element->GetDataContext();
         output.layoutRect =
             element->GetLayoutSlot();
         output.layoutClip =

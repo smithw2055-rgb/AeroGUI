@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Aero/Base/Geometry.hpp>
-#include <Aero/Base/Result.hpp>
 
 #include <cstdint>
 
@@ -26,8 +25,8 @@ public:
     LogicalDirection GetLogicalDirection() const noexcept { return direction_; }
     bool GetIsAtInsertionPosition() const noexcept { return GetIsValid(); }
 
-    Result<std::int32_t> CompareTo(const TextPointer& other) const noexcept;
-    Result<TextPointer> GetPositionAtOffset(std::int32_t delta, LogicalDirection direction) const noexcept;
+    std::int32_t CompareTo(const TextPointer& other) const noexcept;
+    TextPointer GetPositionAtOffset(std::int32_t delta, LogicalDirection direction) const noexcept;
     friend bool operator==(const TextPointer& left, const TextPointer& right) noexcept {
         return left.container_ == right.container_ && left.offset_ == right.offset_ &&
             left.direction_ == right.direction_;

@@ -107,28 +107,23 @@ Base::StringView CallbackKey(
 
 NameScope::NameScope() noexcept = default;
 
-Base::Result<void> NameScope::Register(
+void NameScope::Register(
     Base::StringView name,
     Base::Object& object) noexcept {
     if (!IsValidName(name)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidName);
+        return;
     }
     if (Find(name) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            MessageDuplicateName);
+        return;
     }
     Entry entry;
     Base::Result<void> assigned =
         entry.name.Assign(name);
     if (!assigned) {
-        return assigned.GetStatus();
+        return;
     }
     entry.object = &object;
     entries_.PushBack(std::move(entry));
-    return {};
 }
 
 Base::Object* NameScope::Find(
@@ -472,7 +467,7 @@ ResourceDictionary& ResourceDictionary::operator=(
     return *this;
 }
 
-Base::Result<ResourceDictionary::DictionaryState*>
+ResourceDictionary::DictionaryState*
 ResourceDictionary::EnsureState() noexcept {
     if (state_ != nullptr) {
         return state_;
@@ -484,9 +479,7 @@ ResourceDictionary::EnsureState() noexcept {
         alignof(Access),
         Base::MemoryTag::Container});
     if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "ResourceDictionary allocation failed");
+        return nullptr;
     }
     state_ = new (memory) Access();
     return state_;
@@ -527,30 +520,21 @@ void ResourceDictionary::ReleaseState(
         Base::MemoryTag::Container);
 }
 
-Base::Result<void> ResourceDictionary::Add(
+void ResourceDictionary::Add(
     const ResourceKey& key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (!key.IsValid() ||
         value.Type() == Meta::InvalidTypeId ||
         value.IsUnset()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
+        return;
     }
-    Base::Result<Access*> storage = EnsureState();
-    if (!storage) {
-        return storage.GetStatus();
+    Access* storage = EnsureState();
+    if (storage == nullptr || storage->sealed) {
+        return;
     }
-    if (storage->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
-    }
-    if (FindLocal(*storage.Value(), key) != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::AlreadyExists,
-            MessageDuplicateResource);
+    if (FindLocal(*storage, key) != nullptr) {
+        return;
     }
     Access::Entry entry;
     entry.key = key;
@@ -559,43 +543,40 @@ Base::Result<void> ResourceDictionary::Add(
     storage->entries.PushBack(
             std::move(entry));
     Notify(
-        *storage.Value(),
+        *storage,
         CallbackKey(key),
         ResourceChangeKind::Added);
-    return {};
 }
 
-Base::Result<void> ResourceDictionary::Add(
+void ResourceDictionary::Add(
     Base::StringView key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     Base::Result<ResourceKey> resourceKey =
         ResourceKey::FromString(key);
     if (!resourceKey) {
-        return resourceKey.GetStatus();
+        return;
     }
-    return Add(resourceKey.Value(), value, source);
+    Add(resourceKey.Value(), value, source);
 }
 
-Base::Result<void> ResourceDictionary::Add(
+void ResourceDictionary::Add(
     Meta::TypeId key,
     const ResourceValue& value,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
-    return Add(
+    Add(
         ResourceKey::FromType(key), value, source);
 }
 
-Base::Result<void> ResourceDictionary::Add(
+void ResourceDictionary::Add(
     Base::StringView key,
     Meta::TypeId type,
     const Base::Ref<Base::Object>& object,
     ::Aero::Diagnostics::SourceSpan source) noexcept {
     if (type == Meta::InvalidTypeId || !object) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            MessageInvalidResource);
+        return;
     }
-    return Add(
+    Add(
         key,
         Meta::Value::FromObject(type, object),
         source);
@@ -610,19 +591,20 @@ bool ResourceDictionary::StoreResource(
         value.IsUnset()) {
         return false;
     }
-    Base::Result<Access*> storage = EnsureState();
-    if (!storage || storage->sealed) {
+    Access* storage = EnsureState();
+    if (storage == nullptr || storage->sealed) {
         return false;
     }
     Access::Entry* entry =
-        FindLocal(*storage.Value(), key);
+        FindLocal(*storage, key);
     if (entry == nullptr) {
-        return static_cast<bool>(Add(key, value, source));
+        Add(key, value, source);
+        return true;
     }
     entry->value = value;
     entry->source = source;
     Notify(
-        *storage.Value(),
+        *storage,
         CallbackKey(key),
         ResourceChangeKind::Replaced);
     return true;
@@ -799,59 +781,47 @@ bool ResourceDictionary::Contains(
         : ::Aero::Diagnostics::SourceSpan{};
 }
 
-Base::Result<void> ResourceDictionary::AddMerged(
+void ResourceDictionary::AddMerged(
     ResourceDictionary& dictionary) noexcept {
-    Base::Result<Access*> owner = EnsureState();
-    if (!owner) {
-        return owner.GetStatus();
+    Access* owner = EnsureState();
+    if (owner == nullptr) {
+        return;
     }
-    Base::Result<Access*> child = dictionary.EnsureState();
-    if (!child) {
-        return child.GetStatus();
+    Access* child = dictionary.EnsureState();
+    if (child == nullptr) {
+        return;
     }
-    if (owner->sealed) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            MessageReadOnly);
-    }
-    if (owner.Value() == child.Value()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::CycleDetected,
-            "ResourceDictionary cannot merge itself");
+    if (owner->sealed || owner == child) {
+        return;
     }
     for (const Access::Merged& merged :
          owner->merged) {
-        if (merged.dictionary == child.Value()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "ResourceDictionary is already merged");
+        if (merged.dictionary == child) {
+            return;
         }
     }
     Base::Vector<const Access*> visited;
     if (DependsOn(
-            *child.Value(),
-            *owner.Value(),
+            *child,
+            *owner,
             visited)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::CycleDetected,
-            "ResourceDictionary merge would create a cycle");
+        return;
     }
     Base::Result<ResourceChangeSubscription> subscribed =
         SubscribeImpl(
-            *child.Value(),
+            *child,
             &MergedChanged,
-            owner.Value());
+            owner);
     if (!subscribed) {
-        return subscribed.GetStatus();
+        return;
     }
-    AddStateRef(child.Value());
+    AddStateRef(child);
     owner->merged.PushBack({
-            child.Value(), subscribed.Value()});
+            child, subscribed.Value()});
     Notify(
-        *owner.Value(),
+        *owner,
         {},
         ResourceChangeKind::MergedDictionaryChanged);
-    return {};
 }
 
 bool ResourceDictionary::RemoveMerged(
@@ -918,27 +888,25 @@ ResourceDictionary::MergedDictionaryCount() const noexcept {
         : 0U;
 }
 
-Base::Result<ResourceDictionary>
+ResourceDictionary
 ResourceDictionary::MergedDictionaryAt(
     std::uint32_t index) const noexcept {
     if (state_ == nullptr ||
         index >= state_->merged.Size() ||
         state_->merged[index].dictionary == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Merged resource dictionary index is out of range");
+        return ResourceDictionary{};
     }
     return ResourceDictionary(
         state_->merged[index].dictionary,
         true);
 }
 
-Base::Result<ResourceDictionary>
+ResourceDictionary
 ResourceDictionary::Share() const noexcept {
-    Base::Result<Access*> storage =
+    Access* storage =
         const_cast<ResourceDictionary*>(this)->EnsureState();
-    if (!storage) return storage.GetStatus();
-    return ResourceDictionary(storage.Value(), true);
+    if (storage == nullptr) return ResourceDictionary{};
+    return ResourceDictionary(storage, true);
 }
 
 void ResourceDictionary::SetSource(
@@ -946,8 +914,8 @@ void ResourceDictionary::SetSource(
     if (source.Empty()) {
         return;
     }
-    Base::Result<Access*> storage = EnsureState();
-    if (!storage) return;
+    Access* storage = EnsureState();
+    if (storage == nullptr) return;
     if (storage->sealed) {
         return;
     }
@@ -970,7 +938,7 @@ void ResourceDictionary::SetSource(
         storage->source = source;
     }
     Notify(
-        *storage.Value(),
+        *storage,
         {},
         ResourceChangeKind::SourceChanged);
 }
@@ -983,36 +951,36 @@ ResourceDictionary::GetSource() const noexcept {
         : empty;
 }
 
-Base::Result<void> ResourceDictionary::Seal() noexcept {
-    Base::Result<Access*> storage = EnsureState();
-    if (!storage) {
-        return storage.GetStatus();
+void ResourceDictionary::Seal() noexcept {
+    Access* storage = EnsureState();
+    if (storage == nullptr) {
+        return;
     }
     if (storage->sealed) {
-        return {};
+        return;
     }
     storage->sealed = true;
     Notify(
-        *storage.Value(),
+        *storage,
         {},
         ResourceChangeKind::Sealed);
-    return {};
 }
 
 bool ResourceDictionary::GetIsSealed() const noexcept {
     return state_ != nullptr && state_->sealed;
 }
 
-Base::Result<ResourceChangeSubscription>
+ResourceChangeSubscription
 ResourceDictionary::SubscribeChanged(
     ResourceChangedCallback callback,
     void* context) noexcept {
-    Base::Result<Access*> storage = EnsureState();
-    if (!storage) {
-        return storage.GetStatus();
+    Access* storage = EnsureState();
+    if (storage == nullptr) {
+        return ResourceChangeSubscription{};
     }
-    return SubscribeImpl(
-        *storage.Value(), callback, context);
+    Base::Result<ResourceChangeSubscription> sub = SubscribeImpl(
+        *storage, callback, context);
+    return sub ? sub.Value() : ResourceChangeSubscription{};
 }
 
 bool ResourceDictionary::Unsubscribe(
@@ -1057,14 +1025,12 @@ std::uint32_t ResourceDictionary::Size() const noexcept {
         : 0U;
 }
 
-Base::Result<ResourceEntrySnapshot>
+ResourceEntrySnapshot
 ResourceDictionary::EntryAt(
     std::uint32_t index) const noexcept {
     if (state_ == nullptr ||
         index >= state_->entries.Size()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Resource dictionary entry index is out of range");
+        return ResourceEntrySnapshot{};
     }
     const Access::Entry& entry =
         state_->entries[index];
@@ -1167,9 +1133,8 @@ void AddMergedDictionary(
         value->RuntimeType() != ResourceDictionary::StaticTypeId()) {
         return;
     }
-    static_cast<void>(
-        static_cast<ResourceDictionary&>(owner).AddMerged(
-            static_cast<ResourceDictionary&>(*value)));
+    static_cast<ResourceDictionary&>(owner).AddMerged(
+        static_cast<ResourceDictionary&>(*value));
 }
 
 void ClearMergedDictionaries(

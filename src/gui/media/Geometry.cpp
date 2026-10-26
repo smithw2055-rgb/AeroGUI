@@ -120,7 +120,7 @@ bool Geometry::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!transform_->CanFreeze()) return false;
         } else {
-            static_cast<void>(transform_->Freeze());
+            transform_->Freeze();
         }
     }
     return Freezable::FreezeCore(isChecking);
@@ -138,8 +138,7 @@ void Geometry::FlattenCore(FlattenSink&) const noexcept {
 
 void PathFigure::AddSegment(
     Base::Ref<PathSegment> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     segments_.Add(std::move(value));
     WritePostscript();
@@ -147,8 +146,7 @@ void PathFigure::AddSegment(
 
 void PathGeometry::AddFigure(
     Base::Ref<PathFigure> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     figures_.Add(std::move(value));
     WritePostscript();
@@ -253,15 +251,13 @@ void ArcSegment::Flatten(
 }
 
 void PolyLineSegment::SetPoints(Span<const Point> points) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.Clear();
     points_.Append(points);
     WritePostscript();
 }
 void PolyLineSegment::AddPoint(Point point) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.PushBack(point);
     WritePostscript();
 }
@@ -286,15 +282,13 @@ void PolyLineSegment::Flatten(
 }
 
 void PolyBezierSegment::SetPoints(Span<const Point> points) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.Clear();
     points_.Append(points);
     WritePostscript();
 }
 void PolyBezierSegment::AddPoint(Point point) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.PushBack(point);
     WritePostscript();
 }
@@ -325,15 +319,13 @@ void PolyBezierSegment::Flatten(
 }
 
 void PolyQuadraticBezierSegment::SetPoints(Span<const Point> points) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.Clear();
     points_.Append(points);
     WritePostscript();
 }
 void PolyQuadraticBezierSegment::AddPoint(Point point) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     points_.PushBack(point);
     WritePostscript();
 }
@@ -430,8 +422,7 @@ void EllipseGeometry::FlattenCore(FlattenSink& sink) const noexcept {
 }
 
 void GeometryGroup::Add(Ref<Geometry> value) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     children_.Add(std::move(value));
     WritePostscript();
@@ -498,7 +489,7 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
     auto freezeChild = [&](Geometry* child) noexcept {
         if (child == nullptr) return true;
         if (isChecking) return child->CanFreeze();
-        static_cast<void>(child->Freeze());
+        child->Freeze();
         return true;
     };
     if (!freezeChild(geometry1_.Get()) || !freezeChild(geometry2_.Get())) {
@@ -566,8 +557,7 @@ bool CombinedGeometry::FreezeCore(bool isChecking) noexcept {
 namespace Aero::Media {
 
 void DashStyle::SetDashes(Span<const double> value) noexcept {
-    Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     dashes_.Clear();
     for (std::uint32_t index = 0U; index < value.Size(); ++index) {
         const double dash = value[index];
@@ -579,8 +569,7 @@ void DashStyle::SetDashes(Span<const double> value) noexcept {
 
 void DashStyle::SetOffset(double value) noexcept {
     if (!std::isfinite(value)) return;
-    Result<void> writable = WritePreamble();
-    if (!writable) return;
+    if (!WritePreamble()) return;
     offset_ = value;
     WritePostscript();
 }

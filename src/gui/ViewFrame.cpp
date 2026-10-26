@@ -152,20 +152,10 @@ ResourceHost::ResolveLayer(
 
 Base::Result<void> ResourceHost::RebuildDynamicEnvironment() noexcept {
         dynamicResourceEnvironment.Clear();
-        Base::Result<void> rebuilt =
-            dynamicResourceEnvironment.AddMerged(
-                systemResources);
-        if (rebuilt) {
-            rebuilt =
-                dynamicResourceEnvironment.AddMerged(
-                    themeResources);
-        }
-        if (rebuilt) {
-            rebuilt =
-                dynamicResourceEnvironment.AddMerged(
-                    applicationResources);
-        }
-        return rebuilt;
+        dynamicResourceEnvironment.AddMerged(systemResources);
+        dynamicResourceEnvironment.AddMerged(themeResources);
+        dynamicResourceEnvironment.AddMerged(applicationResources);
+        return {};
     }
 
 Aero::Media::Visual* ViewFrame::RootVisual() noexcept {

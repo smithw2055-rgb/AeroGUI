@@ -20,7 +20,7 @@ public:
     struct FreezeCheckContext;  // freeze-walk context (defined in Freezable.cpp)
 
     bool CanFreeze() const noexcept;
-    Result<void> Freeze() noexcept;
+    bool Freeze() noexcept;
 
     bool IsFrozen() const noexcept;
 
@@ -38,12 +38,12 @@ protected:
     virtual void CloneCore(const Freezable& source);
     virtual void CloneCurrentValueCore(const Freezable& source);
 
-    Result<void> WritePreamble() const noexcept;
+    bool WritePreamble() const noexcept;
     void WritePostscript() noexcept;
     virtual bool FreezeCore(bool isChecking) noexcept;
     virtual void OnChanged() noexcept;
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
-    Result<void> VerifyMutationAllowed() const noexcept override;
+    bool VerifyMutationAllowed() const noexcept override;
     std::uint64_t Revision() const noexcept;
 
 private:

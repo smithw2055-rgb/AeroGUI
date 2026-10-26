@@ -408,15 +408,15 @@ void Setter::SetAuthoredValue(
     authored->authoredValue = value;
 }
 
-Base::Result<void> Setter::Resolve(
+bool Setter::Resolve(
     DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     if (!property.IsValid() || value.IsUnset()) {
-        return InvalidStyle("Setter resolve value is invalid");
+        return false;
     }
     SetProperty(property);
     SetValue(value);
-    return {};
+    return true;
 }
 
 Style::Style() noexcept
@@ -815,11 +815,7 @@ Base::Result<void> Style::Seal(
     Base::Result<void> frozenProgram = program_->Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
     if (!frozenProgram) return frozenProgram.GetStatus();
-    Base::Result<void> sealedResources = resources_.Seal();
-    if (!sealedResources) {
-        program_->Reset();
-        return sealedResources.GetStatus();
-    }
+    resources_.Seal();
     program_->ClearAuthored();
     authoredSetterObjects_.Clear();
     // Retain immutable EventTrigger declarations for per-element routed-event

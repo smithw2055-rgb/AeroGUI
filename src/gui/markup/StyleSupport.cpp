@@ -418,9 +418,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                     targetType,
                     setter->GetPropertyName());
             if (!value) return value.GetStatus();
-            Base::Result<void> resolved = setter->Resolve(
-                property->Handle(), value.Value());
-            if (!resolved) return resolved.GetStatus();
+            if (!setter->Resolve(property->Handle(), value.Value())) {
+                return InvalidStyle("Setter resolve value is invalid");
+            }
             setter->ReleaseAuthored();
         }
         return {};
@@ -468,9 +468,9 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
             targetType,
             setter->GetPropertyName());
         if (!value) return value.GetStatus();
-        Base::Result<void> resolved = setter->Resolve(
-            property->Handle(), value.Value());
-        if (!resolved) return resolved.GetStatus();
+        if (!setter->Resolve(property->Handle(), value.Value())) {
+            return InvalidStyle("Setter resolve value is invalid");
+        }
         style.AddSetter(*setter);
         setter->ReleaseAuthored();
     }

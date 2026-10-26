@@ -10,7 +10,8 @@ inline Base::Result<void> AddApplicationResource(
     const ResourceKey& key,
     const Meta::Value& value,
     void*) noexcept {
-    return static_cast<Application&>(owner).GetResources().Add(key, value);
+    static_cast<Application&>(owner).GetResources().Add(key, value);
+    return {};
 }
 
 inline ResourceDictionary* ResolveApplicationResources(

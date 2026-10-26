@@ -58,11 +58,18 @@ public:
     }
     template<class TOwner, class TValue>
     void Set(const Meta::DependencyPropertyRef<TOwner, TValue>& property, const TValue& value) noexcept {
-        Result<PropertyValue> encoded = Meta::ValueCodec<TValue>::Encode(value);
-        if (!encoded) { AERO_ASSERT(false); return; }
         if (!property.Handle().IsValid()) { AERO_ASSERT(false); return; }
-        SetProperty(property.Handle());
-        SetValue(encoded.Value());
+        auto encoded = Meta::ValueCodec<TValue>::Encode(value);
+        if constexpr (std::is_same_v<decltype(encoded), Result<PropertyValue>> ||
+                      std::is_same_v<decltype(encoded), Result<Value>>) {
+            if (!encoded) { AERO_ASSERT(false); return; }
+            SetProperty(property.Handle());
+            SetValue(encoded.Value());
+        } else {
+            if (encoded.IsUnset()) { AERO_ASSERT(false); return; }
+            SetProperty(property.Handle());
+            SetValue(encoded);
+        }
     }
     void SetPropertyName(StringView value) noexcept;
     void SetTargetName(StringView value) noexcept;
@@ -78,7 +85,7 @@ private:
     friend class Controls::TemplateBuilder;
     friend class Controls::TemplateEngine;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
-    Result<void> Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+    bool Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
 
     struct AuthoredData {
         AuthoredData() noexcept {}

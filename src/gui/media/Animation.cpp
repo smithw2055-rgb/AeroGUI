@@ -457,8 +457,7 @@ void KeyFrameBase::OnKeySplineChanged(
 
 void TimelineGroup::AddChild(
     Base::Ref<Timeline> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) { AERO_ASSERT(false); return; }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     if (ContainsTimeline(*value, this)) { AERO_ASSERT(false); return; }
     if (timelineChangedHandler_.Empty()) {
@@ -506,7 +505,7 @@ bool TimelineGroup::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!timeline->CanFreeze()) return false;
         } else {
-            static_cast<void>(timeline->Freeze());
+            timeline->Freeze();
         }
     }
     return Timeline::FreezeCore(isChecking);

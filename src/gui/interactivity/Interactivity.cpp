@@ -28,16 +28,12 @@ Behavior::~Behavior() {
     Detach();
 }
 
-Base::Result<void> Behavior::Attach(FrameworkElement& object) noexcept {
-    if (associatedObject_ == &object) return {};
-    if (associatedObject_ != nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Behavior is already attached to another object");
-    }
+bool Behavior::Attach(FrameworkElement& object) noexcept {
+    if (associatedObject_ == &object) return true;
+    if (associatedObject_ != nullptr) return false;
     associatedObject_ = &object;
     OnAttached();
-    return {};
+    return true;
 }
 
 void Behavior::Detach() noexcept {
@@ -68,19 +64,16 @@ void Behavior::CopyAuthoredBindingsTo(
     }
 }
 
-Base::Result<Base::Ref<Behavior>> Behavior::ClonePrototype(
+Base::Ref<Behavior> Behavior::ClonePrototype(
     const Behavior& prototype,
     Meta::Registry& metadata) noexcept {
     Base::Result<Base::Ref<Base::Object>> created =
         metadata.CreateObject(prototype.RuntimeType());
-    if (!created) return created.GetStatus();
-    if (!created.Value() ||
+    if (!created || !created.Value() ||
         !metadata.Types().IsDerivedFrom(
             created->RuntimeType(),
             Behavior::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Behavior factory returned an incompatible object");
+        return {};
     }
     Base::Ref<Behavior> clone =
         Base::Ref<Behavior>::FromBorrowed(

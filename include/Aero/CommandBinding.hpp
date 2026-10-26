@@ -38,7 +38,7 @@ public:
     void SetCommandName(StringView value) noexcept;
     void SetExecutedName(StringView value) noexcept;
     void SetCanExecuteName(StringView value) noexcept;
-    Result<void> Finalize() noexcept;
+    bool Finalize() noexcept;
     void ReleaseAuthored() noexcept;
     bool IsValid() const noexcept { return command_.Get() != nullptr; }
 

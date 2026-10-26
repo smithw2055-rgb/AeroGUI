@@ -139,14 +139,12 @@ public:
             Base::StringView(u8"\u2022")));
     }
 
-    Base::Result<void> SetMask(Base::StringView value) noexcept {
+    bool SetMask(Base::StringView value) noexcept {
         ::Aero::Text::EditableTextModel validation;
         if (!validation.SetText(value) || validation.GraphemeCount() != 1U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Password mask must be one grapheme cluster");
+            return false;
         }
-        return mask_.Assign(value);
+        return static_cast<bool>(mask_.Assign(value));
     }
 
     Base::StringView GetMask() const noexcept { return mask_.View(); }
@@ -1944,15 +1942,11 @@ Base::StringView PasswordBox::GetPasswordChar() const noexcept {
 void PasswordBox::SetPasswordChar(
     Base::StringView value) noexcept {
     PasswordTextDisplayPolicy validation;
-    Base::Result<void> valid =
-        validation.SetMask(value);
-    if (!valid) return;
+    if (!validation.SetMask(value)) return;
     if (passwordPolicy_ == nullptr) {
         return;
     }
-    Base::Result<void> mask =
-        PasswordPolicy(passwordPolicy_)->SetMask(value);
-    if (!mask) return;
+    if (!PasswordPolicy(passwordPolicy_)->SetMask(value)) return;
     SetValue(PasswordCharProperty, value);
     InvalidateMeasure();
     InvalidateVisual();

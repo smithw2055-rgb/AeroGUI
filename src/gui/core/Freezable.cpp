@@ -198,25 +198,22 @@ bool Freezable::CanFreeze() const noexcept {
     return checked.HasValue();
 }
 
-Base::Result<void> Freezable::Freeze() noexcept {
-    if (IsFrozen()) return {};
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
+bool Freezable::Freeze() noexcept {
+    if (IsFrozen()) return true;
+    if (!VerifyAccess()) return false;
     if (state_ != nullptr && state_->freezing) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Freezable freeze operation is already active");
+        return false;
     }
 
     if (activeFreezeCheck != nullptr) {
-        return Freezable::CheckFreezeNode(*activeFreezeCheck, *this);
+        return Freezable::CheckFreezeNode(*activeFreezeCheck, *this).HasValue();
     }
 
     Freezable::FreezeCheckContext context(Base::GetDefaultAllocator());
     activeFreezeCheck = &context;
     Base::Result<void> checked = Freezable::CheckFreezeNode(context, *this);
     activeFreezeCheck = nullptr;
-    if (!checked) return checked.GetStatus();
+    if (!checked) return false;
 
     // CheckFreezeNode records a child-first order. The commit phase performs
     // no allocation and cannot leave an object graph partially frozen because
@@ -224,16 +221,14 @@ Base::Result<void> Freezable::Freeze() noexcept {
     for (Freezable* current : context.complete) {
         if (current != nullptr && !current->IsFrozen()) {
             if (!current->EnsureState()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfMemory,
-                    "Freezable freeze state allocation failed");
+                return false;
             }
             current->state_->freezing = true;
         }
     }
     for (Freezable* current : context.complete) {
         if (current == nullptr || current->IsFrozen()) continue;
-        static_cast<void>(current->FreezeCore(false));
+        current->FreezeCore(false);
         current->state_->frozen = true;
     }
     // Publish one final notification per object only after the complete graph
@@ -246,7 +241,7 @@ Base::Result<void> Freezable::Freeze() noexcept {
         current->state_->consumers.Clear();
         current->state_->handlers.Clear();
     }
-    return {};
+    return true;
 }
 
 Base::Ref<Freezable> Freezable::CreateInstanceCore() const {
@@ -319,8 +314,7 @@ void Freezable::CloneCurrentValueCore(const Freezable& source) {
 void Freezable::AddChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
     if (handler.Empty()) return;
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return;
+    if (!WritePreamble()) return;
     Freezable::State::HandlerRecord record;
     record.handler = handler;
     record.active = true;
@@ -350,11 +344,9 @@ bool Freezable::RemoveChangedHandler(
     return false;
 }
 
-Base::Result<void> Freezable::WritePreamble() const noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    return IsFrozen() ? Base::Result<void>(FrozenStatus())
-                      : Base::Result<void>();
+bool Freezable::WritePreamble() const noexcept {
+    if (!VerifyAccess()) return false;
+    return !IsFrozen();
 }
 
 void Freezable::WritePostscript() noexcept {
@@ -420,7 +412,7 @@ void Freezable::OnPropertyInvalidated(
     WritePostscript();
 }
 
-Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
+bool Freezable::VerifyMutationAllowed() const noexcept {
     return WritePreamble();
 }
 

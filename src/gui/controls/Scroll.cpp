@@ -1291,18 +1291,11 @@ void Thumb::BeginDrag(
     UpdateVisualState(true);
 }
 
-Base::Result<ThumbDragDelta> Thumb::DragTo(
+ThumbDragDelta Thumb::DragTo(
     std::uint32_t pointerId,
     Point position) noexcept {
-    if (!dragging_ || pointerId != pointerId_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Thumb drag pointer is not active");
-    }
-    if (!IsFinite(position)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Thumb drag position must be finite");
+    if (!dragging_ || pointerId != pointerId_ || !IsFinite(position)) {
+        return {};
     }
     const ThumbDragDelta delta{
         position.x - lastPosition_.x,
