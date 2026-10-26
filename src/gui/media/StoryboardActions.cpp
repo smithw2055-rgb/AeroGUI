@@ -347,7 +347,8 @@ StoryboardHost::ExecuteAnimationAction(
                     Base::ErrorCode::NotInitialized,
                     "View focus host is unavailable");
             }
-            return view->Focus()->QueueFocus(*target);
+            view->Focus()->QueueFocus(*target);
+            return {};
         }
         if (!target->GetIsEnabled()) return {};
         // Focus is best-effort. A failed SetFocus must not fail the
@@ -866,7 +867,7 @@ void StoryboardHost::AnimationEventState::Invoke(
             }
         }
 
-Base::Result<bool> StoryboardHost::StartEventTrigger(
+Base::Result<void> StoryboardHost::StartEventTrigger(
         EventTrigger& trigger,
         Base::Object& defaultSource,
         FrameworkElement& actionOwner,
@@ -957,7 +958,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
                         *action, actionOwner, dataTemplateContext, names);
                 if (!executed) return executed.GetStatus();
             }
-            return true;
+            return {};
         }
         if (event == nullptr) {
             return Base::Status::Failure(
@@ -1007,7 +1008,7 @@ Base::Result<bool> StoryboardHost::StartEventTrigger(
             pendingLoadedTriggers.PushBack(
                 {&trigger, &actionOwner, names, dataTemplateContext});
         }
-        return true;
+        return {};
     }
 
 

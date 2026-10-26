@@ -296,10 +296,10 @@ struct ViewFrame {
 
     Aero::Media::Visual* RootVisual() noexcept;
 
-    Base::Result<Aero::Media::Visual*> ResolveVisual(
+    Aero::Media::Visual* ResolveVisual(
         Base::Object& object, Meta::TypeId type) noexcept;
 
-    Base::Result<Aero::UIElement*> ResolveUIElement(
+    Aero::UIElement* ResolveUIElement(
         Base::Object& object, Meta::TypeId type) noexcept;
 
     Aero::FrameworkElement* ResolveFrameworkElement(

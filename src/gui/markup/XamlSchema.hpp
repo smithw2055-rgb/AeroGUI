@@ -768,6 +768,12 @@ public:
             nodes_.Back().Kind() ==
                 NodeKind::EndOfDocument;
     }
+    Base::Ref<Base::Object> BytecodeProgram() const noexcept {
+        return bytecodeProgram_;
+    }
+    void SetBytecodeProgram(Base::Ref<Base::Object> program) const noexcept {
+        bytecodeProgram_ = std::move(program);
+    }
 
 private:
     Base::Result<void> BindSchema(
@@ -783,6 +789,7 @@ private:
     Base::ResourceUri originUri_;
     Base::Vector<Base::ResourceUri> dependencies_;
     Base::Vector<Node> nodes_;
+    mutable Base::Ref<Base::Object> bytecodeProgram_;
 };
 
 } // namespace Aero::Markup

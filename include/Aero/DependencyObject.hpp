@@ -135,7 +135,7 @@ private:
     void ForEachStoredKey(
         void (*visitor)(void*, MemberId) noexcept,
         void* context) noexcept;
-    Result<std::uint32_t> ClearAllProviderOrigin(std::uint32_t origin) noexcept;
+    std::uint32_t ClearAllProviderOrigin(std::uint32_t origin) noexcept;
     Result<void> DropAllEngineValueState() noexcept;
     bool HasUnfreezableValueState() const noexcept;
     Base::Result<void> VisitFreezableChildren(

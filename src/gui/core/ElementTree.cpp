@@ -630,9 +630,9 @@ void ElementTree::ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) n
 void ElementTree::ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
     UIElement* element = ::Aero::TryCast<UIElement>(&node);
     if (element != nullptr) {
-        (*element).Layout().layoutAttached = false;
-        (*element).Layout().measureQueued = false;
-        (*element).Layout().arrangeQueued = false;
+        element->Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+        element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
+        element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
     }
     (node).RenderAttached() = false;
     (node).RenderQueued() = false;
@@ -968,9 +968,8 @@ Base::Result<void> ElementTree::DetachNode(::Aero::Media::Visual& node) noexcept
     return values_->DetachObject(node);
 }
 
-Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
+std::uint32_t ElementTree::FlushLifecycle() noexcept {
+    if (!dispatcher_->CheckAccess()) return 0U;
 
     std::uint32_t count = 0U;
     {
@@ -1009,7 +1008,7 @@ Base::Result<std::uint32_t> ElementTree::FlushLifecycle() noexcept {
 
 void ElementTree::LifecycleHook(void* context) noexcept {
     ElementTree* tree = static_cast<ElementTree*>(context);
-    (void)tree->FlushLifecycle();
+    tree->FlushLifecycle();
 }
 
 std::uint32_t ElementTree::AdvanceRepeatButtonTime(
@@ -1577,9 +1576,9 @@ Base::Result<void> ElementTree::DetachVisualGraph(
             if (childElement != nullptr &&
                 childElement->GetIsLayoutAttached() &&
                 ElementTree::LayoutOf(*childElement) == nullptr) {
-                (*childElement).Layout().layoutAttached = false;
-                (*childElement).Layout().measureQueued = false;
-                (*childElement).Layout().arrangeQueued = false;
+                childElement->Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+                childElement->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
+                childElement->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
             }
             state.layoutAttached =
                 layout_ != nullptr && childElement != nullptr &&

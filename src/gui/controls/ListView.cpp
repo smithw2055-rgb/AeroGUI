@@ -440,12 +440,11 @@ void GridViewHeaderRowPresenter::RebuildIfNeeded() noexcept {
     cellsDirty_ = false;
     for (const Base::Ref<GridViewColumn>& columnRef : columns) {
         if (!columnRef) continue;
-        Base::Result<Base::Ref<GridViewColumnHeader>> made = Base::MakeRef<GridViewColumnHeader>();
-        if (!made || !made.Value()) {
+        Base::Ref<GridViewColumnHeader> header = Base::MakeRef<GridViewColumnHeader>();
+        if (!header) {
             cellsDirty_ = true;
             continue;
         }
-        Base::Ref<GridViewColumnHeader> header = std::move(made).Value();
         header->SetContent(columnRef->GetHeader());
         // Per-column style wins, then presenter/GridView ColumnHeaderContainerStyle.
         Base::Ref<Style> columnStyle = columnRef->GetHeaderContainerStyle();
@@ -664,9 +663,8 @@ void GridViewRowPresenter::RebuildIfNeeded() noexcept {
             continue;
         }
         if (pathView.Empty()) continue;
-        Base::Result<Base::Ref<TextBlock>> made = Base::MakeRef<TextBlock>();
-        if (!made || !made.Value()) continue;
-        Base::Ref<TextBlock> text = std::move(made).Value();
+        Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
+        if (!text) continue;
         text->SetDataContext(Value::FromObject(item->RuntimeType(), item));
         if (bindings != nullptr && bindings->Metadata() != nullptr) {
             Data::MetadataBindingDescriptor descriptor;

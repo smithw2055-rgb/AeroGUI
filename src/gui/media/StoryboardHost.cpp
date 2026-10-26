@@ -277,12 +277,13 @@ Base::Result<std::uint32_t> StoryboardHost::StartContentElementAnimations(
                     EventTrigger::StaticTypeId())) {
                 continue;
             }
-            Base::Result<bool> started = StartEventTrigger(
+            if (StartEventTrigger(
                 static_cast<EventTrigger&>(*authored),
                 content,
                 actionOwner,
-                names);
-            if (started && started.Value()) ++count;
+                names)) {
+                ++count;
+            }
         }
         if (Metadata()->Types().IsDerivedFrom(
                 content.RuntimeType(),
@@ -441,12 +442,13 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                         EventTrigger::StaticTypeId())) {
                     continue;
                 }
-                Base::Result<bool> started = StartEventTrigger(
+                if (StartEventTrigger(
                     static_cast<EventTrigger&>(*authored),
                     *element,
                     *element,
-                    names);
-                if (started && started.Value()) ++count;
+                    names)) {
+                    ++count;
+                }
             }
             for (const Base::Ref<Base::Object>& authored :
                  (*element).StyleTriggerPrototypes()) {
@@ -492,12 +494,13 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                 if (Metadata()->Types().IsDerivedFrom(
                         authored->RuntimeType(),
                         EventTrigger::StaticTypeId())) {
-                    Base::Result<bool> started = StartEventTrigger(
+                    if (StartEventTrigger(
                         static_cast<EventTrigger&>(*authored),
                         *element,
                         *element,
-                        names);
-                    if (started && started.Value()) ++count;
+                        names)) {
+                        ++count;
+                    }
                 }
             }
             if (Styles() != nullptr) {
@@ -511,13 +514,14 @@ Base::Result<std::uint32_t> StoryboardHost::StartLoadedAnimations(
                                 EventTrigger::StaticTypeId())) {
                             continue;
                         }
-                        Base::Result<bool> started = StartEventTrigger(
+                        if (StartEventTrigger(
                             static_cast<EventTrigger&>(
                                 *authored),
                             *element,
                             *element,
-                            names);
-                        if (started && started.Value()) ++count;
+                            names)) {
+                            ++count;
+                        }
                     }
                 }
             }

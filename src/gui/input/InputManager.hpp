@@ -369,9 +369,7 @@ public:
         if (dragDrop_.IsDragging() &&
             input.action == Input::KeyboardAction::Down &&
             input.key == Input::KeyboardKeyEscape) {
-            Base::Result<bool> canceled = dragDrop_.Cancel();
-            if (!canceled) return canceled.GetStatus();
-            if (canceled.Value()) {
+            if (dragDrop_.Cancel()) {
                 Input::KeyboardDispatchResult result;
                 result.routed = true;
                 return result;
@@ -455,8 +453,8 @@ public:
     Aero::InputManager* Input() const noexcept;
     Base::Vector<Base::WeakRef<Aero::UIElement>> pendingFocusTargets;
 
-    Base::Result<void> QueueFocus(Aero::UIElement& target) noexcept;
-    Base::Result<std::uint32_t> ProcessPendingFocus() noexcept;
+    void QueueFocus(Aero::UIElement& target) noexcept;
+    std::uint32_t ProcessPendingFocus() noexcept;
 };
 
 } // namespace Aero

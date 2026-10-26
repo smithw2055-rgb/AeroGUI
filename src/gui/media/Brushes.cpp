@@ -1549,14 +1549,17 @@ Base::Result<Value> ConvertBrushText(
         ValueCodec<Color>::Decode(
             values, converted.Value());
     if (!color) return color.GetStatus();
-    Base::Result<Base::Ref<SolidColorBrush>> made =
+    Base::Ref<SolidColorBrush> made =
         Base::MakeRef<SolidColorBrush>();
-    if (!made) return made.GetStatus();
+    if (!made) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Brush allocation failed");
+    }
     made->SetColor(color.Value());
     return Value::FromObject(
         Brush::StaticTypeId(),
-        Base::Ref<Base::Object>(
-            made.Value()));
+        Base::Ref<Base::Object>(std::move(made)));
 }
 
 } // namespace

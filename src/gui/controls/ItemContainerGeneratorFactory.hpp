@@ -26,7 +26,7 @@ using ItemSubtreeCallback = Base::Result<void> (*)(
 
 class ItemContainerGeneratorFactory {
 public:
-    static Base::Result<ItemContainerGenerator*> Create(
+    static ItemContainerGenerator* Create(
         ::Aero::ElementTree& tree,
         ::Aero::LayoutEngine& layout,
         ::Aero::Meta::EffectiveValueEngine& values,

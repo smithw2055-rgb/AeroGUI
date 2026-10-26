@@ -62,7 +62,7 @@ void UIElement::ArrangeChild(
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
-    if (layout == nullptr || !(child).Layout().layoutAttached ||
+    if (layout == nullptr || !child.GetIsLayoutAttached() ||
         child.LayoutParent() != this) {
         AERO_ASSERT(false && "ArrangeChild: child is not attached to this parent");
         return;
@@ -84,28 +84,28 @@ Rect UIElement::GetLayoutClip() const noexcept {
     return layout_.layoutClip;
 }
 bool UIElement::GetHasLayoutClip() const noexcept {
-    return layout_.hasLayoutClip;
+    return layout_.HasFlag(LayoutFlags::HasLayoutClip);
 }
 bool UIElement::GetIsMeasureValid() const noexcept {
-    return layout_.measureValid;
+    return layout_.HasFlag(LayoutFlags::MeasureValid);
 }
 bool UIElement::GetIsArrangeValid() const noexcept {
-    return layout_.arrangeValid;
+    return layout_.HasFlag(LayoutFlags::ArrangeValid);
 }
 bool UIElement::GetIsMeasureQueued() const noexcept {
-    return layout_.measureQueued;
+    return layout_.HasFlag(LayoutFlags::MeasureQueued);
 }
 bool UIElement::GetIsArrangeQueued() const noexcept {
-    return layout_.arrangeQueued;
+    return layout_.HasFlag(LayoutFlags::ArrangeQueued);
 }
 bool UIElement::GetIsMeasuring() const noexcept {
-    return layout_.measuring;
+    return layout_.HasFlag(LayoutFlags::Measuring);
 }
 bool UIElement::GetIsArranging() const noexcept {
-    return layout_.arranging;
+    return layout_.HasFlag(LayoutFlags::Arranging);
 }
 bool UIElement::GetIsLayoutAttached() const noexcept {
-    return layout_.layoutAttached;
+    return layout_.HasFlag(LayoutFlags::LayoutAttached);
 }
 Size UIElement::GetUntransformedDesiredSize() const noexcept {
     return layout_.untransformedDesiredSize;
@@ -124,7 +124,7 @@ void UIElement::MeasureChild(
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
-    if (layout == nullptr || !(child).Layout().layoutAttached ||
+    if (layout == nullptr || !child.GetIsLayoutAttached() ||
         child.LayoutParent() != this) {
         AERO_ASSERT(false && "MeasureChild: child is not attached to this parent");
         return;
@@ -344,14 +344,14 @@ UIElement::GetCommandBindings() const noexcept {
 
 void UIElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    layout_.opacity = GetValue(OpacityProperty);
+    layout_.opacity = static_cast<float>(GetValue(OpacityProperty));
     layout_.visibility = GetValue(VisibilityProperty);
     if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
         InvalidateMeasure();
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
         InvalidateArrange();
     }
-    UIElement* parent = (*this).Layout().layoutAttached ? LayoutParent() : nullptr;
+    UIElement* parent = GetIsLayoutAttached() ? LayoutParent() : nullptr;
     if (parent != nullptr &&
         HasFlag(flags, PropertyInvalidationFlags::ParentMeasure)) {
         parent->InvalidateMeasure();
@@ -463,7 +463,7 @@ bool UIElement::GetIsHitTestVisible() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 double UIElement::GetOpacity() const noexcept {
-    return layout_.opacity;
+    return static_cast<double>(layout_.opacity);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -489,7 +489,7 @@ void UIElement::InvalidateArrange() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr) {
-        (*this).Layout().arrangeValid = false;
+        layout_.InvalidateArrangeFlags();
         return;
     }
     layout->InvalidateArrange(*this);
@@ -501,8 +501,7 @@ void UIElement::InvalidateMeasure() noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr) {
-        (*this).Layout().measureValid = false;
-        (*this).Layout().arrangeValid = false;
+        layout_.InvalidateMeasureFlags();
         return;
     }
     layout->InvalidateMeasure(*this);

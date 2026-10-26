@@ -1,5 +1,6 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/templates/TemplateBlueprint.hpp"
+#include "gui/markup/XamlBytecode.hpp"
 #include "gui/markup/XamlObjectWriterState.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -1527,98 +1528,12 @@ Base::Result<void> InstantiateBlueprintCore(
     Base::Vector<Base::Ref<Base::Object>>& objects,
     TemplateBuilder* optionalControlBuilder,
     Base::Vector<Visual*>* optionalVisuals) noexcept {
-    objects.Reserve(blueprint.nodes.Size());
-    if (optionalVisuals != nullptr) {
-        optionalVisuals->Reserve(blueprint.nodes.Size());
+    XamlBytecodeProgram& program = EnsureBytecode(blueprint);
+    if (!program.IsValid()) {
+        return InvalidTemplateCompiler("Compiled template bytecode is invalid");
     }
-
-    for (const TemplatePrototypeNode& node : blueprint.nodes) {
-        Base::Result<Base::Ref<Base::Object>> created =
-            blueprint.runtime->CreateObject(node.type);
-        if (!created) return created.GetStatus();
-        Base::Ref<Base::Object> owner = std::move(created).Value();
-        if (!owner || owner->RuntimeType() != node.type ||
-            !blueprint.runtime->Types().IsDerivedFrom(
-                node.type, DependencyObject::StaticTypeId())) {
-            return InvalidTemplateCompiler(
-                "Compiled template created an incompatible object");
-        }
-        if (optionalVisuals != nullptr) {
-            Visual* visual = blueprint.runtime->Types().IsDerivedFrom(
-                node.type, Visual::StaticTypeId())
-                ? static_cast<Visual*>(owner.Get()) : nullptr;
-            optionalVisuals->PushBack(visual);
-        }
-        objects.PushBack(std::move(owner));
-    }
-
-    for (std::uint32_t index = 0U; index < blueprint.nodes.Size(); ++index) {
-        const TemplatePrototypeNode& node = blueprint.nodes[index];
-        auto& dependencyObject = static_cast<DependencyObject&>(*objects[index]);
-        for (const TemplatePrototypeProperty& property : node.properties) {
-            Value value = property.value;
-            if (property.objectNode != UINT32_MAX) {
-                if (property.objectNode >= objects.Size()) {
-                    return InvalidTemplateCompiler(
-                        "Compiled template property object is invalid");
-                }
-                value = Value::FromObject(
-                    property.value.Type(), objects[property.objectNode]);
-            }
-            dependencyObject.SetTemplateValue(property.property, std::move(value));
-        }
-        if (node.type == Grid::StaticTypeId()) {
-            auto& grid = static_cast<Grid&>(*objects[index]);
-            grid.SetColumnDefinitions(node.gridColumns.AsSpan());
-            grid.SetRowDefinitions(node.gridRows.AsSpan());
-        }
-        if (blueprint.runtime->Types().IsDerivedFrom(
-                node.type, StreamGeometry::StaticTypeId())) {
-            auto& geom = static_cast<StreamGeometry&>(*objects[index]);
-            geom.SetData(node.streamGeometryData.View());
-        }
-        if (blueprint.runtime->Types().IsDerivedFrom(
-                node.type, GradientBrush::StaticTypeId())) {
-            auto& gradient = static_cast<GradientBrush&>(*objects[index]);
-            Base::Result<void> stops = ApplyPrototypeGradientStops(
-                gradient, node.gradientStops, optionalControlBuilder);
-            if (!stops) return stops.GetStatus();
-        }
-        if (auto* framework = ::Aero::TryCast<FrameworkElement>(objects[index].Get())) {
-            for (const auto& b : node.authoredBehaviors) {
-                FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, b);
-            }
-            for (const auto& t : node.authoredTriggers) {
-                FrameworkElementSeams::AddStyleTriggerPrototype(*framework, t);
-            }
-        }
-    }
-
-    for (std::uint32_t index = 0U; index < blueprint.nodes.Size(); ++index) {
-        const TemplatePrototypeNode& node = blueprint.nodes[index];
-        if (node.parent == UINT32_MAX) continue;
-        if (node.parent >= objects.Size() ||
-            node.contentMember == InvalidMemberId) {
-            return InvalidTemplateCompiler(
-                "Compiled template content edge is invalid");
-        }
-        const PropertyInfo* structuralProperty = blueprint.runtime->Types()
-            .FindProperty(node.contentMember);
-        const bool propertyEdge = structuralProperty != nullptr &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
-            blueprint.runtime->CanWriteProperty(node.contentMember);
-        Base::Result<void> content = propertyEdge
-            ? blueprint.runtime->SetProperty(
-                *objects[node.parent], node.contentMember,
-                Value::FromObject(structuralProperty->ValueType(), objects[index]))
-            : blueprint.runtime->WriteContent(
-                *objects[node.parent], node.contentMember, objects[index]);
-        if (!content) return content.GetStatus();
-    }
-    return {};
+    return XamlVM::Execute(
+        program, *blueprint.runtime, optionalControlBuilder, objects, optionalVisuals);
 }
 
 Base::Result<void> BuildCompiledTemplate(
@@ -1634,76 +1549,17 @@ Base::Result<void> BuildCompiledTemplate(
             "Compiled template blueprint is invalid");
     }
 
+    XamlBytecodeProgram& program = EnsureBytecode(*blueprint);
+    if (!program.IsValid()) {
+        return InvalidTemplateCompiler(
+            "Compiled template bytecode is invalid");
+    }
+
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Vector<Visual*> visuals;
-    Base::Result<void> instantiated = InstantiateBlueprintCore(
-        *blueprint, objects, &context, &visuals);
-    if (!instantiated) return instantiated.GetStatus();
-
-    for (std::uint32_t index = 0U;
-         index < blueprint->nodes.Size();
-         ++index) {
-        const TemplatePrototypeNode& node = blueprint->nodes[index];
-        if (visuals[index] == nullptr) {
-            if (!node.name.Empty()) {
-                Base::Result<void> named = context.AddObjectPart(
-                    node.name.View(),
-                    Base::Ref<Base::Object>::FromBorrowed(*objects[index]),
-                    *static_cast<DependencyObject*>(objects[index].Get()));
-                if (!named) return named.GetStatus();
-            }
-            continue;
-        }
-        if (node.parent != UINT32_MAX &&
-            visuals[node.parent] == nullptr) {
-            return InvalidTemplateCompiler(
-                "Visual template child has a non-Visual parent");
-        }
-        Base::Result<void> added = node.parent == UINT32_MAX
-            ? context.SetRoot(node.name.View(),
-                Base::Ref<Base::Object>::FromBorrowed(*objects[index]), *visuals[index])
-            : context.AddPart(node.name.View(), *visuals[node.parent],
-                Base::Ref<Base::Object>::FromBorrowed(*objects[index]), *visuals[index]);
-        if (!added) return added.GetStatus();
-    }
-
-    if (blueprint->contentPresenter != UINT32_MAX) {
-        if (blueprint->contentPresenter >=
-                visuals.Size()) {
-            return InvalidTemplateCompiler(
-                "Compiled ContentPresenter index is invalid");
-        }
-        if (blueprint->runtime->Types()
-                .IsDerivedFrom(
-                    context.TemplatedParent()
-                        .RuntimeType(),
-                    ContentControl::StaticTypeId())) {
-            Visual& contentHost =
-                *visuals[
-                    blueprint->contentPresenter];
-            Base::Result<bool> projected =
-                blueprint->runtime->Types().
-                    IsDerivedFrom(
-                        contentHost.RuntimeType(),
-                        ContentPresenter::
-                            StaticTypeId())
-                ? context.ProjectContent(
-                      static_cast<ContentControl&>(
-                          context.
-                              TemplatedParent()),
-                      static_cast<ContentPresenter&>(
-                          contentHost))
-                : context.ProjectContent(
-                      static_cast<ContentControl&>(
-                          context.
-                              TemplatedParent()),
-                      static_cast<ContentControl&>(
-                          contentHost));
-            if (!projected) {
-                return projected.GetStatus();
-            }
-        }
-    }
+    Base::Result<void> executed = XamlVM::Execute(
+        program, *blueprint->runtime, &context, objects, &visuals);
+    if (!executed) return executed.GetStatus();
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
         if (binding.metadata == nullptr ||
@@ -1995,10 +1851,16 @@ BuildCompiledDeferredTemplate(
             "Deferred template blueprint is invalid");
     }
 
+    XamlBytecodeProgram& program = EnsureBytecode(*blueprint);
+    if (!program.IsValid()) {
+        return InvalidTemplateCompiler(
+            "Deferred template bytecode is invalid");
+    }
+
     Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> instantiated = InstantiateBlueprintCore(
-        *blueprint, objects, nullptr, nullptr);
-    if (!instantiated) return instantiated.GetStatus();
+    Base::Result<void> executed = XamlVM::Execute(
+        program, *blueprint->runtime, nullptr, objects, nullptr);
+    if (!executed) return executed.GetStatus();
 
     Base::Ref<Base::Object> root = objects[0U];
     if (payload) {

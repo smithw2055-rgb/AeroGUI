@@ -281,20 +281,14 @@ using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
 
-Base::Result<VisualStateManager*>
+VisualStateManager*
 Controls::VisualStateManagerExecution::Create(
     Meta::EffectiveValueEngine& values,
     ::Aero::Controls::TemplateEngine& templates,
     ::Aero::AnimationEngine& animations,
     Meta::DependencyPropertyRegistry& properties) noexcept {
-    auto* manager = new (std::nothrow) VisualStateManagerState(
+    return new (std::nothrow) VisualStateManagerState(
         values, templates, animations, properties);
-    if (manager == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "VisualStateManager allocation failed");
-    }
-    return manager;
 }
 
 } // namespace Aero

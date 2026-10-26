@@ -214,6 +214,7 @@ set(_aero_gui_internal_headers
     src/gui/controls/ControlPropertyValidators.hpp
     src/gui/markup/MarkupExtensionContract.hpp
     src/gui/markup/XamlObjectWriterState.hpp
+    src/gui/markup/XamlBytecode.hpp
     src/gui/templates/TemplateBlueprint.hpp
     src/gui/media/AnimationEngineCommon.hpp
     src/gui/ViewRenderer.hpp

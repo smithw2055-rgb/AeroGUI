@@ -308,6 +308,18 @@ private:
 
 class EventRouter;
 
+    enum class LayoutFlags : std::uint8_t {
+        None            = 0,
+        LayoutAttached  = 1 << 0,
+        MeasureValid    = 1 << 1,
+        ArrangeValid    = 1 << 2,
+        MeasureQueued   = 1 << 3,
+        ArrangeQueued   = 1 << 4,
+        Measuring       = 1 << 5,
+        Arranging       = 1 << 6,
+        HasLayoutClip   = 1 << 7
+    };
+
     struct LayoutHot {
         Size desiredSize{};
         Size untransformedDesiredSize{};
@@ -316,6 +328,10 @@ class EventRouter;
         Rect layoutSlot{};
         Rect layoutClip{};
         std::uint64_t layoutRevision = 0U;
+        // Cached from the dependency properties so measure and hit-testing
+        // do not look them up again.
+        float opacity = 1.0f;
+        Visibility visibility = Visibility::Visible;
         bool layoutAttached : 1;
         bool measureValid : 1;
         bool arrangeValid : 1;
@@ -324,10 +340,50 @@ class EventRouter;
         bool measuring : 1;
         bool arranging : 1;
         bool hasLayoutClip : 1;
-        // Cached from the dependency properties so measure and hit-testing
-        // do not look them up again.
-        double opacity = 1.0;
-        Visibility visibility = Visibility::Visible;
+
+        LayoutHot() noexcept
+            : layoutAttached(false)
+            , measureValid(false)
+            , arrangeValid(false)
+            , measureQueued(false)
+            , arrangeQueued(false)
+            , measuring(false)
+            , arranging(false)
+            , hasLayoutClip(false) {}
+
+        bool HasFlag(LayoutFlags flag) const noexcept {
+            switch (flag) {
+                case LayoutFlags::LayoutAttached: return layoutAttached;
+                case LayoutFlags::MeasureValid: return measureValid;
+                case LayoutFlags::ArrangeValid: return arrangeValid;
+                case LayoutFlags::MeasureQueued: return measureQueued;
+                case LayoutFlags::ArrangeQueued: return arrangeQueued;
+                case LayoutFlags::Measuring: return measuring;
+                case LayoutFlags::Arranging: return arranging;
+                case LayoutFlags::HasLayoutClip: return hasLayoutClip;
+                default: return false;
+            }
+        }
+        void SetFlag(LayoutFlags flag, bool value) noexcept {
+            switch (flag) {
+                case LayoutFlags::LayoutAttached: layoutAttached = value; break;
+                case LayoutFlags::MeasureValid: measureValid = value; break;
+                case LayoutFlags::ArrangeValid: arrangeValid = value; break;
+                case LayoutFlags::MeasureQueued: measureQueued = value; break;
+                case LayoutFlags::ArrangeQueued: arrangeQueued = value; break;
+                case LayoutFlags::Measuring: measuring = value; break;
+                case LayoutFlags::Arranging: arranging = value; break;
+                case LayoutFlags::HasLayoutClip: hasLayoutClip = value; break;
+                default: break;
+            }
+        }
+        void InvalidateMeasureFlags() noexcept {
+            measureValid = false;
+            arrangeValid = false;
+        }
+        void InvalidateArrangeFlags() noexcept {
+            arrangeValid = false;
+        }
     };
 
     struct Rare {
@@ -338,7 +394,8 @@ class EventRouter;
 
     LayoutHot& Layout() noexcept { return layout_; }
     const LayoutHot& Layout() const noexcept { return layout_; }
-    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = value; }
+    void SetAnimatedOpacity(float value) noexcept { layout_.opacity = value; }
+    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = static_cast<float>(value); }
     void SetAnimatedVisibility(Visibility value) noexcept { layout_.visibility = value; }
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void SetMouseOverState(bool value) noexcept;

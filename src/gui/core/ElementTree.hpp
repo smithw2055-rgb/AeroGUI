@@ -372,7 +372,7 @@ public:
     std::uint32_t PendingLifecycleCount() const noexcept {
         return lifecycleQueue_.Size();
     }
-    Base::Result<std::uint32_t> FlushLifecycle() noexcept;
+    std::uint32_t FlushLifecycle() noexcept;
 
 private:
     struct LifecycleRecord {

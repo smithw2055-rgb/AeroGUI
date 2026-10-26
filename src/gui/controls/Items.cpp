@@ -977,7 +977,7 @@ public:
     }
     Base::Status LastError() const noexcept { return lastError_; }
 
-    static Base::Result<ItemContainerGenerator*> Create(
+    static ItemContainerGenerator* Create(
         ElementTree& tree,
         Aero::LayoutEngine& layout,
         Meta::EffectiveValueEngine& values,
@@ -1038,7 +1038,7 @@ private:
     Base::Result<void> AttachOwnedSubtree(
         Record& record,
         Aero::Media::Visual& root) noexcept;
-    Base::Result<void> DetachOwnedSubtree(
+    void DetachOwnedSubtree(
         Record& record) noexcept;
     void UpdateGeneratedHeader(
         Record& record) noexcept;
@@ -1531,7 +1531,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                         panel,
                         (panel).ChildAtCore( index));
                 if (!attached) {
-                    (void)DetachOwnedSubtree(record);
+                    DetachOwnedSubtree(record);
                     return attached.GetStatus();
                 }
             }
@@ -1546,7 +1546,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                     decorator,
                     (decorator).OwnedChild());
             if (!attached) {
-                (void)DetachOwnedSubtree(record);
+                DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
         } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().
@@ -1580,7 +1580,7 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
                     presenter,
                     presenter.GetOwnedContent());
             if (!attached) {
-                (void)DetachOwnedSubtree(record);
+                DetachOwnedSubtree(record);
                 return attached.GetStatus();
             }
         }
@@ -1588,27 +1588,21 @@ ItemContainerGenerator::GeneratorState::AttachOwnedSubtree(
     return {};
 }
 
-Base::Result<void>
+void
 ItemContainerGenerator::GeneratorState::DetachOwnedSubtree(
     Record& record) noexcept {
-    Base::Status firstError;
     for (std::uint32_t index =
              record.subtreeMounts.Size();
          index > 0U; --index) {
         ElementAttachment mount = record.subtreeMounts[index - 1U];
-        Base::Result<void> detached =
-            tree_->DetachElement(mount);
-        if (mount.child != nullptr && values_ != nullptr) {
-            (void)values_->DetachObject(*mount.child);
+        if (tree_ != nullptr) {
+            static_cast<void>(tree_->DetachElement(mount));
         }
-        if (!detached && firstError.IsOk()) {
-            firstError = detached.GetStatus();
+        if (mount.child != nullptr && values_ != nullptr) {
+            static_cast<void>(values_->DetachObject(*mount.child));
         }
     }
     record.subtreeMounts.Clear();
-    return firstError.IsOk()
-        ? Base::Result<void>()
-        : Base::Result<void>(firstError);
 }
 
 Base::Result<void>
@@ -2054,7 +2048,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
             ItemSubtreeChange::Unmounting,
             subtreeContext_));
     }
-    capture(DetachOwnedSubtree(record));
+    DetachOwnedSubtree(record);
     owner_->ClearContainerForItemOverride(container);
     if (record.generatedHeader && headeredItemsControl != nullptr) {
         if (record.content && DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
@@ -2603,7 +2597,7 @@ Base::Status ItemContainerGenerator::LastError() const noexcept {
               "ItemContainerGenerator is not initialized");
 }
 
-Base::Result<ItemContainerGenerator*>
+ItemContainerGenerator*
 ItemContainerGenerator::GeneratorState::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,
@@ -2615,9 +2609,7 @@ ItemContainerGenerator::GeneratorState::Create(
     void* subtreeContext) noexcept {
     auto* generator = new (std::nothrow) ItemContainerGenerator();
     if (generator == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "ItemContainerGenerator allocation failed");
+        return nullptr;
     }
     generator->state_ = new (std::nothrow) ItemContainerGenerator::GeneratorState(
         *generator,
@@ -2631,9 +2623,7 @@ ItemContainerGenerator::GeneratorState::Create(
         subtreeContext);
     if (generator->state_ == nullptr) {
         delete generator;
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "ItemContainerGenerator runtime allocation failed");
+        return nullptr;
     }
     return generator;
 }
@@ -2679,7 +2669,7 @@ void ItemContainerGenerator::HostHandleItemsChanged(
 
 namespace Aero::Controls {
 
-Base::Result<ItemContainerGenerator*>
+ItemContainerGenerator*
 ItemContainerGeneratorFactory::Create(
     ElementTree& tree,
     Aero::LayoutEngine& layout,

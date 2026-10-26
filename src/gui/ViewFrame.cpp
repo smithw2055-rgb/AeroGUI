@@ -168,38 +168,26 @@ Aero::Media::Visual* ViewFrame::RootVisual() noexcept {
         return static_cast<Aero::Media::Visual*>(root.Get());
     }
 
-Base::Result<Aero::Media::Visual*> ViewFrame::ResolveVisual(
+Aero::Media::Visual* ViewFrame::ResolveVisual(
         Base::Object& object, Meta::TypeId type) noexcept {
         if (!metadata->Types().IsDerivedFrom(object.RuntimeType(), type) ||
             !metadata->Types().IsDerivedFrom(
                 type, Aero::Media::Visual::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "View root is not a registered Visual");
+            return nullptr;
         }
         return static_cast<Aero::Media::Visual*>(&object);
     }
 
-Base::Result<Aero::UIElement*> ViewFrame::ResolveUIElement(
+Aero::UIElement* ViewFrame::ResolveUIElement(
         Base::Object& object, Meta::TypeId type) noexcept {
-        Base::Result<Aero::Media::Visual*> visual =
-            ResolveVisual(object, type);
-        if (!visual) return visual.GetStatus();
-        Aero::UIElement* element =
-            ::Aero::TryCast<::Aero::UIElement>(visual.Value());
-        if (element == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "View root is not a UIElement");
-        }
-        return element;
+        Aero::Media::Visual* visual = ResolveVisual(object, type);
+        return visual != nullptr ? ::Aero::TryCast<::Aero::UIElement>(visual) : nullptr;
     }
 
 Aero::FrameworkElement* ViewFrame::ResolveFrameworkElement(
         Base::Object& object, Meta::TypeId type) noexcept {
-        Base::Result<Aero::Media::Visual*> visual =
-            ResolveVisual(object, type);
-        return visual ? ::Aero::TryCast<::Aero::FrameworkElement>(visual.Value()) : nullptr;
+        Aero::Media::Visual* visual = ResolveVisual(object, type);
+        return visual != nullptr ? ::Aero::TryCast<::Aero::FrameworkElement>(visual) : nullptr;
     }
 
 template<class T>
@@ -621,7 +609,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             return {};
         }
 
-        Base::Result<Controls::ItemContainerGenerator*> created =
+        Controls::ItemContainerGenerator* generator =
             Controls::ItemContainerGeneratorFactory::Create(
                 *Tree(),
                 *Layout(),
@@ -631,10 +619,11 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
                 Templates(),
                 &ViewFrame::GeneratedItemSubtreeChanged,
                 this);
-        if (!created) {
-            return created.GetStatus();
+        if (generator == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate ItemContainerGenerator");
         }
-        Controls::ItemContainerGenerator* generator = created.Value();
         bool attached = false;
         if (metadata->Types().IsDerivedFrom(
                 host->RuntimeType(),
@@ -719,16 +708,14 @@ Base::Result<void> ViewFrame::VisitAndAttach(
 
 namespace {
 
-Base::Result<void> AddFrameCallbacks(
+inline void AddFrameCallbacks(
     ViewFrameResult& result,
-    std::uint32_t count,
-    const char* overflowMessage) noexcept {
+    std::uint32_t count) noexcept {
     if (result.callbackCount > UINT32_MAX - count) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange, overflowMessage);
+        result.callbackCount = UINT32_MAX;
+    } else {
+        result.callbackCount += count;
     }
-    result.callbackCount += count;
-    return {};
 }
 
 Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
@@ -851,9 +838,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     if (state.Values() != nullptr) {
         Base::Result<std::uint32_t> flushed = state.Values()->Flush();
         if (!flushed) return flushed.GetStatus();
-        Base::Result<void> counted = AddFrameCallbacks(
-            result, flushed.Value(), "Frame callback count overflow");
-        if (!counted) return counted.GetStatus();
+        AddFrameCallbacks(result, flushed.Value());
     }
 
     // ---- DataBind (single canonical call, merges the two discrete stages) ----
@@ -895,11 +880,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
             Base::Result<std::uint32_t> completed =
                 state.Storyboards()->ProcessStoryboardCompletions();
             if (!completed) return completed.GetStatus();
-            Base::Result<void> counted = AddFrameCallbacks(
-                result,
-                completed.Value(),
-                "Frame callback count overflow");
-            if (!counted) return counted.GetStatus();
+            AddFrameCallbacks(result, completed.Value());
         }
         if (state.Animations()->Diagnostics().appliedValueCount != 0U) {
             if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
@@ -915,29 +896,19 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     // ---- Lifecycle ----
     {
         if (state.Tree() != nullptr) {
-            Base::Result<std::uint32_t> lifecycleCount =
+            const std::uint32_t lifecycleCount =
                 state.Tree()->FlushLifecycle();
-            if (!lifecycleCount) return lifecycleCount.GetStatus();
-            Base::Result<void> countedLifecycle = AddFrameCallbacks(
-                result, lifecycleCount.Value(), "Lifecycle callback count overflow");
-            if (!countedLifecycle) return countedLifecycle.GetStatus();
+            AddFrameCallbacks(result, lifecycleCount);
         }
-        Base::Result<std::uint32_t> focused = state.Focus() != nullptr
+        const std::uint32_t focused = state.Focus() != nullptr
             ? state.Focus()->ProcessPendingFocus()
-            : Base::Result<std::uint32_t>(0U);
-        if (!focused) return focused.GetStatus();
-        Base::Result<void> counted = AddFrameCallbacks(
-            result, focused.Value(), "View callback count overflow");
-        if (!counted) return counted.GetStatus();
+            : 0U;
+        AddFrameCallbacks(result, focused);
         if (state.Animations() != nullptr) {
             Base::Result<std::uint32_t> initialValues =
                 state.Animations()->ApplyPendingInitialValues();
             if (!initialValues) return initialValues.GetStatus();
-            Base::Result<void> countedInitial = AddFrameCallbacks(
-                result,
-                initialValues.Value(),
-                "Initial animation callback count overflow");
-            if (!countedInitial) return countedInitial.GetStatus();
+            AddFrameCallbacks(result, initialValues.Value());
         }
     }
 

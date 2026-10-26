@@ -81,7 +81,7 @@ public:
     Base::Vector<PendingLoadedTrigger> pendingLoadedTriggers;
     Base::Result<void> FlushPendingLoadedTriggers() noexcept;
 
-    Base::Result<bool> StartEventTrigger(
+    Base::Result<void> StartEventTrigger(
         MediaAnimation::EventTrigger& trigger,
         Base::Object& defaultSource,
         Aero::FrameworkElement& actionOwner,

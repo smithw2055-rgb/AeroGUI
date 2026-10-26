@@ -348,16 +348,17 @@ Base::Result<Value> ConvertGeometryText(
             Base::ErrorCode::InvalidArgument,
             "Geometry text conversion received an invalid target");
     }
-    Base::Result<Base::Ref<StreamGeometry>> made =
+    Base::Ref<StreamGeometry> made =
         Base::MakeRef<StreamGeometry>();
-    if (!made) return made.GetStatus();
-    Base::Ref<Geometry> geometry =
-        Base::Ref<Geometry>(std::move(made).Value());
-    static_cast<StreamGeometry*>(geometry.Get())->SetData(text);
+    if (!made) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "StreamGeometry allocation failed");
+    }
+    made->SetData(text);
     return Value::FromObject(
         targetType,
-        Base::Ref<Base::Object>(
-            std::move(geometry)));
+        Base::Ref<Base::Object>(std::move(made)));
 }
 } // namespace
 } // namespace Aero::MetadataSupport

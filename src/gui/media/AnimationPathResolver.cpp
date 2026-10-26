@@ -205,11 +205,15 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
                 auto& element = static_cast<UIElement&>(*target);
                 Base::Ref<Media::Transform3D> existing = element.GetTransform3D();
                 if (!existing) {
-                    Base::Result<Base::Ref<Media::CompositeTransform3D>> created =
+                    Base::Ref<Media::CompositeTransform3D> created =
                         Base::MakeRef<Media::CompositeTransform3D>();
-                    if (!created) return created.GetStatus();
-                    element.SetTransform3D(Base::Ref<Media::Transform3D>(created.Value()));
-                    existing = Base::Ref<Media::Transform3D>(created.Value());
+                    if (!created) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::OutOfMemory,
+                            "CompositeTransform3D allocation failed");
+                    }
+                    element.SetTransform3D(created);
+                    existing = std::move(created);
                 }
                 target = existing.Get();
                 if (!isLeaf) continue;

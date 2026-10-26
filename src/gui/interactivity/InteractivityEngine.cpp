@@ -981,9 +981,9 @@ Base::Result<std::uint32_t>
         for (const Base::Ref<EventTrigger>& trigger :
              context.eventTriggers) {
             if (!trigger || context.root == nullptr || Storyboards() == nullptr) continue;
-            Base::Result<bool> started = Storyboards()->StartEventTrigger(
+            Base::Result<void> started = Storyboards()->StartEventTrigger(
                 *trigger, *context.root, *context.root, nullptr, &context);
-            if (started && started.Value()) {
+            if (started) {
                 ++count;
             } else if (!started && view != nullptr) {
                 view->ReportUpdateFailure(started.GetStatus());

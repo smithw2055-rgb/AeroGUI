@@ -403,11 +403,14 @@ Base::Result<void> TemplateBuilder::PopulateItemsPresenter(
         if (!created) return created.GetStatus();
         owner = std::move(created).Value();
     } else {
-        Base::Result<Base::Ref<StackPanel>> created =
+        Base::Ref<StackPanel> created =
             Base::MakeRef<StackPanel>();
-        if (!created) return created.GetStatus();
-        owner = Base::Ref<Base::Object>(
-            std::move(created).Value());
+        if (!created) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate default StackPanel for ItemsPanelTemplate");
+        }
+        owner = std::move(created);
     }
     if (!owner ||
         !DependencyObjectAccess::PropertyRegistry((presenter)).Types().IsDerivedFrom(
@@ -466,16 +469,19 @@ TemplateBuilder::PopulateContentPresenter(
             return {};
         }
     }
-    Base::Result<Base::Ref<TextBlock>> created =
+    Base::Ref<TextBlock> created =
         Base::MakeRef<TextBlock>();
-    if (!created) return created.GetStatus();
-    Base::Ref<Base::Object> owner(
-        created.Value());
-    presenter.SetOwnedContent(owner, *created.Value());
+    if (!created) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate default TextBlock for ContentPresenter");
+    }
+    Base::Ref<Base::Object> owner(created);
+    presenter.SetOwnedContent(owner, *created);
     Base::Result<void> mounted =
         AddPart(
             {}, presenter, owner,
-            *created.Value());
+            *created);
     if (!mounted) {
         presenter.SetContent(nullptr);
         return mounted.GetStatus();

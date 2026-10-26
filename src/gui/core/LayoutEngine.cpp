@@ -39,7 +39,7 @@ bool SameSize(Size left, Size right) noexcept {
     return left.width == right.width && left.height == right.height;
 }
 
-double ClampDimension(double value, double minimum, double maximum) noexcept {
+float ClampDimension(float value, float minimum, float maximum) noexcept {
     return std::max(minimum, std::min(value, maximum));
 }
 
@@ -48,9 +48,9 @@ Size ClampSize(Size value, Size minimum, Size maximum) noexcept {
         ClampDimension(value.height, minimum.height, maximum.height)};
 }
 
-double AlignmentOffset(double available, double actual, bool center, bool end) noexcept {
-    const double remaining = std::max(0.0, available - actual);
-    return center ? remaining * 0.5 : (end ? remaining : 0.0);
+float AlignmentOffset(float available, float actual, bool center, bool end) noexcept {
+    const float remaining = std::max(0.0f, available - actual);
+    return center ? remaining * 0.5f : (end ? remaining : 0.0f);
 }
 
 Size NaturalConstraintForTransform(
@@ -60,12 +60,12 @@ Size NaturalConstraintForTransform(
     if (!Base::Invert(Base::ToProjective(matrix), inverse)) {
         return transformed;
     }
-    constexpr double kUnconstrainedProxy = 1.0e7;
-    constexpr double kUnconstrainedThreshold = 5.0e6;
-    constexpr double kUnconstrainedMax = 1.0e12;
+    constexpr float kUnconstrainedProxy = 1.0e7f;
+    constexpr float kUnconstrainedThreshold = 5.0e6f;
+    constexpr float kUnconstrainedMax = 1.0e12f;
 
-    const bool widthUnconstrained = !std::isfinite(transformed.width) || transformed.width >= 1.0e10;
-    const bool heightUnconstrained = !std::isfinite(transformed.height) || transformed.height >= 1.0e10;
+    const bool widthUnconstrained = !std::isfinite(transformed.width) || transformed.width >= 1.0e10f;
+    const bool heightUnconstrained = !std::isfinite(transformed.height) || transformed.height >= 1.0e10f;
 
     if (widthUnconstrained && heightUnconstrained) {
         return {kUnconstrainedMax, kUnconstrainedMax};
@@ -77,12 +77,12 @@ Size NaturalConstraintForTransform(
 
     const Rect bounds = Base::TransformBounds(
         inverse,
-        {0.0, 0.0,
+        {0.0f, 0.0f,
          safeSize.width,
          safeSize.height});
 
-    double outW = std::max(0.0f, bounds.width);
-    double outH = std::max(0.0f, bounds.height);
+    float outW = std::max(0.0f, bounds.width);
+    float outH = std::max(0.0f, bounds.height);
 
     if (outW >= kUnconstrainedThreshold) {
         outW = kUnconstrainedMax;
@@ -170,8 +170,8 @@ Rect Intersect(Rect left, Rect right) noexcept {
         std::max(0.0f, bottomEdge - y)};
 }
 
-double RoundLayoutValue(double value, double dpiScale) noexcept {
-    if (!std::isfinite(value) || !std::isfinite(dpiScale) || dpiScale <= 0.0) {
+float RoundLayoutValue(float value, float dpiScale) noexcept {
+    if (!std::isfinite(value) || !std::isfinite(dpiScale) || dpiScale <= 0.0f) {
         return value;
     }
     return std::round(value * dpiScale) / dpiScale;
@@ -229,9 +229,8 @@ Base::Result<void> LayoutEngine::Attach(
         // first joined under the Window (or left layoutAttached with a stale
         // parent). Fail-closed blocked ColorSelector from hosting LayoutRoot.
         UIElement* oldParent = child.LayoutParent();
-        (child).Layout().layoutAttached = false;
-        (child).Layout().measureValid = false;
-        (child).Layout().arrangeValid = false;
+        child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+        child.Layout().InvalidateMeasureFlags();
         if (oldParent != nullptr && oldParent != &parent) {
             InvalidateMeasure(*oldParent);
         }
@@ -243,9 +242,8 @@ Base::Result<void> LayoutEngine::Attach(
     // Queue all parent invalidation work before publishing the child state.
     InvalidateMeasure(parent);
 
-    (child).Layout().layoutAttached = true;
-    (child).Layout().measureValid = false;
-    (child).Layout().arrangeValid = false;
+    child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, true);
+    child.Layout().InvalidateMeasureFlags();
     return {};
 }
 
@@ -268,9 +266,8 @@ Base::Result<void> LayoutEngine::Detach(
     InvalidateMeasure(*attachParent);
 
     RemoveQueued(child);
-    (child).Layout().layoutAttached = false;
-    (child).Layout().measureValid = false;
-    (child).Layout().arrangeValid = false;
+    child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+    child.Layout().InvalidateMeasureFlags();
     return {};
 }
 
@@ -298,8 +295,8 @@ Base::Result<void> LayoutEngine::SetRoot(
     measureQueue_.Clear();
     arrangeQueue_.Clear();
     if (root_ != nullptr && root_ != root) {
-        (*root_).Layout().measureQueued = false;
-        (*root_).Layout().arrangeQueued = false;
+        root_->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
+        root_->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
     }
     root_ = root;
     rootAvailableSize_ = availableSize;
@@ -331,11 +328,11 @@ Base::Result<void> LayoutEngine::QueueMeasure(
     if (element.GetIsMeasureQueued()) return {};
     const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
-        (element).Layout().measureValid = false;
+        element.Layout().SetFlag(UIElement::LayoutFlags::MeasureValid, false);
         return {};
     }
     measureQueue_.PushBack(handle);
-    (element).Layout().measureQueued = true;
+    element.Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
     return {};
 }
 
@@ -344,11 +341,11 @@ Base::Result<void> LayoutEngine::QueueArrange(
     if (element.GetIsArrangeQueued()) return {};
     const VisualHandle handle = ElementTree::HandleOf(element);
     if (!handle.IsValid()) {
-        (element).Layout().arrangeValid = false;
+        element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeValid, false);
         return {};
     }
     arrangeQueue_.PushBack(handle);
-    (element).Layout().arrangeQueued = true;
+    element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
     return {};
 }
 
@@ -369,81 +366,92 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
     };
     remove(measureQueue_);
     remove(arrangeQueue_);
-    (element).Layout().measureQueued = false;
-    (element).Layout().arrangeQueued = false;
+    element.Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
+    element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
 }
 
 void LayoutEngine::InvalidateMeasure(
     UIElement& element) noexcept {
-    Base::Vector<UIElement*> path;
+    constexpr std::size_t kInlineCapacity = 64U;
+    UIElement* inlinePath[kInlineCapacity];
+    UIElement** path = inlinePath;
+    std::size_t pathCapacity = kInlineCapacity;
+    std::size_t pathCount = 0U;
+    Base::Vector<UIElement*> heapPath;
+
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        path.PushBack(current);
+        if (pathCount >= pathCapacity) {
+            if (path == inlinePath) {
+                heapPath.Reserve(kInlineCapacity * 2U);
+                for (std::size_t i = 0U; i < pathCount; ++i) {
+                    heapPath.PushBack(inlinePath[i]);
+                }
+            }
+            heapPath.PushBack(current);
+            path = heapPath.Data();
+            pathCapacity = heapPath.Capacity();
+            pathCount = heapPath.Size();
+        } else {
+            path[pathCount++] = current;
+        }
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<VisualHandle> handles;
-    handles.Reserve(path.Size());
-    for (UIElement* item : path) {
+    for (std::size_t i = 0U; i < pathCount; ++i) {
+        UIElement* item = path[i];
+        item->Layout().InvalidateMeasureFlags();
         if (item->GetIsMeasureQueued()) continue;
         const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
-            handles.PushBack(handle);
-        }
-    }
-    measureQueue_.Reserve(
-        measureQueue_.Size() + handles.Size());
-
-    std::uint32_t handleIndex = 0U;
-    for (UIElement* item : path) {
-        (*item).Layout().measureValid = false;
-        (*item).Layout().arrangeValid = false;
-        if (item->GetIsMeasureQueued()) continue;
-        const VisualHandle handle = ElementTree::HandleOf(*item);
-        if (handle.IsValid()) {
-            measureQueue_.PushBack(
-                handles[handleIndex++]);
-            (*item).Layout().measureQueued = true;
+            measureQueue_.PushBack(handle);
+            item->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
         }
     }
 }
 
 void LayoutEngine::InvalidateArrange(
     UIElement& element) noexcept {
-    Base::Vector<UIElement*> path;
+    constexpr std::size_t kInlineCapacity = 64U;
+    UIElement* inlinePath[kInlineCapacity];
+    UIElement** path = inlinePath;
+    std::size_t pathCapacity = kInlineCapacity;
+    std::size_t pathCount = 0U;
+    Base::Vector<UIElement*> heapPath;
+
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
-        path.PushBack(current);
+        if (pathCount >= pathCapacity) {
+            if (path == inlinePath) {
+                heapPath.Reserve(kInlineCapacity * 2U);
+                for (std::size_t i = 0U; i < pathCount; ++i) {
+                    heapPath.PushBack(inlinePath[i]);
+                }
+            }
+            heapPath.PushBack(current);
+            path = heapPath.Data();
+            pathCapacity = heapPath.Capacity();
+            pathCount = heapPath.Size();
+        } else {
+            path[pathCount++] = current;
+        }
         current = current->GetIsLayoutAttached()
             ? current->LayoutParent() : nullptr;
     }
 
-    Base::Vector<VisualHandle> handles;
-    handles.Reserve(path.Size());
-    for (UIElement* item : path) {
+    for (std::size_t i = 0U; i < pathCount; ++i) {
+        UIElement* item = path[i];
+        item->Layout().InvalidateArrangeFlags();
         if (item->GetIsArrangeQueued()) continue;
         const VisualHandle handle = ElementTree::HandleOf(*item);
         if (handle.IsValid()) {
-            handles.PushBack(handle);
-        }
-    }
-    arrangeQueue_.Reserve(
-        arrangeQueue_.Size() + handles.Size());
-
-    std::uint32_t handleIndex = 0U;
-    for (UIElement* item : path) {
-        (*item).Layout().arrangeValid = false;
-        if (item->GetIsArrangeQueued()) continue;
-        const VisualHandle handle = ElementTree::HandleOf(*item);
-        if (handle.IsValid()) {
-            arrangeQueue_.PushBack(
-                handles[handleIndex++]);
-            (*item).Layout().arrangeQueued = true;
+            arrangeQueue_.PushBack(handle);
+            item->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
         }
     }
 }
@@ -478,29 +486,28 @@ void UIElement::MeasureCore(
     }
 
     if (element.GetVisibility() == Visibility::Collapsed) {
-        (element).Layout().previousMeasureConstraint = constraint;
-        (element).Layout().desiredSize = {};
-        (element).Layout().untransformedDesiredSize = {};
-        (element).Layout().measureValid = true;
-        (element).Layout().arrangeValid = false;
-        (element).Layout().measureQueued = false;
-        ++(element).Layout().layoutRevision;
+        element.Layout().previousMeasureConstraint = constraint;
+        element.Layout().desiredSize = {};
+        element.Layout().untransformedDesiredSize = {};
+        element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+        element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
+        ++element.Layout().layoutRevision;
         ++layout.measuredCount_;
         if (queueArrange) {
-            layout.arrangeQueue_.PushBack(
-                pendingArrange);
-            (element).Layout().arrangeQueued = true;
+            layout.arrangeQueue_.PushBack(pendingArrange);
+            element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
         }
         return;
     }
 
-    const FrameworkElement* framework = ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
+    const FrameworkElement* framework = ::Aero::TryCast<::Aero::FrameworkElement>(&element);
     const Thickness margin = framework != nullptr
         ? framework->GetMargin() : Thickness{};
     const Size minimum = framework != nullptr
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
-        ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
+        ? framework->GetMaxSize() : Size{1.0e12f, 1.0e12f};
     // Window.Width/Height size the native chrome. The layout root must fill
     // the view client (DPI-converted, user-resized) so Viewbox Uniform can
     // scale. Nested elements still honor explicit Width/Height.
@@ -529,16 +536,16 @@ void UIElement::MeasureCore(
     available = ClampSize(available, minimum, maximum);
     if (hasWidth) {
         available.width = ClampDimension(
-            framework->GetWidth(), minimum.width, maximum.width);
+            static_cast<float>(framework->GetWidth()), minimum.width, maximum.width);
     }
     if (hasHeight) {
         available.height = ClampDimension(
-            framework->GetHeight(), minimum.height, maximum.height);
+            static_cast<float>(framework->GetHeight()), minimum.height, maximum.height);
     }
 
-    (element).Layout().measuring = true;
-    const Size result = (element).MeasureOverride( available);
-    (element).Layout().measuring = false;
+    element.Layout().SetFlag(LayoutFlags::Measuring, true);
+    const Size result = element.MeasureOverride(available);
+    element.Layout().SetFlag(LayoutFlags::Measuring, false);
     Size desired = result;
     if (!IsValidLayoutSize(desired)) {
         AERO_ASSERT(false && "MeasureOverride returned an invalid size");
@@ -547,12 +554,12 @@ void UIElement::MeasureCore(
     desired = ClampSize(desired, minimum, maximum);
     if (hasWidth) desired.width = available.width;
     if (hasHeight) desired.height = available.height;
-    (element).Layout().untransformedDesiredSize = desired;
+    element.Layout().untransformedDesiredSize = desired;
     if (layoutTransform) {
         const Rect transformed =
             Base::TransformBounds(
                 Base::ToProjective(layoutMatrix),
-                {0.0, 0.0,
+                {0.0f, 0.0f,
                  desired.width,
                  desired.height});
         desired = {
@@ -568,20 +575,19 @@ void UIElement::MeasureCore(
     desired.width = std::max(0.0f, desired.width);
     desired.height = std::max(0.0f, desired.height);
     if (framework != nullptr && framework->GetUseLayoutRounding()) {
-        desired.width = RoundLayoutValue(desired.width, framework->GetDpiScale());
-        desired.height = RoundLayoutValue(desired.height, framework->GetDpiScale());
+        desired.width = RoundLayoutValue(desired.width, static_cast<float>(framework->GetDpiScale()));
+        desired.height = RoundLayoutValue(desired.height, static_cast<float>(framework->GetDpiScale()));
     }
-    (element).Layout().previousMeasureConstraint = constraint;
-    (element).Layout().desiredSize = desired;
-    (element).Layout().measureValid = true;
-    (element).Layout().arrangeValid = false;
-    (element).Layout().measureQueued = false;
-    ++(element).Layout().layoutRevision;
+    element.Layout().previousMeasureConstraint = constraint;
+    element.Layout().desiredSize = desired;
+    element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+    element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
+    ++element.Layout().layoutRevision;
     ++layout.measuredCount_;
     if (queueArrange) {
-        layout.arrangeQueue_.PushBack(
-            pendingArrange);
-        (element).Layout().arrangeQueued = true;
+        layout.arrangeQueue_.PushBack(pendingArrange);
+        element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
     }
     return;
 }
@@ -602,34 +608,35 @@ void UIElement::ArrangeCore(
         return;
     }
     if (element.GetVisibility() == Visibility::Collapsed) {
-        (element).Layout().layoutSlot = {slot.x, slot.y, 0.0, 0.0};
-        (element).Layout().renderSize = {};
+        element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
+        element.Layout().renderSize = {};
         if (FrameworkElement* framework =
-                ::Aero::TryCast<::Aero::FrameworkElement>(&(element))) {
-            (*framework).SetActualSize( 0.0, 0.0);
+                ::Aero::TryCast<::Aero::FrameworkElement>(&element)) {
+            framework->SetActualSize(0.0f, 0.0f);
         }
-        (element).Layout().layoutClip = {0.0, 0.0, 0.0, 0.0};
-        (element).Layout().arrangeValid = true;
-        (element).Layout().arrangeQueued = false;
-        ++(element).Layout().layoutRevision;
+        element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+        element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+        ++element.Layout().layoutRevision;
         ++layout.arrangedCount_;
         return;
     }
     FrameworkElement* framework =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&(element));
+        ::Aero::TryCast<::Aero::FrameworkElement>(&element);
     if (framework != nullptr && (framework->GetUseLayoutRounding() ||
             framework->GetSnapsToDevicePixels())) {
-        slot.x = RoundLayoutValue(slot.x, framework->GetDpiScale());
-        slot.y = RoundLayoutValue(slot.y, framework->GetDpiScale());
-        slot.width = RoundLayoutValue(slot.width, framework->GetDpiScale());
-        slot.height = RoundLayoutValue(slot.height, framework->GetDpiScale());
+        const float dpi = static_cast<float>(framework->GetDpiScale());
+        slot.x = RoundLayoutValue(slot.x, dpi);
+        slot.y = RoundLayoutValue(slot.y, dpi);
+        slot.width = RoundLayoutValue(slot.width, dpi);
+        slot.height = RoundLayoutValue(slot.height, dpi);
     }
     const Thickness margin = framework != nullptr
         ? framework->GetMargin() : Thickness{};
     const Size minimum = framework != nullptr
         ? framework->GetMinSize() : Size{};
     const Size maximum = framework != nullptr
-        ? framework->GetMaxSize() : Size{1.0e12, 1.0e12};
+        ? framework->GetMaxSize() : Size{1.0e12f, 1.0e12f};
     const bool isLayoutRoot = layout.root_ != nullptr && &element == layout.root_;
     const bool hasWidth =
         !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
@@ -665,7 +672,7 @@ void UIElement::ArrangeCore(
     Size finalSize;
     if (hasWidth) {
         finalSize.width = ClampDimension(
-            framework->GetWidth(), minimum.width, maximum.width);
+            static_cast<float>(framework->GetWidth()), minimum.width, maximum.width);
     } else if (horizontal == HorizontalAlignment::Stretch) {
         finalSize.width = ClampDimension(
             naturalAvailable.width, minimum.width, maximum.width);
@@ -676,7 +683,7 @@ void UIElement::ArrangeCore(
     }
     if (hasHeight) {
         finalSize.height = ClampDimension(
-            framework->GetHeight(), minimum.height, maximum.height);
+            static_cast<float>(framework->GetHeight()), minimum.height, maximum.height);
     } else if (vertical == VerticalAlignment::Stretch) {
         finalSize.height = ClampDimension(
             naturalAvailable.height, minimum.height, maximum.height);
@@ -691,7 +698,7 @@ void UIElement::ArrangeCore(
         const Rect transformed =
             Base::TransformBounds(
                 Base::ToProjective(layoutMatrix),
-                {0.0, 0.0,
+                {0.0f, 0.0f,
                  finalSize.width,
                  finalSize.height});
         layoutFootprint = {
@@ -724,35 +731,35 @@ void UIElement::ArrangeCore(
             vertical == VerticalAlignment::Stretch,
         vertical == VerticalAlignment::Bottom);
 
-    (element).Layout().arranging = true;
-    const Size result = (element).ArrangeOverride( finalSize);
-    (element).Layout().arranging = false;
+    element.Layout().SetFlag(LayoutFlags::Arranging, true);
+    const Size result = element.ArrangeOverride(finalSize);
+    element.Layout().SetFlag(LayoutFlags::Arranging, false);
     Size render = result;
     if (!IsValidLayoutSize(render)) {
         AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
         return;
     }
-    (element).Layout().layoutSlot = contentSlot;
-    (element).Layout().renderSize = render;
+    element.Layout().layoutSlot = contentSlot;
+    element.Layout().renderSize = render;
     if (framework != nullptr) {
-        (*framework).SetActualSize( render.width, render.height);
+        framework->SetActualSize(render.width, render.height);
     }
     Size renderedFootprint = render;
-    Rect renderedBounds{0.0, 0.0, render.width, render.height};
+    Rect renderedBounds{0.0f, 0.0f, render.width, render.height};
     if (layoutTransform) {
         renderedBounds =
             Base::TransformBounds(
                 Base::ToProjective(layoutMatrix),
-                {0.0, 0.0,
+                {0.0f, 0.0f,
                  render.width,
                  render.height});
         renderedFootprint = {
             renderedBounds.width,
             renderedBounds.height};
     }
-    const Rect localBounds{0.0, 0.0, render.width, render.height};
+    const Rect localBounds{0.0f, 0.0f, render.width, render.height};
     const Rect localFootprint{
-        0.0, 0.0, renderedFootprint.width, renderedFootprint.height};
+        0.0f, 0.0f, renderedFootprint.width, renderedFootprint.height};
 
     // Calculate layout slot in element-local coordinates.
     // contentSlot is the element origin in parent space, so (slot.origin + effectiveMargin)
@@ -772,10 +779,10 @@ void UIElement::ArrangeCore(
         }
     }
 
-    constexpr double kLayoutTolerance = 0.05;
+    constexpr float kLayoutTolerance = 0.05f;
     const bool overflowsSlot =
         !isLayoutRoot &&
-        (render.width > 0.0 && render.height > 0.0) &&
+        (render.width > 0.0f && render.height > 0.0f) &&
         (localBounds.x < localSlot.x - kLayoutTolerance ||
          localBounds.y < localSlot.y - kLayoutTolerance ||
          localBounds.x + localBounds.width > localSlot.x + localSlot.width + kLayoutTolerance ||
@@ -793,13 +800,13 @@ void UIElement::ArrangeCore(
     clipRect.width = std::max(0.0f, clipRect.width);
     clipRect.height = std::max(0.0f, clipRect.height);
 
-    (element).Layout().hasLayoutClip = hasLayoutClip;
-    (element).Layout().layoutClip = (hasLayoutClip || clipsToBounds)
+    element.Layout().SetFlag(LayoutFlags::HasLayoutClip, hasLayoutClip);
+    element.Layout().layoutClip = (hasLayoutClip || clipsToBounds)
         ? clipRect
         : localBounds;
-    (element).Layout().arrangeValid = true;
-    (element).Layout().arrangeQueued = false;
-    ++(element).Layout().layoutRevision;
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    ++element.Layout().layoutRevision;
     ++layout.arrangedCount_;
     return;
 }
@@ -831,7 +838,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         (!root_->GetIsMeasureValid() || !root_->GetIsArrangeValid())) {
         MeasureElement(*root_, rootAvailableSize_);
         ArrangeElement(
-            *root_, {0.0, 0.0,
+            *root_, {0.0f, 0.0f,
                      rootAvailableSize_.width, rootAvailableSize_.height});
     }
 
@@ -839,7 +846,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     measureWorkQueue_.Swap(measureQueue_);
     for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) (*element).Layout().measureQueued = false;
+        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
     }
     for (const VisualHandle handle : measureWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
@@ -859,7 +866,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     arrangeWorkQueue_.Swap(arrangeQueue_);
     for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) (*element).Layout().arrangeQueued = false;
+        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
     }
     for (const VisualHandle handle : arrangeWorkQueue_) {
         UIElement* element = ResolveQueued(handle);
@@ -868,7 +875,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             continue;
         }
         Rect slot = element->GetLayoutSlot();
-        if (slot.width == 0.0 && slot.height == 0.0) {
+        if (slot.width == 0.0f && slot.height == 0.0f) {
             slot.width = element->GetDesiredSize().width;
             slot.height = element->GetDesiredSize().height;
         }
@@ -886,11 +893,10 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
            HasInvalidVisibleLayout(*root_) &&
            convergencePass < MaxConvergencePasses) {
         ++convergencePass;
-        (*root_).Layout().measureValid = false;
-        (*root_).Layout().arrangeValid = false;
+        root_->Layout().InvalidateMeasureFlags();
         MeasureElement(*root_, rootAvailableSize_);
         ArrangeElement(
-            *root_, {0.0, 0.0,
+            *root_, {0.0f, 0.0f,
                      rootAvailableSize_.width,
                      rootAvailableSize_.height});
     }
@@ -929,7 +935,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             static_cast<void*>(layoutParent),
             invalid != nullptr ? (int)invalid->GetIsVisible() : -1,
             invalid != nullptr ? static_cast<unsigned>(invalid->GetVisibility()) : 99U,
-            invalid != nullptr ? (int)(*invalid).Layout().layoutAttached : -1,
+            invalid != nullptr ? (int)invalid->GetIsLayoutAttached() : -1,
             invalid != nullptr ? static_cast<void*>(invalid->LayoutParent()) : nullptr,
             invalid != nullptr ? static_cast<void*>(invalid->GetVisualParent()) : nullptr);
         return InvalidState(message);
@@ -940,11 +946,11 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // application so the next frame starts from a clean layout state.
     for (const VisualHandle handle : measureQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) (*element).Layout().measureQueued = false;
+        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
     }
     for (const VisualHandle handle : arrangeQueue_) {
         UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) (*element).Layout().arrangeQueued = false;
+        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
     }
     measureQueue_.Clear();
     arrangeQueue_.Clear();

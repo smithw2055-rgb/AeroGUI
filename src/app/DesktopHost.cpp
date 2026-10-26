@@ -425,21 +425,21 @@ Base::Result<void> LoadFromUri(
             return {};
         }
 
-        Base::Result<void> HandleEvent(
+        void HandleEvent(
             const Platform::WindowEvent& event) noexcept {
             switch (event.type) {
             case Platform::WindowEventType::CloseRequested:
                 if (window != nullptr) window->Close();
                 else Close();
                 RequestHostExitIfIdle();
-                return {};
+                return;
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
                     window->NotifyClosed();
                 }
                 RequestHostExitIfIdle();
-                return {};
+                return;
             case Platform::WindowEventType::Resized:
             case Platform::WindowEventType::ScaleChanged:
                 frameRequested = true;
@@ -450,15 +450,14 @@ Base::Result<void> LoadFromUri(
                     pendingDpiScale = event.dpiScale;
                 }
                 hasPendingResize = true;
-                return {};
+                return;
             case Platform::WindowEventType::PointerMove:
             case Platform::WindowEventType::PointerDown:
             case Platform::WindowEventType::PointerDoubleClick:
             case Platform::WindowEventType::PointerUp:
             case Platform::WindowEventType::PointerWheel: {
                 Input::DeviceState::SetLastModifiers(event.modifiers);
-                Base::Result<void> resized = ApplyPendingResize();
-                if (!resized) return resized.GetStatus();
+                ApplyPendingResize();
                 const int x = static_cast<int>(event.x / dpiScale);
                 const int y = static_cast<int>(event.y / dpiScale);
                 bool handled = false;
@@ -485,11 +484,11 @@ Base::Result<void> LoadFromUri(
                 }
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::KeyDown:
             case Platform::WindowEventType::KeyUp: {
-                if (event.key == 0U) return {};
+                if (event.key == 0U) return;
                 Input::DeviceState::SetLastModifiers(event.modifiers);
                 const Input::Key key = static_cast<Input::Key>(event.key);
                 const bool handled =
@@ -498,45 +497,39 @@ Base::Result<void> LoadFromUri(
                     : view->KeyUp(key);
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::TextInput: {
-                if (event.textSize == 0U) return {};
+                if (event.textSize == 0U) return;
                 const bool handled = view->Char(
                     DecodeWindowCodePoint(event.Text()));
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::Exposed:
                 frameRequested = true;
-                return {};
+                return;
             case Platform::WindowEventType::Invalid:
             default:
-                return {};
+                return;
             }
         }
 
-        Base::Result<void> ApplyPendingResize() noexcept {
-            if (!hasPendingResize) return {};
+        void ApplyPendingResize() noexcept {
+            if (!hasPendingResize) return;
             const std::uint32_t width = pendingResizeWidth;
             const std::uint32_t height = pendingResizeHeight;
             const double nextDpiScale = pendingDpiScale;
             hasPendingResize = false;
             if (width != 0U && height != 0U) {
-                Base::Result<void> resized =
-                    renderContext->Resize(width, height);
-                if (!resized) return resized.GetStatus();
+                static_cast<void>(renderContext->Resize(width, height));
             }
             const Size logicalSize{
                 static_cast<double>(width) / nextDpiScale,
                 static_cast<double>(height) / nextDpiScale};
-            if (!view->SetViewport(
-                {logicalSize, width, height, nextDpiScale})) {
-                return HostFailure(
-                    Base::ErrorCode::InvalidState,
-                    "Failed to update view viewport");
-            }
+            static_cast<void>(view->SetViewport(
+                {logicalSize, width, height, nextDpiScale}));
             dpiScale = nextDpiScale;
             frameRequested = true;
             if (!firstLayoutFlushed &&
@@ -544,10 +537,9 @@ Base::Result<void> LoadFromUri(
                 static_cast<void>(view->Update(updateTimeSeconds));
                 firstLayoutFlushed = true;
             }
-            return {};
         }
 
-        Base::Result<bool> PumpEvents() noexcept {
+        bool PumpEvents() noexcept {
             if (!nativeWindow) {
                 return false;
             }
@@ -556,17 +548,15 @@ Base::Result<void> LoadFromUri(
                 Platform::WindowEvent event;
                 if (!nativeWindow->PollEvent(event)) break;
                 handled = true;
-                Base::Result<void> status = HandleEvent(event);
-                if (!status) return status.GetStatus();
+                HandleEvent(event);
             }
             if (!closeRequested && nativeWindow->IsOpen()) {
-                Base::Result<void> resized = ApplyPendingResize();
-                if (!resized) return resized.GetStatus();
+                ApplyPendingResize();
             }
             return handled;
         }
 
-        Base::Result<bool> WaitForActivity(
+        bool WaitForActivity(
             std::uint32_t timeoutMilliseconds,
             bool blockUntilEvent) noexcept {
             if (!nativeWindow || !nativeWindow->IsOpen() || closeRequested) {
@@ -577,12 +567,10 @@ Base::Result<void> LoadFromUri(
                 ? nativeWindow->WaitEvent(event)
                 : nativeWindow->WaitEventFor(event, timeoutMilliseconds);
             if (handled) {
-                Base::Result<void> status = HandleEvent(event);
-                if (!status) return status.GetStatus();
+                HandleEvent(event);
             }
-            Base::Result<bool> drained = PumpEvents();
-            if (!drained) return drained.GetStatus();
-            return handled || drained.Value();
+            const bool drained = PumpEvents();
+            return handled || drained;
         }
 
         Base::Result<void> RenderFrame(bool force = false) noexcept {
@@ -906,13 +894,9 @@ Base::Result<void> LoadFromUri(
         return {};
     }
 
-    Base::Result<WindowHost*> CreateWindowHost() noexcept {
+    WindowHost* CreateWindowHost() noexcept {
         auto* host = new (std::nothrow) WindowHost(*this);
-        if (host == nullptr) {
-            return HostFailure(
-                Base::ErrorCode::OutOfMemory,
-                "Unable to allocate application Window host");
-        }
+        if (host == nullptr) return nullptr;
         windows.PushBack(host);
         return host;
     }
@@ -939,9 +923,12 @@ Base::Result<void> LoadFromUri(
         if (!attached) return attached.GetStatus();
 
         if (suppliedWindow || !startupUri.Empty()) {
-            Base::Result<WindowHost*> allocated = CreateWindowHost();
-            if (!allocated) return allocated.GetStatus();
-            WindowHost* host = allocated.Value();
+            WindowHost* host = CreateWindowHost();
+            if (host == nullptr) {
+                return HostFailure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Unable to allocate application Window host");
+            }
             Base::Result<void> loaded = suppliedWindow
                 ? host->LoadProgrammatic(suppliedWindow)
                 : host->LoadFromUri(startupUri);
@@ -972,9 +959,8 @@ Base::Result<void> LoadFromUri(
         }
         Base::Ref<Window> owner = Base::Ref<Window>::TryFromBorrowed(value);
         if (!owner) return;
-        Base::Result<WindowHost*> allocated = CreateWindowHost();
-        if (!allocated) return;
-        WindowHost* host = allocated.Value();
+        WindowHost* host = CreateWindowHost();
+        if (host == nullptr) return;
         Base::Result<void> loaded = host->LoadProgrammatic(std::move(owner));
         if (!loaded) {
             RemoveWindowAt(windows.Size() - 1U);
@@ -1065,9 +1051,9 @@ Base::Result<void> LoadFromUri(
                  ++index) {
                 WindowHost* candidate = windows[index];
                 if (candidate == nullptr) continue;
-                Base::Result<bool> pumped = candidate->PumpEvents();
-                if (!pumped) return false;
-                handledEvent = handledEvent || pumped.Value();
+                if (candidate->PumpEvents()) {
+                    handledEvent = true;
+                }
             }
             if (exitRequested || !host->IsOpen()) break;
             for (WindowHost* candidate : windows) {
@@ -1077,8 +1063,7 @@ Base::Result<void> LoadFromUri(
                 }
             }
             if (!handledEvent && host->IsOpen()) {
-                Base::Result<bool> waited = host->WaitForActivity(16U, false);
-                if (!waited) return false;
+                host->WaitForActivity(16U, false);
             }
         }
         const ::Aero::Nullable<bool> accepted = dialog.GetDialogResult();
@@ -1122,9 +1107,9 @@ Base::Result<void> LoadFromUri(
                  ++index) {
                 WindowHost* host = windows[index];
                 if (host == nullptr) continue;
-                Base::Result<bool> pumped = host->PumpEvents();
-                if (!pumped) return pumped.GetStatus();
-                handledEvent = handledEvent || pumped.Value();
+                if (host->PumpEvents()) {
+                    handledEvent = true;
+                }
             }
             if (exitRequested) break;
 
@@ -1156,9 +1141,7 @@ Base::Result<void> LoadFromUri(
                     // timed native wait so other windows and the animation
                     // clock remain responsive without a 1 ms polling loop.
                     const bool blockUntilEvent = false;
-                    Base::Result<bool> waited = waiter->WaitForActivity(
-                        16U, blockUntilEvent);
-                    if (!waited) return waited.GetStatus();
+                    waiter->WaitForActivity(16U, blockUntilEvent);
                 }
             }
         }

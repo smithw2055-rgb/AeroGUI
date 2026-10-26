@@ -586,10 +586,10 @@ void Span::SetInlineValue(Meta::Value value) noexcept {
     if (value.Kind() != Meta::ValueKind::String) {
         return;
     }
-    Base::Result<Base::Ref<Run>> created = Base::MakeRef<Run>();
+    Base::Ref<Run> created = Base::MakeRef<Run>();
     if (!created) return;
     created->SetText(value.AsString());
-    AddOwnedInline(Base::Ref<Inline>(created.Value()));
+    AddOwnedInline(Base::Ref<Inline>(created));
 }
 
 void Span::AddOwnedInline(Base::Ref<Inline> value) noexcept {

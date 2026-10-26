@@ -47,14 +47,17 @@ Base::Result<Value> ConvertImageSourceText(
             Base::ErrorCode::ValidationFailed,
             "ImageSource requires a non-empty resource URI");
     }
-    Base::Result<Base::Ref<BitmapImage>> image =
+    Base::Ref<BitmapImage> image =
         Base::MakeRef<BitmapImage>();
-    if (!image) return image.GetStatus();
+    if (!image) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "BitmapImage allocation failed");
+    }
     image->SetUriSource(uri.Value());
     return Value::FromObject(
         ImageSource::StaticTypeId(),
-        Base::Ref<Base::Object>(
-            image.Value()));
+        Base::Ref<Base::Object>(std::move(image)));
 }
 } // namespace
 } // namespace Aero::MetadataSupport

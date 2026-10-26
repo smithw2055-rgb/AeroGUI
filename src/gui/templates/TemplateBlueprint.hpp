@@ -91,6 +91,7 @@ struct CompiledTemplateBlueprint {
     Base::Vector<Base::Ref<Media::Animation::EventTrigger>>
         controlTemplateEventTriggers;
     std::uint32_t contentPresenter = UINT32_MAX;
+    mutable Base::Ref<Base::Object> bytecodeProgram;
 };
 
 struct CompiledTemplateDefinition {

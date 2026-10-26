@@ -16,20 +16,19 @@ Aero::InputManager* FocusHost::Input() const noexcept {
     return view != nullptr ? view->Input() : nullptr;
 }
 
-Base::Result<void> FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
+void FocusHost::QueueFocus(Aero::UIElement& target) noexcept {
     Base::Ref<Aero::UIElement> retained =
         Base::Ref<Aero::UIElement>::FromBorrowed(target);
     for (const Base::WeakRef<Aero::UIElement>& pending :
          pendingFocusTargets) {
         Base::Ref<Aero::UIElement> existing = pending.Lock();
-        if (existing.Get() == &target) return {};
+        if (existing.Get() == &target) return;
     }
     pendingFocusTargets.PushBack(
         Base::WeakRef<Aero::UIElement>(retained));
-    return {};
 }
 
-Base::Result<std::uint32_t> FocusHost::ProcessPendingFocus() noexcept {
+std::uint32_t FocusHost::ProcessPendingFocus() noexcept {
     Aero::InputManager* input = Input();
     if (input == nullptr || pendingFocusTargets.Empty()) return 0U;
     std::uint32_t focusedCount = 0U;

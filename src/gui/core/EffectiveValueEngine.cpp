@@ -1640,7 +1640,7 @@ void DependencyObject::ForEachStoredKey(
     }
 }
 
-Base::Result<std::uint32_t> DependencyObject::ClearAllProviderOrigin(
+std::uint32_t DependencyObject::ClearAllProviderOrigin(
     std::uint32_t origin) noexcept {
     std::uint32_t removed = 0U;
     Base::Vector<MemberId> keys;

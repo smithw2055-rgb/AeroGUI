@@ -103,7 +103,7 @@ void ViewFrame::Shutdown() noexcept {
     }
     fragmentMounts.Clear();
     if (Tree() != nullptr) {
-        static_cast<void>(Tree()->FlushLifecycle());
+        Tree()->FlushLifecycle();
     }
     if (effectLifetime) effectLifetime->Invalidate();
     if (Values() != nullptr) {
@@ -227,16 +227,17 @@ Base::Result<void> ViewFrame::Initialize(
 
         if (status) {
             engines->tree.SetTemplates(&engines->templates);
-            Base::Result<VisualStateManager*> createdStates =
+            engines->visualStates =
                 ::Aero::Controls::FrameworkTemplateState::CreateVisualStateManager(
                     engines->values,
                     engines->templates,
                     engines->animations,
                     (*metadata).DependencyProperties());
-            if (!createdStates) {
-                status = createdStates.GetStatus();
+            if (engines->visualStates == nullptr) {
+                status = Base::Status::Failure(
+                    Base::ErrorCode::OutOfMemory,
+                    "VisualStateManager allocation failed");
             } else {
-                engines->visualStates = createdStates.Value();
                 engines->tree.SetVisualStates(engines->visualStates);
             }
         }
