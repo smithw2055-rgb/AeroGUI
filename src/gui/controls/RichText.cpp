@@ -86,15 +86,15 @@ Base::StringView RichTextFormatAttribute(
     return {};
 }
 
-Base::Result<void> AppendRichTextValue(
+bool AppendRichTextValue(
     Base::String& output,
     const Meta::Value& value,
     Base::StringView format) noexcept {
     if (value.Kind() == Meta::ValueKind::String || value.Kind() == Meta::ValueKind::Boolean) {
         Base::String text;
         Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
-        if (!formatted) return formatted.GetStatus();
-        return output.Append(text.View());
+        if (!formatted) return false;
+        return static_cast<bool>(output.Append(text.View()));
     }
     double number = 0.0;
     switch (value.Kind()) {
@@ -108,16 +108,14 @@ Base::Result<void> AppendRichTextValue(
         number = value.AsDouble();
         break;
     default:
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "RichText binding value has no text conversion");
+        return false;
     }
 
     if (format.Empty()) {
         Base::String text;
         Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
-        if (!formatted) return formatted.GetStatus();
-        return output.Append(text.View());
+        if (!formatted) return false;
+        return static_cast<bool>(output.Append(text.View()));
     }
 
     char raw[128]{};
@@ -150,21 +148,19 @@ Base::Result<void> AppendRichTextValue(
         raw, sizeof(raw), "%.*f",
         static_cast<int>(precision), number);
     if (length <= 0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "RichText numeric binding formatting failed");
+        return false;
     }
-    Base::Result<void> appended = output.Append(prefix);
+    bool appended = static_cast<bool>(output.Append(prefix));
     if (appended) {
-        appended = output.Append(Base::StringView(
+        appended = static_cast<bool>(output.Append(Base::StringView(
             raw, static_cast<std::uint32_t>(
-                std::min<int>(length, sizeof(raw) - 1U))));
+                std::min<int>(length, sizeof(raw) - 1U)))));
     }
-    if (appended) appended = output.Append(suffix);
+    if (appended) appended = static_cast<bool>(output.Append(suffix));
     return appended;
 }
 
-Base::Result<bool> AppendRichTextBinding(
+bool AppendRichTextBinding(
     DependencyObject& object,
     Base::StringView path,
     Base::StringView format,
@@ -191,11 +187,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::Result<Meta::Value> resolved =
         compiled.Value().Get(runtime, source);
     if (!resolved) return false;
-    Base::Result<void> appended = AppendRichTextValue(
-        output, resolved.Value(), format);
-    return appended
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(appended.GetStatus());
+    return AppendRichTextValue(output, resolved.Value(), format);
 }
 
 struct RichTextParseState {
@@ -291,10 +283,9 @@ void ApplyRichText(DependencyObject& object) noexcept {
                 const Base::StringView path = source.Substr(
                     tagEnd + 1U, close - tagEnd - 1U);
                 const std::uint32_t rangeStart = plain.SizeBytes();
-                Base::Result<bool> bound = AppendRichTextBinding(
+                const bool bound = AppendRichTextBinding(
                     object, path, RichTextFormatAttribute(tag), plain);
-                if (!bound) return;
-                if (!bound.Value() && !plain.Append(path)) return;
+                if (!bound && !plain.Append(path)) return;
                 if (!recordRange(rangeStart, plain.SizeBytes())) return;
                 index = close + closeToken.SizeBytes();
                 continue;

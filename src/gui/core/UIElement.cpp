@@ -193,21 +193,15 @@ Point UIElement::GetRenderTransformOrigin() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
-    Base::Result<Base::Ref<Transform>> value =
-        GetValue(RenderTransformProperty);
-    return value ? std::move(value).Value() : Base::Ref<Transform>{};
+    return GetValue(RenderTransformProperty);
 }
 
 Base::Ref<Media::Transform3D> UIElement::GetTransform3D() const noexcept {
-    Base::Result<Base::Ref<Media::Transform3D>> value =
-        GetValue(Transform3DProperty);
-    if (value && value.Value()) {
-        return std::move(value).Value();
+    Base::Ref<Media::Transform3D> value = GetValue(Transform3DProperty);
+    if (value) {
+        return value;
     }
-    value = GetValue(Element::Transform3DProperty);
-    return value
-        ? std::move(value).Value()
-        : Base::Ref<Media::Transform3D>{};
+    return GetValue(Element::Transform3DProperty);
 }
 
 void UIElement::SetTransform3D(

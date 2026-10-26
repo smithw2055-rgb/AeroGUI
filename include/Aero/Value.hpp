@@ -203,13 +203,25 @@ template<> struct TypeTraits<typeName> { \
             StringView(#typeName)); \
     } \
     static TypeId Id() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).id; \
+        static TypeId cached = InvalidTypeId; \
+        if (cached != InvalidTypeId) return cached; \
+        const TypeId bound = ResolveRuntimeTypeInfo(Token()).id; \
+        if (bound != InvalidTypeId) { cached = bound; return bound; } \
+        return MakeTypeId(Base::ExtractUnqualifiedTypeName(StringView(#typeName))); \
     } \
     static StringView Namespace() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
+        static StringView cached{}; \
+        if (!cached.Empty()) return cached; \
+        const StringView bound = ResolveRuntimeTypeInfo(Token()).xamlNamespace; \
+        if (!bound.Empty()) { cached = bound; return bound; } \
+        return AeroNamespaceUri(); \
     } \
     static StringView Name() noexcept { \
-        return ResolveRuntimeTypeInfo(Token()).name; \
+        static StringView cached{}; \
+        if (!cached.Empty()) return cached; \
+        const StringView bound = ResolveRuntimeTypeInfo(Token()).name; \
+        if (!bound.Empty()) { cached = bound; return bound; } \
+        return Base::ExtractUnqualifiedTypeName(StringView(#typeName)); \
     } \
     static TypeId BaseType() noexcept { \
         return ResolveRuntimeTypeInfo(Token()).baseType; \

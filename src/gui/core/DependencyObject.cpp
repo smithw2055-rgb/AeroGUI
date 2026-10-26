@@ -1161,7 +1161,7 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntryDirect(
     PropertyStore* store = static_cast<PropertyStore*>(valueStore_);
     StoredValueEntry entry;
     entry.effectiveValue = metadata.defaultValue;
-    Base::HashMap<MemberId, StoredValueEntry>::InsertResult inserted =
+    auto inserted =
         store->entries.Insert(canonicalHandle.value, std::move(entry));
     return &inserted.entry->Value();
 }

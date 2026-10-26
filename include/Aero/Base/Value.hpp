@@ -73,7 +73,7 @@ private:
 
 class AERO_BASE_API Value {
 public:
-    static constexpr std::uint32_t InlineCapacity = 32U;
+    static constexpr std::uint32_t InlineCapacity = 16U;
 
     Value() noexcept = default;
     Value(const Value& other) noexcept;
@@ -141,6 +141,12 @@ public:
     void Reset() noexcept;
 
 private:
+    TypeId type_ = InvalidTypeId;
+    ValueKind kind_ = ValueKind::Unset;
+    bool inlineCustom_ = false;
+    bool isShortString_ = false;
+    std::uint8_t stringLength_ = 0U;
+
     union Storage {
         alignas(8) unsigned char inlineData[InlineCapacity];
         Ref<Base::Object> storage;
@@ -150,13 +156,6 @@ private:
         }
         ~Storage() noexcept {}
     } storage_{};
-
-    TypeId type_ = InvalidTypeId;
-    const ValueTypeRegistration* semantics_ = nullptr;
-    ValueKind kind_ = ValueKind::Unset;
-    bool inlineCustom_ = false;
-    bool isShortString_ = false;
-    std::uint8_t stringLength_ = 0U;
 
     bool HasActiveObject() const noexcept {
         return (kind_ == ValueKind::Object) ||
@@ -168,13 +167,12 @@ private:
     friend class ValueAccess;
 };
 
-static_assert(sizeof(Value) <= 56U, "Value size must not exceed 56 bytes");
+static_assert(sizeof(Value) == 32U, "Value size must be exactly 32 bytes");
+static_assert(alignof(Value) == 8U, "Value alignment must be 8 bytes");
 
 inline void Value::DestroyStorage() noexcept {
     if (HasActiveObject()) {
         storage_.storage.~Ref();
-    } else if (kind_ == ValueKind::Custom && inlineCustom_ && semantics_ != nullptr && semantics_->destroy != nullptr) {
-        semantics_->destroy(storage_.inlineData, semantics_->context);
     }
 }
 
@@ -184,7 +182,6 @@ inline Value::~Value() {
 
 inline Value::Value(const Value& other) noexcept
     : type_(other.type_),
-      semantics_(other.semantics_),
       kind_(other.kind_),
       inlineCustom_(other.inlineCustom_),
       isShortString_(other.isShortString_),
@@ -198,7 +195,6 @@ inline Value::Value(const Value& other) noexcept
 
 inline Value::Value(Value&& other) noexcept
     : type_(other.type_),
-      semantics_(other.semantics_),
       kind_(other.kind_),
       inlineCustom_(other.inlineCustom_),
       isShortString_(other.isShortString_),
@@ -210,7 +206,6 @@ inline Value::Value(Value&& other) noexcept
     }
     other.kind_ = ValueKind::Unset;
     other.type_ = InvalidTypeId;
-    other.semantics_ = nullptr;
     other.inlineCustom_ = false;
     other.isShortString_ = false;
     other.stringLength_ = 0U;
@@ -220,7 +215,6 @@ inline Value& Value::operator=(const Value& other) noexcept {
     if (this == &other) return *this;
     DestroyStorage();
     type_ = other.type_;
-    semantics_ = other.semantics_;
     kind_ = other.kind_;
     inlineCustom_ = other.inlineCustom_;
     isShortString_ = other.isShortString_;
@@ -237,7 +231,6 @@ inline Value& Value::operator=(Value&& other) noexcept {
     if (this == &other) return *this;
     DestroyStorage();
     type_ = other.type_;
-    semantics_ = other.semantics_;
     kind_ = other.kind_;
     inlineCustom_ = other.inlineCustom_;
     isShortString_ = other.isShortString_;
@@ -249,7 +242,6 @@ inline Value& Value::operator=(Value&& other) noexcept {
     }
     other.kind_ = ValueKind::Unset;
     other.type_ = InvalidTypeId;
-    other.semantics_ = nullptr;
     other.inlineCustom_ = false;
     other.isShortString_ = false;
     other.stringLength_ = 0U;
@@ -267,7 +259,6 @@ inline void Value::Reset() noexcept {
     inlineCustom_ = false;
     isShortString_ = false;
     stringLength_ = 0U;
-    semantics_ = nullptr;
     std::memset(storage_.inlineData, 0, InlineCapacity);
 }
 

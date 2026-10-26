@@ -161,11 +161,10 @@ using namespace ::Aero;
 void AddBoxedItem(
     Collections::ObservableCollection<Base::Object>& source,
     Meta::Value value) noexcept {
-    Base::Result<Base::Ref<::Aero::Controls::BoxedItemValue>> boxed =
+    Base::Ref<::Aero::Controls::BoxedItemValue> boxed =
         Base::MakeRef<::Aero::Controls::BoxedItemValue>(std::move(value));
     if (!boxed) { AERO_ASSERT(false); return; }
-    source.Add(
-        Base::Ref<Base::Object>(std::move(boxed).Value()));
+    source.Add(std::move(boxed));
 }
 
 void AddBoxedStringItem(
@@ -445,18 +444,16 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
             // Without this, StatusBar items stack vertically when no
             // ItemsPanel is set (gallery StatusBar sample).
             if (RuntimeType() == StatusBar::StaticTypeId()) {
-                Base::Result<Base::Ref<DockPanel>> dock =
-                    Base::MakeRef<DockPanel>();
-                if (!dock || !dock.Value()) return {};
+                Base::Ref<DockPanel> dock = Base::MakeRef<DockPanel>();
+                if (!dock) return {};
                 dock->SetLastChildFill(false);
-                panelOwner = Base::Ref<Base::Object>(dock.Value());
-                panel = dock.Value().Get();
+                panelOwner = dock;
+                panel = dock.Get();
             } else {
-                Base::Result<Base::Ref<StackPanel>> stack =
-                    Base::MakeRef<StackPanel>();
-                if (!stack || !stack.Value()) return {};
-                panelOwner = Base::Ref<Base::Object>(stack.Value());
-                panel = stack.Value().Get();
+                Base::Ref<StackPanel> stack = Base::MakeRef<StackPanel>();
+                if (!stack) return {};
+                panelOwner = stack;
+                panel = stack.Get();
             }
         }
         panel->SetValue(Panel::IsItemsHostProperty, true);
@@ -495,11 +492,9 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
 
     if (GetTemplateRoot() != nullptr) return false;
 
-    Base::Result<Base::Ref<ItemsPresenter>> presenter =
-        Base::MakeRef<ItemsPresenter>();
-    if (!presenter || !presenter.Value()) return false;
-    static_cast<void>(
-        (*presenter.Value()).SetTemplatedParent( this));
+    Base::Ref<ItemsPresenter> presenter = Base::MakeRef<ItemsPresenter>();
+    if (!presenter) return false;
+    presenter->SetTemplatedParent(this);
 
     auto made = makeHostPanel();
     Base::Ref<Base::Object> panelOwner = std::move(made.first);
@@ -507,13 +502,13 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
     if (panel == nullptr) return false;
 
     Base::Result<Aero::ElementAttachment> presenterMounted =
-        tree->AttachElement(*this, *presenter.Value());
+        tree->AttachElement(*this, *presenter);
     if (!presenterMounted) return false;
     static_cast<void>(
-        (*this).SetTemplateChildCore( presenter.Value().Get()));
+        (*this).SetTemplateChildCore( presenter.Get()));
 
     Base::Result<Aero::ElementAttachment> panelMounted =
-        tree->AttachElement(*presenter.Value(), *panel);
+        tree->AttachElement(*presenter, *panel);
     if (!panelMounted) return false;
     presenter->SetItemsHost(panelOwner, *panel);
     itemsHost_ = presenter->GetItemsHost();
@@ -961,7 +956,7 @@ public:
         VirtualizingPanel& itemsHost) noexcept;
     void Detach() noexcept;
     bool Refresh() noexcept;
-    Base::Result<bool> SetRealizationRange(
+    void SetRealizationRange(
         std::uint32_t firstIndex,
         std::uint32_t count) noexcept;
     FrameworkElement* ContainerFromIndex(std::uint32_t index) const noexcept;
@@ -1045,7 +1040,7 @@ private:
         Aero::Media::Visual& root) noexcept;
     Base::Result<void> DetachOwnedSubtree(
         Record& record) noexcept;
-    Base::Result<void> UpdateGeneratedHeader(
+    void UpdateGeneratedHeader(
         Record& record) noexcept;
     Base::Result<void> ProjectGeneratedContent(
         Record& record) noexcept;
@@ -1066,7 +1061,7 @@ private:
         std::uint32_t firstIndex,
         std::uint32_t count,
         bool pruneRecycled) noexcept;
-    Base::Result<void> ReleaseRecycledContainers() noexcept;
+    void ReleaseRecycledContainers() noexcept;
 };
 
 ItemContainerGenerator::GeneratorState::GeneratorState(
@@ -1198,7 +1193,7 @@ void ItemContainerGenerator::GeneratorState::Detach() noexcept {
         static_cast<void>(DetachRecord(records_[index - 1U]));
     }
     records_.Clear();
-    static_cast<void>(ReleaseRecycledContainers());
+    ReleaseRecycledContainers();
     if (virtualizingHost_ != nullptr) {
         ItemContainerGenerator::DetachHostGenerator(*virtualizingHost_, *facade_);
     }
@@ -1290,12 +1285,14 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                 Base::ErrorCode::Unsupported,
                 "DisplayMemberPath value has no text representation");
         }
-        Base::Result<Base::Ref<TextBlock>> text =
-            Base::MakeRef<TextBlock>();
-        if (!text) return text.GetStatus();
+        Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
+        if (!text) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate TextBlock");
+        }
         text->SetText(display.View());
-        record.content = Base::Ref<Base::Object>(
-            std::move(text).Value());
+        record.content = std::move(text);
         record.generatedTextContent = true;
     } else if (
         record.item->RuntimeType() ==
@@ -1310,13 +1307,14 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                 Base::ErrorCode::Unsupported,
                 "Boxed data item has no default text representation");
         }
-        Base::Result<Base::Ref<TextBlock>> text =
-            Base::MakeRef<TextBlock>();
-        if (!text) return text.GetStatus();
+        Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
+        if (!text) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate TextBlock");
+        }
         text->SetText(display.View());
-        record.content =
-            Base::Ref<Base::Object>(
-                std::move(text).Value());
+        record.content = std::move(text);
         record.generatedTextContent = true;
     } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types()
         .IsDerivedFrom(
@@ -1330,11 +1328,13 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         // GridView presents the data item through GridViewRowPresenter and
         // column bindings. Keep a zero-content visual for the container's
         // ordinary ContentControl contract while DataContext carries the item.
-        Base::Result<Base::Ref<TextBlock>> placeholder =
-            Base::MakeRef<TextBlock>();
-        if (!placeholder) return placeholder.GetStatus();
-        record.content = Base::Ref<Base::Object>(
-            std::move(placeholder).Value());
+        Base::Ref<TextBlock> placeholder = Base::MakeRef<TextBlock>();
+        if (!placeholder) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate TextBlock");
+        }
+        record.content = std::move(placeholder);
         record.generatedTextContent = true;
     } else {
         // No ItemTemplate, DisplayMemberPath, or recognized value wrapper was
@@ -1378,14 +1378,16 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                 }
             }
         }
-        Base::Result<Base::Ref<TextBlock>> text =
-            Base::MakeRef<TextBlock>();
-        if (!text) return text.GetStatus();
+        Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
+        if (!text) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate TextBlock");
+        }
         if (haveDisplay) {
             text->SetText(display.View());
         }
-        record.content = Base::Ref<Base::Object>(
-            std::move(text).Value());
+        record.content = std::move(text);
         record.generatedTextContent = true;
     }
     if (!record.content ||
@@ -1690,17 +1692,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
                     TextBlock::TextProperty,
                     generatedHeaderChangedHandler_);
             record.generatedHeader = true;
-            Base::Result<void> assigned = UpdateGeneratedHeader(record);
-            if (!assigned) {
-                static_cast<void>(
-                    static_cast<TextBlock*>(record.content.Get())
-                        ->RemoveValueChangedHandler(
-                            TextBlock::TextProperty,
-                            generatedHeaderChangedHandler_));
-                record.generatedHeader = false;
-                (void)tree_->DetachElement(record.containerMount);
-                return assigned.GetStatus();
-            }
+            UpdateGeneratedHeader(record);
         } else {
             // Complex ItemTemplates (gallery SampleTemplate is a StackPanel)
             // must be published as Header so ContentSource=Header presenters
@@ -1779,11 +1771,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
         return projected.GetStatus();
     }
     if (record.generatedHeader) {
-        Base::Result<void> synchronized = UpdateGeneratedHeader(record);
-        if (!synchronized) {
-            (void)DetachRecord(record);
-            return synchronized.GetStatus();
-        }
+        UpdateGeneratedHeader(record);
     }
     if (subtreeCallback_ != nullptr) {
         Base::Result<void> presented =
@@ -1977,7 +1965,7 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
     return AttachOwnedSubtree(record, content);
 }
 
-Base::Result<void>
+void
 ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     Record& record) noexcept {
     if (!record.generatedHeader || !record.content || !record.container ||
@@ -1986,7 +1974,7 @@ ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
         !DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
             record.container->RuntimeType(),
             HeaderedItemsControl::StaticTypeId())) {
-        return {};
+        return;
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
@@ -1995,11 +1983,10 @@ ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
             TreeViewItem::StaticTypeId())) {
         static_cast<TreeViewItem*>(record.container.Get())
             ->SetHeader(text);
-        return {};
+        return;
     }
     static_cast<HeaderedItemsControl*>(record.container.Get())
         ->SetHeader(text);
-    return {};
 }
 
 void ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged(
@@ -2007,8 +1994,7 @@ void ItemContainerGenerator::GeneratorState::OnGeneratedHeaderChanged(
     const DependencyPropertyChangedEventArgs&) noexcept {
     for (Record& record : records_) {
         if (record.generatedHeader && record.content.Get() == &object) {
-            Base::Result<void> synchronized = UpdateGeneratedHeader(record);
-            if (!synchronized) lastError_ = synchronized.GetStatus();
+            UpdateGeneratedHeader(record);
             return;
         }
     }
@@ -2143,9 +2129,8 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     return firstError.IsOk() ? Base::Result<void>() : Base::Result<void>(firstError);
 }
 
-Base::Result<void>
+void
 ItemContainerGenerator::GeneratorState::ReleaseRecycledContainers() noexcept {
-    Base::Status firstError;
     for (Base::Ref<FrameworkElement>& container :
         recycledContainers_) {
         if (!container) continue;
@@ -2155,9 +2140,6 @@ ItemContainerGenerator::GeneratorState::ReleaseRecycledContainers() noexcept {
         tree_->InvalidateNodeHandle(*container);
     }
     recycledContainers_.Clear();
-    return firstError.IsOk()
-        ? Base::Result<void>()
-        : Base::Result<void>(firstError);
 }
 
 Base::Result<void>
@@ -2277,7 +2259,7 @@ ItemContainerGenerator::GeneratorState::SetRealizationRangeInternal(
     return true;
 }
 
-Base::Result<bool>
+void
 ItemContainerGenerator::GeneratorState::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
@@ -2291,7 +2273,6 @@ ItemContainerGenerator::GeneratorState::SetRealizationRange(
         owner_ != nullptr) {
         ItemContainerGenerator::NotifyOwnerContainersChanged(*owner_);
     }
-    return changed;
 }
 
 bool ItemContainerGenerator::GeneratorState::Refresh() noexcept {
@@ -2570,7 +2551,7 @@ void ItemContainerGenerator::SetRealizationRange(
     std::uint32_t firstIndex,
     std::uint32_t count) noexcept {
     auto* runtime = state_;
-    if (runtime != nullptr) (void)runtime->SetRealizationRange(firstIndex, count);
+    if (runtime != nullptr) runtime->SetRealizationRange(firstIndex, count);
 }
 
 std::uint32_t ItemContainerGenerator::GetGeneratedCount() const noexcept {

@@ -160,7 +160,8 @@ Base::Result<void> ValueTable::RegisterValueSemantics(
         !Base::IsValidAlignment(registration.alignment) ||
         registration.equals == nullptr ||
         (registration.inlineSafe &&
-            (registration.size > Value::InlineCapacity ||
+            (registration.destroy != nullptr ||
+             registration.size > Value::InlineCapacity ||
              registration.alignment > alignof(std::max_align_t))) ||
         (!registration.inlineSafe && registration.copy == nullptr)) {
         return Base::Status::Failure(

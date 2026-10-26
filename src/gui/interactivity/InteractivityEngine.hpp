@@ -284,7 +284,7 @@ public:
         Aero::DataTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept;
-    Base::Result<void> PendUntilDataContext(
+    void PendUntilDataContext(
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names,
         Aero::DataTrigger* dataTrigger,

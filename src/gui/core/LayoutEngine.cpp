@@ -81,8 +81,8 @@ Size NaturalConstraintForTransform(
          safeSize.width,
          safeSize.height});
 
-    double outW = std::max(0.0, bounds.width);
-    double outH = std::max(0.0, bounds.height);
+    double outW = std::max(0.0f, bounds.width);
+    double outH = std::max(0.0f, bounds.height);
 
     if (outW >= kUnconstrainedThreshold) {
         outW = kUnconstrainedMax;
@@ -150,10 +150,10 @@ bool IsValidLayoutRect(Rect value) noexcept {
 }
 
 Size Deflate(Size value, Thickness padding) noexcept {
-    const double horizontal = padding.left + padding.right;
-    const double vertical = padding.top + padding.bottom;
-    return {std::max(0.0, value.width - horizontal),
-        std::max(0.0, value.height - vertical)};
+    const float horizontal = padding.left + padding.right;
+    const float vertical = padding.top + padding.bottom;
+    return {std::max(0.0f, value.width - horizontal),
+        std::max(0.0f, value.height - vertical)};
 }
 
 Size Inflate(Size value, Thickness padding) noexcept {
@@ -162,12 +162,12 @@ Size Inflate(Size value, Thickness padding) noexcept {
 }
 
 Rect Intersect(Rect left, Rect right) noexcept {
-    const double x = std::max(left.x, right.x);
-    const double y = std::max(left.y, right.y);
-    const double rightEdge = std::min(left.x + left.width, right.x + right.width);
-    const double bottomEdge = std::min(left.y + left.height, right.y + right.height);
-    return {x, y, std::max(0.0, rightEdge - x),
-        std::max(0.0, bottomEdge - y)};
+    const float x = std::max(left.x, right.x);
+    const float y = std::max(left.y, right.y);
+    const float rightEdge = std::min(left.x + left.width, right.x + right.width);
+    const float bottomEdge = std::min(left.y + left.height, right.y + right.height);
+    return {x, y, std::max(0.0f, rightEdge - x),
+        std::max(0.0f, bottomEdge - y)};
 }
 
 double RoundLayoutValue(double value, double dpiScale) noexcept {
@@ -565,8 +565,8 @@ void UIElement::MeasureCore(
         AERO_ASSERT(false && "Layout constraints produced an invalid desired size");
         return;
     }
-    desired.width = std::max(0.0, desired.width);
-    desired.height = std::max(0.0, desired.height);
+    desired.width = std::max(0.0f, desired.width);
+    desired.height = std::max(0.0f, desired.height);
     if (framework != nullptr && framework->GetUseLayoutRounding()) {
         desired.width = RoundLayoutValue(desired.width, framework->GetDpiScale());
         desired.height = RoundLayoutValue(desired.height, framework->GetDpiScale());
@@ -760,8 +760,8 @@ void UIElement::ArrangeCore(
     Rect localSlot{
         (slot.x + effectiveMargin.left) - contentSlot.x,
         (slot.y + effectiveMargin.top) - contentSlot.y,
-        std::max(0.0, contentAvailable.width),
-        std::max(0.0, contentAvailable.height)};
+        std::max(0.0f, contentAvailable.width),
+        std::max(0.0f, contentAvailable.height)};
     if (layoutTransform) {
         Rect offsetSlot = localSlot;
         offsetSlot.x += renderedBounds.x;
@@ -790,8 +790,8 @@ void UIElement::ArrangeCore(
     if (clipsToBounds) {
         clipRect = Intersect(clipRect, localFootprint);
     }
-    clipRect.width = std::max(0.0, clipRect.width);
-    clipRect.height = std::max(0.0, clipRect.height);
+    clipRect.width = std::max(0.0f, clipRect.width);
+    clipRect.height = std::max(0.0f, clipRect.height);
 
     (element).Layout().hasLayoutClip = hasLayoutClip;
     (element).Layout().layoutClip = (hasLayoutClip || clipsToBounds)

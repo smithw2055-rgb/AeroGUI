@@ -500,16 +500,16 @@ Base::Result<bool> ImageCache::Synchronize(
                 sourceRect.height > 0.0) {
                 const std::uint32_t cropX =
                     static_cast<std::uint32_t>(
-                        std::max(0.0, sourceRect.x));
+                        std::max(0.0f, sourceRect.x));
                 const std::uint32_t cropY =
                     static_cast<std::uint32_t>(
-                        std::max(0.0, sourceRect.y));
+                        std::max(0.0f, sourceRect.y));
                 const std::uint32_t cropWidth =
                     static_cast<std::uint32_t>(
-                        std::max(0.0, sourceRect.width));
+                        std::max(0.0f, sourceRect.width));
                 const std::uint32_t cropHeight =
                     static_cast<std::uint32_t>(
-                        std::max(0.0, sourceRect.height));
+                        std::max(0.0f, sourceRect.height));
                 if (cropWidth == 0U ||
                     cropHeight == 0U ||
                     cropX >= record->width ||

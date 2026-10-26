@@ -258,12 +258,12 @@ Size Grid::MeasureOverride(
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredColumns[index] = std::min(definition.value, MaxWidthAt(index));
+            desiredColumns[index] = std::min(static_cast<double>(definition.value), MaxWidthAt(index));
     }
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength definition = RowAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredRows[index] = std::min(definition.value, MaxHeightAt(index));
+            desiredRows[index] = std::min(static_cast<double>(definition.value), MaxHeightAt(index));
     }
 
     constexpr double Unconstrained = 1.0e12;
@@ -363,10 +363,10 @@ Size Grid::MeasureOverride(
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
-            desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
+            desiredColumns[column] = std::max(desiredColumns[column], static_cast<double>(childDesired.width));
         }
         if (rowDef.unit != GridUnitType::Pixel && !item.hasStarRow) {
-            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
+            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
         }
     }
 
@@ -386,7 +386,7 @@ Size Grid::MeasureOverride(
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (rowDef.unit != GridUnitType::Pixel) {
-            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
+            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
         }
     }
 
@@ -444,10 +444,10 @@ Size Grid::MeasureOverride(
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
-            desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
+            desiredColumns[column] = std::max(desiredColumns[column], static_cast<double>(childDesired.width));
         }
         if (rowDef.unit != GridUnitType::Pixel) {
-            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
+            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
         }
     }
 
@@ -819,7 +819,7 @@ bool Grid::ResolveTracks(
             ? GridLength::Star() : definitions[index];
         const double limit = getMaxLimit(index);
         if (definition.unit == GridUnitType::Pixel) {
-            resolved[index] = std::min(definition.value, limit);
+            resolved[index] = std::min(static_cast<double>(definition.value), limit);
             occupied += resolved[index];
         } else if (definition.unit == GridUnitType::Auto) {
             resolved[index] = std::min(desired.Empty() ? 0.0 : desired[index], limit);

@@ -199,7 +199,6 @@ struct StoredValueEntry {
             HasAnimation() || Queued() ||
             !rare->localBackup.IsUnset() ||
             !rare->baseProviders.GetIsEmpty() ||
-            source.revision != 0U ||
             source.token.ordinal != 0U ||
             source.expressionKind != Meta::PropertyExpressionKind::Custom) {
             return;
@@ -313,6 +312,11 @@ struct StoredValueEntry {
         const PropertyValueSourceInfo& info,
         PropertySlab& slab) noexcept {
         PackOriginFlags(info);
+        if (rare == nullptr &&
+            info.token.ordinal == 0U &&
+            info.expressionKind == Meta::PropertyExpressionKind::Custom) {
+            return {};
+        }
         Base::Result<StoredValueRare*> block = EnsureRare(slab);
         if (!block) {
             return block.GetStatus();
@@ -384,8 +388,156 @@ private:
     }
 };
 
+struct PropertyStoreEntry {
+    MemberId key = 0U;
+    StoredValueEntry value;
+
+    PropertyStoreEntry() = default;
+    PropertyStoreEntry(MemberId k, StoredValueEntry v)
+        : key(k), value(std::move(v)) {}
+
+    MemberId Key() const noexcept { return key; }
+    StoredValueEntry& Value() noexcept { return value; }
+    const StoredValueEntry& Value() const noexcept { return value; }
+};
+
 struct PropertyStore {
-    Base::HashMap<MemberId, StoredValueEntry> entries;
+    struct Entries {
+        static constexpr std::uint32_t InlineCapacity = 4U;
+
+        std::uint32_t size_ = 0U;
+        std::uint32_t capacity_ = InlineCapacity;
+        PropertyStoreEntry* data_ = inlineEntries_;
+        PropertyStoreEntry inlineEntries_[InlineCapacity];
+
+        Entries() noexcept = default;
+        ~Entries() noexcept { Clear(); }
+
+        Entries(const Entries&) = delete;
+        Entries& operator=(const Entries&) = delete;
+
+        Entries(Entries&& other) noexcept {
+            if (other.data_ == other.inlineEntries_) {
+                for (std::uint32_t i = 0; i < other.size_; ++i) {
+                    inlineEntries_[i] = std::move(other.inlineEntries_[i]);
+                }
+                data_ = inlineEntries_;
+            } else {
+                data_ = other.data_;
+                other.data_ = other.inlineEntries_;
+            }
+            size_ = other.size_;
+            capacity_ = other.capacity_;
+            other.size_ = 0U;
+            other.capacity_ = InlineCapacity;
+        }
+
+        Entries& operator=(Entries&& other) noexcept {
+            if (this == &other) return *this;
+            Clear();
+            if (other.data_ == other.inlineEntries_) {
+                for (std::uint32_t i = 0; i < other.size_; ++i) {
+                    inlineEntries_[i] = std::move(other.inlineEntries_[i]);
+                }
+                data_ = inlineEntries_;
+            } else {
+                data_ = other.data_;
+                other.data_ = other.inlineEntries_;
+            }
+            size_ = other.size_;
+            capacity_ = other.capacity_;
+            other.size_ = 0U;
+            other.capacity_ = InlineCapacity;
+            return *this;
+        }
+
+        std::uint32_t Size() const noexcept { return size_; }
+        bool Empty() const noexcept { return size_ == 0U; }
+
+        PropertyStoreEntry* begin() noexcept { return data_; }
+        const PropertyStoreEntry* begin() const noexcept { return data_; }
+        PropertyStoreEntry* end() noexcept { return data_ + size_; }
+        const PropertyStoreEntry* end() const noexcept { return data_ + size_; }
+
+        StoredValueEntry* Find(MemberId key) noexcept {
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                if (data_[i].key == key) {
+                    return &data_[i].value;
+                }
+            }
+            return nullptr;
+        }
+
+        const StoredValueEntry* Find(MemberId key) const noexcept {
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                if (data_[i].key == key) {
+                    return &data_[i].value;
+                }
+            }
+            return nullptr;
+        }
+
+        struct InsertResult {
+            PropertyStoreEntry* entry = nullptr;
+            bool inserted = false;
+        };
+
+        InsertResult Insert(MemberId key, StoredValueEntry entry) noexcept {
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                if (data_[i].key == key) {
+                    data_[i].value = std::move(entry);
+                    return { &data_[i], false };
+                }
+            }
+            if (size_ == capacity_) {
+                Grow();
+            }
+            PropertyStoreEntry* target = &data_[size_++];
+            target->key = key;
+            target->value = std::move(entry);
+            return { target, true };
+        }
+
+        void Erase(MemberId key) noexcept {
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                if (data_[i].key == key) {
+                    for (std::uint32_t j = i + 1; j < size_; ++j) {
+                        data_[j - 1] = std::move(data_[j]);
+                    }
+                    --size_;
+                    data_[size_] = PropertyStoreEntry{};
+                    return;
+                }
+            }
+        }
+
+        void Clear() noexcept {
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                data_[i] = PropertyStoreEntry{};
+            }
+            size_ = 0U;
+            if (data_ != inlineEntries_) {
+                delete[] data_;
+                data_ = inlineEntries_;
+                capacity_ = InlineCapacity;
+            }
+        }
+
+    private:
+        void Grow() noexcept {
+            std::uint32_t newCap = capacity_ * 2U;
+            auto* newData = new (std::nothrow) PropertyStoreEntry[newCap];
+            if (newData == nullptr) return;
+            for (std::uint32_t i = 0; i < size_; ++i) {
+                newData[i] = std::move(data_[i]);
+            }
+            if (data_ != inlineEntries_) {
+                delete[] data_;
+            }
+            data_ = newData;
+            capacity_ = newCap;
+        }
+    } entries;
 
     // P2.4: same slab discipline as StoredValueRare. Allocated explicitly
     // from the owning Dispatcher's slab; operator delete routes heap and

@@ -156,11 +156,10 @@ ListView::SynchronizeColumnHeaders() noexcept {
              column : view->GetColumns()) {
             if (!column) continue;
             const Value header = column->GetHeader();
-            Base::Result<void> appended = text.Append(
+            if (!text.Append(
                 header.Kind() == ValueKind::String
                 ? header.AsString()
-                : Base::StringView{});
-            if (!appended) {
+                : Base::StringView{})) {
                 return;
             }
             const std::uint32_t headerCharacters =
@@ -187,9 +186,7 @@ ListView::SynchronizeColumnHeaders() noexcept {
             for (std::uint32_t index = 0U;
                  index < padding;
                  ++index) {
-                appended = text.Append(
-                    Base::StringView(" "));
-                if (!appended) {
+                if (!text.Append(Base::StringView(" "))) {
                     return;
                 }
             }

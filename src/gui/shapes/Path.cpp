@@ -535,11 +535,11 @@ static PathTransformInfo CalculatePathTransform(
     Stretch stretch,
     Rect geometryBounds,
     Size target) noexcept {
-    if (stretch == Stretch::None || (geometryBounds.width <= 0.0 && geometryBounds.height <= 0.0)) {
+    if (stretch == Stretch::None || (geometryBounds.width <= 0.0f && geometryBounds.height <= 0.0f)) {
         return {1.0, 1.0, 0.0, 0.0};
     }
-    const double geomW = std::max(geometryBounds.width, 1.0e-6);
-    const double geomH = std::max(geometryBounds.height, 1.0e-6);
+    const double geomW = std::max(static_cast<double>(geometryBounds.width), 1.0e-6);
+    const double geomH = std::max(static_cast<double>(geometryBounds.height), 1.0e-6);
     double scaleX = 1.0;
     double scaleY = 1.0;
     switch (stretch) {

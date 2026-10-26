@@ -132,16 +132,16 @@ void ClearBulletDecoratorContent(
 
 inline Thickness Deflate(Thickness value, Thickness delta) noexcept {
     return {
-        std::max(0.0, value.left - delta.left),
-        std::max(0.0, value.top - delta.top),
-        std::max(0.0, value.right - delta.right),
-        std::max(0.0, value.bottom - delta.bottom)};
+        std::max(0.0f, value.left - delta.left),
+        std::max(0.0f, value.top - delta.top),
+        std::max(0.0f, value.right - delta.right),
+        std::max(0.0f, value.bottom - delta.bottom)};
 }
 
 inline Size Deflate(Size value, Thickness delta) noexcept {
     return {
-        std::max(0.0, value.width - delta.left - delta.right),
-        std::max(0.0, value.height - delta.top - delta.bottom)};
+        std::max(0.0f, value.width - delta.left - delta.right),
+        std::max(0.0f, value.height - delta.top - delta.bottom)};
 }
 
 inline Size Inflate(Size value, Thickness delta) noexcept {
@@ -257,8 +257,8 @@ void Image::OnRender(::Aero::Media::DrawingContext& context) noexcept {
         const double drawnWidth = sourceWidth * scale;
         const double drawnHeight = sourceHeight * scale;
         if (stretch == Stretch::UniformToFill && drawnWidth > 0.0 && drawnHeight > 0.0) {
-            uv.width = std::clamp(size.width / drawnWidth, 0.0, 1.0);
-            uv.height = std::clamp(size.height / drawnHeight, 0.0, 1.0);
+            uv.width = std::clamp(static_cast<float>(size.width / drawnWidth), 0.0f, 1.0f);
+            uv.height = std::clamp(static_cast<float>(size.height / drawnHeight), 0.0f, 1.0f);
             uv.x = (1.0 - uv.width) * 0.5;
             uv.y = (1.0 - uv.height) * 0.5;
         } else {
@@ -458,53 +458,53 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
          borderBrush->RuntimeType() == Media::LinearGradientBrush::StaticTypeId() ||
          borderBrush->RuntimeType() == Media::RadialGradientBrush::StaticTypeId());
     const CornerRadius radii = GetCornerRadius();
-    const double radius = std::min(
+    const float radius = std::min(
         std::max(
             std::max(radii.topLeft, radii.topRight),
             std::max(radii.bottomRight, radii.bottomLeft)),
-        std::min(bounds.width, bounds.height) * 0.5);
+        std::min(bounds.width, bounds.height) * 0.5f);
     const Color brush = ::Aero::Media::SampleBrush(borderBrush);
     const Thickness thickness = GetBorderThickness();
     const bool uniform =
         thickness.left == thickness.top &&
         thickness.left == thickness.right &&
         thickness.left == thickness.bottom;
-    const double uniformThickness =
-        uniform ? thickness.left : 0.0;
+    const float uniformThickness =
+        uniform ? thickness.left : 0.0f;
     const Color backgroundColor =
         ::Aero::Media::SampleBrush(background);
     const bool hasBorder = brush.alpha > 0.0F || paintedBorder;
     const bool hasBackground = paintedBackground || backgroundColor.alpha > 0.0F;
 
-    if (uniformThickness > 0.0 && hasBorder && !hasBackground) {
+    if (uniformThickness > 0.0f && hasBorder && !hasBackground) {
         static_cast<void>(builder.StrokeRect(
             bounds, brush, uniformThickness, radius));
         return;
     }
-    if (uniformThickness > 0.0 && hasBorder && hasBackground) {
+    if (uniformThickness > 0.0f && hasBorder && hasBackground) {
         if (paintedBorder) {
             PaintBrushRect(builder, borderBrush, bounds, radius, isRtl);
-        } else if (radius > 0.0) {
+        } else if (radius > 0.0f) {
             builder.FillRoundedRect(bounds, brush, radius);
         } else {
             builder.FillRect(bounds, brush);
         }
-        const double inset = std::min(
+        const float inset = std::min(
             uniformThickness,
-            std::min(bounds.width * 0.5, bounds.height * 0.5));
+            std::min(bounds.width * 0.5f, bounds.height * 0.5f));
         const Rect inner{
             inset, inset,
-            std::max(0.0, bounds.width - inset * 2.0),
-            std::max(0.0, bounds.height - inset * 2.0)};
-        if (inner.width <= 0.0 || inner.height <= 0.0) {
+            std::max(0.0f, bounds.width - inset * 2.0f),
+            std::max(0.0f, bounds.height - inset * 2.0f)};
+        if (inner.width <= 0.0f || inner.height <= 0.0f) {
             return;
         }
-        const double innerRadius = std::min(
-            std::max(0.0, radius - inset),
-            std::min(inner.width, inner.height) * 0.5);
+        const float innerRadius = std::min(
+            std::max(0.0f, radius - inset),
+            std::min(inner.width, inner.height) * 0.5f);
         if (paintedBackground) {
             PaintBrushRect(builder, background, inner, innerRadius, isRtl);
-        } else if (innerRadius > 0.0) {
+        } else if (innerRadius > 0.0f) {
             builder.FillRoundedRect(
                 inner, backgroundColor, innerRadius);
         } else {
@@ -515,7 +515,7 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     if (hasBackground) {
         if (paintedBackground) {
             PaintBrushRect(builder, background, bounds, radius, isRtl);
-        } else if (radius > 0.0) {
+        } else if (radius > 0.0f) {
             builder.FillRoundedRect(bounds, backgroundColor, radius);
         } else {
             builder.FillRect(bounds, backgroundColor);
@@ -523,26 +523,26 @@ void Border::OnRender(::Aero::Media::DrawingContext& context) noexcept {
     }
     if (!uniform && hasBorder) {
         const auto fillSide = [&](Rect side) noexcept {
-            if (side.width > 0.0 && side.height > 0.0) {
-                PaintBrushRect(builder, borderBrush, side, 0.0, isRtl);
+            if (side.width > 0.0f && side.height > 0.0f) {
+                PaintBrushRect(builder, borderBrush, side, 0.0f, isRtl);
             }
         };
         fillSide({
-            0.0, 0.0,
+            0.0f, 0.0f,
             std::min(bounds.width, thickness.left),
             bounds.height});
         fillSide({
-            std::max(0.0, bounds.width - thickness.right),
-            0.0,
+            std::max(0.0f, bounds.width - thickness.right),
+            0.0f,
             std::min(bounds.width, thickness.right),
             bounds.height});
         fillSide({
-            0.0, 0.0,
+            0.0f, 0.0f,
             bounds.width,
             std::min(bounds.height, thickness.top)});
         fillSide({
-            0.0,
-            std::max(0.0, bounds.height - thickness.bottom),
+            0.0f,
+            std::max(0.0f, bounds.height - thickness.bottom),
             bounds.width,
             std::min(bounds.height, thickness.bottom)});
         return;

@@ -86,10 +86,55 @@ private:
     Base::String name_;
 };
 
+struct TypeRareData {
+    Base::Vector<TypeId> interfaces;
+    Base::Vector<InterfaceCastThunk> interfaceCasts;
+    Base::Vector<EventHandlerDescriptor> eventHandlers;
+    Base::Vector<TemplatePartDescriptor> templateParts;
+};
+
 class TypeInfo {
 public:
-    TypeInfo(TypeInfo&&) noexcept = default;
-    TypeInfo& operator=(TypeInfo&&) noexcept = default;
+    TypeInfo(TypeInfo&& other) noexcept
+        : id_(other.id_)
+        , baseType_(other.baseType_)
+        , underlyingType_(other.underlyingType_)
+        , kind_(other.kind_)
+        , flags_(other.flags_)
+        , xamlNamespace_(std::move(other.xamlNamespace_))
+        , name_(std::move(other.name_))
+        , properties_(std::move(other.properties_))
+        , enumValues_(std::move(other.enumValues_))
+        , events_(std::move(other.events_))
+        , contentMember_(other.contentMember_)
+        , rare_(other.rare_) {
+        other.rare_ = nullptr;
+    }
+
+    TypeInfo& operator=(TypeInfo&& other) noexcept {
+        if (this != &other) {
+            delete rare_;
+            id_ = other.id_;
+            baseType_ = other.baseType_;
+            underlyingType_ = other.underlyingType_;
+            kind_ = other.kind_;
+            flags_ = other.flags_;
+            xamlNamespace_ = std::move(other.xamlNamespace_);
+            name_ = std::move(other.name_);
+            properties_ = std::move(other.properties_);
+            enumValues_ = std::move(other.enumValues_);
+            events_ = std::move(other.events_);
+            contentMember_ = other.contentMember_;
+            rare_ = other.rare_;
+            other.rare_ = nullptr;
+        }
+        return *this;
+    }
+
+    ~TypeInfo() noexcept {
+        delete rare_;
+    }
+
     TypeInfo(const TypeInfo&) = delete;
     TypeInfo& operator=(const TypeInfo&) = delete;
     TypeId Id() const noexcept { return id_; }
@@ -103,26 +148,34 @@ public:
     }
     Base::StringView XamlNamespace() const noexcept { return xamlNamespace_.View(); }
     Base::StringView Name() const noexcept { return name_.View(); }
-    Base::Span<const TypeId> Interfaces() const noexcept { return {interfaces_.Data(), interfaces_.Size()}; }
+    Base::Span<const TypeId> Interfaces() const noexcept {
+        return rare_ != nullptr ? Base::Span<const TypeId>{rare_->interfaces.Data(), rare_->interfaces.Size()} : Base::Span<const TypeId>{};
+    }
     Base::Span<const InterfaceCastThunk> InterfaceCasts() const noexcept {
-        return {interfaceCasts_.Data(), interfaceCasts_.Size()};
+        return rare_ != nullptr ? Base::Span<const InterfaceCastThunk>{rare_->interfaceCasts.Data(), rare_->interfaceCasts.Size()} : Base::Span<const InterfaceCastThunk>{};
     }
     Base::Span<const PropertyInfo> Properties() const noexcept { return {properties_.Data(), properties_.Size()}; }
     Base::Span<const EnumValueInfo> EnumValues() const noexcept { return {enumValues_.Data(), enumValues_.Size()}; }
     Base::Span<const EventInfo> Events() const noexcept { return {events_.Data(), events_.Size()}; }
     Base::Span<const EventHandlerDescriptor> EventHandlers() const noexcept {
-        return {eventHandlers_.Data(), eventHandlers_.Size()};
+        return rare_ != nullptr ? Base::Span<const EventHandlerDescriptor>{rare_->eventHandlers.Data(), rare_->eventHandlers.Size()} : Base::Span<const EventHandlerDescriptor>{};
     }
     Base::Span<const TemplatePartDescriptor> TemplateParts() const noexcept {
-        return {templateParts_.Data(), templateParts_.Size()};
+        return rare_ != nullptr ? Base::Span<const TemplatePartDescriptor>{rare_->templateParts.Data(), rare_->templateParts.Size()} : Base::Span<const TemplatePartDescriptor>{};
     }
     MemberId ContentMember() const noexcept { return contentMember_; }
     Base::Span<const TypeId> AncestorChain() const noexcept {
-        return {ancestorChain_.Data(), ancestorChain_.Size()};
+        return {};
     }
 private:
     friend class TypeRegistry;
     TypeInfo() noexcept = default;
+    TypeRareData* EnsureRare() noexcept {
+        if (rare_ == nullptr) {
+            rare_ = new (std::nothrow) TypeRareData();
+        }
+        return rare_;
+    }
     TypeId id_ = InvalidTypeId;
     TypeId baseType_ = InvalidTypeId;
     TypeId underlyingType_ = InvalidTypeId;
@@ -130,16 +183,11 @@ private:
     TypeFlags flags_ = TypeFlags::None;
     Base::String xamlNamespace_;
     Base::String name_;
-    Base::Vector<TypeId> interfaces_;
-    Base::Vector<InterfaceCastThunk> interfaceCasts_;
     Base::Vector<PropertyInfo> properties_;
     Base::Vector<EnumValueInfo> enumValues_;
     Base::Vector<EventInfo> events_;
-    Base::Vector<EventHandlerDescriptor> eventHandlers_;
-    Base::Vector<TemplatePartDescriptor> templateParts_;
     MemberId contentMember_ = InvalidMemberId;
-    mutable Base::Vector<TypeId> ancestorChain_;
-    mutable bool ancestorChainBuilt_ = false;
+    TypeRareData* rare_ = nullptr;
 };
 
 class TypeRegistry {

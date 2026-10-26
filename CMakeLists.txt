@@ -377,9 +377,11 @@ elseif(TARGET aero-schema-gen AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 set(_aero_xaml_schema_arguments "")
-if(NOT _aero_schema_manifest STREQUAL "")
+set(_aero_xaml_theme_dependencies "")
+if(NOT "${AERO_BUILTIN_SCHEMA_MANIFEST}" STREQUAL "")
     set(_aero_xaml_schema_arguments
         --schema "${_aero_schema_manifest}")
+    set(_aero_xaml_theme_dependencies "${_aero_schema_manifest_dependency}")
 endif()
 
 set(_aero_xamlc_command "")
@@ -468,7 +470,7 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
         DEPENDS
             ${_aero_xamlc_dependency}
-            ${_aero_schema_manifest_dependency}
+            ${_aero_xaml_theme_dependencies}
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"

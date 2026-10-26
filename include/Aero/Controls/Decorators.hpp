@@ -154,7 +154,7 @@ protected:
         Size childSize{};
         if (child_) {
             const Size childAvailable{
-                std::max(0.0, availableSize.width - bulletSize.width),
+                std::max(0.0f, availableSize.width - bulletSize.width),
                 availableSize.height};
             MeasureChild(*child_, childAvailable);
             childSize = child_->GetDesiredSize();
@@ -164,19 +164,19 @@ protected:
             std::max(bulletSize.height, childSize.height)};
     }
     Size ArrangeOverride(Size finalSize) noexcept override {
-        double bulletWidth = 0.0;
+        float bulletWidth = 0.0f;
         if (bullet_) {
             const Size desired = bullet_->GetDesiredSize();
             bulletWidth = std::min(finalSize.width, desired.width);
-            const double y = std::max(0.0, (finalSize.height - desired.height) * 0.5);
+            const float y = std::max(0.0f, (finalSize.height - desired.height) * 0.5f);
             ArrangeChild(*bullet_, {
-                0.0, y, bulletWidth,
+                0.0f, y, bulletWidth,
                 std::min(finalSize.height, desired.height)});
         }
         if (child_) {
             ArrangeChild(*child_, {
-                bulletWidth, 0.0,
-                std::max(0.0, finalSize.width - bulletWidth), finalSize.height});
+                bulletWidth, 0.0f,
+                std::max(0.0f, finalSize.width - bulletWidth), finalSize.height});
         }
         return finalSize;
     }

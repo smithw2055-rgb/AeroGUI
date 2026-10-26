@@ -8,29 +8,125 @@
 
 namespace Aero::Base {
 
-struct Point  { double x = 0.0; double y = 0.0; };
+struct Point {
+    float x = 0.0f;
+    float y = 0.0f;
 
-struct Size  { double width = 0.0; double height = 0.0; };
+    constexpr Point() noexcept = default;
 
-struct Rect  {
-    double x = 0.0;
-    double y = 0.0;
-    double width = 0.0;
-    double height = 0.0;
+    template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+    constexpr explicit Point(T uniform) noexcept
+        : x(static_cast<float>(uniform)), y(static_cast<float>(uniform)) {}
+
+    template <typename T1 = float, typename T2 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
+    constexpr Point(T1 x_, T2 y_) noexcept
+        : x(static_cast<float>(x_)), y(static_cast<float>(y_)) {}
+
+    constexpr bool operator==(const Point& o) const noexcept { return x == o.x && y == o.y; }
+    constexpr bool operator!=(const Point& o) const noexcept { return !(*this == o); }
+};
+
+struct Size {
+    float width = 0.0f;
+    float height = 0.0f;
+
+    constexpr Size() noexcept = default;
+
+    template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+    constexpr explicit Size(T uniform) noexcept
+        : width(static_cast<float>(uniform)), height(static_cast<float>(uniform)) {}
+
+    template <typename T1 = float, typename T2 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
+    constexpr Size(T1 w_, T2 h_) noexcept
+        : width(static_cast<float>(w_)), height(static_cast<float>(h_)) {}
+
+    constexpr bool operator==(const Size& o) const noexcept { return width == o.width && height == o.height; }
+    constexpr bool operator!=(const Size& o) const noexcept { return !(*this == o); }
+};
+
+struct Rect {
+    float x = 0.0f;
+    float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
+
+    constexpr Rect() noexcept = default;
+
+    template <typename T1 = float, typename T2 = float, typename T3 = float, typename T4 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
+                               std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
+    constexpr Rect(T1 x_, T2 y_, T3 w_, T4 h_) noexcept
+        : x(static_cast<float>(x_)), y(static_cast<float>(y_)),
+          width(static_cast<float>(w_)), height(static_cast<float>(h_)) {}
+
+    constexpr Rect(Point p, Size s) noexcept
+        : x(p.x), y(p.y), width(s.width), height(s.height) {}
+
+    constexpr bool operator==(const Rect& o) const noexcept {
+        return x == o.x && y == o.y && width == o.width && height == o.height;
+    }
+    constexpr bool operator!=(const Rect& o) const noexcept { return !(*this == o); }
 };
 
 struct Thickness {
-    double left = 0.0;
-    double top = 0.0;
-    double right = 0.0;
-    double bottom = 0.0;
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
+
+    constexpr Thickness() noexcept = default;
+
+    template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+    constexpr explicit Thickness(T uniform) noexcept
+        : left(static_cast<float>(uniform)), top(static_cast<float>(uniform)),
+          right(static_cast<float>(uniform)), bottom(static_cast<float>(uniform)) {}
+
+    template <typename T1 = float, typename T2 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
+    constexpr Thickness(T1 horiz, T2 vert) noexcept
+        : left(static_cast<float>(horiz)), top(static_cast<float>(vert)),
+          right(static_cast<float>(horiz)), bottom(static_cast<float>(vert)) {}
+
+    template <typename T1 = float, typename T2 = float, typename T3 = float, typename T4 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
+                               std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
+    constexpr Thickness(T1 l_, T2 t_, T3 r_, T4 b_) noexcept
+        : left(static_cast<float>(l_)), top(static_cast<float>(t_)),
+          right(static_cast<float>(r_)), bottom(static_cast<float>(b_)) {}
+
+    constexpr bool operator==(const Thickness& o) const noexcept {
+        return left == o.left && top == o.top && right == o.right && bottom == o.bottom;
+    }
+    constexpr bool operator!=(const Thickness& o) const noexcept { return !(*this == o); }
 };
 
 struct CornerRadius {
-    double topLeft = 0.0;
-    double topRight = 0.0;
-    double bottomRight = 0.0;
-    double bottomLeft = 0.0;
+    float topLeft = 0.0f;
+    float topRight = 0.0f;
+    float bottomRight = 0.0f;
+    float bottomLeft = 0.0f;
+
+    constexpr CornerRadius() noexcept = default;
+
+    template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
+    constexpr explicit CornerRadius(T uniform) noexcept
+        : topLeft(static_cast<float>(uniform)), topRight(static_cast<float>(uniform)),
+          bottomRight(static_cast<float>(uniform)), bottomLeft(static_cast<float>(uniform)) {}
+
+    template <typename T1 = float, typename T2 = float, typename T3 = float, typename T4 = float,
+              std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
+                               std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
+    constexpr CornerRadius(T1 tl, T2 tr, T3 br, T4 bl) noexcept
+        : topLeft(static_cast<float>(tl)), topRight(static_cast<float>(tr)),
+          bottomRight(static_cast<float>(br)), bottomLeft(static_cast<float>(bl)) {}
+
+    constexpr bool operator==(const CornerRadius& o) const noexcept {
+        return topLeft == o.topLeft && topRight == o.topRight &&
+               bottomRight == o.bottomRight && bottomLeft == o.bottomLeft;
+    }
+    constexpr bool operator!=(const CornerRadius& o) const noexcept { return !(*this == o); }
 };
 
 struct Color  {
@@ -300,7 +396,7 @@ inline Point TransformPoint(const ProjectiveTransform2D& transform, Point point)
     if (!std::isfinite(w) || std::abs(w) < ProjectiveWEpsilon) {
         w = w < 0.0 ? -ProjectiveWEpsilon : ProjectiveWEpsilon;
     }
-    return {x / w, y / w};
+    return {static_cast<float>(x / w), static_cast<float>(y / w)};
 }
 
 inline bool TryTransformPoint(const ProjectiveTransform2D& transform, Point point,
@@ -310,7 +406,7 @@ inline bool TryTransformPoint(const ProjectiveTransform2D& transform, Point poin
     if (!std::isfinite(w) || std::abs(w) < ProjectiveWEpsilon || !std::isfinite(x) || !std::isfinite(y)) {
         return false;
     }
-    output = {x / w, y / w};
+    output = {static_cast<float>(x / w), static_cast<float>(y / w)};
     return std::isfinite(output.x) && std::isfinite(output.y);
 }
 
@@ -319,10 +415,10 @@ inline Rect TransformBounds(const ProjectiveTransform2D& transform, Rect rect) n
         {rect.x + rect.width, rect.y},
         {rect.x, rect.y + rect.height},
         {rect.x + rect.width, rect.y + rect.height}};
-    double left = 0.0;
-    double top = 0.0;
-    double right = 0.0;
-    double bottom = 0.0;
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = 0.0f;
+    float bottom = 0.0f;
     bool any = false;
     for (const Point& corner : corners) {
         Point projected{};
@@ -338,12 +434,12 @@ inline Rect TransformBounds(const ProjectiveTransform2D& transform, Rect rect) n
         top = std::min(top, projected.y);
         bottom = std::max(bottom, projected.y);
     }
-    if (!any) { return {0.0, 0.0, 0.0, 0.0}; }
+    if (!any) { return {0.0f, 0.0f, 0.0f, 0.0f}; }
     return {
         left,
         top,
-        std::max(0.0, right - left),
-        std::max(0.0, bottom - top)};
+        std::max(0.0f, right - left),
+        std::max(0.0f, bottom - top)};
 }
 
 // Project a 3D affine mapping of the Z=0 plane through a camera at z=Depth

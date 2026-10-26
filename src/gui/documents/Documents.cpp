@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdio>
 #include <cstring>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"

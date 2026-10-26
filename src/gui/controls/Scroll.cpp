@@ -482,8 +482,8 @@ ScrollContentPresenter::MeasureOverride(
     }
     const ScrollData value = GetData();
     return Size{
-        std::min(value.extentWidth, availableSize.width),
-        std::min(value.extentHeight, availableSize.height)};
+        std::min(static_cast<float>(value.extentWidth), availableSize.width),
+        std::min(static_cast<float>(value.extentHeight), availableSize.height)};
 }
 
 Size
@@ -498,10 +498,10 @@ ScrollContentPresenter::ArrangeOverride(
     SetViewport(finalSize);
     const ScrollData value = GetData();
     const double arrangeWidth = GetAllowsHorizontalScroll()
-        ? std::max(value.extentWidth, finalSize.width)
+        ? std::max(value.extentWidth, static_cast<double>(finalSize.width))
         : finalSize.width;
     const double arrangeHeight = GetAllowsVerticalScroll()
-        ? std::max(value.extentHeight, finalSize.height)
+        ? std::max(value.extentHeight, static_cast<double>(finalSize.height))
         : finalSize.height;
     const Rect slot = logical != nullptr
         ? Rect{0.0, 0.0, finalSize.width, finalSize.height}
@@ -1676,8 +1676,8 @@ Size Track::ArrangeOverride(
         vertical ? finalSize.height : finalSize.width;
     const double desiredThumbLength = thumb_
         ? std::max(0.0, vertical
-            ? thumb_->GetDesiredSize().height
-            : thumb_->GetDesiredSize().width)
+            ? static_cast<double>(thumb_->GetDesiredSize().height)
+            : static_cast<double>(thumb_->GetDesiredSize().width))
         : 8.0;
     const double thumbLength =
         GetThumbLength(length, desiredThumbLength);
@@ -2458,8 +2458,8 @@ Size Slider::MeasureOverride(Size availableSize) noexcept {
     // BlendTutorial ColorSelector / Position sliders omit Height. An empty
     // default template Grid measures 0x0, which collapses Grid Height="*"
     // rows inside a StackPanel. Keep a theme-like minimum.
-    constexpr double kMinThickness = 18.0;
-    constexpr double kMinLength = 32.0;
+    constexpr float kMinThickness = 18.0f;
+    constexpr float kMinLength = 32.0f;
     if (GetOrientation() == Orientation::Horizontal) {
         desired.height = std::max(desired.height, kMinThickness);
         desired.width = std::max(desired.width, kMinLength);
@@ -2766,8 +2766,8 @@ void Slider::SetValueFromTrackPoint(
     if (!(length > 0.0)) return;
     const double desiredThumbLength = track_->GetThumbElement()
         ? std::max(0.0, horizontal
-            ? track_->GetThumbElement()->GetDesiredSize().width
-            : track_->GetThumbElement()->GetDesiredSize().height)
+            ? static_cast<double>(track_->GetThumbElement()->GetDesiredSize().width)
+            : static_cast<double>(track_->GetThumbElement()->GetDesiredSize().height))
         : 8.0;
     const double thumbLength = track_->GetThumbLength(length, desiredThumbLength);
     const double position =
@@ -2836,42 +2836,42 @@ void Slider::OnRender(
             builder.FillRoundedRect(
                 {
                     startPixel,
-                    std::max(0.0,
-                        (size.height - 4.0) * 0.5),
+                    std::max(0.0f,
+                        (size.height - 4.0f) * 0.5f),
                     travel,
-                    std::min(4.0, size.height)},
+                    std::min(4.0f, size.height)},
                 trackColor,
                 2.0);
             builder.FillRoundedRect(
                 {
                     std::clamp(normalized, 0.0, 1.0) *
                         travel,
-                    std::max(0.0,
-                        (size.height -
-                            thumbLength) * 0.5),
-                    std::min(thumbLength, size.width),
-                    std::min(thumbLength, size.height)},
+                    std::max(0.0f,
+                        static_cast<float>((size.height -
+                            thumbLength) * 0.5)),
+                    std::min(static_cast<float>(thumbLength), size.width),
+                    std::min(static_cast<float>(thumbLength), size.height)},
                 color,
                 thumbLength * 0.5);
         } else {
             builder.FillRoundedRect(
                 {
-                    std::max(0.0,
-                        (size.width - 4.0) * 0.5),
+                    std::max(0.0f,
+                        (size.width - 4.0f) * 0.5f),
                     startPixel,
-                    std::min(4.0, size.width),
+                    std::min(4.0f, size.width),
                     travel},
                 trackColor,
                 2.0);
             builder.FillRoundedRect(
                 {
-                    std::max(0.0,
-                        (size.width -
-                            thumbLength) * 0.5),
+                    std::max(0.0f,
+                        static_cast<float>((size.width -
+                            thumbLength) * 0.5)),
                     std::clamp(normalized, 0.0, 1.0) *
                         travel,
-                    std::min(thumbLength, size.width),
-                    std::min(thumbLength, size.height)},
+                    std::min(static_cast<float>(thumbLength), size.width),
+                    std::min(static_cast<float>(thumbLength), size.height)},
                 color,
                 thumbLength * 0.5);
         }
@@ -2907,34 +2907,35 @@ void Slider::OnRender(
             startPixel +
             std::clamp(normalized, 0.0, 1.0) *
                 travel;
+        const float fPixel = static_cast<float>(pixel);
         if (horizontal) {
-            const double center =
-                size.height * 0.5;
+            const float center =
+                size.height * 0.5f;
             if (first) {
                 builder.FillRect(
-                    {pixel, std::max(0.0, center - 9.0),
-                     1.0, std::min(5.0, size.height)},
+                    {fPixel, std::max(0.0f, center - 9.0f),
+                     1.0f, std::min(5.0f, size.height)},
                     color);
             }
             if (second) {
                 builder.FillRect(
-                    {pixel, std::min(size.height, center + 4.0),
-                     1.0, std::min(5.0, size.height)},
+                    {fPixel, std::min(size.height, center + 4.0f),
+                     1.0f, std::min(5.0f, size.height)},
                     color);
             }
         } else {
-            const double center =
-                size.width * 0.5;
+            const float center =
+                size.width * 0.5f;
             if (first) {
                 builder.FillRect(
-                    {std::max(0.0, center - 9.0), pixel,
-                     std::min(5.0, size.width), 1.0},
+                    {std::max(0.0f, center - 9.0f), fPixel,
+                     std::min(5.0f, size.width), 1.0f},
                     color);
             }
             if (second) {
                 builder.FillRect(
-                    {std::min(size.width, center + 4.0), pixel,
-                     std::min(5.0, size.width), 1.0},
+                    {std::min(size.width, center + 4.0f), fPixel,
+                     std::min(5.0f, size.width), 1.0f},
                     color);
             }
         }
@@ -3058,24 +3059,24 @@ void TickBar::OnRender(
         }
         const double position = start +
             std::clamp(normalized, 0.0, 1.0) * travel;
-        const double tickPos = std::round(position);
+        const float tickPos = static_cast<float>(std::round(position));
         if (horizontal) {
             builder.FillRect({
                 tickPos,
                 GetPlacement() == TickBarPlacement::Top
-                    ? 0.0
-                    : std::max(0.0, size.height - 4.0),
-                1.0,
-                std::min(4.0, size.height)}, color);
+                    ? 0.0f
+                    : std::max(0.0f, size.height - 4.0f),
+                1.0f,
+                std::min(4.0f, size.height)}, color);
             return;
         }
         builder.FillRect({
             GetPlacement() == TickBarPlacement::Left
-                ? 0.0
-                : std::max(0.0, size.width - 4.0),
+                ? 0.0f
+                : std::max(0.0f, size.width - 4.0f),
             tickPos,
-            std::min(4.0, size.width),
-            1.0}, color);
+            std::min(4.0f, size.width),
+            1.0f}, color);
     };
 
     const Base::StringView ticks = slider.GetTicks();

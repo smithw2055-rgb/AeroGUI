@@ -70,4 +70,21 @@ constexpr MetaTypeId MakeMetaTypeId(StringView name) noexcept {
     return MakeMetaTypeId(DefaultMetadataNamespaceUri(), name);
 }
 
+constexpr StringView ExtractUnqualifiedTypeName(StringView qualifiedName) noexcept {
+    const char* data = qualifiedName.Data();
+    const std::uint32_t size = qualifiedName.SizeBytes();
+    std::uint32_t lastColon = 0U;
+    bool found = false;
+    for (std::uint32_t i = 0U; i + 1U < size; ++i) {
+        if (data[i] == ':' && data[i + 1U] == ':') {
+            lastColon = i + 2U;
+            found = true;
+        }
+    }
+    if (found) {
+        return StringView(data + lastColon, size - lastColon);
+    }
+    return qualifiedName;
+}
+
 } // namespace Aero::Base

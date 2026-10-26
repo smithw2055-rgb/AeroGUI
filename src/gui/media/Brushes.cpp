@@ -488,8 +488,8 @@ int IntersectLineWithRect(
             y > bounds.y + bounds.height + 1.0e-6) {
             return;
         }
-        x = std::clamp(x, bounds.x, bounds.x + bounds.width);
-        y = std::clamp(y, bounds.y, bounds.y + bounds.height);
+        x = std::clamp(x, static_cast<double>(bounds.x), static_cast<double>(bounds.x + bounds.width));
+        y = std::clamp(y, static_cast<double>(bounds.y), static_cast<double>(bounds.y + bounds.height));
         for (int i = 0; i < count; ++i) {
             if (std::hypot(points[i].x - x, points[i].y - y) < 1.0e-5) {
                 return;
@@ -829,10 +829,10 @@ void PaintBrushRect(
             source.width /= static_cast<double>(pixelWidth);
             source.height /= static_cast<double>(pixelHeight);
         }
-        source.x = std::clamp(source.x, 0.0, 1.0);
-        source.y = std::clamp(source.y, 0.0, 1.0);
-        source.width = std::clamp(source.width, 0.0, 1.0 - source.x);
-        source.height = std::clamp(source.height, 0.0, 1.0 - source.y);
+        source.x = std::clamp(source.x, 0.0f, 1.0f);
+        source.y = std::clamp(source.y, 0.0f, 1.0f);
+        source.width = std::clamp(source.width, 0.0f, 1.0f - source.x);
+        source.height = std::clamp(source.height, 0.0f, 1.0f - source.y);
         if (source.width <= 0.0 || source.height <= 0.0) return;
         Rect viewport = imageBrush.GetViewport();
         if (imageBrush.GetViewportUnits() ==

@@ -81,6 +81,7 @@
 #include <Aero/Input.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/Shapes.hpp>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -449,12 +450,6 @@ Base::Result<void> PopulateUiMetadata(
 } // namespace Aero
 
 // ===== RegisterControlsMetadata / PopulateControlsMetadata =====
-
-#include "gui/core/TypeRegistryCore.hpp"
-
-#include <Aero/Controls.hpp>
-#include <Aero/Shapes.hpp>
-#include "gui/core/Describe.hpp"
 
 namespace Aero::Controls {
 

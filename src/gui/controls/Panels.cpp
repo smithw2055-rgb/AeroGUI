@@ -125,13 +125,13 @@ Dock DockPanel::GetChildDock(
 Size DockPanel::MeasureOverride(
     Size availableSize) noexcept {
     Size desired;
-    double consumedWidth = 0.0;
-    double consumedHeight = 0.0;
+    float consumedWidth = 0.0f;
+    float consumedHeight = 0.0f;
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
         const Size remaining{
-            std::max(0.0, availableSize.width - consumedWidth),
-            std::max(0.0, availableSize.height - consumedHeight)};
+            std::max(0.0f, availableSize.width - consumedWidth),
+            std::max(0.0f, availableSize.height - consumedHeight)};
         MeasureChild(*child, remaining);
         const Size childDesired = child->GetDesiredSize();
         const Dock dock = GetChildDock(*child);
@@ -157,10 +157,10 @@ Size DockPanel::MeasureOverride(
 }
 Size DockPanel::ArrangeOverride(
     Size finalSize) noexcept {
-    double left = 0.0;
-    double top = 0.0;
-    double right = finalSize.width;
-    double bottom = finalSize.height;
+    float left = 0.0f;
+    float top = 0.0f;
+    float right = finalSize.width;
+    float bottom = finalSize.height;
     const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
     const UIElementChildRange children = LayoutChildren();
     for (std::uint32_t index = 0U;
@@ -171,8 +171,8 @@ Size DockPanel::ArrangeOverride(
         Rect slot{
             left,
             top,
-            std::max(0.0, right - left),
-            std::max(0.0, bottom - top)};
+            std::max(0.0f, right - left),
+            std::max(0.0f, bottom - top)};
         const bool fill =
             GetLastChildFill() &&
             index + 1U == children.Size();
@@ -481,8 +481,7 @@ Canvas::Canvas() noexcept : Panel(StaticTypeId()) {}
 
 void Canvas::SetChildPosition(
     UIElement& child, Point position) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     if (!IsFinite(position)) {
         return;
     }
@@ -516,16 +515,16 @@ Size Canvas::ArrangeOverride(Size finalSize) noexcept {
         const double top = child->GetValue(TopProperty);
         const double right = child->GetValue(RightProperty);
         const double bottom = child->GetValue(BottomProperty);
-        Point position{0.0, 0.0};
+        Point position{0.0f, 0.0f};
         if (std::isfinite(left)) {
-            position.x = left;
+            position.x = static_cast<float>(left);
         } else if (std::isfinite(right)) {
-            position.x = finalSize.width - right - desired.width;
+            position.x = static_cast<float>(finalSize.width - right - desired.width);
         }
         if (std::isfinite(top)) {
-            position.y = top;
+            position.y = static_cast<float>(top);
         } else if (std::isfinite(bottom)) {
-            position.y = finalSize.height - bottom - desired.height;
+            position.y = static_cast<float>(finalSize.height - bottom - desired.height);
         }
         ArrangeChild(*child,
             {position.x, position.y, desired.width, desired.height});
@@ -722,8 +721,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
     if (!childObject || childObject.Get() != &child) {
         return;
     }
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     for (const Base::Ref<Base::Object>& owned : ownedChildren_) {
         if (owned.Get() == &child) {
             return;
@@ -767,8 +765,7 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
     InvalidateMeasure();
 }
 bool Panel::RemoveChildCore(UIElement& child) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return false;
+    if (!VerifyAccess()) return false;
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         if (ownedChildren_[index].Get() != &child) continue;
         // Remove from storage BEFORE detach: DetachVisual/DetachLogical can
@@ -800,8 +797,7 @@ bool Panel::RemoveChildCore(UIElement& child) noexcept {
     return false;
 }
 void Panel::ClearChildrenCore() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     ElementTree* tree = VisualTree(this);
     for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
         UIElement* child = ownedChildren_[index]

@@ -76,6 +76,13 @@ Base::Result<double> ConvertDouble(
     return ParseDouble(text);
 }
 
+Base::Result<float> ConvertFloat(
+    Base::StringView text) noexcept {
+    Base::Result<double> parsed = ParseDouble(text);
+    if (!parsed) return parsed.GetStatus();
+    return static_cast<float>(parsed.Value());
+}
+
 Base::Result<Base::String> ConvertString(
     Base::StringView text) noexcept {
     Base::String value;

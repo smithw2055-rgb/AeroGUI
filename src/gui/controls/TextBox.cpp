@@ -492,8 +492,7 @@ void TextBoxBase::Redo() noexcept {
 
 void TextBoxBase::AttachScrollViewer(
     ScrollViewer* viewer) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
+    if (!VerifyAccess()) {
         return;
     }
     if (viewer == scrollViewer_) {
@@ -526,8 +525,7 @@ void TextBoxBase::InvalidateEditor() noexcept {
 
 void TextBoxBase::SetInputMethodHost(
     Input::ITextInputMethodHost* host) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
+    if (!VerifyAccess()) {
         return;
     }
     if (host == inputMethodHost_) {
@@ -847,9 +845,7 @@ void TextBoxBase::Paste(
         return;
     }
     Base::String text;
-    Base::Result<void> read =
-        clipboard.ReadText(text);
-    if (!read) {
+    if (!clipboard.ReadText(text)) {
         return;
     }
     ReplaceSelection(text.View());
@@ -1403,7 +1399,7 @@ Size TextBoxBase::MeasureOverride(
     RebuildCaretStops();
     scroll_.extentWidth = textSize_.width;
     scroll_.extentHeight =
-        std::max(textSize_.height, GetLineHeight());
+        std::max(static_cast<double>(textSize_.height), GetLineHeight());
     scroll_.horizontalOffset = ClampOffset(
         scroll_.horizontalOffset,
         scroll_.extentWidth,
@@ -1423,10 +1419,10 @@ Size TextBoxBase::MeasureOverride(
         std::max(1.0, GetDpiScale());
     Size desired{
         std::min(
-            std::max(minimumWidth, textSize_.width),
+            std::max(static_cast<float>(minimumWidth), textSize_.width),
             contentAvailable.width),
         std::min(
-            std::max(GetLineHeight(), textSize_.height),
+            std::max(static_cast<float>(GetLineHeight()), textSize_.height),
             contentAvailable.height)};
     const std::uint32_t maximumLines =
         GetMaxLinesCore();
@@ -1446,22 +1442,22 @@ Size TextBoxBase::MeasureOverride(
             !displayText_.Empty()) {
             desired.height = std::min(
                 contentAvailable.height,
-                maximumHeight);
+                static_cast<float>(maximumHeight));
         } else {
             desired.height = std::min(
                 desired.height,
-                maximumHeight);
+                static_cast<float>(maximumHeight));
         }
     }
     desired.height = std::max(
         desired.height,
         std::min(
             contentAvailable.height,
-            std::max(
+            static_cast<float>(std::max(
                 GetLineHeight(),
                 GetFontSize() * 1.6) *
                 static_cast<double>(
-                    minimumLines)));
+                    minimumLines))));
     const Size textInflated = Inflate(desired, padding);
     Size templateSize{};
     if (GetTemplateRoot() != nullptr) {
@@ -1567,12 +1563,12 @@ TextBoxBase::RenderEditor(
         padding.left,
         padding.top,
         std::max(
-            0.0,
+            0.0f,
             viewport.width -
                 padding.left -
                 padding.right),
         std::max(
-            0.0,
+            0.0f,
             viewport.height -
                 padding.top -
                 padding.bottom)};
@@ -1828,7 +1824,7 @@ Size TextBoxView::MeasureOverride(Size) noexcept {
     if (owner_ == nullptr) return Size{};
     return Size{
         owner_->textSize_.width,
-        std::max(owner_->textSize_.height, owner_->GetLineHeight())};
+        std::max(owner_->textSize_.height, static_cast<float>(owner_->GetLineHeight()))};
 }
 
 Size TextBoxView::ArrangeOverride(Size finalSize) noexcept {
@@ -1916,9 +1912,7 @@ void PasswordBox::SetPassword(
         return;
     }
     Base::String nextPassword;
-    Base::Result<void> copied =
-        nextPassword.Assign(value);
-    if (!copied) return;
+    if (!nextPassword.Assign(value)) return;
     if (model_ != nullptr) {
         Model(model_).SetText(value);
         Model(model_).SetSelection(0U, 0U);

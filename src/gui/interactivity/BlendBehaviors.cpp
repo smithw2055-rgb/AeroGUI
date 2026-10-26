@@ -314,16 +314,12 @@ void MouseDragElementBehavior::OnMouseMove(
             const Rect slot = associated->GetLayoutSlot();
             const Size size = associated->GetRenderSize();
             const Size parentSize = parent->GetRenderSize();
-            x = std::clamp(
-                x,
-                -slot.x,
-                std::max(-slot.x,
-                    parentSize.width - slot.x - size.width));
-            y = std::clamp(
-                y,
-                -slot.y,
-                std::max(-slot.y,
-                    parentSize.height - slot.y - size.height));
+            const double minX = -static_cast<double>(slot.x);
+            const double maxX = std::max(minX, static_cast<double>(parentSize.width - slot.x - size.width));
+            x = std::clamp(x, minX, maxX);
+            const double minY = -static_cast<double>(slot.y);
+            const double maxY = std::max(minY, static_cast<double>(parentSize.height - slot.y - size.height));
+            y = std::clamp(y, minY, maxY);
         }
     }
     updatingPosition_ = true;

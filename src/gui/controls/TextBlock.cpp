@@ -259,8 +259,7 @@ Meta::Value TextBlock::GetMetadataInlines() const noexcept {
 }
 void TextBlock::SetInlineValue(
     Meta::Value value) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() &&
         value.AsObject()) {
@@ -276,17 +275,15 @@ void TextBlock::SetInlineValue(
     if (value.Kind() != Meta::ValueKind::String) {
         return;
     }
-    Base::Result<Base::Ref<Documents::Run>> created =
-        Base::MakeRef<Documents::Run>();
+    Base::Ref<Documents::Run> created = Base::MakeRef<Documents::Run>();
     if (!created) return;
     created->SetText(value.AsString());
-    AddOwnedInline(Base::Ref<Base::Object>(created.Value()));
+    AddOwnedInline(std::move(created));
 }
 void TextBlock::AddOwnedInline(
     const Base::Ref<Base::Object>& inlineObject) noexcept {
     if (!inlineObject) { AERO_ASSERT(false); return; }
-    Base::Result<void> access = VerifyAccess();
-    if (!access) { AERO_ASSERT(false); return; }
+    if (!VerifyAccess()) { AERO_ASSERT(false); return; }
     const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
     const TypeId type = inlineObject->RuntimeType();
     const bool supported = types.IsDerivedFrom(
@@ -301,8 +298,7 @@ void TextBlock::AddOwnedInline(
     InvalidateDocumentText();
 }
 void TextBlock::ClearOwnedInlines() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     for (Base::Ref<Base::Object>& item : ownedInlines_) {
         if (item) {
             if (Documents::InlineUIContainer* container =
@@ -409,8 +405,7 @@ Base::StringView TextBlock::EffectiveFontFamily() const noexcept {
 }
 void TextBlock::SetGlyphRun(
     RenderGlyphRunId glyphRun, Size size) noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return;
+    if (!VerifyAccess()) return;
     if (!IsValidTextSize(size) ||
         (glyphRun == InvalidRenderGlyphRunId &&
             (size.width != 0.0 || size.height != 0.0))) {
@@ -463,13 +458,13 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     Documents::CopyText(*this, flattened);
 
     Size textAvailable = availableSize;
-    if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0) {
+    if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0f) {
         textAvailable.width = std::max(
-            0.0, textAvailable.width - padding.left - padding.right);
+            0.0f, textAvailable.width - padding.left - padding.right);
     }
-    if (std::isfinite(textAvailable.height) && textAvailable.height > 0.0) {
+    if (std::isfinite(textAvailable.height) && textAvailable.height > 0.0f) {
         textAvailable.height = std::max(
-            0.0, textAvailable.height - padding.top - padding.bottom);
+            0.0f, textAvailable.height - padding.top - padding.bottom);
     }
 
     auto* layoutService = TextLayoutFor(*this);
@@ -598,11 +593,11 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
             ++placeholder;
             if (region.textLength == 3U) {
                 slot = Rect{
-                    static_cast<double>(region.x) + padding.left,
-                    static_cast<double>(region.y) + padding.top,
-                    std::max(static_cast<double>(region.width),
+                    static_cast<float>(region.x) + padding.left,
+                    static_cast<float>(region.y) + padding.top,
+                    std::max(static_cast<float>(region.width),
                         child->GetDesiredSize().width),
-                    std::max(static_cast<double>(region.height),
+                    std::max(static_cast<float>(region.height),
                         child->GetDesiredSize().height)};
                 break;
             }

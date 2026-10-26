@@ -311,18 +311,26 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
     if (!result) return result.GetStatus();
     result = info.name_.Assign(registration.name);
     if (!result) return result.GetStatus();
-    info.interfaces_.Reserve(registration.interfaces.Size());
-    for (TypeId interfaceType : registration.interfaces) {
-        if (interfaceType == InvalidTypeId) {
+    if (!registration.interfaces.Empty()) {
+        TypeRareData* rare = info.EnsureRare();
+        if (rare == nullptr) {
             return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Implemented interface type must be valid");
+                Base::ErrorCode::OutOfMemory,
+                "Failed to allocate type rare data");
         }
-        for (TypeId existing : info.interfaces_) {
-            if (existing == interfaceType) return DuplicateMemberStatus();
+        rare->interfaces.Reserve(registration.interfaces.Size());
+        for (TypeId interfaceType : registration.interfaces) {
+            if (interfaceType == InvalidTypeId) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Implemented interface type must be valid");
+            }
+            for (TypeId existing : rare->interfaces) {
+                if (existing == interfaceType) return DuplicateMemberStatus();
+            }
+            rare->interfaces.PushBack(interfaceType);
+            rare->interfaceCasts.PushBack(nullptr);
         }
-        info.interfaces_.PushBack(interfaceType);
-        info.interfaceCasts_.PushBack(nullptr);
     }
 
     const std::uint32_t index = types_.Size();
@@ -355,18 +363,24 @@ Base::Result<void> TypeRegistry::RegisterInterface(
     }
     TypeInfo* owner = MutableType(ownerType);
     if (owner == nullptr) return MissingOwnerStatus();
-    for (TypeId existing : owner->interfaces_) {
+    TypeRareData* rare = owner->EnsureRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate type rare data");
+    }
+    for (TypeId existing : rare->interfaces) {
         if (existing == interfaceType) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
                 "Implemented interface is already registered");
         }
     }
-    while (owner->interfaceCasts_.Size() < owner->interfaces_.Size()) {
-        owner->interfaceCasts_.PushBack(nullptr);
+    while (rare->interfaceCasts.Size() < rare->interfaces.Size()) {
+        rare->interfaceCasts.PushBack(nullptr);
     }
-    owner->interfaces_.PushBack(interfaceType);
-    owner->interfaceCasts_.PushBack(cast);
+    rare->interfaces.PushBack(interfaceType);
+    rare->interfaceCasts.PushBack(cast);
     return {};
 }
 
@@ -552,7 +566,13 @@ Base::Result<void> TypeRegistry::RegisterEventHandler(
     if (ownerIndex == nullptr) return MissingOwnerStatus();
 
     TypeInfo& owner = types_[*ownerIndex];
-    for (const EventHandlerDescriptor& existing : owner.eventHandlers_) {
+    TypeRareData* rare = owner.EnsureRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate type rare data");
+    }
+    for (const EventHandlerDescriptor& existing : rare->eventHandlers) {
         if (existing.name == name) {
             return DuplicateMemberStatus();
         }
@@ -563,7 +583,7 @@ Base::Result<void> TypeRegistry::RegisterEventHandler(
     Base::Result<void> result = descriptor.name.Assign(name);
     if (!result) return result.GetStatus();
 
-    owner.eventHandlers_.PushBack(std::move(descriptor));
+    rare->eventHandlers.PushBack(std::move(descriptor));
     return {};
 }
 
@@ -581,7 +601,13 @@ Base::Result<void> TypeRegistry::RegisterTemplatePart(
     if (ownerIndex == nullptr) return MissingOwnerStatus();
 
     TypeInfo& owner = types_[*ownerIndex];
-    for (const TemplatePartDescriptor& existing : owner.templateParts_) {
+    TypeRareData* rare = owner.EnsureRare();
+    if (rare == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate type rare data");
+    }
+    for (const TemplatePartDescriptor& existing : rare->templateParts) {
         if (existing.name == name) {
             return DuplicateMemberStatus();
         }
@@ -592,7 +618,7 @@ Base::Result<void> TypeRegistry::RegisterTemplatePart(
     Base::Result<void> result = descriptor.name.Assign(name);
     if (!result) return result.GetStatus();
 
-    owner.templateParts_.PushBack(std::move(descriptor));
+    rare->templateParts.PushBack(std::move(descriptor));
     return {};
 }
 Base::Result<void> TypeRegistry::SetFactory(
@@ -1005,21 +1031,13 @@ bool TypeRegistry::IsDerivedFrom(
     const TypeInfo* info = FindType(type);
     if (info == nullptr) return false;
 
-    if (!info->ancestorChainBuilt_) {
-        info->ancestorChain_.Clear();
-        TypeId current = info->BaseType();
-        for (std::uint32_t depth = 0U;
-             current != InvalidTypeId && depth <= types_.Size(); ++depth) {
-            info->ancestorChain_.PushBack(current);
-            const TypeInfo* baseInfo = FindType(current);
-            if (baseInfo == nullptr) break;
-            current = baseInfo->BaseType();
-        }
-        info->ancestorChainBuilt_ = true;
-    }
-
-    for (std::uint32_t i = 0U; i < info->ancestorChain_.Size(); ++i) {
-        if (info->ancestorChain_[i] == expectedBase) return true;
+    TypeId current = info->BaseType();
+    for (std::uint32_t depth = 0U;
+         current != InvalidTypeId && depth <= types_.Size(); ++depth) {
+        if (current == expectedBase) return true;
+        const TypeInfo* baseInfo = FindType(current);
+        if (baseInfo == nullptr) break;
+        current = baseInfo->BaseType();
     }
     return false;
 }

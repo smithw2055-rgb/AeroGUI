@@ -33,6 +33,8 @@ Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
     StringView text) noexcept;
 Result<double> ConvertDouble(
     StringView text) noexcept;
+Result<float> ConvertFloat(
+    StringView text) noexcept;
 Result<String> ConvertString(
     StringView text) noexcept;
 Result<Base::ResourceUri> ConvertResourceUri(

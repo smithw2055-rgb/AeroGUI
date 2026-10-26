@@ -742,19 +742,19 @@ VirtualizingStackPanel::MeasureOverride(
         }
         crossExtent = std::max(
             crossExtent,
-            orientation == Orientation::Vertical
+            static_cast<double>(orientation == Orientation::Vertical
                 ? desired.width
-                : desired.height);
+                : desired.height));
         ++localIndex;
     }
     crossExtent_ = crossExtent;
     SetMainExtent(GetItemOffset(itemExtents_.Size()));
     if (orientation == Orientation::Vertical) {
         data_.extentWidth = std::max(
-            crossExtent_, availableSize.width);
+            crossExtent_, static_cast<double>(availableSize.width));
     } else {
         data_.extentHeight = std::max(
-            crossExtent_, availableSize.height);
+            crossExtent_, static_cast<double>(availableSize.height));
     }
     if (!itemExtents_.Empty()) {
         SetMainOffset(
@@ -798,7 +798,7 @@ VirtualizingStackPanel::ArrangeOverride(
                 offset,
                 std::max(
                     finalSize.width,
-                    crossExtent_),
+                    static_cast<float>(crossExtent_)),
                 extent}
             : Rect{
                 offset,
@@ -806,7 +806,7 @@ VirtualizingStackPanel::ArrangeOverride(
                 extent,
                 std::max(
                     finalSize.height,
-                    crossExtent_)};
+                    static_cast<float>(crossExtent_))};
         ArrangeChild(*child, slot);
         ++localIndex;
     }
@@ -1123,7 +1123,7 @@ Size VirtualizingWrapPanel::MeasureOverride(Size availableSize) noexcept {
         ? Size{desiredPrimary, desiredCross}
         : Size{desiredCross, desiredPrimary};
     data_.extentWidth = std::max(content.width, availableSize.width);
-    data_.extentHeight = std::max(content.height, MainExtent());
+    data_.extentHeight = std::max(static_cast<double>(content.height), MainExtent());
     data_.viewportWidth = availableSize.width;
     data_.viewportHeight = availableSize.height;
     return Size{

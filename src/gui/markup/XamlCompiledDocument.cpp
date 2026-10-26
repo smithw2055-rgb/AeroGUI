@@ -335,16 +335,16 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             record.payloadCount = 4U;
             record.payload[0] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().left);
+                    static_cast<double>(decoded.Value().left));
             record.payload[1] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().top);
+                    static_cast<double>(decoded.Value().top));
             record.payload[2] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().right);
+                    static_cast<double>(decoded.Value().right));
             record.payload[3] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().bottom);
+                    static_cast<double>(decoded.Value().bottom));
             return record;
         }
         if (value.Type() ==
@@ -356,16 +356,16 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             record.payloadCount = 4U;
             record.payload[0] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().topLeft);
+                    static_cast<double>(decoded.Value().topLeft));
             record.payload[1] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().topRight);
+                    static_cast<double>(decoded.Value().topRight));
             record.payload[2] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().bottomRight);
+                    static_cast<double>(decoded.Value().bottomRight));
             record.payload[3] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().bottomLeft);
+                    static_cast<double>(decoded.Value().bottomLeft));
             return record;
         }
         if (value.Type() ==
@@ -392,10 +392,10 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             record.payloadCount = 2U;
             record.payload[0] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().x);
+                    static_cast<double>(decoded.Value().x));
             record.payload[1] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().y);
+                    static_cast<double>(decoded.Value().y));
             return record;
         }
         if (value.Type() ==
@@ -434,7 +434,7 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             record.payloadCount = 2U;
             record.payload[0] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().value);
+                    static_cast<double>(decoded.Value().value));
             record.payload[1] =
                 static_cast<std::uint64_t>(
                     decoded.Value().unit);
@@ -547,20 +547,20 @@ Base::Result<Meta::Value> DecodeCompiledValue(
         if (type == Meta::TypeOf<Base::Thickness>() &&
             requirePayloads(4U)) {
             const Base::Thickness value{
-                CopyValueBits<double>(record.payload[0]),
-                CopyValueBits<double>(record.payload[1]),
-                CopyValueBits<double>(record.payload[2]),
-                CopyValueBits<double>(record.payload[3])};
+                static_cast<float>(CopyValueBits<double>(record.payload[0])),
+                static_cast<float>(CopyValueBits<double>(record.payload[1])),
+                static_cast<float>(CopyValueBits<double>(record.payload[2])),
+                static_cast<float>(CopyValueBits<double>(record.payload[3]))};
             if (!::Aero::IsFinite(value)) break;
             return MakeStoredCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::CornerRadius>() &&
             requirePayloads(4U)) {
             const Base::CornerRadius value{
-                CopyValueBits<double>(record.payload[0]),
-                CopyValueBits<double>(record.payload[1]),
-                CopyValueBits<double>(record.payload[2]),
-                CopyValueBits<double>(record.payload[3])};
+                static_cast<float>(CopyValueBits<double>(record.payload[0])),
+                static_cast<float>(CopyValueBits<double>(record.payload[1])),
+                static_cast<float>(CopyValueBits<double>(record.payload[2])),
+                static_cast<float>(CopyValueBits<double>(record.payload[3]))};
             if (!std::isfinite(value.topLeft) ||
                 !std::isfinite(value.topRight) ||
                 !std::isfinite(value.bottomRight) ||
@@ -588,8 +588,8 @@ Base::Result<Meta::Value> DecodeCompiledValue(
         if (type == Meta::TypeOf<Base::Point>() &&
             requirePayloads(2U)) {
             const Base::Point value{
-                CopyValueBits<double>(record.payload[0]),
-                CopyValueBits<double>(record.payload[1])};
+                static_cast<float>(CopyValueBits<double>(record.payload[0])),
+                static_cast<float>(CopyValueBits<double>(record.payload[1]))};
             if (!::Aero::IsFinite(value)) break;
             return MakeStoredCustomValue(type, value);
         }
@@ -620,7 +620,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
             return MakeStoredCustomValue(
                 type,
                 ::Aero::GridLength{
-                    value,
+                    static_cast<float>(value),
                     static_cast<::Aero::GridUnitType>(
                         record.payload[1])});
         }

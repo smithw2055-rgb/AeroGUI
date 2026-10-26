@@ -1486,10 +1486,7 @@ void ComboBox::OnEditableTextChanged(
         return;
     }
     Base::String edited;
-    Base::Result<void> copied =
-        edited.Assign(
-            editableTextBox_->GetText());
-    if (!copied) {
+    if (!edited.Assign(editableTextBox_->GetText())) {
         return;
     }
     synchronizingEditableText_ = true;
@@ -1590,8 +1587,7 @@ void ComboBox::UpdateSelectionBox() noexcept {
     }
     Base::String value;
     if (!text.Empty()) {
-        Base::Result<void> assigned = value.Assign(text);
-        if (assigned) {
+        if (value.Assign(text)) {
             SetReadOnlyCurrentValue(SelectionBoxTextProperty, value);
         }
     } else {
@@ -2176,11 +2172,11 @@ Size TabPanel::MeasureOverride(
         if (linePrimary > 0.0 && limit < 1.0e11 &&
             linePrimary + primary > limit) {
             if (vertical) {
-                desired.width += lineCross;
-                desired.height = std::max(desired.height, linePrimary);
+                desired.width += static_cast<float>(lineCross);
+                desired.height = std::max(desired.height, static_cast<float>(linePrimary));
             } else {
-                desired.width = std::max(desired.width, linePrimary);
-                desired.height += lineCross;
+                desired.width = std::max(desired.width, static_cast<float>(linePrimary));
+                desired.height += static_cast<float>(lineCross);
             }
             linePrimary = 0.0;
             lineCross = 0.0;
@@ -2189,11 +2185,11 @@ Size TabPanel::MeasureOverride(
         lineCross = std::max(lineCross, cross);
     }
     if (vertical) {
-        desired.width += lineCross;
-        desired.height = std::max(desired.height, linePrimary);
+        desired.width += static_cast<float>(lineCross);
+        desired.height = std::max(desired.height, static_cast<float>(linePrimary));
     } else {
-        desired.width = std::max(desired.width, linePrimary);
-        desired.height += lineCross;
+        desired.width = std::max(desired.width, static_cast<float>(linePrimary));
+        desired.height += static_cast<float>(lineCross);
     }
     return desired;
 }

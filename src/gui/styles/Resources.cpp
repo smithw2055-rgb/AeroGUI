@@ -117,9 +117,7 @@ void NameScope::Register(
         return;
     }
     Entry entry;
-    Base::Result<void> assigned =
-        entry.name.Assign(name);
-    if (!assigned) {
+    if (!entry.name.Assign(name)) {
         return;
     }
     entry.object = &object;

@@ -29,6 +29,7 @@ public:
     }
     const void* Data() const noexcept { return value_; }
     void* MutableData() noexcept { return value_; }
+    const ValueTypeRegistration* Semantics() const noexcept { return semantics_; }
 private:
     void* value_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
@@ -149,10 +150,11 @@ Base::Result<Value> Value::TryFromCustom(
     Value result;
     result.type_ = type;
     result.kind_ = ValueKind::Custom;
-    result.semantics_ = semantics;
     if (registration.inlineSafe &&
+        registration.destroy == nullptr &&
         registration.size <= InlineCapacity &&
         registration.alignment <= alignof(std::max_align_t)) {
+        std::memset(result.storage_.inlineData, 0, InlineCapacity);
         std::memcpy(result.storage_.inlineData, source, registration.size);
         result.inlineCustom_ = true;
         return result;
@@ -287,13 +289,22 @@ bool Value::Equals(const Value& other) const noexcept {
     case ValueKind::DynamicResource: return AsDynamicResourceKey() == other.AsDynamicResourceKey();
     case ValueKind::Object: return storage_.storage.Get() == other.storage_.storage.Get();
     case ValueKind::Custom: {
-        if (!semantics_ || !other.semantics_) return false;
-        const ValueTypeRegistration& registration = *semantics_;
-        if (registration.equals != nullptr) {
-            return registration.equals(AsCustom(), other.AsCustom(), registration.context);
+        if (inlineCustom_ != other.inlineCustom_) return false;
+        if (inlineCustom_) {
+            return std::memcmp(storage_.inlineData, other.storage_.inlineData, InlineCapacity) == 0;
         }
-        return registration.inlineSafe &&
-            std::memcmp(AsCustom(), other.AsCustom(), registration.size) == 0;
+        const auto* leftStorage = static_cast<const CustomValueStorage*>(storage_.storage.Get());
+        const auto* rightStorage = static_cast<const CustomValueStorage*>(other.storage_.storage.Get());
+        if (leftStorage == rightStorage) return true;
+        if (leftStorage == nullptr || rightStorage == nullptr) return false;
+        const ValueTypeRegistration* semantics = leftStorage->Semantics();
+        if (semantics != nullptr && semantics->equals != nullptr) {
+            return semantics->equals(leftStorage->Data(), rightStorage->Data(), semantics->context);
+        }
+        if (semantics != nullptr) {
+            return std::memcmp(leftStorage->Data(), rightStorage->Data(), semantics->size) == 0;
+        }
+        return false;
     }
     }
     return false;

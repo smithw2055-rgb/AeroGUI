@@ -1729,9 +1729,8 @@ Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
         if (property.GetStatus().code == Base::ErrorCode::NotFound) {
-            Base::Result<void> pending = PendUntilDataContext(
+            PendUntilDataContext(
                 owner, names, nullptr, &trigger);
-            if (!pending) return pending.GetStatus();
             return false;
         }
         if (!property) return property.GetStatus();
@@ -1783,9 +1782,8 @@ Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
             ResolveInteractionTriggerProperty(
                 *trigger.GetBinding(), owner, names);
         if (property.GetStatus().code == Base::ErrorCode::NotFound) {
-            Base::Result<void> pending = PendUntilDataContext(
+            PendUntilDataContext(
                 owner, names, &trigger, nullptr);
-            if (!pending) return pending.GetStatus();
             return false;
         }
         if (!property) return property.GetStatus();
@@ -1988,7 +1986,7 @@ void InteractivityEngine::KeyTriggerState::Invoke(
     }
 }
 
-Base::Result<void> InteractivityEngine::PendUntilDataContext(
+void InteractivityEngine::PendUntilDataContext(
     Aero::FrameworkElement& owner,
     const Aero::NameScope* names,
     Aero::DataTrigger* dataTrigger,
@@ -1998,7 +1996,7 @@ Base::Result<void> InteractivityEngine::PendUntilDataContext(
         if (existing.owner == &owner &&
             existing.dataTrigger == dataTrigger &&
             existing.propertyTrigger == propertyTrigger) {
-            return {};
+            return;
         }
     }
     // Do not subscribe to DataContext here. Inherited DataContext
@@ -2011,7 +2009,6 @@ Base::Result<void> InteractivityEngine::PendUntilDataContext(
     pending.dataTrigger = dataTrigger;
     pending.propertyTrigger = propertyTrigger;
     pendingInteractionTriggers.PushBack(std::move(pending));
-    return {};
 }
 
 void InteractivityEngine::ClearPendingInteractionTriggers() noexcept {

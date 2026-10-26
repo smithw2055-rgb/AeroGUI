@@ -158,16 +158,16 @@ ImageBrushGeometry FitImageBrush(
             authoredViewbox.height / pixelHeight}
         : authoredViewbox;
     sourceUv = {
-        std::clamp(sourceUv.x, 0.0, 1.0),
-        std::clamp(sourceUv.y, 0.0, 1.0),
-        std::clamp(sourceUv.width, 0.0, 1.0),
-        std::clamp(sourceUv.height, 0.0, 1.0)};
+        std::clamp(sourceUv.x, 0.0f, 1.0f),
+        std::clamp(sourceUv.y, 0.0f, 1.0f),
+        std::clamp(sourceUv.width, 0.0f, 1.0f),
+        std::clamp(sourceUv.height, 0.0f, 1.0f)};
     sourceUv.width = std::min(
-        sourceUv.width, 1.0 - sourceUv.x);
+        sourceUv.width, 1.0f - sourceUv.x);
     sourceUv.height = std::min(
-        sourceUv.height, 1.0 - sourceUv.y);
-    if (sourceUv.width <= 0.0 ||
-        sourceUv.height <= 0.0) {
+        sourceUv.height, 1.0f - sourceUv.y);
+    if (sourceUv.width <= 0.0f ||
+        sourceUv.height <= 0.0f) {
         return;
     }
 
@@ -575,10 +575,10 @@ Size PointsExtent(
     if (points.Empty()) {
         return Size{stroke * 2.0, stroke * 2.0};
     }
-    double minX = points[0].x;
-    double minY = points[0].y;
-    double maxX = points[0].x;
-    double maxY = points[0].y;
+    float minX = points[0].x;
+    float minY = points[0].y;
+    float maxX = points[0].x;
+    float maxY = points[0].y;
     for (std::uint32_t index = 1U; index < points.Size(); ++index) {
         minX = std::min(minX, points[index].x);
         minY = std::min(minY, points[index].y);
@@ -586,8 +586,8 @@ Size PointsExtent(
         maxY = std::max(maxY, points[index].y);
     }
     return Size{
-        std::max(0.0, maxX - minX) + stroke * 2.0,
-        std::max(0.0, maxY - minY) + stroke * 2.0};
+        std::max(0.0f, maxX - minX) + static_cast<float>(stroke * 2.0),
+        std::max(0.0f, maxY - minY) + static_cast<float>(stroke * 2.0)};
 }
 
 void FillPointFan(
