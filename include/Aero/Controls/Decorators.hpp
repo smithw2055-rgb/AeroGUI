@@ -254,7 +254,7 @@ protected:
 private:
     Ref<MatrixTransform> viewTransform_;
     Ref<FrameworkElement> projectedChild_;
-    void ApplyViewTransform(double scaleX, double scaleY, double offsetX, double offsetY) noexcept;
+    void ApplyViewTransform(float scaleX, float scaleY, float offsetX, float offsetY) noexcept;
 };
 
 // ---------------- Separator ----------------

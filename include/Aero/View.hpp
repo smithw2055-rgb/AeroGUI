@@ -27,6 +27,8 @@ struct ViewFrame;
 namespace Markup {
 class XamlReader;
 class XamlDocument;
+class ReloadCoordinator;
+struct ReloadCoordinatorState;
 }
 
 // P4.3: read-only committed-frame identity for content-stability gates
@@ -54,6 +56,14 @@ public:
     View(const View&) = delete;
     View& operator=(const View&) = delete;
 
+    template<class T = FrameworkElement> Result<Ref<T>> LoadXaml(StringView uri) noexcept {
+        static_assert(std::is_base_of<Base::Object, T>::value, "View::LoadXaml<T> requires an Aero object type");
+        Result<Ref<Object>> loaded = LoadXamlRoot(uri, T::StaticTypeId());
+        if (!loaded) return loaded.GetStatus();
+        T* root = static_cast<T*>(loaded.Value().Get());
+        return Ref<T>::FromBorrowed(*root);
+    }
+
     bool SetContent(Markup::XamlDocument&& document, Aero::Size availableSize) noexcept;
     bool SetContent(Ref<FrameworkElement> root, Aero::Size availableSize) noexcept;
     // Transitional: prefers the current viewport size. New code calls
@@ -73,6 +83,7 @@ public:
     bool SetViewport(const ViewViewport& viewport) noexcept;
     void SetSize(Aero::Size availableSize) noexcept;
     void SetSize(std::uint32_t width, std::uint32_t height) noexcept;
+    Aero::Size GetSize() const noexcept;
     void SetScale(double scale) noexcept;
     // Advances this View to an absolute, monotonically increasing host time.
     // Frame failures are reported through ViewOptions::diagnostics; render
@@ -99,12 +110,15 @@ public:
 
 private:
     Result<void> Initialize(const ViewOptions& options) noexcept;
+    Result<Ref<Object>> LoadXamlRoot(StringView uri, Base::MetaTypeId expectedRoot) noexcept;
 
     friend class Gui;
     friend class ViewRenderer;
     friend struct ViewFrame;
     friend class Media::CompositionTarget;
     friend class Markup::XamlReader;
+    friend class Markup::ReloadCoordinator;
+    friend struct Markup::ReloadCoordinatorState;
     friend class App::DesktopHost;
     template<class T, class... Args> friend Ref<T> Base::MakeRefWithAllocator(Base::IAllocator&,
         Args&&...) noexcept;

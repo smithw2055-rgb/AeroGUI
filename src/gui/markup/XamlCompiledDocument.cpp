@@ -3,6 +3,7 @@
 #include "gui/markup/XamlBinaryCodec.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Media/Transform2D.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include <cmath>
 #include <cstring>
 #include <utility>
@@ -191,64 +192,135 @@ Base::Result<::Aero::Diagnostics::SourcePosition> ReadPosition(
         line.Value(), column.Value(), offset.Value()};
 }
 
-Base::Result<std::uint32_t> InternString(
-    Base::Vector<Base::String>& strings,
-    Base::StringView value) noexcept {
-    for (std::uint32_t index = 0U; index < strings.Size(); ++index) {
-        if (strings[index].View() == value) return index;
-    }
-    Base::String stored;
-    stored.Assign(value);
-    strings.PushBack(std::move(stored));
-    return strings.Size() - 1U;
-}
-
-Base::Result<std::uint32_t> InternId(
-    Base::Vector<std::uint64_t>& ids,
-    std::uint64_t value) noexcept {
-    if (value == 0U) return InvalidTableIndex;
-    for (std::uint32_t index = 0U; index < ids.Size(); ++index) {
-        if (ids[index] == value) return index;
-    }
-    ids.PushBack(value);
-    return ids.Size() - 1U;
-}
-
-Base::Result<std::uint32_t> FindInternedString(
-    const Base::Vector<Base::String>& strings,
-    Base::StringView value) noexcept {
-    for (std::uint32_t index = 0U;
-         index < strings.Size(); ++index) {
-        if (strings[index].View() == value) {
-            return index;
+struct AxbValueEqual {
+    bool operator()(const AxbValueRecord& a, const AxbValueRecord& b) const noexcept {
+        if (a.kind != b.kind || a.payloadCount != b.payloadCount || a.typeIndex != b.typeIndex) {
+            return false;
         }
+        for (std::uint8_t i = 0; i < a.payloadCount; ++i) {
+            if (a.payload[i] != b.payload[i]) return false;
+        }
+        return true;
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "AXB2 instruction string was not interned");
-}
+};
 
-Base::Result<std::uint32_t> FindInternedId(
-    const Base::Vector<std::uint64_t>& ids,
-    std::uint64_t value) noexcept {
-    if (value == 0U) return InvalidTableIndex;
-    for (std::uint32_t index = 0U;
-         index < ids.Size(); ++index) {
-        if (ids[index] == value) return index;
+struct AxbValueHash {
+    Base::HashCode operator()(const AxbValueRecord& v, Base::HashCode seed = 0U) const noexcept {
+        Base::HashCode h = Base::MixHash64(static_cast<Base::HashCode>(v.kind) ^ seed);
+        h = Base::MixHash64(h ^ static_cast<Base::HashCode>(v.payloadCount));
+        h = Base::MixHash64(h ^ static_cast<Base::HashCode>(v.typeIndex));
+        for (std::uint8_t i = 0; i < v.payloadCount; ++i) {
+            h = Base::MixHash64(h ^ v.payload[i]);
+        }
+        return h;
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::InvalidState,
-        "AXB2 instruction id was not interned");
-}
+};
+
+struct SerializeInterner {
+    explicit SerializeInterner(
+        Base::Vector<Base::String>& stringsRef,
+        Base::Vector<std::uint64_t>& typesRef,
+        Base::Vector<std::uint64_t>& membersRef,
+        Base::Vector<AxbValueRecord>& valuesRef) noexcept
+        : strings(stringsRef),
+          types(typesRef),
+          members(membersRef),
+          values(valuesRef) {}
+
+    Base::Vector<Base::String>& strings;
+    Base::Vector<std::uint64_t>& types;
+    Base::Vector<std::uint64_t>& members;
+    Base::Vector<AxbValueRecord>& values;
+
+    Base::HashMap<Base::String, std::uint32_t> stringMap;
+    Base::HashMap<std::uint64_t, std::uint32_t> typeMap;
+    Base::HashMap<std::uint64_t, std::uint32_t> memberMap;
+    Base::HashMap<AxbValueRecord, std::uint32_t, AxbValueHash, AxbValueEqual> valueMap;
+
+    Base::Result<std::uint32_t> InternString(Base::StringView value) noexcept {
+        Base::String s;
+        s.Assign(value);
+        if (const std::uint32_t* found = stringMap.Find(s)) {
+            return *found;
+        }
+        const std::uint32_t index = strings.Size();
+        Base::String copy = s;
+        strings.PushBack(std::move(copy));
+        stringMap.Insert(std::move(s), index);
+        return index;
+    }
+
+    Base::Result<std::uint32_t> InternType(std::uint64_t id) noexcept {
+        if (id == 0U || id == Meta::InvalidTypeId) return InvalidTableIndex;
+        if (const std::uint32_t* found = typeMap.Find(id)) {
+            return *found;
+        }
+        const std::uint32_t index = types.Size();
+        types.PushBack(id);
+        typeMap.Insert(id, index);
+        return index;
+    }
+
+    Base::Result<std::uint32_t> InternMember(std::uint64_t id) noexcept {
+        if (id == 0U || id == Meta::InvalidMemberId) return InvalidTableIndex;
+        if (const std::uint32_t* found = memberMap.Find(id)) {
+            return *found;
+        }
+        const std::uint32_t index = members.Size();
+        members.PushBack(id);
+        memberMap.Insert(id, index);
+        return index;
+    }
+
+    Base::Result<std::uint32_t> InternValue(const AxbValueRecord& record) noexcept {
+        if (const std::uint32_t* found = valueMap.Find(record)) {
+            return *found;
+        }
+        const std::uint32_t index = values.Size();
+        values.PushBack(record);
+        valueMap.Insert(record, index);
+        return index;
+    }
+
+    Base::Result<std::uint32_t> FindString(Base::StringView value) const noexcept {
+        Base::String s;
+        s.Assign(value);
+        if (const std::uint32_t* found = stringMap.Find(s)) {
+            return *found;
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AXB2 instruction string was not interned");
+    }
+
+    Base::Result<std::uint32_t> FindType(std::uint64_t id) const noexcept {
+        if (id == 0U || id == Meta::InvalidTypeId) return InvalidTableIndex;
+        if (const std::uint32_t* found = typeMap.Find(id)) {
+            return *found;
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AXB2 instruction type id was not interned");
+    }
+
+    Base::Result<std::uint32_t> FindMember(std::uint64_t id) const noexcept {
+        if (id == 0U || id == Meta::InvalidMemberId) return InvalidTableIndex;
+        if (const std::uint32_t* found = memberMap.Find(id)) {
+            return *found;
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "AXB2 instruction member id was not interned");
+    }
+};
 
 Base::Result<AxbValueRecord> MakeAxbValueRecord(
     const Node& node,
-    Base::Vector<Base::String>& strings,
-    Base::Vector<std::uint64_t>& types) noexcept {
+    SerializeInterner& interner) noexcept {
     const auto makeText = [&]() noexcept
         -> Base::Result<AxbValueRecord> {
         Base::Result<std::uint32_t> stringIndex =
-            InternString(strings, node.Value());
+            interner.InternString(node.Value());
         if (!stringIndex) return stringIndex.GetStatus();
         AxbValueRecord record;
         record.kind = AxbValueKind::Text;
@@ -260,7 +332,7 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
     if (!node.HasCompiledValue()) return makeText();
     const Meta::Value& value = node.CompiledValue();
     Base::Result<std::uint32_t> typeIndex =
-        InternId(types, value.Type());
+        interner.InternType(value.Type());
     if (!typeIndex ||
         typeIndex.Value() == InvalidTableIndex) {
         return typeIndex
@@ -305,7 +377,7 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
         record.kind = AxbValueKind::String;
         record.payloadCount = 1U;
         Base::Result<std::uint32_t> stringIndex =
-            InternString(strings, value.AsString());
+            interner.InternString(value.AsString());
         if (!stringIndex) return stringIndex.GetStatus();
         record.payload[0] = stringIndex.Value();
         return record;
@@ -332,19 +404,13 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
                 Meta::ValueCodec<Base::Thickness>::
                     Decode(value);
             if (!decoded) return makeText();
-            record.payloadCount = 4U;
-            record.payload[0] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().left));
-            record.payload[1] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().top));
-            record.payload[2] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().right));
-            record.payload[3] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().bottom));
+            record.payloadCount = 2U;
+            record.payload[0] = PackFloatPair(
+                decoded.Value().left,
+                decoded.Value().top);
+            record.payload[1] = PackFloatPair(
+                decoded.Value().right,
+                decoded.Value().bottom);
             return record;
         }
         if (value.Type() ==
@@ -353,19 +419,13 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
                 Meta::ValueCodec<Base::CornerRadius>::
                     Decode(value);
             if (!decoded) return makeText();
-            record.payloadCount = 4U;
-            record.payload[0] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().topLeft));
-            record.payload[1] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().topRight));
-            record.payload[2] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().bottomRight));
-            record.payload[3] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().bottomLeft));
+            record.payloadCount = 2U;
+            record.payload[0] = PackFloatPair(
+                decoded.Value().topLeft,
+                decoded.Value().topRight);
+            record.payload[1] = PackFloatPair(
+                decoded.Value().bottomRight,
+                decoded.Value().bottomLeft);
             return record;
         }
         if (value.Type() ==
@@ -389,13 +449,10 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
                 Meta::ValueCodec<Base::Point>::
                     Decode(value);
             if (!decoded) return makeText();
-            record.payloadCount = 2U;
-            record.payload[0] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().x));
-            record.payload[1] =
-                CopyValueBits<std::uint64_t>(
-                    static_cast<double>(decoded.Value().y));
+            record.payloadCount = 1U;
+            record.payload[0] = PackFloatPair(
+                decoded.Value().x,
+                decoded.Value().y);
             return record;
         }
         if (value.Type() ==
@@ -447,31 +504,6 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
         return makeText();
     }
     return makeText();
-}
-
-Base::Result<std::uint32_t> InternAxbValue(
-    Base::Vector<AxbValueRecord>& values,
-    const AxbValueRecord& value) noexcept {
-    for (std::uint32_t index = 0U;
-         index < values.Size(); ++index) {
-        const AxbValueRecord& current = values[index];
-        if (current.kind != value.kind ||
-            current.payloadCount != value.payloadCount ||
-            current.typeIndex != value.typeIndex) {
-            continue;
-        }
-        bool equal = true;
-        for (std::uint32_t payloadIndex = 0U;
-             payloadIndex < value.payloadCount;
-             ++payloadIndex) {
-            equal = equal &&
-                current.payload[payloadIndex] ==
-                    value.payload[payloadIndex];
-        }
-        if (equal) return index;
-    }
-    values.PushBack(value);
-    return values.Size() - 1U;
 }
 
 Base::Result<Meta::Value> DecodeCompiledValue(
@@ -545,22 +577,22 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                     : ::Aero::Length::Pixels(value));
         }
         if (type == Meta::TypeOf<Base::Thickness>() &&
-            requirePayloads(4U)) {
+            requirePayloads(2U)) {
             const Base::Thickness value{
-                static_cast<float>(CopyValueBits<double>(record.payload[0])),
-                static_cast<float>(CopyValueBits<double>(record.payload[1])),
-                static_cast<float>(CopyValueBits<double>(record.payload[2])),
-                static_cast<float>(CopyValueBits<double>(record.payload[3]))};
+                UnpackFloat(record.payload[0], false),
+                UnpackFloat(record.payload[0], true),
+                UnpackFloat(record.payload[1], false),
+                UnpackFloat(record.payload[1], true)};
             if (!::Aero::IsFinite(value)) break;
             return MakeStoredCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::CornerRadius>() &&
-            requirePayloads(4U)) {
+            requirePayloads(2U)) {
             const Base::CornerRadius value{
-                static_cast<float>(CopyValueBits<double>(record.payload[0])),
-                static_cast<float>(CopyValueBits<double>(record.payload[1])),
-                static_cast<float>(CopyValueBits<double>(record.payload[2])),
-                static_cast<float>(CopyValueBits<double>(record.payload[3]))};
+                UnpackFloat(record.payload[0], false),
+                UnpackFloat(record.payload[0], true),
+                UnpackFloat(record.payload[1], false),
+                UnpackFloat(record.payload[1], true)};
             if (!std::isfinite(value.topLeft) ||
                 !std::isfinite(value.topRight) ||
                 !std::isfinite(value.bottomRight) ||
@@ -586,10 +618,10 @@ Base::Result<Meta::Value> DecodeCompiledValue(
             return MakeStoredCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::Point>() &&
-            requirePayloads(2U)) {
+            requirePayloads(1U)) {
             const Base::Point value{
-                static_cast<float>(CopyValueBits<double>(record.payload[0])),
-                static_cast<float>(CopyValueBits<double>(record.payload[1]))};
+                UnpackFloat(record.payload[0], false),
+                UnpackFloat(record.payload[0], true)};
             if (!::Aero::IsFinite(value)) break;
             return MakeStoredCustomValue(type, value);
         }
@@ -829,6 +861,22 @@ CompiledDocument::Compile(
 }
 
 Base::Result<CompiledDocument>
+CompiledDocument::Clone() const noexcept {
+    CompiledDocument document;
+    document.identity_ = identity_;
+    document.originUri_ = originUri_;
+    document.dependencies_ = dependencies_;
+    document.bytecodeProgram_ = bytecodeProgram_;
+    document.nodes_.Reserve(nodes_.Size());
+    for (const Node& node : nodes_) {
+        Base::Result<Node> cloned = Node::Clone(node);
+        if (!cloned) return cloned.GetStatus();
+        document.nodes_.PushBack(std::move(cloned).Value());
+    }
+    return document;
+}
+
+Base::Result<CompiledDocument>
 CompiledDocument::Compile(
     Base::Span<const Node> nodes,
     const Schema& schema,
@@ -897,19 +945,19 @@ CompiledDocument::Serialize(
     Base::Vector<AxbValueRecord> values;
     Base::Vector<std::uint32_t> nodeValueIndices;
 
-    Base::Result<std::uint32_t> originString = InternString(
-        strings, originUri_.Canonical());
+    SerializeInterner interner(strings, types, members, values);
+
+    Base::Result<std::uint32_t> originString = interner.InternString(
+        originUri_.Canonical());
     if (!originString) return originString.GetStatus();
     for (const Base::ResourceUri& dependency : dependencies_) {
-        Base::Result<std::uint32_t> index = InternString(
-            strings, dependency.Canonical());
+        Base::Result<std::uint32_t> index = interner.InternString(
+            dependency.Canonical());
         if (!index) return index.GetStatus();
     }
     nodeValueIndices.Reserve(nodes_.Size());
 
-    size_t nodeIdx = 0;
     for (const Node& node : nodes_) {
-        ++nodeIdx;
         if (NeedsInstructionQualifiedName(node)) {
             const Base::StringView qualifiedName[] = {
                 node.name_.prefix_.View(),
@@ -917,19 +965,17 @@ CompiledDocument::Serialize(
                 node.name_.namespaceUri_.View()};
             for (Base::StringView value : qualifiedName) {
                 Base::Result<std::uint32_t> index =
-                    InternString(strings, value);
+                    interner.InternString(value);
                 if (!index) return index.GetStatus();
             }
         }
         if (node.kind_ == NodeKind::NamespaceDeclaration) {
             Base::Result<std::uint32_t> prefix =
-                InternString(
-                    strings,
+                interner.InternString(
                     node.namespacePrefix_.View());
             if (!prefix) return prefix.GetStatus();
             Base::Result<std::uint32_t> uri =
-                InternString(
-                    strings,
+                interner.InternString(
                     node.namespaceUri_.View());
             if (!uri) return uri.GetStatus();
         }
@@ -937,20 +983,20 @@ CompiledDocument::Serialize(
         std::uint32_t valueIndex = InvalidTableIndex;
         if (node.kind_ == NodeKind::Value) {
             Base::Result<AxbValueRecord> record =
-                MakeAxbValueRecord(node, strings, types);
+                MakeAxbValueRecord(node, interner);
             if (!record) return record.GetStatus();
             Base::Result<std::uint32_t> interned =
-                InternAxbValue(values, record.Value());
+                interner.InternValue(record.Value());
             if (!interned) return interned.GetStatus();
             valueIndex = interned.Value();
         }
         nodeValueIndices.PushBack(valueIndex);
 
-        Base::Result<std::uint32_t> typeIndex = InternId(
-            types, node.compiledTypeId_);
+        Base::Result<std::uint32_t> typeIndex = interner.InternType(
+            node.compiledTypeId_);
         if (!typeIndex) return typeIndex.GetStatus();
-        Base::Result<std::uint32_t> memberIndex = InternId(
-            members, node.compiledMemberId_);
+        Base::Result<std::uint32_t> memberIndex = interner.InternMember(
+            node.compiledMemberId_);
         if (!memberIndex) return memberIndex.GetStatus();
     }
 
@@ -974,8 +1020,8 @@ CompiledDocument::Serialize(
     result = AppendU32(dependencyBytes, dependencies_.Size());
     if (!result) return result.GetStatus();
     for (const Base::ResourceUri& dependency : dependencies_) {
-        Base::Result<std::uint32_t> index = InternString(
-            strings, dependency.Canonical());
+        Base::Result<std::uint32_t> index = interner.FindString(
+            dependency.Canonical());
         if (!index) return index.GetStatus();
         result = AppendU32(dependencyBytes, index.Value());
         if (!result) return result.GetStatus();
@@ -1062,12 +1108,10 @@ CompiledDocument::Serialize(
          nodeIndex < nodes_.Size(); ++nodeIndex) {
         const Node& node = nodes_[nodeIndex];
         Base::Result<std::uint32_t> typeIndex =
-            FindInternedId(
-                types, node.compiledTypeId_);
+            interner.FindType(node.compiledTypeId_);
         if (!typeIndex) return typeIndex.GetStatus();
         Base::Result<std::uint32_t> memberIndex =
-            FindInternedId(
-                members, node.compiledMemberId_);
+            interner.FindMember(node.compiledMemberId_);
         if (!memberIndex) return memberIndex.GetStatus();
         const std::uint32_t valueIndex =
             nodeValueIndices[nodeIndex];
@@ -1144,8 +1188,7 @@ CompiledDocument::Serialize(
             for (Base::StringView value :
                  qualifiedName) {
                 Base::Result<std::uint32_t> index =
-                    FindInternedString(
-                        strings, value);
+                    interner.FindString(value);
                 if (!index) return index.GetStatus();
                 result = AppendVarU32(
                     instructionBytes,
@@ -1157,13 +1200,11 @@ CompiledDocument::Serialize(
         }
         if (hasNamespace) {
             Base::Result<std::uint32_t> prefix =
-                FindInternedString(
-                    strings,
+                interner.FindString(
                     node.namespacePrefix_.View());
             if (!prefix) return prefix.GetStatus();
             Base::Result<std::uint32_t> uri =
-                FindInternedString(
-                    strings,
+                interner.FindString(
                     node.namespaceUri_.View());
             if (!uri) return uri.GetStatus();
             result = AppendVarU32(

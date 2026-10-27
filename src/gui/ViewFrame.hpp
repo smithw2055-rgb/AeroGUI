@@ -47,6 +47,10 @@ namespace Aero::Threading {
 class Dispatcher;
 }
 
+namespace Aero::Markup {
+class ReloadCoordinator;
+}
+
 namespace Aero {
 
 namespace MediaAnimation = ::Aero::Media::Animation;
@@ -257,6 +261,7 @@ struct ViewFrame {
     bool deferGeneratedActivation = false;
 
     Markup::LoaderResult loadedDocument;
+    Markup::ReloadCoordinator* reloadCoordinator = nullptr;
     Base::Vector<FragmentMount*> fragmentMounts;
     Base::Vector<FragmentMount*> componentMounts;
     const Aero::NameScope* activeFragmentNames = nullptr;

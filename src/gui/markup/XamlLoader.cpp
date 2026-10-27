@@ -220,7 +220,7 @@ Base::Result<void> ResourceExtension::Register(
             true,
             &AddResource,
             &ResolveDictionaryScope,
-            this});
+            nullptr});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
@@ -230,7 +230,7 @@ Base::Result<void> ResourceExtension::Register(
         true,
         &AddFrameworkResource,
         &ResolveFrameworkScope,
-        this});
+        nullptr});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
@@ -239,7 +239,7 @@ Base::Result<void> ResourceExtension::Register(
         FrameworkElement::StaticTypeId(),
         false,
         &RegisterFrameworkName,
-        this});
+        nullptr});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();
@@ -248,7 +248,7 @@ Base::Result<void> ResourceExtension::Register(
         ::Aero::Controls::UserControl::StaticTypeId(),
         true,
         &RegisterFrameworkName,
-        this});
+        nullptr});
     if (!status) {
         schema_ = nullptr;
         return status.GetStatus();

@@ -43,8 +43,8 @@ enum class XamlOpCode : std::uint8_t {
     Nop = 0,
     CreateObject,               // [slot: u16, typeId: u64]
     SetPropertyValue,           // [slot: u16, propertyHandle: u64, valueIndex: u32]
-    SetPropertyObject,          // [slot: u16, propertyHandle: u64, sourceSlot: u16]
-    SetPropertyContent,         // [parentSlot: u16, memberId: u64, childSlot: u16, isPropertyEdge: u8]
+    SetPropertyObject,          // [slot: u16, propertyHandle: u64, valueType: u64, sourceSlot: u16]
+    SetPropertyContent,         // [parentSlot: u16, memberId: u64, childSlot: u16, valueType: u64, isPropertyEdge: u8]
     SetRootVisual,              // [slot: u16, nameIndex: u32]
     AddVisualChild,             // [parentSlot: u16, childSlot: u16, nameIndex: u32]
     AddObjectPart,              // [slot: u16, nameIndex: u32]
@@ -57,10 +57,7 @@ enum class XamlOpCode : std::uint8_t {
     AttachBehaviorsAndTriggers, // [slot: u16, itemStart: u32, behaviorCount: u16, triggerCount: u16]
     AdoptOrCreateRoot = 15,     // [slot: u16, typeId: u64]
     RegisterDocumentName = 16,  // [slot: u16, nameIndex: u32]
-    SetDirectPropertyValue = 17,// [slot: u16, propertyHandle: u64, valueIndex: u32]
-    SetDirectPropertyObject = 18,// [slot: u16, propertyHandle: u64, valueType: u64, sourceSlot: u16]
-    AttachChildElement = 19,    // [parentSlot: u16, childSlot: u16, memberId: u64, valueType: u64]
-    ConnectEventHandler = 20,   // [slot: u16, eventMemberId: u64, handlerNameIndex: u32]
+    ConnectEventHandler = 17,   // [slot: u16, eventMemberId: u64, handlerNameIndex: u32]
     End = 0xFF
 };
 
@@ -79,8 +76,8 @@ struct XamlBytecodeProgram {
 
     // Associated template plans (triggers, bindings, states)
     Base::Vector<TemplatePrototypeBinding> blueprintBindings;
-    Base::Vector<Base::Ref<Aero::TriggerBase>> dataTemplateTriggers;
-    Base::Vector<Base::Ref<Aero::TriggerBase>> controlTemplateDataTriggers;
+    Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
+    Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
     Base::Vector<Base::Ref<Media::Animation::EventTrigger>> controlTemplateEventTriggers;
     std::uint32_t contentPresenterSlot = UINT32_MAX;
 
@@ -314,32 +311,6 @@ public:
         static_cast<void>(AppendU32(instructions_, nameIndex));
     }
 
-    void EmitSetDirectPropertyValue(
-        std::uint16_t slot,
-        Meta::DependencyPropertyHandle property,
-        const Meta::Value& value) noexcept {
-        EmitSetPropertyValue(slot, property, value);
-    }
-
-    void EmitSetDirectPropertyObject(
-        std::uint16_t slot,
-        Meta::DependencyPropertyHandle property,
-        Meta::TypeId valueType,
-        std::uint16_t sourceSlot) noexcept {
-        EmitSetPropertyObject(slot, property, valueType, sourceSlot);
-    }
-
-    void EmitAttachChildElement(
-        std::uint16_t parentSlot,
-        std::uint16_t childSlot,
-        Meta::MemberId memberId,
-        Meta::TypeId valueType) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::AttachChildElement)));
-        static_cast<void>(AppendU16(instructions_, parentSlot));
-        static_cast<void>(AppendU16(instructions_, childSlot));
-        static_cast<void>(AppendU64(instructions_, memberId));
-        static_cast<void>(AppendU64(instructions_, valueType));
-    }
 
     void EmitConnectEventHandler(
         std::uint16_t slot,
@@ -726,8 +697,7 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::SetPropertyValue:
-        case XamlOpCode::SetDirectPropertyValue: {
+        case XamlOpCode::SetPropertyValue: {
             if (!reader.HasBytes(2 + 8 + 4)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyValue");
             }
@@ -741,7 +711,7 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetPropertyValue");
             }
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr && opcode != XamlOpCode::SetDirectPropertyValue) {
+                if (context.templateBuilder != nullptr) {
                     depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
                 } else {
                     depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
@@ -752,8 +722,7 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::SetPropertyObject:
-        case XamlOpCode::SetDirectPropertyObject: {
+        case XamlOpCode::SetPropertyObject: {
             if (!reader.HasBytes(2 + 8 + 8 + 2)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyObject");
             }
@@ -766,7 +735,7 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyObject");
             }
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr && opcode != XamlOpCode::SetDirectPropertyObject) {
+                if (context.templateBuilder != nullptr) {
                     depObj->SetTemplateValue(
                         Meta::DependencyPropertyHandle{propHandle},
                         Meta::Value::FromObject(valueType, outObjects[srcSlot]));
@@ -792,46 +761,25 @@ inline Base::Result<void> XamlVM::Execute(
             const std::uint64_t valueType = reader.ReadU64();
             const std::uint8_t isPropertyEdge = reader.ReadU8();
             if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
-                !outObjects[parentSlot] || !outObjects[childSlot] || memberId == Meta::InvalidMemberId) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyContent");
-            }
-            if (runtime == nullptr) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in SetPropertyContent");
-            }
-            Base::Result<void> content = (isPropertyEdge != 0U)
-                ? runtime->SetProperty(
-                    *outObjects[parentSlot],
-                    memberId,
-                    Meta::Value::FromObject(valueType, outObjects[childSlot]))
-                : runtime->WriteContent(
-                    *outObjects[parentSlot],
-                    memberId,
-                    outObjects[childSlot]);
-            if (!content) return content.GetStatus();
-            break;
-        }
-
-        case XamlOpCode::AttachChildElement: {
-            if (!reader.HasBytes(2 + 2 + 8 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AttachChildElement");
-            }
-            const std::uint16_t parentSlot = reader.ReadU16();
-            const std::uint16_t childSlot = reader.ReadU16();
-            const std::uint64_t memberId = reader.ReadU64();
-            const std::uint64_t valueType = reader.ReadU64();
-            if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
                 !outObjects[parentSlot] || !outObjects[childSlot]) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AttachChildElement");
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyContent");
             }
             Base::Object* parent = outObjects[parentSlot].Get();
             Base::Ref<Base::Object> child = outObjects[childSlot];
-            if (memberId != Meta::InvalidMemberId && runtime != nullptr) {
-                Base::Result<void> res = runtime->WriteContent(*parent, memberId, child);
-                if (!res) {
-                    res = runtime->SetProperty(
-                        *parent, memberId, Meta::Value::FromObject(valueType, child));
+            if (memberId != Meta::InvalidMemberId) {
+                if (runtime == nullptr) {
+                    return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in SetPropertyContent");
                 }
-                if (!res) return res.GetStatus();
+                Base::Result<void> content = (isPropertyEdge != 0U)
+                    ? runtime->SetProperty(
+                        *parent,
+                        memberId,
+                        Meta::Value::FromObject(valueType, child))
+                    : runtime->WriteContent(
+                        *parent,
+                        memberId,
+                        child);
+                if (!content) return content.GetStatus();
             } else {
                 if (auto* panel = ::Aero::TryCast<Controls::Panel>(parent)) {
                     if (auto* uiChild = ::Aero::TryCast<UIElement>(child.Get())) {
@@ -1387,11 +1335,12 @@ inline Base::Result<void> CompileDocumentToBytecode(
                         finished.typeId,
                         finished.slot);
                 } else {
-                    builder.EmitAttachChildElement(
+                    builder.EmitSetPropertyContent(
                         parent.slot,
-                        finished.slot,
                         Meta::InvalidMemberId,
-                        finished.typeId);
+                        finished.slot,
+                        finished.typeId,
+                        false);
                 }
             }
             break;
@@ -1416,26 +1365,27 @@ inline Base::Result<void> CompileDocumentToBytecode(
     return {};
 }
 
-inline Base::Result<void> EnsureDocumentBytecode(
+inline Base::Result<const XamlBytecodeProgram*> EnsureDocumentBytecode(
     const CompiledDocument& document,
-    const Schema& schema,
-    XamlBytecodeProgram& outProgram) noexcept {
+    const Schema& schema) noexcept {
     if (auto cached = document.BytecodeProgram()) {
         if (auto* container = ::Aero::TryCast<XamlBytecodeContainer>(cached.Get())) {
-            outProgram = container->program;
-            return {};
+            return &container->program;
         }
     }
+    auto container = Base::MakeRef<XamlBytecodeContainer>();
+    if (!container) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Allocation failed for XamlBytecodeContainer");
+    }
     Base::Result<void> compiled = CompileDocumentToBytecode(
-        document, schema, outProgram);
+        document, schema, container->program);
     if (!compiled) return compiled.GetStatus();
 
-    auto container = Base::MakeRef<XamlBytecodeContainer>();
-    if (container) {
-        container->program = outProgram;
-        document.SetBytecodeProgram(std::move(container));
-    }
-    return {};
+    const XamlBytecodeProgram* programPtr = &container->program;
+    document.SetBytecodeProgram(std::move(container));
+    return programPtr;
 }
 
 } // namespace Aero::Markup

@@ -447,6 +447,8 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     const std::uint32_t newIndex = bindings_.Size();
     bindings_.PushBack(std::move(record));
     static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
+    AddTargetBinding(descriptor.target, bindings_.Back().handle);
+    AddSourceBinding(descriptor.source, bindings_.Back().handle);
     descriptor.source->AddValueChangedHandler(
         descriptor.sourceProperty, propertyChangedHandler_);
     descriptor.target->AddValueChangedHandler(
@@ -646,6 +648,13 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     bindings_.PushBack(std::move(record));
     BindingRecord& stored = bindings_.Back();
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
+    AddTargetBinding(stored.descriptor.target, stored.handle);
+    if (stored.sourceKind == BindingSourceKind::DataContext) {
+        AddSourceBinding(stored.dataContextOwner, stored.handle);
+        AddDataContextBinding(stored.handle);
+    } else if (stored.metadataSource != nullptr) {
+        AddSourceBinding(stored.metadataSource, stored.handle);
+    }
     descriptor.target->AddValueChangedHandler(
         descriptor.targetProperty, propertyChangedHandler_);
     if (stored.sourceKind == BindingSourceKind::DataContext) {

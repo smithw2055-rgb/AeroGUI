@@ -25,11 +25,14 @@
 #include <Aero/Data/MultiBinding.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Layout.hpp>
+#include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 
 #include <cstdint>
 
 
+
+#include "gui/core/ValueConversion.hpp"
 
 namespace Aero::Controls {
 class ControlTemplate;
@@ -39,19 +42,7 @@ namespace Aero::Markup {
 
 
 inline Base::StringView TrimAscii(Base::StringView value) noexcept {
-    std::uint32_t first = 0U;
-    std::uint32_t last = value.SizeBytes();
-    while (first < last &&
-           (value[first] == ' ' || value[first] == '\t' ||
-            value[first] == '\r' || value[first] == '\n')) {
-        ++first;
-    }
-    while (last > first &&
-           (value[last - 1U] == ' ' || value[last - 1U] == '\t' ||
-            value[last - 1U] == '\r' || value[last - 1U] == '\n')) {
-        --last;
-    }
-    return value.Substr(first, last - first);
+    return ::Aero::Base::ValueConversion::Trim(value);
 }
 
 
@@ -409,6 +400,44 @@ Base::Result<void> CaptureControlTemplateChildName(
 Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
     const Meta::PropertyValue& value,
     const Meta::DependencyProperty& property) noexcept;
+Base::Result<void> RegisterBuiltinMarkupExtensions(
+    Schema& schema) noexcept;
+
+inline MarkupExtensionContext MakeMarkupExtensionContext(
+    const ExtensionServices& services) noexcept {
+    auto typeResolver = [](void* ctx, Base::StringView name) noexcept -> Base::Result<const Meta::TypeInfo*> {
+        const auto* s = static_cast<const ExtensionServices*>(ctx);
+        if (s == nullptr || s->schema == nullptr || name.Empty()) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState, "ExtensionServices is null or name is empty");
+        }
+        std::uint32_t colon = name.SizeBytes();
+        for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
+            if (name[index] != ':') continue;
+            if (colon != name.SizeBytes()) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference contains multiple namespace prefixes");
+            }
+            colon = index;
+        }
+        Base::StringView prefix;
+        Base::StringView localName = name;
+        if (colon != name.SizeBytes()) {
+            if (colon == 0U || colon + 1U >= name.SizeBytes()) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference namespace prefix is malformed");
+            }
+            prefix = name.Substr(0U, colon);
+            localName = name.Substr(colon + 1U, name.SizeBytes() - colon - 1U);
+        }
+        Base::Result<Base::StringView> uri = s->namespaces.Lookup(prefix);
+        if (!uri) return uri.GetStatus();
+        return s->schema->ResolveType(uri.Value(), localName);
+    };
+    return MarkupExtensionContext(
+        services.targetObject,
+        services.targetMember,
+        services.baseUri,
+        const_cast<ExtensionServices*>(&services),
+        typeResolver);
+}
 
 } // namespace Aero::Markup
 

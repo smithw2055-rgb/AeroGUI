@@ -7,6 +7,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/templates/TemplateInstance.hpp"
+#include "gui/markup/XamlBytecode.hpp"
 #include <cstdio>
 
 // ===== TemplateSupport =====
@@ -60,9 +61,8 @@ bool TemplateHasTypeFlag(
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-template <typename TTemplate>
 inline void ApplyTemplateBaseUriIfEmpty(
-    TTemplate& tpl, const Base::ResourceUri* uri) noexcept {
+    FrameworkTemplate& tpl, const Base::ResourceUri* uri) noexcept {
     if (uri != nullptr && ::Aero::Controls::FrameworkTemplateState::BaseUri(tpl).Empty()) {
         ::Aero::Controls::FrameworkTemplateState::SetBaseUri(tpl, *uri);
     }
@@ -71,20 +71,8 @@ inline void ApplyTemplateBaseUriIfEmpty(
 Aero::ResourceDictionary* ResolveTemplateResources(
     Base::Object& object,
     void*) noexcept {
-    if (object.RuntimeType() ==
-            ControlTemplate::StaticTypeId()) {
-        return &static_cast<ControlTemplate&>(
-            object).GetResources();
-    }
-    if (object.RuntimeType() ==
-            DataTemplate::StaticTypeId()) {
-        return &static_cast<DataTemplate&>(
-            object).GetResources();
-    }
-    if (object.RuntimeType() ==
-            ItemsPanelTemplate::StaticTypeId()) {
-        return &static_cast<ItemsPanelTemplate&>(
-            object).GetResources();
+    if (auto* tpl = TryCast<FrameworkTemplate>(&object)) {
+        return &tpl->GetResources();
     }
     return nullptr;
 }
@@ -94,12 +82,8 @@ ResolveTemplateImplicitKey(
     const Base::Object& object,
     void*) noexcept {
     Meta::TypeId key = Meta::InvalidTypeId;
-    if (object.RuntimeType() == ControlTemplate::StaticTypeId()) {
-        key = static_cast<const ControlTemplate&>(object).GetTargetType();
-    } else if (const DataTemplate* dataTemplate =
-                   TryCast<DataTemplate>(
-                       const_cast<Base::Object*>(&object))) {
-        key = dataTemplate->GetDataType();
+    if (const auto* tpl = TryCast<FrameworkTemplate>(&object)) {
+        key = tpl->GetTargetType();
     }
     if (key == Meta::InvalidTypeId) {
         return Base::Status::Failure(
@@ -153,14 +137,7 @@ struct XamlTemplateSchemaFacet::State {
                 isDataTemplateFamily ||
                 isItemsPanelTemplate) {
                 const bool sealed =
-                    isControlTemplate
-                    ? static_cast<const ControlTemplate&>(object)
-                          .GetIsSealed()
-                    : isDataTemplateFamily
-                          ? static_cast<const DataTemplate&>(object)
-                                .GetIsSealed()
-                          : static_cast<const ItemsPanelTemplate&>(object)
-                                .GetIsSealed();
+                    static_cast<const FrameworkTemplate&>(object).GetIsSealed();
                 if (sealed) {
                     return {};
                 }
@@ -173,11 +150,7 @@ struct XamlTemplateSchemaFacet::State {
         }
         if (isControlTemplate || isDataTemplateFamily) {
             const Meta::TypeId targetType =
-                isControlTemplate
-                ? static_cast<ControlTemplate&>(object)
-                      .GetTargetType()
-                : static_cast<DataTemplate&>(object)
-                      .GetDataType();
+                static_cast<const FrameworkTemplate&>(object).GetTargetType();
             // A keyed WPF ControlTemplate may deliberately omit TargetType.
             // Its target is inferred from the Style/Setter that consumes it,
             // so only validate an explicitly authored type here. The apply
@@ -275,19 +248,35 @@ struct XamlTemplateSchemaFacet::State {
             if (!compiled) {
                 return compiled.GetStatus();
             }
+            auto& templateObj = static_cast<FrameworkTemplate&>(object);
             if (isDataTemplateFamily) {
-                auto& dataTemplate =
-                    static_cast<DataTemplate&>(object);
+                auto authoredTriggers =
+                    ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(templateObj);
                 compiled.Value().
-                        dataTemplateTriggers.Reserve(
-                            ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate).Size());
-                for (const Base::Ref<
-                         Aero::TriggerBase>& trigger :
-                     ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(dataTemplate)) {
-                    compiled.Value().
-                        dataTemplateTriggers.
-                            PushBack(trigger);
+                    dataTemplateTriggers.Reserve(authoredTriggers.Size());
+                for (const Base::Ref<Base::Object>& triggerObj : authoredTriggers) {
+                    if (triggerObj) {
+                        auto retained = Base::Ref<Aero::TriggerBase>::TryFromBorrowed(
+                            static_cast<Aero::TriggerBase&>(*triggerObj));
+                        if (retained) {
+                            Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
+                                std::move(retained), compiled.Value(),
+                                *self->runtime, *self->properties);
+                            if (!plan) return plan.GetStatus();
+                            compiled.Value().dataTemplateTriggers.PushBack(std::move(plan).Value());
+                        }
+                    }
                 }
+            }
+            EnsureBytecode(compiled.Value());
+            for (auto& node : compiled.Value().nodes) {
+                node.properties.Clear();
+                node.gridColumns.Clear();
+                node.gridRows.Clear();
+                node.streamGeometryData.Clear();
+                node.gradientStops.Clear();
+                node.authoredBehaviors.Clear();
+                node.authoredTriggers.Clear();
             }
             Base::Ref<CompiledTemplateProgramOwner>
                 program =
@@ -302,42 +291,24 @@ struct XamlTemplateSchemaFacet::State {
                 &program->Blueprint();
             Base::Ref<Base::Object> programOwner =
                 program;
-            Base::Result<void> configured;
-            if (isDataTemplateFamily) {
-                auto& dataTemplate =
-                    static_cast<DataTemplate&>(object);
-                configured = ::Aero::Controls::FrameworkTemplateState::Configure(dataTemplate,
+            Base::Result<void> configured =
+                ::Aero::Controls::FrameworkTemplateState::Configure(
+                    templateObj,
                     &BuildCompiledDeferredTemplate,
                     programContext,
                     std::move(programOwner));
-                if (configured) {
-                    configured = ::Aero::Controls::FrameworkTemplateState::Seal(dataTemplate);
-                }
-            } else {
-                auto& itemsPanel =
-                    static_cast<ItemsPanelTemplate&>(object);
-                configured = ::Aero::Controls::FrameworkTemplateState::Configure(itemsPanel,
-                    &BuildCompiledDeferredTemplate,
-                    programContext,
-                    std::move(programOwner));
-                if (configured) {
-                    configured = ::Aero::Controls::FrameworkTemplateState::Seal(itemsPanel);
-                }
+            if (configured) {
+                configured = ::Aero::Controls::FrameworkTemplateState::Seal(templateObj);
             }
             if (!configured) {
                 return configured.GetStatus();
             }
             services.deferredContent->ReleaseOwner(
                 object);
+            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(templateObj);
             if (isDataTemplateFamily) {
-                auto& dataTemplate =
-                    static_cast<DataTemplate&>(object);
-                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(dataTemplate);
-                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(dataTemplate);
-                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredNames(dataTemplate);
-            } else {
-                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(
-                    static_cast<ItemsPanelTemplate&>(object));
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredTriggers(templateObj);
+                ::Aero::Controls::FrameworkTemplateState::ClearAuthoredNames(templateObj);
             }
             return {};
         }
@@ -544,12 +515,8 @@ struct XamlTemplateSchemaFacet::State {
             return InvalidTemplateXaml(
                 "Template name scope is invalid");
         }
-        return scopeOwner.RuntimeType() ==
-                ControlTemplate::StaticTypeId()
-            ? ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
-                  static_cast<ControlTemplate&>(scopeOwner), name, object)
-            : ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
-                  static_cast<DataTemplate&>(scopeOwner), name, object);
+        return ::Aero::Controls::FrameworkTemplateState::RegisterAuthoredName(
+            static_cast<FrameworkTemplate&>(scopeOwner), name, object);
     }
 };
 

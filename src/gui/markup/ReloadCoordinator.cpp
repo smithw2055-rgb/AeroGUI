@@ -131,8 +131,13 @@ struct ReloadCoordinatorState final {
         Base::Result<void> tracked = BuildTrackedSources(
             replacement.Value(), replacementRoot, replacementRevisions);
         if (!tracked) return tracked.GetStatus();
+        Aero::Size targetSize = availableSize;
+        if ((targetSize.width <= 0.0 || targetSize.height <= 0.0) &&
+            view != nullptr) {
+            targetSize = view->GetSize();
+        }
         if (!view->SetContent(
-            std::move(replacement).Value(), availableSize)) {
+            std::move(replacement).Value(), targetSize)) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidState, "SetContent failed");
         }

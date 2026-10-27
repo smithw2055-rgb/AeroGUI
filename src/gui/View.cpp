@@ -6,6 +6,8 @@
 #include <Aero/BuiltinThemes.generated.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Decorators.hpp>
+#include <Aero/Markup/ReloadCoordinator.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -122,6 +124,15 @@ void ViewFrame::Shutdown() noexcept {
     if (engines != nullptr) {
         FreeObject(*allocator, Base::MemoryTag::Ui, engines);
         engines = nullptr;
+    }
+    if (reloadCoordinator != nullptr) {
+        reloadCoordinator->~ReloadCoordinator();
+        allocator->Deallocate(
+            reloadCoordinator,
+            sizeof(Markup::ReloadCoordinator),
+            alignof(Markup::ReloadCoordinator),
+            Base::MemoryTag::Markup);
+        reloadCoordinator = nullptr;
     }
     schema = nullptr;
     metadata = nullptr;
@@ -534,6 +545,47 @@ Base::Result<void> LoadViewBuiltInTheme(
     return {};
 }
 
+Base::Result<Base::Ref<Base::Object>> View::LoadXamlRoot(
+    Base::StringView uri, Base::MetaTypeId expectedRoot) noexcept {
+    if (state_ == nullptr || !state_->initialized || !state_->gui) {
+        return ViewNotInitialized("View must be initialized to load XAML");
+    }
+    const Aero::Size availableSize = state_->viewport.logicalSize;
+    Markup::XamlReader reader(GetGui());
+    Base::Result<Markup::XamlDocument> doc = reader.Load(uri);
+    if (!doc) return doc.GetStatus();
+
+    Base::Ref<Base::Object> root = doc.Value().Root();
+    if (!root) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState, "Loaded XAML document has no root");
+    }
+    if (expectedRoot != Base::InvalidMetaTypeId) {
+        if (state_->metadata != nullptr &&
+            !state_->metadata->Types().IsDerivedFrom(root->RuntimeType(), expectedRoot)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument, "Loaded root does not match expected type");
+        }
+    }
+    if (!SetContent(std::move(doc).Value(), availableSize)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState, "SetContent failed for loaded XAML document");
+    }
+    if (state_->reloadCoordinator == nullptr) {
+        Base::IAllocator* alloc = state_->allocator;
+        void* mem = alloc->Allocate({sizeof(Markup::ReloadCoordinator),
+                                     alignof(Markup::ReloadCoordinator),
+                                     Base::MemoryTag::Markup});
+        if (mem != nullptr) {
+            state_->reloadCoordinator = new (mem) Markup::ReloadCoordinator(*this, alloc);
+        }
+    }
+    if (state_->reloadCoordinator != nullptr) {
+        static_cast<void>(state_->reloadCoordinator->Start(uri, availableSize));
+    }
+    return root;
+}
+
 bool View::SetContent(
     Markup::XamlDocument&& document,
     Aero::Size availableSize) noexcept {
@@ -687,6 +739,10 @@ void View::SetSize(
         static_cast<double>(height)});
 }
 
+Aero::Size View::GetSize() const noexcept {
+    return state_ != nullptr ? state_->viewport.logicalSize : Aero::Size{};
+}
+
 void View::SetScale(double scale) noexcept {
     if (state_ == nullptr || !state_->initialized ||
         !std::isfinite(scale) || scale <= 0.0) {
@@ -707,6 +763,9 @@ bool View::Update(double timeInSeconds) noexcept {
             Base::ErrorCode::InvalidArgument,
             "View update time must be finite, nonnegative and monotonic"));
         return false;
+    }
+    if (state_->reloadCoordinator != nullptr && state_->reloadCoordinator->IsActive()) {
+        static_cast<void>(state_->reloadCoordinator->Poll());
     }
     const ::Aero::Render::RenderFrame* before =
         ViewFrame::CurrentFrame(*this);

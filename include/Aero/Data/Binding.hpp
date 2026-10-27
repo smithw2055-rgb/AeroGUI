@@ -85,3 +85,7 @@ private:
     Value converterParameter_;
 };
 } // namespace Aero::Data
+
+AERO_DECLARE_TYPE_ENUM(Aero::Data::RelativeSourceMode)
+AERO_DECLARE_TYPE_ENUM(Aero::Data::BindingMode)
+AERO_DECLARE_TYPE_ENUM(Aero::Meta::UpdateSourceTrigger)

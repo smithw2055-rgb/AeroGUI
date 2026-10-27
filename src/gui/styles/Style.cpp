@@ -9,6 +9,7 @@
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/triggers/TriggerEngine.hpp"
 #include "gui/data/BindingEngine.hpp"
+#include "gui/data/BindingCommon.hpp"
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
@@ -340,37 +341,26 @@ void Style::Program::ClearAuthored() noexcept {
     authoredTriggers.Clear();
 }
 
-Setter::~Setter() {
-    ReleaseAuthored();
-}
-
-Setter::AuthoredData* Setter::EnsureAuthored() noexcept {
-    if (authored_ == nullptr) {
-        authored_ = new (std::nothrow) AuthoredData{};
-    }
-    return authored_;
-}
-
 void Setter::ReleaseAuthored() noexcept {
-    delete authored_;
-    authored_ = nullptr;
+    propertyName_.Clear();
+    targetName_.Clear();
+    authoredValue_ = PropertyValue{};
 }
 
 StringView Setter::GetPropertyName() const noexcept {
-    return authored_ != nullptr ? authored_->propertyName.View() : StringView{};
+    return propertyName_.View();
 }
 
 StringView Setter::GetTargetName() const noexcept {
-    return authored_ != nullptr ? authored_->targetName.View() : StringView{};
+    return targetName_.View();
 }
 
 const PropertyValue& Setter::GetAuthoredValue() const noexcept {
-    static const PropertyValue emptyValue{};
-    return authored_ != nullptr ? authored_->authoredValue : emptyValue;
+    return authoredValue_;
 }
 
 bool Setter::GetIsAuthored() const noexcept {
-    return authored_ != nullptr && !authored_->propertyName.Empty() && !authored_->authoredValue.IsUnset();
+    return !propertyName_.Empty() && !authoredValue_.IsUnset();
 }
 
 void Setter::SetPropertyName(
@@ -378,11 +368,7 @@ void Setter::SetPropertyName(
     if (value.Empty()) {
         return;
     }
-    AuthoredData* authored = EnsureAuthored();
-    if (authored == nullptr) return;
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    authored->propertyName = std::move(candidate);
+    static_cast<void>(propertyName_.Assign(value));
 }
 
 void Setter::SetTargetName(
@@ -390,19 +376,13 @@ void Setter::SetTargetName(
     if (value.Empty()) {
         return;
     }
-    AuthoredData* authored = EnsureAuthored();
-    if (authored == nullptr) return;
-    Base::String candidate;
-    if (!candidate.Assign(value)) return;
-    authored->targetName = std::move(candidate);
+    static_cast<void>(targetName_.Assign(value));
 }
 
 void Setter::SetAuthoredValue(
     const PropertyValue& value) noexcept {
     if (value.IsUnset()) return;
-    AuthoredData* authored = EnsureAuthored();
-    if (authored == nullptr) return;
-    authored->authoredValue = value;
+    authoredValue_ = value;
 }
 
 bool Setter::Resolve(
@@ -710,6 +690,10 @@ Base::Result<void> Style::Seal(
     }
 
     Base::Vector<StyleSetter> next;
+    const std::size_t estimatedCapacity =
+        (basedOn_ != nullptr ? Style::Program::RuntimeSetters(*basedOn_).Size() : 0U) +
+        program_->authoredSetters.Size();
+    next.Reserve(static_cast<Base::Vector<StyleSetter>::SizeType>(estimatedCapacity));
     if (basedOn_ != nullptr) {
         next.Append(
             Style::Program::RuntimeSetters(*basedOn_));
@@ -1112,62 +1096,11 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
             continue;
         }
         auto& binding = static_cast<Data::Binding&>(*stored);
-        Base::Object* source = binding.GetSource().Get();
-        if (source == nullptr && !binding.GetElementName().Empty()) {
-            if (auto* framework = ::Aero::TryCast<FrameworkElement>(&object)) {
-                source = framework->FindName(binding.GetElementName());
-            }
-        } else if (source == nullptr && binding.GetRelativeSource()) {
-            const Data::RelativeSourceMode mode =
-                binding.GetRelativeSource()->GetMode();
-            if (mode == Data::RelativeSourceMode::Self) {
-                source = &object;
-            } else if (mode == Data::RelativeSourceMode::TemplatedParent) {
-                if (auto* framework = ::Aero::TryCast<FrameworkElement>(&object)) {
-                    source = framework->GetTemplatedParent();
-                }
-            } else if (mode == Data::RelativeSourceMode::FindAncestor) {
-                Base::StringView ancestorName =
-                    binding.GetRelativeSource()->GetAncestorType();
-                for (std::uint32_t nameIndex = 0U;
-                     nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
-                    if (ancestorName[nameIndex] == ':') {
-                        ancestorName = ancestorName.Substr(
-                            nameIndex + 1U,
-                            ancestorName.SizeBytes() - nameIndex - 1U);
-                        break;
-                    }
-                }
-                const std::uint32_t requestedLevel =
-                    binding.GetRelativeSource()->GetAncestorLevel();
-                std::uint32_t matchedLevel = 0U;
-                Media::Visual* current = ::Aero::TryCast<Media::Visual>(&object);
-                if (current != nullptr) {
-                    Media::Visual* parent = ::Aero::TryCast<Media::Visual>(
-                        current->GetLogicalParent());
-                    if (parent == nullptr) {
-                        parent = current->GetVisualParent();
-                    }
-                    current = parent;
-                }
-                while (current != nullptr) {
-                    const Meta::TypeInfo* type =
-                        bindings->Metadata()->Types().FindType(
-                            current->RuntimeType());
-                    const bool matchesType = ancestorName.Empty() ||
-                        (type != nullptr && type->Name() == ancestorName);
-                    if (matchesType && ++matchedLevel == requestedLevel) {
-                        source = current;
-                        break;
-                    }
-                    Media::Visual* next = ::Aero::TryCast<Media::Visual>(
-                        current->GetLogicalParent());
-                    if (next == nullptr) {
-                        next = current->GetVisualParent();
-                    }
-                    current = next;
-                }
-            }
+        Base::Object* source = nullptr;
+        Base::Result<Base::Object*> codeSource = Data::ResolveCodeBindingSource(
+            binding, object, bindings->Metadata(), nullptr, nullptr, /*startAtTarget=*/false);
+        if (codeSource) {
+            source = codeSource.Value();
         }
         const bool isExplicitSource = binding.GetSource() ||
             !binding.GetElementName().Empty() ||

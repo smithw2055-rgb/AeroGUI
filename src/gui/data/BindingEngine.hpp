@@ -370,6 +370,9 @@ private:
     Base::Vector<DeferredBindingRecord> deferredBindings_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;
+    Base::HashMap<const Base::Object*, Base::Vector<BindingHandle>> sourceToBindings_;
+    Base::HashMap<const DependencyObject*, Base::Vector<BindingHandle>> targetToBindings_;
+    Base::Vector<BindingHandle> dataContextBindings_;
     bool initialized_ = false;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
@@ -428,6 +431,13 @@ private:
     void ReleaseMetadataSource(BindingRecord& record) noexcept;
     void CleanupRecord(BindingRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
+
+    void AddTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept;
+    void RemoveTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept;
+    void AddSourceBinding(const Base::Object* source, BindingHandle handle) noexcept;
+    void RemoveSourceBinding(const Base::Object* source, BindingHandle handle) noexcept;
+    void AddDataContextBinding(BindingHandle handle) noexcept;
+    void RemoveDataContextBinding(BindingHandle handle) noexcept;
 
     static DependencyObject* BindingParent(DependencyObject& node) noexcept;
     static bool BindingOwnerSeesDataContextChange(

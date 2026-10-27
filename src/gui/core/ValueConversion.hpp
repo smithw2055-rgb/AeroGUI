@@ -4,6 +4,7 @@
 // control codecs. Source-only: never included from installed headers.
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/Geometry.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
@@ -15,6 +16,11 @@
 #include <cstdlib>
 #include <limits>
 #include <type_traits>
+
+namespace Aero {
+struct Length;
+struct GridLength;
+}
 
 namespace Aero::Base {
 
@@ -38,6 +44,20 @@ Result<float> ConvertFloat(
 Result<String> ConvertString(
     StringView text) noexcept;
 Result<Base::ResourceUri> ConvertResourceUri(
+    StringView text) noexcept;
+Result<Base::Color> ConvertColor(
+    StringView text) noexcept;
+Result<Base::Thickness> ConvertThickness(
+    StringView text) noexcept;
+Result<Base::CornerRadius> ConvertCornerRadius(
+    StringView text) noexcept;
+Result<Base::Point> ConvertPoint(
+    StringView text) noexcept;
+Result<Base::Transform2D> ConvertMatrix(
+    StringView text) noexcept;
+Result<::Aero::Length> ConvertLength(
+    StringView text) noexcept;
+Result<::Aero::GridLength> ConvertGridLength(
     StringView text) noexcept;
 
 Result<void> FormatScalarValue(

@@ -21,10 +21,6 @@ public:
     TypeId GetDataType() const noexcept;
     void SetDataType(TypeId value) noexcept;
     ResourceKey GetImplicitKey() const noexcept;
-    ResourceDictionary& GetResources() noexcept override;
-    const ResourceDictionary& GetResources() const noexcept override;
-    void SetResources(Ref<ResourceDictionary> value) noexcept override;
-    bool GetIsSealed() const noexcept override;
 
 private:
     friend class HierarchicalDataTemplate;

@@ -140,119 +140,7 @@ Base::Result<Meta::Value> MakeManifestCustomValue(
         type, &value, &s_reg);
 }
 
-Base::Result<std::uint32_t> ParseManifestNumbers(
-    Base::StringView input,
-    double* values,
-    std::uint32_t capacity) noexcept {
-    if (values == nullptr || capacity == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "AXB2 number-list destination is invalid");
-    }
-    Base::String text;
-    Base::Result<void> assigned =
-        text.Assign(TrimCompiledText(input));
-    if (!assigned) return assigned.GetStatus();
 
-    const char* cursor = text.CStr();
-    std::uint32_t count = 0U;
-    while (*cursor != '\0') {
-        while (std::isspace(
-                   static_cast<unsigned char>(*cursor))) {
-            ++cursor;
-        }
-        if (*cursor == '\0') break;
-        if (count == capacity) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "AXB2 number list has too many values");
-        }
-
-        errno = 0;
-        char* end = nullptr;
-        const double parsed = std::strtod(cursor, &end);
-        if (errno == ERANGE || end == cursor ||
-            !std::isfinite(parsed)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 number list contains an invalid value");
-        }
-        values[count++] = parsed;
-        cursor = end;
-
-        const char* separator = cursor;
-        while (std::isspace(
-                   static_cast<unsigned char>(*cursor))) {
-            ++cursor;
-        }
-        if (*cursor == '\0') break;
-        if (*cursor == ',') {
-            ++cursor;
-            while (std::isspace(
-                       static_cast<unsigned char>(*cursor))) {
-                ++cursor;
-            }
-            if (*cursor == '\0') {
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "AXB2 number list ends with a separator");
-            }
-        } else if (cursor == separator) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 number list separator is invalid");
-        }
-    }
-    return count;
-}
-
-int ManifestHexDigit(char value) noexcept {
-    if (value >= '0' && value <= '9') return value - '0';
-    if (value >= 'a' && value <= 'f') return value - 'a' + 10;
-    if (value >= 'A' && value <= 'F') return value - 'A' + 10;
-    return -1;
-}
-
-Base::Result<Base::Color> ParseManifestColor(
-    Base::StringView input) noexcept {
-    const Base::StringView value = TrimCompiledText(input);
-    if ((value.SizeBytes() != 7U &&
-         value.SizeBytes() != 9U) ||
-        value[0] != '#') {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "AXB2 manifest preconversion supports hexadecimal Color values");
-    }
-
-    std::uint8_t bytes[4]{255U, 0U, 0U, 0U};
-    const std::uint32_t count =
-        value.SizeBytes() == 9U ? 4U : 3U;
-    for (std::uint32_t index = 0U;
-         index < count; ++index) {
-        const int high =
-            ManifestHexDigit(value[1U + index * 2U]);
-        const int low =
-            ManifestHexDigit(value[2U + index * 2U]);
-        if (high < 0 || low < 0) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 Color contains a non-hex digit");
-        }
-        bytes[index] = static_cast<std::uint8_t>(
-            (high << 4) | low);
-    }
-    return count == 3U
-        ? Base::Color{
-              bytes[0] / 255.0F,
-              bytes[1] / 255.0F,
-              bytes[2] / 255.0F,
-              1.0F}
-        : Base::Color{
-              bytes[1] / 255.0F,
-              bytes[2] / 255.0F,
-              bytes[3] / 255.0F,
-              bytes[0] / 255.0F};
-}
 
 Base::Result<Meta::Value>
 ConvertManifestPrimitive(
@@ -354,122 +242,46 @@ ConvertManifestPrimitive(
             ::Aero::Length::Pixels(parsed.Value()));
     }
 
-    if (type == Meta::TypeOf<Base::Thickness>() ||
-        type == Meta::TypeOf<Base::CornerRadius>()) {
-        double values[4]{};
-        Base::Result<std::uint32_t> count =
-            ParseManifestNumbers(text, values, 4U);
-        if (!count) return count.GetStatus();
+    if (type == Meta::TypeOf<Base::Thickness>()) {
+        Base::Result<Base::Thickness> parsed =
+            ::Aero::Base::ValueConversion::ConvertThickness(text);
+        if (!parsed) return parsed.GetStatus();
+        return MakeManifestCustomValue(type, parsed.Value());
+    }
 
-        Base::Thickness thickness;
-        if (count.Value() == 1U) {
-            thickness = {
-                values[0], values[0],
-                values[0], values[0]};
-        } else if (count.Value() == 2U) {
-            thickness = {
-                values[0], values[1],
-                values[0], values[1]};
-        } else if (count.Value() == 4U) {
-            thickness = {
-                values[0], values[1],
-                values[2], values[3]};
-        } else {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 Thickness accepts one, two, or four values");
-        }
-
-        if (type == Meta::TypeOf<Base::Thickness>()) {
-            return MakeManifestCustomValue(
-                type, thickness);
-        }
-        return MakeManifestCustomValue(
-            type,
-            Base::CornerRadius{
-                thickness.left,
-                thickness.top,
-                thickness.right,
-                thickness.bottom});
+    if (type == Meta::TypeOf<Base::CornerRadius>()) {
+        Base::Result<Base::CornerRadius> parsed =
+            ::Aero::Base::ValueConversion::ConvertCornerRadius(text);
+        if (!parsed) return parsed.GetStatus();
+        return MakeManifestCustomValue(type, parsed.Value());
     }
 
     if (type == Meta::TypeOf<Base::Point>()) {
-        double values[2]{};
-        Base::Result<std::uint32_t> count =
-            ParseManifestNumbers(text, values, 2U);
-        if (!count || count.Value() != 2U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 Point requires two finite values");
-        }
-        return MakeManifestCustomValue(
-            type, Base::Point{values[0], values[1]});
+        Base::Result<Base::Point> parsed =
+            ::Aero::Base::ValueConversion::ConvertPoint(text);
+        if (!parsed) return parsed.GetStatus();
+        return MakeManifestCustomValue(type, parsed.Value());
     }
 
     if (type == Meta::TypeOf<Base::Color>()) {
         Base::Result<Base::Color> color =
-            ParseManifestColor(text);
+            ::Aero::Base::ValueConversion::ConvertColor(text);
         if (!color) return color.GetStatus();
-        return MakeManifestCustomValue(
-            type, color.Value());
+        return MakeManifestCustomValue(type, color.Value());
     }
 
     if (type == Meta::TypeOf<Base::Transform2D>()) {
-        double values[6]{};
-        Base::Result<std::uint32_t> count =
-            ParseManifestNumbers(text, values, 6U);
-        if (!count || count.Value() != 6U) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 Matrix requires six finite values");
-        }
-        return MakeManifestCustomValue(
-            type,
-            Base::Transform2D{
-                values[0], values[1], values[2],
-                values[3], values[4], values[5]});
+        Base::Result<Base::Transform2D> matrix =
+            ::Aero::Base::ValueConversion::ConvertMatrix(text);
+        if (!matrix) return matrix.GetStatus();
+        return MakeManifestCustomValue(type, matrix.Value());
     }
 
     if (type == Meta::TypeOf<::Aero::GridLength>()) {
-        if (EqualsAsciiInsensitive(text, "auto")) {
-            return MakeManifestCustomValue(
-                type, ::Aero::GridLength::Auto());
-        }
-
-        if (!text.Empty() &&
-            text[text.SizeBytes() - 1U] == '*') {
-            const Base::StringView weightText =
-                TrimCompiledText(text.Substr(
-                    0U, text.SizeBytes() - 1U));
-            double weight = 1.0;
-            if (!weightText.Empty()) {
-                Base::Result<double> parsed =
-                    ::Aero::Base::
-                        ValueConversion::ParseDouble(
-                            weightText);
-                if (!parsed || parsed.Value() < 0.0) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::ValidationFailed,
-                        "AXB2 GridLength star weight is invalid");
-                }
-                weight = parsed.Value();
-            }
-            return MakeManifestCustomValue(
-                type, ::Aero::GridLength::Star(weight));
-        }
-
-        Base::Result<double> pixels =
-            ::Aero::Base::ValueConversion::
-                ParseDouble(text);
-        if (!pixels || pixels.Value() < 0.0) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "AXB2 GridLength pixel value is invalid");
-        }
-        return MakeManifestCustomValue(
-            type,
-            ::Aero::GridLength::Pixel(
-                pixels.Value()));
+        Base::Result<::Aero::GridLength> length =
+            ::Aero::Base::ValueConversion::ConvertGridLength(text);
+        if (!length) return length.GetStatus();
+        return MakeManifestCustomValue(type, length.Value());
     }
 
     return Base::Status::Failure(

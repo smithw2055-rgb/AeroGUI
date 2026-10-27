@@ -714,18 +714,7 @@ namespace {
 
 Base::Result<Length> ConvertLength(
     Base::StringView text) noexcept {
-    const Base::StringView value = ::Aero::Base::ValueConversion::Trim(text);
-    Length length = Length::Auto();
-    if (!::Aero::Base::ValueConversion::EqualsAsciiInsensitive(value, "auto")) {
-        Base::Result<double> parsed =
-            ::Aero::Base::ValueConversion::ParseDouble(value);
-        if (!parsed || parsed.Value() < 0.0) {
-            return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-                "Length must be Auto or a nonnegative number");
-        }
-        length = Length::Pixels(parsed.Value());
-    }
-    return length;
+    return ::Aero::Base::ValueConversion::ConvertLength(text);
 }
 
 bool EqualLength(const void* left, const void* right, void*) noexcept {

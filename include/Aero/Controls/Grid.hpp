@@ -96,11 +96,11 @@ protected:
 private:
     GridLength ColumnAt(std::uint32_t index) const noexcept;
     GridLength RowAt(std::uint32_t index) const noexcept;
-    double MaxWidthAt(std::uint32_t index) const noexcept;
-    double MaxHeightAt(std::uint32_t index) const noexcept;
+    float MaxWidthAt(std::uint32_t index) const noexcept;
+    float MaxHeightAt(std::uint32_t index) const noexcept;
     bool ValidateDefinitions(Span<const GridLength> definitions) const noexcept;
-    bool ResolveTracks(Span<const GridLength> definitions, Span<const double> desired, double available,
-        Base::Vector<double>& resolved, Span<const double> maxLimits = {}) const noexcept;
+    bool ResolveTracks(Span<const GridLength> definitions, Span<const float> desired, float available,
+        Base::Vector<float>& resolved, Span<const float> maxLimits = {}) const noexcept;
 
     std::uint32_t GetColumnCount() const noexcept;
     std::uint32_t GetRowCount() const noexcept;
@@ -113,8 +113,8 @@ private:
     Base::Vector<GridLength> rows_;
     Base::Vector<Ref<ColumnDefinition>> columnDefinitionObjects_;
     Base::Vector<Ref<RowDefinition>> rowDefinitionObjects_;
-    Base::Vector<double> desiredColumns_;
-    Base::Vector<double> desiredRows_;
+    Base::Vector<float> desiredColumns_;
+    Base::Vector<float> desiredRows_;
 };
 
 } // namespace Aero::Controls

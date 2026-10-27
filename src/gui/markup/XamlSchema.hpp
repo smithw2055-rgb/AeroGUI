@@ -744,6 +744,7 @@ public:
     Base::Result<Base::Vector<std::uint8_t>>
     Serialize(
         const CompiledDocumentSerializeOptions& options = {}) const noexcept;
+    Base::Result<CompiledDocument> Clone() const noexcept;
     static Base::Result<CompiledDocument> Deserialize(
         Base::Span<const std::uint8_t> bytes,
         const ::Aero::Meta::Registry& domain,
@@ -1262,7 +1263,7 @@ struct DocumentCacheStatistics {
 struct DocumentCacheLookup {
     bool hit = false;
     std::uint64_t sourceRevision = 0U;
-    CompiledDocument document;
+    const CompiledDocument* document = nullptr;
 };
 
 class DependencyGraph {
@@ -1348,6 +1349,21 @@ public:
         std::uint64_t sourceRevision,
         std::uint64_t sourceIdentity,
         const CompiledDocument& document,
+        Base::Span<const Base::ResourceUri> dependencies) noexcept;
+    Base::Result<void> Store(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceRevision,
+        CompiledDocument&& document,
+        Base::Span<const Base::ResourceUri> dependencies) noexcept {
+        return Store(
+            uri, sourceRevision, 0U,
+            std::move(document), dependencies);
+    }
+    Base::Result<void> Store(
+        const Base::ResourceUri& uri,
+        std::uint64_t sourceRevision,
+        std::uint64_t sourceIdentity,
+        CompiledDocument&& document,
         Base::Span<const Base::ResourceUri> dependencies) noexcept;
 
     Base::Result<std::uint32_t> Invalidate(
@@ -1777,7 +1793,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[65536]{};
     State* state_ = nullptr;
 };
 

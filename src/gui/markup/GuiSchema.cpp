@@ -23,21 +23,13 @@ struct GuiSchema::State {
     ::Aero::Meta::Registry metadata;
     const ModuleSet* modules = nullptr;
 
-    alignas(Markup::Schema) std::byte schemaStorage[sizeof(Markup::Schema)]{};
-    alignas(Markup::DynamicResourceExtension) std::byte dynamicResourceStorage[sizeof(Markup::DynamicResourceExtension)]{};
-    alignas(Markup::BindingExtension) std::byte bindingStorage[sizeof(Markup::BindingExtension)]{};
-    alignas(Markup::UiObjectModel) std::byte uiObjectModelStorage[sizeof(Markup::UiObjectModel)]{};
-
     Markup::Schema* schema = nullptr;
+    std::aligned_storage_t<sizeof(Markup::DynamicResourceExtension), alignof(Markup::DynamicResourceExtension)> dynamicResourceStorage;
+    std::aligned_storage_t<sizeof(Markup::BindingExtension), alignof(Markup::BindingExtension)> bindingStorage;
+    std::aligned_storage_t<sizeof(Markup::UiObjectModel), alignof(Markup::UiObjectModel)> uiObjectModelStorage;
     Markup::DynamicResourceExtension* dynamicResource = nullptr;
     Markup::BindingExtension* binding = nullptr;
     Markup::UiObjectModel* uiObjectModel = nullptr;
-    Markup::ResourceExtension resourceExtension;
-    Markup::StaticExtension staticExtension;
-    Markup::StaticResourceExtension staticResourceExtension;
-    Markup::TypeExtension typeExtension;
-    Markup::LocExtension locExtension;
-    Markup::TemplateBindingExtension templateBindingExtension;
     bool prepared = false;
     bool frozen = false;
     bool terminal = false;
@@ -56,30 +48,22 @@ struct GuiSchema::State {
             dynamicResource = nullptr;
         }
         if (schema != nullptr) {
-            schema->~Schema();
-            schema = nullptr;
+            Base::FreeObject(*allocator, Base::MemoryTag::General, schema);
         }
     }
 };
-
-static_assert(
-    sizeof(GuiSchema::State) <= 65536,
-    "GuiSchema inline state storage is too small");
-static_assert(
-    alignof(GuiSchema::State) <= alignof(std::max_align_t),
-    "GuiSchema inline state alignment is insufficient");
 
 GuiSchema::GuiSchema(Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) GuiSchema::State(*allocator_);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::General, state_, *allocator_));
 }
 
 GuiSchema::~GuiSchema() noexcept {
     if (state_ == nullptr) return;
-    state_->~State();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::General, state_);
 }
 
 Base::Result<void> GuiSchema::Prepare(
@@ -118,33 +102,36 @@ Base::Result<void> GuiSchema::Finalize(
         ? *requested.allocator
         : *state_->allocator;
 
-    state_->schema = new (state_->schemaStorage) Markup::Schema(
+    Base::Result<void> status = Base::AllocateObject(
+        *state_->allocator,
+        Base::MemoryTag::General,
+        state_->schema,
         state_->metadata,
         state_->allocator);
+    if (!status) {
+        state_->terminal = true;
+        return status;
+    }
 
-    state_->dynamicResource = new (state_->dynamicResourceStorage) Markup::DynamicResourceExtension(
-        Markup::DynamicResourceExtensionOptions{});
+    state_->dynamicResource = new (&state_->dynamicResourceStorage)
+        Markup::DynamicResourceExtension(Markup::DynamicResourceExtensionOptions{});
 
-    state_->binding = new (state_->bindingStorage) Markup::BindingExtension(
-        Markup::BindingExtensionOptions{
+    state_->binding = new (&state_->bindingStorage)
+        Markup::BindingExtension(Markup::BindingExtensionOptions{
             nullptr,
             Aero::FrameworkElement::DataContextProperty.Handle()});
 
-    state_->uiObjectModel = new (state_->uiObjectModelStorage) Markup::UiObjectModel(
-        Markup::UiObjectModelOptions{
+    state_->uiObjectModel = new (&state_->uiObjectModelStorage)
+        Markup::UiObjectModel(Markup::UiObjectModelOptions{
             &state_->metadata,
             &(state_->metadata).DependencyProperties(),
             &programAllocator});
 
-    Base::Result<void> status =
-        state_->resourceExtension.Register(*state_->schema);
-    if (status) {
-        status = state_->dynamicResource->Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Base::StringView("urn:aero"),
-                Base::StringView("DynamicResource")));
-    }
+    status = state_->dynamicResource->Register(
+        *state_->schema,
+        Meta::MakeTypeId(
+            Base::StringView("urn:aero"),
+            Base::StringView("DynamicResource")));
     if (status) {
         status = state_->binding->Register(
             *state_->schema,
@@ -153,39 +140,7 @@ Base::Result<void> GuiSchema::Finalize(
                 Base::StringView("Binding")));
     }
     if (status) {
-        status = state_->staticExtension.Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Markup::LanguageNamespaceUri(),
-                Base::StringView("Static")));
-    }
-    if (status) {
-        status = state_->staticResourceExtension.Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Meta::AeroNamespaceUri(),
-                Base::StringView("StaticResourceExtension")));
-    }
-    if (status) {
-        status = state_->typeExtension.Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Markup::LanguageNamespaceUri(),
-                Base::StringView("Type")));
-    }
-    if (status) {
-        status = state_->locExtension.Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Meta::AeroNamespaceUri(),
-                Base::StringView("Loc")));
-    }
-    if (status) {
-        status = state_->templateBindingExtension.Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Meta::AeroNamespaceUri(),
-                Base::StringView("TemplateBinding")));
+        status = Markup::RegisterBuiltinMarkupExtensions(*state_->schema);
     }
     if (status) {
         status = state_->uiObjectModel->Register(*state_->schema);

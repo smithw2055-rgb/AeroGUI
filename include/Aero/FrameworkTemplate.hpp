@@ -28,7 +28,7 @@ public:
     virtual Ref<DependencyObject> LoadContent() const noexcept { return {}; }
 
     Meta::TypeId GetTargetType() const noexcept;
-    virtual bool GetIsSealed() const noexcept;
+    bool GetIsSealed() const noexcept;
     const FrameworkTemplate* GetBasedOn() const noexcept;
     // Optional inheritance (ControlTemplate only). The base template must be
     // sealed before this template seals; Seal() then inherits its factory
@@ -36,21 +36,17 @@ public:
     // Available before Seal() only.
     bool SetBasedOn(FrameworkTemplate* basedOn) noexcept;
     bool SetBasedOn(Ref<Base::Object> basedOn) noexcept;
-    virtual ResourceDictionary& GetResources() noexcept;
-    virtual const ResourceDictionary& GetResources() const noexcept;
-    virtual void SetResources(Ref<ResourceDictionary> value) noexcept;
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
+    void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 protected:
-    // ItemsPanelTemplate stores its own state record in this slot. The derived
-    // destructor detaches it so ~FrameworkTemplate does not free the wrong type.
-    void InstallTemplateState(void* state) noexcept;
-    void* DetachTemplateState() noexcept;
-    void* TemplateState() const noexcept { return state_; }
+    Controls::FrameworkTemplateState* TemplateState() const noexcept { return state_; }
 
 private:
     friend struct Controls::FrameworkTemplateState;
 
-    void* state_ = nullptr;
+    Controls::FrameworkTemplateState* state_ = nullptr;
 };
 
 } // namespace Aero

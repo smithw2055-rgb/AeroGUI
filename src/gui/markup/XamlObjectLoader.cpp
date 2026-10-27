@@ -745,7 +745,7 @@ struct Loader::LoaderState::Operation {
         const Base::ResourceUri& originUri,
         const XamlReaderSettings& options) noexcept;
     Base::Result<LoaderResult> LoadCompiledDocument(
-        CompiledDocument& document,
+        const CompiledDocument& document,
         const Base::ResourceUri& originUri,
         const XamlReaderSettings& options,
         const Base::Ref<Base::Object>& existingRoot) noexcept;
@@ -837,7 +837,7 @@ Loader::LoaderState::Operation::LoadCompiled(
 
 Base::Result<LoaderResult>
 Loader::LoaderState::Operation::LoadCompiledDocument(
-    CompiledDocument& document,
+    const CompiledDocument& document,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options,
     const Base::Ref<Base::Object>& existingRoot) noexcept {
@@ -936,10 +936,10 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
                     provider.Value().cacheIdentity,
                     schema_->Domain(),
                     options.limits.compiled);
-            if (cached && cached.Value().hit) {
+            if (cached && cached.Value().hit && cached.Value().document != nullptr) {
                 Base::Result<LoaderResult> loaded =
                     LoadCompiledDocument(
-                        cached.Value().document,
+                        *cached.Value().document,
                         uri,
                         options,
                         existingRoot);
@@ -1013,7 +1013,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::LoadCore(
                 uri,
                 sourceInfo.revision,
                 provider.Value().cacheIdentity,
-                compiled.Value(),
+                std::move(compiled).Value(),
                 {loaded.Value().dependencies.Data(),
                  loaded.Value().dependencies.Size()}));
         }

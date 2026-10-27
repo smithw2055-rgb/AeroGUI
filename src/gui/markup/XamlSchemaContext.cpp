@@ -852,8 +852,8 @@ Base::Result<ProvidedValue> Schema::ProvideMarkupExtensionValue(
             MessageMissingMarkupExtension);
     }
     (void)arguments;
-    (void)services;
-    Base::Result<Meta::Value> provided = extension->ProvideValue();
+    MarkupExtensionContext context = MakeMarkupExtensionContext(services);
+    Base::Result<Meta::Value> provided = extension->ProvideValue(context);
     if (!provided) return provided.GetStatus();
     return ProvidedValue::FromValue(std::move(provided).Value());
 }

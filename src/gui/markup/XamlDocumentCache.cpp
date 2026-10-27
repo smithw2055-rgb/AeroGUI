@@ -350,6 +350,7 @@ struct DocumentCache::State {
 
         Base::ResourceUri uri;
         Base::Vector<std::uint8_t> compiledBytes;
+        CompiledDocument document;
         std::uint64_t sourceRevision = 0U;
         std::uint64_t sourceIdentity = 0U;
         std::uint64_t lastAccess = 0U;
@@ -490,23 +491,109 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
         return result;
     }
 
-    Base::Result<CompiledDocument> document =
-        CompiledDocument::Deserialize(
-            entry->compiledBytes.AsSpan(), domain, limits);
-    if (!document) {
+    if (!entry->document.IsValid() && !entry->compiledBytes.Empty()) {
+        Base::Result<CompiledDocument> document =
+            CompiledDocument::Deserialize(
+                entry->compiledBytes.AsSpan(), domain, limits);
+        if (!document) {
+            ++state_->misses;
+            Base::Result<std::uint32_t> invalidated =
+                Invalidate(uri, true);
+            if (!invalidated) return invalidated.GetStatus();
+            return result;
+        }
+        entry->document = std::move(document).Value();
+    }
+    if (!entry->document.IsValid()) {
         ++state_->misses;
-        Base::Result<std::uint32_t> invalidated =
-            Invalidate(uri, true);
-        if (!invalidated) return invalidated.GetStatus();
         return result;
     }
+
     entry->lastAccess = ++state_->accessSequence;
     ++state_->hits;
     result.hit = true;
     result.sourceRevision = entry->sourceRevision;
-    result.document = std::move(document).Value();
+    result.document = &entry->document;
     return result;
 }
+
+namespace {
+
+template<class TDoc>
+Base::Result<void> StoreInternal(
+    DocumentCache::State* state,
+    Base::IAllocator* allocator,
+    const Base::ResourceUri& uri,
+    std::uint64_t sourceRevision,
+    std::uint64_t sourceIdentity,
+    TDoc&& document,
+    Base::Span<const Base::ResourceUri> dependencies) noexcept {
+    if (state == nullptr || uri.Empty() || !document.IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML document cache entry is invalid");
+    }
+    CompiledDocument doc;
+    if constexpr (std::is_rvalue_reference_v<TDoc&&>) {
+        doc = std::move(document);
+    } else {
+        Base::Result<CompiledDocument> cloned = document.Clone();
+        if (!cloned) return cloned.GetStatus();
+        doc = std::move(cloned).Value();
+    }
+
+    Base::Vector<std::uint8_t> serializedBytes(allocator);
+    if (state->limits.maxCompiledBytes != 0U) {
+        Base::Result<Base::Vector<std::uint8_t>> serialized = doc.Serialize();
+        if (!serialized) return serialized.GetStatus();
+        serializedBytes = std::move(serialized).Value();
+    }
+    const std::uint64_t serializedSize = serializedBytes.Size();
+
+    Base::Result<Base::String> key = MakeKey(uri, *allocator);
+    if (!key) return key.GetStatus();
+    DocumentCache::State::Entry* existing = state->entries.Find(key.Value());
+    if (existing != nullptr) {
+        state->compiledBytes -= existing->compiledBytes.Size();
+        existing->uri = uri;
+        existing->compiledBytes = std::move(serializedBytes);
+        existing->document = std::move(doc);
+        existing->sourceRevision = sourceRevision;
+        existing->sourceIdentity = sourceIdentity;
+        existing->lastAccess = ++state->accessSequence;
+        state->compiledBytes += existing->compiledBytes.Size();
+    } else {
+        DocumentCache::State::Entry entry(*allocator);
+        entry.uri = uri;
+        entry.compiledBytes = std::move(serializedBytes);
+        entry.document = std::move(doc);
+        entry.sourceRevision = sourceRevision;
+        entry.sourceIdentity = sourceIdentity;
+        entry.lastAccess = ++state->accessSequence;
+        state->compiledBytes += entry.compiledBytes.Size();
+        typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult
+            inserted = state->entries.Insert(
+                std::move(key).Value(), std::move(entry));
+        if (!inserted.inserted) {
+            state->compiledBytes -= serializedSize;
+            return Base::Status::Failure(
+                Base::ErrorCode::AlreadyExists,
+                "Document cache entry already exists");
+        }
+    }
+    Base::Result<void> graph =
+        state->graph.Update(uri, dependencies);
+    if (!graph) {
+        state->EraseEntry(uri, false);
+        return graph.GetStatus();
+    }
+    ++state->stores;
+    ++state->generation;
+    state->EvictToLimits();
+    return {};
+}
+
+} // namespace
 
 Base::Result<void> DocumentCache::Store(
     const Base::ResourceUri& uri,
@@ -514,56 +601,16 @@ Base::Result<void> DocumentCache::Store(
     std::uint64_t sourceIdentity,
     const CompiledDocument& document,
     Base::Span<const Base::ResourceUri> dependencies) noexcept {
-    if (state_ == nullptr || uri.Empty() || !document.IsValid()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML document cache entry is invalid");
-    }
-    Base::Result<Base::Vector<std::uint8_t>> serialized =
-        document.Serialize();
-    if (!serialized) return serialized.GetStatus();
-    const std::uint64_t serializedSize =
-        serialized.Value().Size();
+    return StoreInternal(state_, allocator_, uri, sourceRevision, sourceIdentity, document, dependencies);
+}
 
-    Base::Result<Base::String> key = MakeKey(uri, *allocator_);
-    if (!key) return key.GetStatus();
-    DocumentCache::State::Entry* existing = state_->entries.Find(key.Value());
-    if (existing != nullptr) {
-        state_->compiledBytes -= existing->compiledBytes.Size();
-        existing->uri = uri;
-        existing->compiledBytes = std::move(serialized).Value();
-        existing->sourceRevision = sourceRevision;
-        existing->sourceIdentity = sourceIdentity;
-        existing->lastAccess = ++state_->accessSequence;
-        state_->compiledBytes += existing->compiledBytes.Size();
-    } else {
-        DocumentCache::State::Entry entry(*allocator_);
-        entry.uri = uri;
-        entry.compiledBytes = std::move(serialized).Value();
-        entry.sourceRevision = sourceRevision;
-        entry.sourceIdentity = sourceIdentity;
-        entry.lastAccess = ++state_->accessSequence;
-        state_->compiledBytes += entry.compiledBytes.Size();
-        typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult
-            inserted = state_->entries.Insert(
-                std::move(key).Value(), std::move(entry));
-        if (!inserted.inserted) {
-            state_->compiledBytes -= serializedSize;
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "Document cache entry already exists");
-        }
-    }
-    Base::Result<void> graph =
-        state_->graph.Update(uri, dependencies);
-    if (!graph) {
-        state_->EraseEntry(uri, false);
-        return graph.GetStatus();
-    }
-    ++state_->stores;
-    ++state_->generation;
-    state_->EvictToLimits();
-    return {};
+Base::Result<void> DocumentCache::Store(
+    const Base::ResourceUri& uri,
+    std::uint64_t sourceRevision,
+    std::uint64_t sourceIdentity,
+    CompiledDocument&& document,
+    Base::Span<const Base::ResourceUri> dependencies) noexcept {
+    return StoreInternal(state_, allocator_, uri, sourceRevision, sourceIdentity, std::move(document), dependencies);
 }
 
 Base::Result<std::uint32_t> DocumentCache::Invalidate(

@@ -44,7 +44,7 @@ class AERO_GUI_API Setter : public SetterBase {
 
 public:
     explicit Setter(TypeId runtimeType = StaticTypeId()) noexcept : SetterBase(runtimeType) {}
-    ~Setter() override;
+    ~Setter() override = default;
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
     const PropertyValue& GetValue() const noexcept { return value_; }
@@ -87,17 +87,11 @@ private:
     void SetAuthoredValue(const PropertyValue& value) noexcept;
     bool Resolve(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
 
-    struct AuthoredData {
-        AuthoredData() noexcept {}
-        String propertyName;
-        String targetName;
-        PropertyValue authoredValue;
-    };
-    AuthoredData* EnsureAuthored() noexcept;
-
     DependencyPropertyHandle property_;
     PropertyValue value_;
-    AuthoredData* authored_ = nullptr;
+    Base::String propertyName_;
+    Base::String targetName_;
+    PropertyValue authoredValue_;
 };
 
 class AERO_GUI_API TriggerBase : public Base::Object {

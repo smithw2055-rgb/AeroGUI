@@ -250,29 +250,29 @@ Size Grid::MeasureOverride(
 
     const std::uint32_t columns = GetColumnCount();
     const std::uint32_t rows = GetRowCount();
-    Base::Vector<double> desiredColumns;
-    Base::Vector<double> desiredRows;
-    desiredColumns.Resize(columns, 0.0);
-    desiredRows.Resize(rows, 0.0);
+    Base::Vector<float> desiredColumns;
+    Base::Vector<float> desiredRows;
+    desiredColumns.Resize(columns, 0.0f);
+    desiredRows.Resize(rows, 0.0f);
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredColumns[index] = std::min(static_cast<double>(definition.value), MaxWidthAt(index));
+            desiredColumns[index] = std::min(definition.value, MaxWidthAt(index));
     }
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength definition = RowAt(index);
         if (definition.unit == GridUnitType::Pixel)
-            desiredRows[index] = std::min(static_cast<double>(definition.value), MaxHeightAt(index));
+            desiredRows[index] = std::min(definition.value, MaxHeightAt(index));
     }
 
-    constexpr double Unconstrained = 1.0e12;
-    constexpr double FiniteConstraintLimit =
-        Unconstrained * 0.5;
-    double pixelWidth = 0.0;
-    double pixelHeight = 0.0;
-    double columnStarWeight = 0.0;
-    double rowStarWeight = 0.0;
+    constexpr float Unconstrained = 1.0e12f;
+    constexpr float FiniteConstraintLimit =
+        Unconstrained * 0.5f;
+    float pixelWidth = 0.0f;
+    float pixelHeight = 0.0f;
+    float columnStarWeight = 0.0f;
+    float rowStarWeight = 0.0f;
     for (std::uint32_t index = 0U;
          index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
@@ -348,13 +348,13 @@ Size Grid::MeasureOverride(
         const std::uint32_t column = item.column;
         const std::uint32_t row = item.row;
 
-        double childWidth = Unconstrained;
+        float childWidth = Unconstrained;
         const GridLength colDef = ColumnAt(column);
         if (colDef.unit == GridUnitType::Pixel) {
             childWidth = colDef.value;
         }
 
-        double childHeight = Unconstrained;
+        float childHeight = Unconstrained;
         const GridLength rowDef = RowAt(row);
         if (rowDef.unit == GridUnitType::Pixel) {
             childHeight = rowDef.value;
@@ -363,10 +363,10 @@ Size Grid::MeasureOverride(
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
-            desiredColumns[column] = std::max(desiredColumns[column], static_cast<double>(childDesired.width));
+            desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
         }
         if (rowDef.unit != GridUnitType::Pixel && !item.hasStarRow) {
-            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
+            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
         }
     }
 
@@ -376,8 +376,8 @@ Size Grid::MeasureOverride(
         UIElement* child = item.child;
         const std::uint32_t row = item.row;
 
-        double childWidth = Unconstrained;
-        double childHeight = Unconstrained;
+        float childWidth = Unconstrained;
+        float childHeight = Unconstrained;
         const GridLength rowDef = RowAt(row);
         if (rowDef.unit == GridUnitType::Pixel) {
             childHeight = rowDef.value;
@@ -386,12 +386,12 @@ Size Grid::MeasureOverride(
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (rowDef.unit != GridUnitType::Pixel) {
-            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
+            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
         }
     }
 
     // Compute non-star widths and heights (Pixel + Auto desired)
-    double nonStarWidth = 0.0;
+    float nonStarWidth = 0.0f;
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
         if (definition.unit == GridUnitType::Pixel) {
@@ -400,7 +400,7 @@ Size Grid::MeasureOverride(
             nonStarWidth += desiredColumns[index];
         }
     }
-    double nonStarHeight = 0.0;
+    float nonStarHeight = 0.0f;
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength definition = RowAt(index);
         if (definition.unit == GridUnitType::Pixel) {
@@ -417,37 +417,37 @@ Size Grid::MeasureOverride(
         const std::uint32_t column = item.column;
         const std::uint32_t row = item.row;
 
-        double childWidth = Unconstrained;
+        float childWidth = Unconstrained;
         const GridLength colDef = ColumnAt(column);
         if (colDef.unit == GridUnitType::Pixel) {
             childWidth = colDef.value;
         } else if (colDef.unit == GridUnitType::Auto) {
             childWidth = Unconstrained;
         } else if (colDef.unit == GridUnitType::Star) {
-            childWidth = (availableSize.width < FiniteConstraintLimit && columnStarWeight > 0.0)
-                ? std::max(0.0, availableSize.width - nonStarWidth) * colDef.value / columnStarWeight
+            childWidth = (availableSize.width < FiniteConstraintLimit && columnStarWeight > 0.0f)
+                ? std::max(0.0f, availableSize.width - nonStarWidth) * colDef.value / columnStarWeight
                 : Unconstrained;
         }
 
-        double childHeight = Unconstrained;
+        float childHeight = Unconstrained;
         const GridLength rowDef = RowAt(row);
         if (rowDef.unit == GridUnitType::Pixel) {
             childHeight = rowDef.value;
         } else if (rowDef.unit == GridUnitType::Auto) {
             childHeight = Unconstrained;
         } else if (rowDef.unit == GridUnitType::Star) {
-            childHeight = (availableSize.height < FiniteConstraintLimit && rowStarWeight > 0.0)
-                ? std::max(0.0, availableSize.height - nonStarHeight) * rowDef.value / rowStarWeight
+            childHeight = (availableSize.height < FiniteConstraintLimit && rowStarWeight > 0.0f)
+                ? std::max(0.0f, availableSize.height - nonStarHeight) * rowDef.value / rowStarWeight
                 : Unconstrained;
         }
 
         MeasureChild(*child, {childWidth, childHeight});
         const Size childDesired = child->GetDesiredSize();
         if (colDef.unit != GridUnitType::Pixel) {
-            desiredColumns[column] = std::max(desiredColumns[column], static_cast<double>(childDesired.width));
+            desiredColumns[column] = std::max(desiredColumns[column], childDesired.width);
         }
         if (rowDef.unit != GridUnitType::Pixel) {
-            desiredRows[row] = std::max(desiredRows[row], static_cast<double>(childDesired.height));
+            desiredRows[row] = std::max(desiredRows[row], childDesired.height);
         }
     }
 
@@ -464,7 +464,7 @@ Size Grid::MeasureOverride(
 
     for (int starPhase = 0; starPhase < 2; ++starPhase) {
     if (starPhase == 1) {
-        nonStarWidth = 0.0;
+        nonStarWidth = 0.0f;
         for (std::uint32_t index = 0U; index < columns; ++index) {
             const GridLength definition = ColumnAt(index);
             if (definition.unit == GridUnitType::Pixel) {
@@ -473,7 +473,7 @@ Size Grid::MeasureOverride(
                 nonStarWidth += desiredColumns[index];
             }
         }
-        nonStarHeight = 0.0;
+        nonStarHeight = 0.0f;
         for (std::uint32_t index = 0U; index < rows; ++index) {
             const GridLength definition = RowAt(index);
             if (definition.unit == GridUnitType::Pixel) {
@@ -490,10 +490,10 @@ Size Grid::MeasureOverride(
         const std::uint32_t columnSpan = item.columnSpan;
         const std::uint32_t rowSpan = item.rowSpan;
 
-        double fixedWidth = 0.0;
-        double fixedHeight = 0.0;
-        double spanColumnStarWeight = 0.0;
-        double spanRowStarWeight = 0.0;
+        float fixedWidth = 0.0f;
+        float fixedHeight = 0.0f;
+        float spanColumnStarWeight = 0.0f;
+        float spanRowStarWeight = 0.0f;
         bool autoWidth = false;
         bool autoHeight = false;
 
@@ -511,22 +511,22 @@ Size Grid::MeasureOverride(
         }
 
         const bool crossesStar =
-            spanColumnStarWeight > 0.0 || spanRowStarWeight > 0.0;
+            spanColumnStarWeight > 0.0f || spanRowStarWeight > 0.0f;
         if (crossesStar != (starPhase == 1)) continue;
 
-        double childWidth = fixedWidth;
-        if (spanColumnStarWeight > 0.0) {
-            childWidth = (availableSize.width < FiniteConstraintLimit && columnStarWeight > 0.0)
-                ? fixedWidth + std::max(0.0, availableSize.width - nonStarWidth) * spanColumnStarWeight / columnStarWeight
+        float childWidth = fixedWidth;
+        if (spanColumnStarWeight > 0.0f) {
+            childWidth = (availableSize.width < FiniteConstraintLimit && columnStarWeight > 0.0f)
+                ? fixedWidth + std::max(0.0f, availableSize.width - nonStarWidth) * spanColumnStarWeight / columnStarWeight
                 : Unconstrained;
         } else if (autoWidth) {
             childWidth = Unconstrained;
         }
 
-        double childHeight = fixedHeight;
-        if (spanRowStarWeight > 0.0) {
-            childHeight = (availableSize.height < FiniteConstraintLimit && rowStarWeight > 0.0)
-                ? fixedHeight + std::max(0.0, availableSize.height - nonStarHeight) * spanRowStarWeight / rowStarWeight
+        float childHeight = fixedHeight;
+        if (spanRowStarWeight > 0.0f) {
+            childHeight = (availableSize.height < FiniteConstraintLimit && rowStarWeight > 0.0f)
+                ? fixedHeight + std::max(0.0f, availableSize.height - nonStarHeight) * spanRowStarWeight / rowStarWeight
                 : Unconstrained;
         } else if (autoHeight) {
             childHeight = Unconstrained;
@@ -536,7 +536,7 @@ Size Grid::MeasureOverride(
         const Size childDesired = child->GetDesiredSize();
 
         // Distribute extra width among spanned columns
-        double currentWidth = 0.0;
+        float currentWidth = 0.0f;
         std::uint32_t autoColCount = 0U;
         for (std::uint32_t offset = 0U; offset < columnSpan; ++offset) {
             const std::uint32_t c = column + offset;
@@ -550,9 +550,9 @@ Size Grid::MeasureOverride(
                 currentWidth += desiredColumns[c];
             }
         }
-        const double extraWidth = std::max(0.0, childDesired.width - currentWidth);
-        if (extraWidth > 0.0) {
-            if (spanColumnStarWeight > 0.0) {
+        const float extraWidth = std::max(0.0f, childDesired.width - currentWidth);
+        if (extraWidth > 0.0f) {
+            if (spanColumnStarWeight > 0.0f) {
                 for (std::uint32_t offset = 0U; offset < columnSpan; ++offset) {
                     const std::uint32_t c = column + offset;
                     if (ColumnAt(c).unit == GridUnitType::Star) {
@@ -560,7 +560,7 @@ Size Grid::MeasureOverride(
                     }
                 }
             } else if (autoColCount > 0U) {
-                const double share = extraWidth / static_cast<double>(autoColCount);
+                const float share = extraWidth / static_cast<float>(autoColCount);
                 for (std::uint32_t offset = 0U; offset < columnSpan; ++offset) {
                     const std::uint32_t c = column + offset;
                     if (ColumnAt(c).unit == GridUnitType::Auto) {
@@ -571,7 +571,7 @@ Size Grid::MeasureOverride(
         }
 
         // Distribute extra height among spanned rows
-        double currentHeight = 0.0;
+        float currentHeight = 0.0f;
         std::uint32_t autoRowCount = 0U;
         for (std::uint32_t offset = 0U; offset < rowSpan; ++offset) {
             const std::uint32_t r = row + offset;
@@ -585,9 +585,9 @@ Size Grid::MeasureOverride(
                 currentHeight += desiredRows[r];
             }
         }
-        const double extraHeight = std::max(0.0, childDesired.height - currentHeight);
-        if (extraHeight > 0.0) {
-            if (spanRowStarWeight > 0.0) {
+        const float extraHeight = std::max(0.0f, childDesired.height - currentHeight);
+        if (extraHeight > 0.0f) {
+            if (spanRowStarWeight > 0.0f) {
                 for (std::uint32_t offset = 0U; offset < rowSpan; ++offset) {
                     const std::uint32_t r = row + offset;
                     if (RowAt(r).unit == GridUnitType::Star) {
@@ -595,7 +595,7 @@ Size Grid::MeasureOverride(
                     }
                 }
             } else if (autoRowCount > 0U) {
-                const double share = extraHeight / static_cast<double>(autoRowCount);
+                const float share = extraHeight / static_cast<float>(autoRowCount);
                 for (std::uint32_t offset = 0U; offset < rowSpan; ++offset) {
                     const std::uint32_t r = row + offset;
                     if (RowAt(r).unit == GridUnitType::Auto) {
@@ -608,14 +608,14 @@ Size Grid::MeasureOverride(
     }
 
     // Compute total desired size of the Grid for MeasureOverride
-    double maxStarWidthUnit = 0.0;
+    float maxStarWidthUnit = 0.0f;
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength def = ColumnAt(index);
-        if (def.unit == GridUnitType::Star && def.value > 0.0) {
+        if (def.unit == GridUnitType::Star && def.value > 0.0f) {
             maxStarWidthUnit = std::max(maxStarWidthUnit, desiredColumns[index] / def.value);
         }
     }
-    double totalDesiredWidth = 0.0;
+    float totalDesiredWidth = 0.0f;
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength def = ColumnAt(index);
         if (def.unit == GridUnitType::Pixel) {
@@ -627,14 +627,14 @@ Size Grid::MeasureOverride(
         }
     }
 
-    double maxStarHeightUnit = 0.0;
+    float maxStarHeightUnit = 0.0f;
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength def = RowAt(index);
-        if (def.unit == GridUnitType::Star && def.value > 0.0) {
+        if (def.unit == GridUnitType::Star && def.value > 0.0f) {
             maxStarHeightUnit = std::max(maxStarHeightUnit, desiredRows[index] / def.value);
         }
     }
-    double totalDesiredHeight = 0.0;
+    float totalDesiredHeight = 0.0f;
     for (std::uint32_t index = 0U; index < rows; ++index) {
         const GridLength def = RowAt(index);
         if (def.unit == GridUnitType::Pixel) {
@@ -670,15 +670,15 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
         }
     }
 
-    Base::Vector<double> maxCols;
+    Base::Vector<float> maxCols;
     maxCols.Reserve(GetColumnCount());
     for (std::uint32_t i = 0U; i < GetColumnCount(); ++i) maxCols.PushBack(MaxWidthAt(i));
-    Base::Vector<double> maxRows;
+    Base::Vector<float> maxRows;
     maxRows.Reserve(GetRowCount());
     for (std::uint32_t i = 0U; i < GetRowCount(); ++i) maxRows.PushBack(MaxHeightAt(i));
 
-    Base::Vector<double> columns;
-    Base::Vector<double> rows;
+    Base::Vector<float> columns;
+    Base::Vector<float> rows;
     if (!ResolveTracks(
             {columns_.Data(), columns_.Size()},
             {desiredColumns_.Data(), desiredColumns_.Size()},
@@ -711,12 +711,12 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
             rowPlacement.span;
         const std::uint32_t columnSpan =
             columnPlacement.span;
-        double x = 0.0;
-        double y = 0.0;
+        float x = 0.0f;
+        float y = 0.0f;
         for (std::uint32_t index = 0U; index < column; ++index) x += columns[index];
         for (std::uint32_t index = 0U; index < row; ++index) y += rows[index];
-        double width = 0.0;
-        double height = 0.0;
+        float width = 0.0f;
+        float height = 0.0f;
         for (std::uint32_t offset = 0U;
              offset < columnSpan; ++offset) {
             width += columns[column + offset];
@@ -757,23 +757,23 @@ GridLength Grid::RowAt(std::uint32_t index) const noexcept {
     }
     return rows_.Empty() ? GridLength::Star() : (index < rows_.Size() ? rows_[index] : GridLength::Star());
 }
-double Grid::MaxWidthAt(std::uint32_t index) const noexcept {
+float Grid::MaxWidthAt(std::uint32_t index) const noexcept {
     if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
-        return columnDefinitionObjects_[index]->GetMaxWidth();
+        return static_cast<float>(columnDefinitionObjects_[index]->GetMaxWidth());
     }
-    return 1.0e12;
+    return 1.0e12f;
 }
-double Grid::MaxHeightAt(std::uint32_t index) const noexcept {
+float Grid::MaxHeightAt(std::uint32_t index) const noexcept {
     if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
-        return rowDefinitionObjects_[index]->GetMaxHeight();
+        return static_cast<float>(rowDefinitionObjects_[index]->GetMaxHeight());
     }
-    return 1.0e12;
+    return 1.0e12f;
 }
 bool Grid::ValidateDefinitions(
     Base::Span<const GridLength> definitions) const noexcept {
     for (const GridLength& definition : definitions) {
-        if (!std::isfinite(definition.value) || definition.value < 0.0 ||
-            (definition.unit == GridUnitType::Star && definition.value <= 0.0)) {
+        if (!std::isfinite(definition.value) || definition.value < 0.0f ||
+            (definition.unit == GridUnitType::Star && definition.value <= 0.0f)) {
             return false;
         }
     }
@@ -799,45 +799,45 @@ std::uint32_t Grid::GetChildColumnSpan(
 }
 bool Grid::ResolveTracks(
     Base::Span<const GridLength> definitions,
-    Base::Span<const double> desired,
-    double available,
-    Base::Vector<double>& resolved,
-    Base::Span<const double> maxLimits) const noexcept {
+    Base::Span<const float> desired,
+    float available,
+    Base::Vector<float>& resolved,
+    Base::Span<const float> maxLimits) const noexcept {
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
-    if (!std::isfinite(available) || available < 0.0 ||
+    if (!std::isfinite(available) || available < 0.0f ||
         (!desired.Empty() && desired.Size() != count)) {
         return false;
     }
-    resolved.Resize(count, 0.0);
-    double occupied = 0.0;
-    double totalStarWeight = 0.0;
-    const auto getMaxLimit = [&](std::uint32_t idx) noexcept -> double {
-        return (!maxLimits.Empty() && idx < maxLimits.Size()) ? maxLimits[idx] : 1.0e12;
+    resolved.Resize(count, 0.0f);
+    float occupied = 0.0f;
+    float totalStarWeight = 0.0f;
+    const auto getMaxLimit = [&](std::uint32_t idx) noexcept -> float {
+        return (!maxLimits.Empty() && idx < maxLimits.Size()) ? maxLimits[idx] : 1.0e12f;
     };
     for (std::uint32_t index = 0U; index < count; ++index) {
         const GridLength definition = definitions.Empty()
             ? GridLength::Star() : definitions[index];
-        const double limit = getMaxLimit(index);
+        const float limit = getMaxLimit(index);
         if (definition.unit == GridUnitType::Pixel) {
-            resolved[index] = std::min(static_cast<double>(definition.value), limit);
+            resolved[index] = std::min(definition.value, limit);
             occupied += resolved[index];
         } else if (definition.unit == GridUnitType::Auto) {
-            resolved[index] = std::min(desired.Empty() ? 0.0 : desired[index], limit);
+            resolved[index] = std::min(desired.Empty() ? 0.0f : desired[index], limit);
             occupied += resolved[index];
         } else {
             totalStarWeight += definition.value;
         }
     }
     const bool unconstrained =
-        available >= 1.0e12 * 0.5;
-    const double remaining = std::max(0.0, available - occupied);
-    if (totalStarWeight > 0.0) {
-        double maxStarUnit = 0.0;
+        available >= 1.0e12f * 0.5f;
+    const float remaining = std::max(0.0f, available - occupied);
+    if (totalStarWeight > 0.0f) {
+        float maxStarUnit = 0.0f;
         if (unconstrained && !desired.Empty()) {
             for (std::uint32_t index = 0U; index < count; ++index) {
                 const GridLength definition = definitions.Empty()
                     ? GridLength::Star() : definitions[index];
-                if (definition.unit == GridUnitType::Star && definition.value > 0.0) {
+                if (definition.unit == GridUnitType::Star && definition.value > 0.0f) {
                     maxStarUnit = std::max(maxStarUnit, desired[index] / definition.value);
                 }
             }
@@ -846,7 +846,7 @@ bool Grid::ResolveTracks(
             const GridLength definition = definitions.Empty()
                 ? GridLength::Star() : definitions[index];
             if (definition.unit != GridUnitType::Star) continue;
-            const double limit = getMaxLimit(index);
+            const float limit = getMaxLimit(index);
             // WPF: star tracks behave like Auto when the constraint is
             // infinite (StackPanel → ColorSelector Grid with Height="*").
             if (unconstrained) {
@@ -951,38 +951,7 @@ namespace Aero {
 
 Base::Result<GridLength> Controls::Grid::ConvertLength(
     Base::StringView text) noexcept {
-    const Base::StringView value =
-        ::Aero::Base::ValueConversion::Trim(text);
-    if (::Aero::Base::ValueConversion::EqualsAsciiInsensitive(
-            value, "auto")) {
-        return GridLength::Auto();
-    }
-    if (!value.Empty() &&
-        value[value.SizeBytes() - 1U] == '*') {
-        const Base::StringView weightText =
-            value.Substr(0U, value.SizeBytes() - 1U);
-        double weight = 1.0;
-        if (!weightText.Empty()) {
-            Base::Result<double> parsed =
-                ::Aero::Base::ValueConversion::ParseDouble(weightText);
-            if (!parsed) return parsed.GetStatus();
-            weight = parsed.Value();
-        }
-        if (!std::isfinite(weight) || weight <= 0.0) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "GridLength star weight must be positive and finite");
-        }
-        return GridLength::Star(weight);
-    }
-    Base::Result<double> pixels =
-        ::Aero::Base::ValueConversion::ParseDouble(value);
-    if (!pixels || pixels.Value() < 0.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "GridLength must be Auto, a nonnegative pixel value, or a star weight");
-    }
-    return GridLength::Pixel(pixels.Value());
+    return ::Aero::Base::ValueConversion::ConvertGridLength(text);
 }
 
 bool Controls::Grid::ParseDefinitions(

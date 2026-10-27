@@ -15,6 +15,7 @@
 #include <Aero/Input.hpp>
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
+#include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/Markup/XamlDocument.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation.hpp>
@@ -742,6 +743,33 @@ public:
         DropCommandProperty{"DropCommand"};
 };
 
+class CustomGreetingExtension final : public Aero::Markup::MarkupExtension {
+    AERO_DECLARE_TYPE_NAMED(
+        CustomGreetingExtension,
+        Aero::Markup::MarkupExtension,
+        "clr-namespace:Aero.SampleHostTests",
+        "CustomGreetingExtension")
+public:
+    CustomGreetingExtension() noexcept
+        : MarkupExtension(StaticTypeId()) {}
+
+    Result<Aero::Value> ProvideValue(const Aero::Markup::MarkupExtensionContext& context) noexcept override {
+        targetObjectSeen = context.TargetObject() != nullptr;
+        targetPropertySeen = context.TargetProperty().IsValid();
+        auto resolved = context.ResolveType("Button");
+        resolveTypeSeen = resolved.HasValue();
+        return Aero::Value(StringView("HelloFromCustomGreetingExtension"));
+    }
+
+    static bool targetObjectSeen;
+    static bool targetPropertySeen;
+    static bool resolveTypeSeen;
+};
+
+bool CustomGreetingExtension::targetObjectSeen = false;
+bool CustomGreetingExtension::targetPropertySeen = false;
+bool CustomGreetingExtension::resolveTypeSeen = false;
+
 void AddOptionSelectorOption(
     Aero::Base::Object& owner,
     const Ref<Aero::Base::Object>& value,
@@ -1066,6 +1094,12 @@ Result<void> RegisterSampleHostTypes(
     status = Register<QuestLogViewModel>(registration)
         .Property<&QuestLogViewModel::GetQuests, &QuestLogViewModel::SetQuests>(
             "Quests")
+        .Factory()
+        .Result();
+    if (!status) return status;
+    status = Register<CustomGreetingExtension>(
+        registration,
+        Aero::Meta::TypeFlags::MarkupExtension | Aero::Meta::TypeFlags::Sealed)
         .Factory()
         .Result();
     if (!status) return status;
@@ -2617,5 +2651,66 @@ bool TestTutorialSampleXamlLoadApply() {
         }
         static_cast<void>(sawIntegrationGlut);
     }
+    return true;
+}
+
+bool TestMarkupExtensionContext() {
+    LiveGui* live = NewSampleLiveGui();
+    SAMPLE_CHECK(live != nullptr);
+
+    CustomGreetingExtension::targetObjectSeen = false;
+    CustomGreetingExtension::targetPropertySeen = false;
+    CustomGreetingExtension::resolveTypeSeen = false;
+
+    Aero::Markup::XamlReader reader(live->gui);
+    const char* xaml =
+        "<Button xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+        "        xmlns:test=\"clr-namespace:Aero.SampleHostTests\"\n"
+        "        Content=\"{test:CustomGreeting}\"/>";
+
+    Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(xaml), {}, {}, &live->diagnostics);
+    if (!doc) {
+        std::printf("Parse failed: %s\n", doc.GetStatus().message);
+        for (std::uint32_t i = 0; i < live->diagnostics.Size(); ++i) {
+            StringView msg = live->diagnostics.Items()[i].Message();
+            std::printf("Diag: %.*s\n", static_cast<int>(msg.SizeBytes()), msg.Data());
+        }
+        std::fflush(stdout);
+    }
+    SAMPLE_CHECK(doc.HasValue());
+    Ref<Base::Object> root = doc.Value().Root();
+    SAMPLE_CHECK(root);
+    auto* button = Aero::TryCast<Aero::Controls::Button>(root.Get());
+    SAMPLE_CHECK(button != nullptr);
+    SAMPLE_CHECK(button->GetContent().Kind() == Aero::Meta::ValueKind::String);
+    SAMPLE_CHECK(button->GetContent().AsString() == StringView("HelloFromCustomGreetingExtension"));
+    SAMPLE_CHECK(CustomGreetingExtension::targetObjectSeen);
+    SAMPLE_CHECK(CustomGreetingExtension::targetPropertySeen);
+    SAMPLE_CHECK(CustomGreetingExtension::resolveTypeSeen);
+    return true;
+}
+
+bool TestViewLoadXamlAndHotReload() {
+    LiveGui* live = NewSampleLiveGui();
+    SAMPLE_CHECK(live != nullptr);
+    SAMPLE_CHECK(live->view);
+
+    // Test View::GetSize()
+    Aero::Size sz = live->view->GetSize();
+    SAMPLE_CHECK(sz.width == 640.0 && sz.height == 480.0);
+
+    // Test View::LoadXaml
+    Aero::Markup::XamlReader reader(live->gui);
+    const char* viewXaml =
+        "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">\n"
+        "    <Button Content=\"HotReloadButton\"/>\n"
+        "</Grid>";
+    Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(viewXaml), {}, {}, &live->diagnostics);
+    SAMPLE_CHECK(doc.HasValue());
+    SAMPLE_CHECK(live->view->SetContent(std::move(doc).Value(), sz));
+    SAMPLE_CHECK(live->view->GetContent() != nullptr);
+
+    // Test View::Update silent polling advances clocks without error
+    SAMPLE_CHECK(PumpSample(*live));
     return true;
 }

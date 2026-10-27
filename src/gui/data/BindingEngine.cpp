@@ -119,7 +119,12 @@ void BindingEngine::Shutdown() noexcept {
     }
     deferredBindings_.Clear();
     pendingDeferredActivations_.Clear();
+    multiBindings_.Clear();
+    sourceToBindings_.Clear();
+    targetToBindings_.Clear();
+    dataContextBindings_.Clear();
     flushing_ = false;
+    initialized_ = false;
 }
 
 
@@ -290,10 +295,13 @@ BindingEngine::ActivatePendingDeferred() noexcept {
 BindingHandle BindingEngine::FindBinding(
     DependencyObject& target,
     DependencyPropertyHandle property) const noexcept {
-    for (const BindingRecord& record : bindings_) {
-        if (record.descriptor.target == &target &&
-            record.descriptor.targetProperty == property) {
-            return record.handle;
+    const auto* list = targetToBindings_.Find(&target);
+    if (list != nullptr) {
+        for (BindingHandle handle : *list) {
+            const BindingRecord* record = FindRecord(handle);
+            if (record != nullptr && record->descriptor.targetProperty == property) {
+                return handle;
+            }
         }
     }
     return {};
@@ -461,33 +469,34 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
         return dispatcher_->VerifyAccess().GetStatus();
     }
     std::uint32_t detached = 0U;
-    if (flushing_) {
-        for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
-            BindingRecord& record = bindings_[index];
-            if (record.handle.value == 0U) continue;
-            if (record.descriptor.source != &object &&
-                record.metadataSource != &object &&
-                record.descriptor.target != &object &&
-                record.dataContextOwner != &object) {
-                continue;
+    Base::Vector<BindingHandle> handlesToDetach;
+    if (const auto* targetList = targetToBindings_.Find(&object)) {
+        for (BindingHandle h : *targetList) {
+            handlesToDetach.PushBack(h);
+        }
+    }
+    if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+        for (BindingHandle h : *sourceList) {
+            bool found = false;
+            for (BindingHandle existing : handlesToDetach) {
+                if (existing.value == h.value) { found = true; break; }
             }
-            handleIndexMap_.Erase(record.handle.value);
-            CleanupRecord(record);
-            record.handle.value = 0U;
+            if (!found) handlesToDetach.PushBack(h);
+        }
+    }
+
+    for (BindingHandle handle : handlesToDetach) {
+        const std::uint32_t* found = handleIndexMap_.Find(handle.value);
+        if (found == nullptr || *found >= bindings_.Size()) continue;
+        if (flushing_) {
+            const std::uint32_t index = *found;
+            handleIndexMap_.Erase(handle.value);
+            CleanupRecord(bindings_[index]);
+            bindings_[index].handle.value = 0U;
             hasPendingDetaches_ = true;
             ++detached;
-        }
-    } else {
-        for (std::uint32_t index = 0U; index < bindings_.Size();) {
-            const BindingRecord& record = bindings_[index];
-            if (record.descriptor.source != &object &&
-                record.metadataSource != &object &&
-                record.descriptor.target != &object &&
-                record.dataContextOwner != &object) {
-                ++index;
-                continue;
-            }
-            RemoveAt(index);
+        } else {
+            RemoveAt(*found);
             ++detached;
         }
     }
@@ -1614,47 +1623,73 @@ void BindingEngine::OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept {
     bool lostFocusFlush = false;
-    for (BindingRecord& record : bindings_) {
-        if (record.sourceKind == BindingSourceKind::DependencyProperty &&
-            record.descriptor.source == &object &&
-            record.descriptor.sourceProperty == args.GetProperty()) {
-            record.sourceDirty = true;
-        }
-        if (record.sourceDependencyProperty.IsValid() &&
-            record.metadataSource == &object &&
-            record.sourceDependencyProperty == args.GetProperty()) {
-            record.sourceDirty = true;
-        }
-        if (record.sourceKind == BindingSourceKind::DataContext &&
-            record.dataContextProperty == args.GetProperty() &&
-            BindingOwnerSeesDataContextChange(
-                record.dataContextOwner, object)) {
-            ReleaseMetadataSource(record);
-            record.metadataSource = nullptr;
-            record.pathPlan = {};
-            record.sourceDirty = true;
-            record.applied = false;
-        }
-        if (record.descriptor.target == &object &&
-            record.descriptor.targetProperty == args.GetProperty()) {
-            record.targetDirty = true;
-        }
-        if (record.lostFocusSubscribed &&
-            record.descriptor.target == &object &&
-            args.GetProperty() ==
-                UIElement::IsKeyboardFocusedProperty.Handle() &&
-            record.descriptor.updateSourceTrigger ==
-                UpdateSourceTrigger::LostFocus) {
-            const PropertyValue& next = args.GetNewValue();
-            const bool focused =
-                next.Kind() == ValueKind::Boolean && next.AsBoolean();
-            if (!focused) {
-                record.forceSourceUpdate = true;
-                record.targetDirty = true;
-                lostFocusFlush = true;
+
+    if (const auto* targetList = targetToBindings_.Find(&object)) {
+        for (BindingHandle handle : *targetList) {
+            BindingRecord* record = FindRecord(handle);
+            if (record == nullptr) continue;
+            if (record->descriptor.targetProperty == args.GetProperty()) {
+                record->targetDirty = true;
+            }
+            if (record->lostFocusSubscribed &&
+                record->descriptor.target == &object &&
+                args.GetProperty() == UIElement::IsKeyboardFocusedProperty.Handle() &&
+                record->descriptor.updateSourceTrigger == UpdateSourceTrigger::LostFocus) {
+                const PropertyValue& next = args.GetNewValue();
+                const bool focused =
+                    next.Kind() == ValueKind::Boolean && next.AsBoolean();
+                if (!focused) {
+                    record->forceSourceUpdate = true;
+                    record->targetDirty = true;
+                    lostFocusFlush = true;
+                }
             }
         }
     }
+
+    if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+        for (BindingHandle handle : *sourceList) {
+            BindingRecord* record = FindRecord(handle);
+            if (record == nullptr) continue;
+            if (record->sourceKind == BindingSourceKind::DependencyProperty &&
+                record->descriptor.source == &object &&
+                record->descriptor.sourceProperty == args.GetProperty()) {
+                record->sourceDirty = true;
+            }
+            if (record->sourceDependencyProperty.IsValid() &&
+                record->metadataSource == &object &&
+                record->sourceDependencyProperty == args.GetProperty()) {
+                record->sourceDirty = true;
+            }
+            if (record->sourceKind == BindingSourceKind::DataContext &&
+                record->dataContextProperty == args.GetProperty() &&
+                record->dataContextOwner == &object) {
+                ReleaseMetadataSource(*record);
+                record->metadataSource = nullptr;
+                record->pathPlan = {};
+                record->sourceDirty = true;
+                record->applied = false;
+            }
+        }
+    }
+
+    if (!dataContextBindings_.Empty()) {
+        for (BindingHandle handle : dataContextBindings_) {
+            BindingRecord* record = FindRecord(handle);
+            if (record == nullptr) continue;
+            if (record->sourceKind == BindingSourceKind::DataContext &&
+                record->dataContextProperty == args.GetProperty() &&
+                record->dataContextOwner != &object &&
+                BindingOwnerSeesDataContextChange(record->dataContextOwner, object)) {
+                ReleaseMetadataSource(*record);
+                record->metadataSource = nullptr;
+                record->pathPlan = {};
+                record->sourceDirty = true;
+                record->applied = false;
+            }
+        }
+    }
+
     if (lostFocusFlush && !flushing_ && initialized_) {
         static_cast<void>(Flush());
     }
@@ -1663,20 +1698,23 @@ void BindingEngine::OnPropertyChanged(
 void BindingEngine::OnMetadataPropertyChanged(
     Base::Object& object,
     MemberId property) noexcept {
-    for (BindingRecord& record : bindings_) {
-        if (record.sourceKind ==
-                BindingSourceKind::DependencyProperty ||
-            record.metadataSource != &object ||
-            !record.pathPlan.IsValid() ||
-            record.pathPlan.Segments().Empty()) {
-            continue;
-        }
-        const BindingPathSegment& first =
-            record.pathPlan.Segments()[0];
-        if (property == InvalidMemberId ||
-            first.member == property ||
-            first.dynamic) {
-            record.sourceDirty = true;
+    if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+        for (BindingHandle handle : *sourceList) {
+            BindingRecord* record = FindRecord(handle);
+            if (record == nullptr) continue;
+            if (record->sourceKind == BindingSourceKind::DependencyProperty ||
+                record->metadataSource != &object ||
+                !record->pathPlan.IsValid() ||
+                record->pathPlan.Segments().Empty()) {
+                continue;
+            }
+            const BindingPathSegment& first =
+                record->pathPlan.Segments()[0];
+            if (property == InvalidMemberId ||
+                first.member == property ||
+                first.dynamic) {
+                record->sourceDirty = true;
+            }
         }
     }
 }
@@ -1891,6 +1929,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 "Binding to the DataContext object does not support writeback");
         }
         record.metadataSource = source;
+        AddSourceBinding(record.metadataSource, record.handle);
         record.sourceDirty = true;
         record.applied = false;
         return {};
@@ -1953,9 +1992,11 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     }
     record.metadataSource = source;
     record.pathPlan = std::move(compiled).Value();
+    AddSourceBinding(record.metadataSource, record.handle);
     Base::Result<void> subscribed =
         SubscribeMetadataSource(record);
     if (!subscribed) {
+        RemoveSourceBinding(record.metadataSource, record.handle);
         record.metadataSource = nullptr;
         record.pathPlan = {};
         return subscribed.GetStatus();
@@ -2025,6 +2066,9 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
 
 void BindingEngine::ReleaseMetadataSource(
     BindingRecord& record) noexcept {
+    if (record.metadataSource != nullptr) {
+        RemoveSourceBinding(record.metadataSource, record.handle);
+    }
     if (record.sourceDependencyProperty.IsValid() &&
         record.metadataSource != nullptr) {
         if (auto* sourceObject =
@@ -2047,19 +2091,30 @@ void BindingEngine::ReleaseMetadataSource(
 }
 
 void BindingEngine::CleanupRecord(BindingRecord& record) noexcept {
+    if (record.descriptor.target != nullptr) {
+        RemoveTargetBinding(record.descriptor.target, record.handle);
+    }
     if (record.sourceKind == BindingSourceKind::DependencyProperty) {
-        if (record.descriptor.source != nullptr && record.descriptor.sourceProperty.IsValid()) {
-            (void)record.descriptor.source->RemoveValueChangedHandler(
-                record.descriptor.sourceProperty,
-                propertyChangedHandler_);
+        if (record.descriptor.source != nullptr) {
+            RemoveSourceBinding(record.descriptor.source, record.handle);
+            if (record.descriptor.sourceProperty.IsValid()) {
+                (void)record.descriptor.source->RemoveValueChangedHandler(
+                    record.descriptor.sourceProperty,
+                    propertyChangedHandler_);
+            }
         }
     } else {
         ReleaseMetadataSource(record);
-        if (record.sourceKind == BindingSourceKind::DataContext &&
-            record.dataContextOwner != nullptr && record.dataContextProperty.IsValid()) {
-            (void)record.dataContextOwner->RemoveValueChangedHandler(
-                record.dataContextProperty,
-                propertyChangedHandler_);
+        if (record.sourceKind == BindingSourceKind::DataContext) {
+            if (record.dataContextOwner != nullptr) {
+                RemoveSourceBinding(record.dataContextOwner, record.handle);
+                if (record.dataContextProperty.IsValid()) {
+                    (void)record.dataContextOwner->RemoveValueChangedHandler(
+                        record.dataContextProperty,
+                        propertyChangedHandler_);
+                }
+            }
+            RemoveDataContextBinding(record.handle);
         }
     }
     if (record.descriptor.target != nullptr && record.descriptor.targetProperty.IsValid()) {
@@ -2080,6 +2135,76 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
         static_cast<void>(handleIndexMap_.Set(bindings_[current - 1U].handle.value, current - 1U));
     }
     bindings_.PopBack();
+}
+
+void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {
+    if (target == nullptr || handle.value == 0U) return;
+    auto* found = targetToBindings_.Find(target);
+    if (found != nullptr) {
+        found->PushBack(handle);
+    } else {
+        Base::Vector<BindingHandle> vec;
+        vec.PushBack(handle);
+        static_cast<void>(targetToBindings_.Insert(target, std::move(vec)));
+    }
+}
+
+void BindingEngine::RemoveTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {
+    if (target == nullptr || handle.value == 0U) return;
+    auto* found = targetToBindings_.Find(target);
+    if (found != nullptr) {
+        for (std::uint32_t i = 0U; i < found->Size(); ++i) {
+            if ((*found)[i].value == handle.value) {
+                found->Erase(i);
+                break;
+            }
+        }
+        if (found->Empty()) {
+            targetToBindings_.Erase(target);
+        }
+    }
+}
+
+void BindingEngine::AddSourceBinding(const Base::Object* source, BindingHandle handle) noexcept {
+    if (source == nullptr || handle.value == 0U) return;
+    auto* found = sourceToBindings_.Find(source);
+    if (found != nullptr) {
+        found->PushBack(handle);
+    } else {
+        Base::Vector<BindingHandle> vec;
+        vec.PushBack(handle);
+        static_cast<void>(sourceToBindings_.Insert(source, std::move(vec)));
+    }
+}
+
+void BindingEngine::RemoveSourceBinding(const Base::Object* source, BindingHandle handle) noexcept {
+    if (source == nullptr || handle.value == 0U) return;
+    auto* found = sourceToBindings_.Find(source);
+    if (found != nullptr) {
+        for (std::uint32_t i = 0U; i < found->Size(); ++i) {
+            if ((*found)[i].value == handle.value) {
+                found->Erase(i);
+                break;
+            }
+        }
+        if (found->Empty()) {
+            sourceToBindings_.Erase(source);
+        }
+    }
+}
+
+void BindingEngine::AddDataContextBinding(BindingHandle handle) noexcept {
+    if (handle.value == 0U) return;
+    dataContextBindings_.PushBack(handle);
+}
+
+void BindingEngine::RemoveDataContextBinding(BindingHandle handle) noexcept {
+    for (std::uint32_t i = 0U; i < dataContextBindings_.Size(); ++i) {
+        if (dataContextBindings_[i].value == handle.value) {
+            dataContextBindings_.Erase(i);
+            break;
+        }
+    }
 }
 
 } // namespace Aero
@@ -2110,7 +2235,11 @@ AERO_DESCRIBE(BindingBase) {
 
 AERO_DESCRIBE(RelativeSource) {
     using namespace Aero::Meta;
-    Register<RelativeSource>(context).Factory();
+    Register<RelativeSource>(context)
+            .Property("Mode", &RelativeSource::GetMode, &RelativeSource::SetMode)
+            .Property("AncestorType", &RelativeSource::GetAncestorType, &RelativeSource::SetAncestorType)
+            .Property("AncestorLevel", &RelativeSource::GetAncestorLevel, &RelativeSource::SetAncestorLevel)
+            .Factory();
 }
 
 AERO_DESCRIBE(Binding) {
@@ -2118,6 +2247,13 @@ AERO_DESCRIBE(Binding) {
     Register<Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
             .Property("Path", &Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath))
             .Property("ElementName", &Binding::GetElementName, &Binding::SetElementName)
+            .Property("Mode", &Binding::GetMode, &Binding::SetMode)
+            .Property("UpdateSourceTrigger", &Binding::GetUpdateSourceTrigger, &Binding::SetUpdateSourceTrigger)
+            .Property("StringFormat", &Binding::GetStringFormat, &Binding::SetStringFormat)
+            .Property<Value, &Binding::GetFallbackValue, &Binding::SetFallbackValue>("FallbackValue", PropertyFlags::AnyValue)
+            .Property<Value, &Binding::GetTargetNullValue, &Binding::SetTargetNullValue>("TargetNullValue", PropertyFlags::AnyValue)
+            .Property("Source", &Binding::GetSource, &Binding::SetSource)
+            .Property("RelativeSource", &Binding::GetRelativeSource, &Binding::SetRelativeSource)
             .Property("Converter", &Binding::GetConverter, &Binding::SetConverter)
             .Property<Value, &Binding::GetConverterParameter, &Binding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
             .Factory();
@@ -2126,6 +2262,9 @@ AERO_DESCRIBE(Binding) {
 AERO_DESCRIBE(MultiBinding) {
     using namespace Aero::Meta;
     Register<MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
+            .Property("StringFormat", &MultiBinding::GetStringFormat, &MultiBinding::SetStringFormat)
+            .Property<Value, &MultiBinding::GetFallbackValue, &MultiBinding::SetFallbackValue>("FallbackValue", PropertyFlags::AnyValue)
+            .Property<Value, &MultiBinding::GetTargetNullValue, &MultiBinding::SetTargetNullValue>("TargetNullValue", PropertyFlags::AnyValue)
             .Property("Converter", &MultiBinding::GetConverter, &MultiBinding::SetConverter)
             .Property<Value, &MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
             .Content<Binding>("Bindings", ContentKind::Collection,

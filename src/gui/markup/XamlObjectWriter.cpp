@@ -1786,10 +1786,10 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCompiledCore(
 
     // Step 5: High-speed XamlVM Bytecode Document Execution pipeline
     if (loadContext_ == nullptr || loadContext_->recordingNodes == nullptr) {
-        XamlBytecodeProgram program;
-        Base::Result<void> bytecodeReady = EnsureDocumentBytecode(
-            document, *schema_, program);
-        if (bytecodeReady && program.IsValid()) {
+        Base::Result<const XamlBytecodeProgram*> bytecodeReady = EnsureDocumentBytecode(
+            document, *schema_);
+        if (bytecodeReady && bytecodeReady.Value() != nullptr && bytecodeReady.Value()->IsValid()) {
+            const XamlBytecodeProgram& program = *bytecodeReady.Value();
             XamlDocumentExecutionContext vmContext;
             vmContext.schema = schema_;
             vmContext.loadContext = loadContext_;
@@ -3452,25 +3452,27 @@ Base::Result<ProvidedValue> ObjectWriter::EvaluateMarkupExtension(
     }
 
     Base::Result<const Meta::TypeInfo*> typeResult =
-
         schema_->ResolveType(
-
             namespaceResult.Value(),
-
             localName);
-
     if (!typeResult) {
-
+        char buffer[128];
+        if (localName.SizeBytes() + 9U < sizeof(buffer) &&
+            (localName.SizeBytes() < 9U ||
+             localName.Substr(localName.SizeBytes() - 9U, 9U) != Base::StringView("Extension"))) {
+            std::memcpy(buffer, localName.Data(), localName.SizeBytes());
+            std::memcpy(buffer + localName.SizeBytes(), "Extension", 9U);
+            typeResult = schema_->ResolveType(
+                namespaceResult.Value(),
+                Base::StringView(buffer, localName.SizeBytes() + 9U));
+        }
+    }
+    if (!typeResult) {
         return Failure(
-
             typeResult.GetStatus(),
-
             XamlObjectWriterDiagnosticCodes::UnknownMarkupExtension,
-
             MessageUnknownMarkupExtension,
-
             source);
-
     }
 
 
@@ -6063,27 +6065,22 @@ Base::Result<void> ObjectWriter::WriteValue(
         value.AsObject()) {
 
         if (MarkupExtension* extension =
-
                 ::Aero::TryCast<MarkupExtension>(value.AsObject().Get())) {
-
-            Base::Result<Meta::Value> provided = extension->ProvideValue();
-
-            if (!provided) {
-
-                return Failure(
-
-                    provided.GetStatus(),
-
-                    XamlObjectWriterDiagnosticCodes::MarkupExtensionFailed,
-
-                    MessageMarkupExtensionFailed,
-
+            const ExtensionServices services =
+                BuildExtensionServices(
+                    targetObjectIndex,
+                    member,
                     source);
-
+            MarkupExtensionContext context = MakeMarkupExtensionContext(services);
+            Base::Result<Meta::Value> provided = extension->ProvideValue(context);
+            if (!provided) {
+                return Failure(
+                    provided.GetStatus(),
+                    XamlObjectWriterDiagnosticCodes::MarkupExtensionFailed,
+                    MessageMarkupExtensionFailed,
+                    source);
             }
-
             value = std::move(provided).Value();
-
         }
 
     }

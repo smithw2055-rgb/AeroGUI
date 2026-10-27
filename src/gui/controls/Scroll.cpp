@@ -30,10 +30,10 @@ namespace Aero::Controls {
 
 namespace ScrollSupport {
 
-inline constexpr double LayoutInfinity = 1.0e12;
+inline constexpr float LayoutInfinity = 1.0e12f;
 
-inline bool Same(double left, double right) noexcept {
-    return std::fabs(left - right) <= 0.000001;
+inline bool Same(float left, float right) noexcept {
+    return std::fabs(left - right) <= 0.000001f;
 }
 
 inline bool SameData(

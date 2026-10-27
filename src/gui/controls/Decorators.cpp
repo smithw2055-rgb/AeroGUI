@@ -18,24 +18,24 @@ using namespace ::Aero::Render;
 
 namespace {
 
-double LimitScale(
-    double scale,
+float LimitScale(
+    float scale,
     StretchDirection direction) noexcept {
-    if (!std::isfinite(scale) || scale < 0.0) {
-        return 0.0;
+    if (!std::isfinite(scale) || scale < 0.0f) {
+        return 0.0f;
     }
     if (direction == StretchDirection::UpOnly) {
-        return std::max(1.0, scale);
+        return std::max(1.0f, scale);
     }
     if (direction == StretchDirection::DownOnly) {
-        return std::min(1.0, scale);
+        return std::min(1.0f, scale);
     }
     return scale;
 }
 
 struct ViewboxScale {
-    double scaleX = 1.0;
-    double scaleY = 1.0;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
 };
 
 ViewboxScale ComputeViewboxScaleFactor(
@@ -43,16 +43,16 @@ ViewboxScale ComputeViewboxScaleFactor(
     Size natural,
     Stretch stretch,
     StretchDirection direction) noexcept {
-    const bool isConstrainedWidth = availableSize.width < 1.0e10;
-    const bool isConstrainedHeight = availableSize.height < 1.0e10;
+    const bool isConstrainedWidth = availableSize.width < 1.0e10f;
+    const bool isConstrainedHeight = availableSize.height < 1.0e10f;
 
-    double scaleX = 1.0;
-    double scaleY = 1.0;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
 
     if ((stretch == Stretch::Uniform || stretch == Stretch::UniformToFill || stretch == Stretch::Fill)
         && (isConstrainedWidth || isConstrainedHeight)) {
-        scaleX = (natural.width > 0.0) ? (availableSize.width / natural.width) : 0.0;
-        scaleY = (natural.height > 0.0) ? (availableSize.height / natural.height) : 0.0;
+        scaleX = (natural.width > 0.0f) ? (availableSize.width / natural.width) : 0.0f;
+        scaleY = (natural.height > 0.0f) ? (availableSize.height / natural.height) : 0.0f;
 
         if (!isConstrainedWidth) {
             scaleX = scaleY;
@@ -61,13 +61,13 @@ ViewboxScale ComputeViewboxScaleFactor(
         } else {
             switch (stretch) {
             case Stretch::Uniform: {
-                const double scale = std::min(scaleX, scaleY);
+                const float scale = std::min(scaleX, scaleY);
                 scaleX = scale;
                 scaleY = scale;
                 break;
             }
             case Stretch::UniformToFill: {
-                const double scale = std::max(scaleX, scaleY);
+                const float scale = std::max(scaleX, scaleY);
                 scaleX = scale;
                 scaleY = scale;
                 break;
@@ -81,11 +81,11 @@ ViewboxScale ComputeViewboxScaleFactor(
     }
 
     if (direction == StretchDirection::UpOnly) {
-        scaleX = std::max(1.0, scaleX);
-        scaleY = std::max(1.0, scaleY);
+        scaleX = std::max(1.0f, scaleX);
+        scaleY = std::max(1.0f, scaleY);
     } else if (direction == StretchDirection::DownOnly) {
-        scaleX = std::min(1.0, scaleX);
-        scaleY = std::min(1.0, scaleY);
+        scaleX = std::min(1.0f, scaleX);
+        scaleY = std::min(1.0f, scaleY);
     }
 
     return {scaleX, scaleY};
@@ -204,20 +204,20 @@ Size Image::MeasureOverride(Size availableSize) noexcept {
         return Size{};
     }
     const Size natural{
-        static_cast<double>(pixelWidth_),
-        static_cast<double>(pixelHeight_)};
+        static_cast<float>(pixelWidth_),
+        static_cast<float>(pixelHeight_)};
     if (GetStretch() == Stretch::None) {
         return natural;
     }
-    const double scaleX =
-        std::isfinite(availableSize.width) && availableSize.width > 0.0
+    const float scaleX =
+        std::isfinite(availableSize.width) && availableSize.width > 0.0f
         ? availableSize.width / natural.width
-        : 1.0;
-    const double scaleY =
-        std::isfinite(availableSize.height) && availableSize.height > 0.0
+        : 1.0f;
+    const float scaleY =
+        std::isfinite(availableSize.height) && availableSize.height > 0.0f
         ? availableSize.height / natural.height
-        : 1.0;
-    double scale = GetStretch() == Stretch::UniformToFill
+        : 1.0f;
+    float scale = GetStretch() == Stretch::UniformToFill
         ? std::max(scaleX, scaleY)
         : std::min(scaleX, scaleY);
     if (GetStretch() == Stretch::Fill) {
@@ -235,39 +235,39 @@ void Image::OnRender(::Aero::Media::DrawingContext& context) noexcept {
         return;
     }
     const Size size = GetRenderSize();
-    if (size.width <= 0.0 || size.height <= 0.0) {
+    if (size.width <= 0.0f || size.height <= 0.0f) {
         return;
     }
-    const double sourceWidth = static_cast<double>(pixelWidth_);
-    const double sourceHeight = static_cast<double>(pixelHeight_);
+    const float sourceWidth = static_cast<float>(pixelWidth_);
+    const float sourceHeight = static_cast<float>(pixelHeight_);
     const Stretch stretch = GetStretch();
-    Rect destination{0.0, 0.0, size.width, size.height};
-    Rect uv{0.0, 0.0, 1.0, 1.0};
+    Rect destination{0.0f, 0.0f, size.width, size.height};
+    Rect uv{0.0f, 0.0f, 1.0f, 1.0f};
     if (stretch == Stretch::None) {
-        const double scale = LimitScale(1.0, GetStretchDirection());
+        const float scale = LimitScale(1.0f, GetStretchDirection());
         destination.width = sourceWidth * scale;
         destination.height = sourceHeight * scale;
     } else if (stretch != Stretch::Fill) {
-        const double scaleX = size.width / sourceWidth;
-        const double scaleY = size.height / sourceHeight;
-        double scale = stretch == Stretch::UniformToFill
+        const float scaleX = size.width / sourceWidth;
+        const float scaleY = size.height / sourceHeight;
+        float scale = stretch == Stretch::UniformToFill
             ? std::max(scaleX, scaleY)
             : std::min(scaleX, scaleY);
         scale = LimitScale(scale, GetStretchDirection());
-        const double drawnWidth = sourceWidth * scale;
-        const double drawnHeight = sourceHeight * scale;
-        if (stretch == Stretch::UniformToFill && drawnWidth > 0.0 && drawnHeight > 0.0) {
-            uv.width = std::clamp(static_cast<float>(size.width / drawnWidth), 0.0f, 1.0f);
-            uv.height = std::clamp(static_cast<float>(size.height / drawnHeight), 0.0f, 1.0f);
-            uv.x = (1.0 - uv.width) * 0.5;
-            uv.y = (1.0 - uv.height) * 0.5;
+        const float drawnWidth = sourceWidth * scale;
+        const float drawnHeight = sourceHeight * scale;
+        if (stretch == Stretch::UniformToFill && drawnWidth > 0.0f && drawnHeight > 0.0f) {
+            uv.width = std::clamp(size.width / drawnWidth, 0.0f, 1.0f);
+            uv.height = std::clamp(size.height / drawnHeight, 0.0f, 1.0f);
+            uv.x = (1.0f - uv.width) * 0.5f;
+            uv.y = (1.0f - uv.height) * 0.5f;
         } else {
             destination.width = drawnWidth;
             destination.height = drawnHeight;
         }
     }
-    destination.x = (size.width - destination.width) * 0.5;
-    destination.y = (size.height - destination.height) * 0.5;
+    destination.x = (size.width - destination.width) * 0.5f;
+    destination.y = (size.height - destination.height) * 0.5f;
     static_cast<void>(builder.DrawImage(renderImage_, destination, uv));
 }
 
@@ -294,10 +294,10 @@ Size Viewbox::MeasureOverride(Size availableSize) noexcept {
     if (child == nullptr) {
         return Size{};
     }
-    constexpr double NaturalConstraint = 1.0e12;
+    constexpr float NaturalConstraint = 1.0e12f;
     MeasureChild(*child, {NaturalConstraint, NaturalConstraint});
     const Size natural = child->GetDesiredSize();
-    if (natural.width <= 0.0 || natural.height <= 0.0) {
+    if (natural.width <= 0.0f || natural.height <= 0.0f) {
         return Size{};
     }
     const ViewboxScale factors = ComputeViewboxScaleFactor(
@@ -306,10 +306,10 @@ Size Viewbox::MeasureOverride(Size availableSize) noexcept {
 }
 
 void Viewbox::ApplyViewTransform(
-    double scaleX,
-    double scaleY,
-    double offsetX,
-    double offsetY) noexcept {
+    float scaleX,
+    float scaleY,
+    float offsetX,
+    float offsetY) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
         ClearViewboxTransform();
@@ -331,31 +331,31 @@ void Viewbox::ApplyViewTransform(
 Size Viewbox::ArrangeOverride(Size finalSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
-        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
+        ApplyViewTransform(1.0f, 1.0f, 0.0f, 0.0f);
         return finalSize;
     }
 
     const Size natural = child->GetDesiredSize();
-    if (natural.width <= 0.0 || natural.height <= 0.0) {
-        ArrangeChild(*child, {0.0, 0.0, 0.0, 0.0});
-        ApplyViewTransform(1.0, 1.0, 0.0, 0.0);
+    if (natural.width <= 0.0f || natural.height <= 0.0f) {
+        ArrangeChild(*child, {0.0f, 0.0f, 0.0f, 0.0f});
+        ApplyViewTransform(1.0f, 1.0f, 0.0f, 0.0f);
         return finalSize;
     }
 
     const ViewboxScale factors = ComputeViewboxScaleFactor(
         finalSize, natural, GetStretch(), GetStretchDirection());
-    const double scaleX = factors.scaleX;
-    const double scaleY = factors.scaleY;
+    const float scaleX = factors.scaleX;
+    const float scaleY = factors.scaleY;
 
-    const double renderedWidth = natural.width * scaleX;
-    const double renderedHeight = natural.height * scaleY;
-    const double arrangeWidth = finalSize.width < 1.0e10 ? finalSize.width : renderedWidth;
-    const double arrangeHeight = finalSize.height < 1.0e10 ? finalSize.height : renderedHeight;
-    const double offsetX = (arrangeWidth - renderedWidth) * 0.5;
-    const double offsetY = (arrangeHeight - renderedHeight) * 0.5;
+    const float renderedWidth = natural.width * scaleX;
+    const float renderedHeight = natural.height * scaleY;
+    const float arrangeWidth = finalSize.width < 1.0e10f ? finalSize.width : renderedWidth;
+    const float arrangeHeight = finalSize.height < 1.0e10f ? finalSize.height : renderedHeight;
+    const float offsetX = (arrangeWidth - renderedWidth) * 0.5f;
+    const float offsetY = (arrangeHeight - renderedHeight) * 0.5f;
 
     ApplyViewTransform(scaleX, scaleY, offsetX, offsetY);
-    ArrangeChild(*child, {0.0, 0.0, natural.width, natural.height});
+    ArrangeChild(*child, {0.0f, 0.0f, natural.width, natural.height});
     return finalSize;
 }
 

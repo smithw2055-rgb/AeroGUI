@@ -4350,43 +4350,23 @@ DynamicResourceExtension::DynamicResourceExtension(
 
 
 Base::Result<void> DynamicResourceExtension::Register(
-
     Schema& schema,
-
     Meta::TypeId dynamicResourceExtensionType) noexcept {
-
     return schema.AddMarkupExtension({
-
         dynamicResourceExtensionType,
-
         &DynamicResourceExtension::ProvideValue,
-
         this});
-
 }
 
-
-
 Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
-
     Base::StringView arguments,
-
     const ExtensionServices& services,
-
     void* context) noexcept {
-
     DynamicResourceExtension* extension =
-
         static_cast<DynamicResourceExtension*>(context);
-
-    if (extension == nullptr ||
-
-        services.schema == nullptr || services.targetObject == nullptr ||
-
+    if (services.schema == nullptr || services.targetObject == nullptr ||
         services.targetMember == Meta::InvalidMemberId) {
-
         return Base::Status::Failure(
-
             Base::ErrorCode::InvalidState,
 
             "DynamicResource markup extension has no target service context");
@@ -4675,43 +4655,21 @@ namespace Aero::Markup {
 
 
 Base::Result<void> StaticResourceExtension::Register(
-
     Schema& schema,
-
     Meta::TypeId staticResourceExtensionType) noexcept {
-
     return schema.AddMarkupExtension({
-
         staticResourceExtensionType,
-
         &StaticResourceExtension::ProvideValue,
-
-        this});
-
+        nullptr});
 }
 
-
-
 Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
-
     Base::StringView arguments,
-
     const ExtensionServices& services,
-
-    void* context) noexcept {
-
-    StaticResourceExtension* extension =
-
-        static_cast<StaticResourceExtension*>(context);
-
-    if (extension == nullptr ||
-
-        services.schema == nullptr || services.targetObject == nullptr ||
-
+    void* /*context*/) noexcept {
+    if (services.schema == nullptr || services.targetObject == nullptr ||
         services.targetMember == Meta::InvalidMemberId) {
-
         return Base::Status::Failure(
-
             Base::ErrorCode::InvalidState,
 
             "StaticResource markup extension has no target service context");
@@ -6173,14 +6131,56 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
 
 
     return Base::Status::Failure(
-
         Base::ErrorCode::Unsupported,
-
         "x:Static member is not a registered enum or routed command");
-
 }
 
+Base::Result<void> RegisterBuiltinMarkupExtensions(
+    Schema& schema) noexcept {
+    ResourceExtension resourceExtension;
+    Base::Result<void> status = resourceExtension.Register(schema);
+    if (!status) return status;
 
+    StaticExtension staticExtension;
+    status = staticExtension.Register(
+        schema,
+        Meta::MakeTypeId(
+            LanguageNamespaceUri(),
+            Base::StringView("Static")));
+    if (!status) return status;
+
+    StaticResourceExtension staticResourceExtension;
+    status = staticResourceExtension.Register(
+        schema,
+        Meta::MakeTypeId(
+            Meta::AeroNamespaceUri(),
+            Base::StringView("StaticResourceExtension")));
+    if (!status) return status;
+
+    TypeExtension typeExtension;
+    status = typeExtension.Register(
+        schema,
+        Meta::MakeTypeId(
+            LanguageNamespaceUri(),
+            Base::StringView("Type")));
+    if (!status) return status;
+
+    LocExtension locExtension;
+    status = locExtension.Register(
+        schema,
+        Meta::MakeTypeId(
+            Meta::AeroNamespaceUri(),
+            Base::StringView("Loc")));
+    if (!status) return status;
+
+    TemplateBindingExtension templateBindingExtension;
+    status = templateBindingExtension.Register(
+        schema,
+        Meta::MakeTypeId(
+            Meta::AeroNamespaceUri(),
+            Base::StringView("TemplateBinding")));
+    return status;
+}
 
 } // namespace Aero::Markup
 

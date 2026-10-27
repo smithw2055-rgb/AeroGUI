@@ -137,6 +137,7 @@ private:
     Base::Vector<Instance> instances_;
     Base::HashMap<const Control*, std::uint32_t> controlToInstance_;
     Base::HashMap<std::uint64_t, std::uint32_t> handleToInstance_;
+    Base::HashMap<const DependencyObject*, std::uint32_t> triggerSourceToInstance_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     std::uint64_t nextHandle_ = 1U;
 

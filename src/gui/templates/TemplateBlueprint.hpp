@@ -76,18 +76,27 @@ struct TemplatePrototypeBinding {
     Meta::PropertyValue converterParameter;
 };
 
+struct CompiledTriggerSetter {
+    std::uint32_t target = 0U;
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+};
+
+struct CompiledTriggerPlan {
+    Base::Ref<Aero::TriggerBase> trigger;
+    Base::Vector<CompiledTriggerSetter> setters;
+};
+
 struct CompiledTemplateBlueprint {
     ::Aero::Meta::Registry* runtime = nullptr;
     Meta::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
-    Base::Vector<Base::Ref<Aero::TriggerBase>>
-        dataTemplateTriggers;
+    Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
     // Non-property triggers are retained on the compiled blueprint so every
     // control-template instance can materialize its own sources, name scope,
     // subscriptions, and animation actions.
-    Base::Vector<Base::Ref<Aero::TriggerBase>>
-        controlTemplateDataTriggers;
+    Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
     Base::Vector<Base::Ref<Media::Animation::EventTrigger>>
         controlTemplateEventTriggers;
     std::uint32_t contentPresenter = UINT32_MAX;
@@ -104,6 +113,12 @@ struct CompiledTemplateDefinition {
     Base::Vector<Controls::VisualStateGroupPlan>
         visualStateGroups;
 };
+
+Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
+    Base::Ref<Aero::TriggerBase> trigger,
+    const CompiledTemplateBlueprint& blueprint,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
 
 Base::Result<void> BuildCompiledTemplate(
     Controls::TemplateBuilder& context,

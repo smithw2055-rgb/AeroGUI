@@ -544,8 +544,8 @@ public:
     inline static constexpr DependencyProperty<std::int32_t> StepValueProperty{"StepValue"};
 };
 
-// DP虚函数试点： registru时不挂Validate/Coerce delegate，引擎回退到虚函数�?
-// ValidateValueCore 拒收负数，CoerceValueCore �?>100 钳到 100�?
+// DP虚函数试点： registru时不挂Validate/Coerce delegate，引擎回退到虚函数。
+// ValidateValueCore 拒收负数，CoerceValueCore 报>100 钳到 100。
 class CoercePilot final : public UserControl {
     AERO_DECLARE_TYPE_NAMED(
         CoercePilot,
@@ -6521,6 +6521,8 @@ bool TestTypeKeyedStaticResourceBasedOn();
 bool TestControlTemplateBasedOn();
 bool TestInventoryTemplateApply();
 bool TestTutorialSampleXamlLoadApply();
+bool TestMarkupExtensionContext();
+bool TestViewLoadXamlAndHotReload();
 
 int main() {
     RUN(TestValueLayoutAndSSO);
@@ -6586,6 +6588,8 @@ int main() {
     RUN(TestControlTemplateBasedOn);
     RUN(TestInventoryTemplateApply);
     RUN(TestTutorialSampleXamlLoadApply);
+    RUN(TestMarkupExtensionContext);
+    RUN(TestViewLoadXamlAndHotReload);
     std::puts("Aero framework conformance tests passed");
     std::fflush(stdout);
     // LiveGui instances are leaked on purpose (View/~Gui SIGSEGV with mounted

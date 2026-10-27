@@ -1712,114 +1712,116 @@ Base::Result<bool> InteractivityEngine::EvaluateInteractionDataTrigger(
         return true;
     }
 
+namespace {
+
+template <typename TriggerType>
+void PendTrigger(
+    InteractivityEngine& engine,
+    Aero::FrameworkElement& owner,
+    const Aero::NameScope* names,
+    TriggerType& trigger) noexcept;
+
+template <>
+void PendTrigger(
+    InteractivityEngine& engine,
+    Aero::FrameworkElement& owner,
+    const Aero::NameScope* names,
+    Aero::Interactivity::PropertyChangedTrigger& trigger) noexcept {
+    engine.PendUntilDataContext(owner, names, nullptr, &trigger);
+}
+
+template <>
+void PendTrigger(
+    InteractivityEngine& engine,
+    Aero::FrameworkElement& owner,
+    const Aero::NameScope* names,
+    Aero::DataTrigger& trigger) noexcept {
+    engine.PendUntilDataContext(owner, names, &trigger, nullptr);
+}
+
+template <typename TriggerType, typename StateType, typename SubscriptionListType>
+Base::Result<StateType*> StartBindingTriggerHelper(
+    InteractivityEngine& engine,
+    TriggerType& trigger,
+    Aero::FrameworkElement& owner,
+    const Aero::NameScope* names,
+    SubscriptionListType& subscriptions) noexcept {
+    if (!trigger.GetBinding()) return nullptr;
+    for (const auto& existing : subscriptions) {
+        auto* ctx = existing.template GetContext<StateType>();
+        if (existing.owner == &owner && ctx != nullptr &&
+            ctx->trigger == &trigger) {
+            return nullptr;
+        }
+    }
+    Base::Result<InteractivityEngine::InteractionTriggerProperty> property =
+        engine.ResolveInteractionTriggerProperty(
+            *trigger.GetBinding(), owner, names);
+    if (property.GetStatus().code == Base::ErrorCode::NotFound) {
+        PendTrigger(engine, owner, names, trigger);
+        return nullptr;
+    }
+    if (!property) return property.GetStatus();
+    StateType* context = nullptr;
+    Base::Result<void> allocated = Base::AllocateObject(
+        *engine.Allocator(), Base::MemoryTag::Ui, context);
+    if (!allocated) return allocated.GetStatus();
+    context->runtime = &engine;
+    context->trigger = &trigger;
+    context->owner = &owner;
+    context->names = names;
+    context->metadataProperty = property.Value().metadataProperty;
+
+    typename SubscriptionListType::ValueType subscription;
+    Base::Result<void> subscribed = subscription.Subscribe(
+        engine,
+        &owner,
+        property.Value(),
+        [context](
+            ::Aero::DependencyObject& object,
+            const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+            context->Invoke(object, args);
+        },
+        &StateType::MetadataInvoke,
+        context,
+        &DefaultWatcherCleanup<StateType>);
+    if (!subscribed) {
+        Base::FreeObject(*engine.Allocator(), Base::MemoryTag::Ui, context);
+        return subscribed.GetStatus();
+    }
+    subscriptions.PushBack(std::move(subscription));
+    return context;
+}
+
+} // namespace
+
 Base::Result<bool> InteractivityEngine::StartPropertyChangedTrigger(
         Aero::Interactivity::PropertyChangedTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
-        if (!trigger.GetBinding()) return false;
-        for (const PropertyChangedTriggerSubscription& existing :
-             propertyChangedTriggerSubscriptions) {
-            auto* ctx = existing.GetContext<PropertyChangedTriggerState>();
-            if (existing.owner == &owner && ctx != nullptr &&
-                ctx->trigger == &trigger) {
-                return false;
-            }
-        }
-        Base::Result<InteractionTriggerProperty> property =
-            ResolveInteractionTriggerProperty(
-                *trigger.GetBinding(), owner, names);
-        if (property.GetStatus().code == Base::ErrorCode::NotFound) {
-            PendUntilDataContext(
-                owner, names, nullptr, &trigger);
-            return false;
-        }
-        if (!property) return property.GetStatus();
-        PropertyChangedTriggerState* context = nullptr;
-        Base::Result<void> allocated = AllocateObject(
-            *Allocator(), Base::MemoryTag::Ui, context);
-        if (!allocated) return allocated.GetStatus();
-        context->runtime = this;
-        context->trigger = &trigger;
-        context->owner = &owner;
-        context->names = names;
-        context->metadataProperty = property.Value().metadataProperty;
-
-        PropertyChangedTriggerSubscription subscription;
-        Base::Result<void> subscribed = subscription.Subscribe(
-            *this,
-            &owner,
-            property.Value(),
-            [context](
-                ::Aero::DependencyObject& object,
-                const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-                context->Invoke(object, args);
-            },
-            &PropertyChangedTriggerState::MetadataInvoke,
-            context,
-            &DefaultWatcherCleanup<PropertyChangedTriggerState>);
-        if (!subscribed) {
-            FreeObject(*Allocator(), Base::MemoryTag::Ui, context);
-            return subscribed.GetStatus();
-        }
-        propertyChangedTriggerSubscriptions.PushBack(std::move(subscription));
-        return true;
-    }
+    Base::Result<PropertyChangedTriggerState*> res = StartBindingTriggerHelper<
+        Aero::Interactivity::PropertyChangedTrigger,
+        PropertyChangedTriggerState>(
+        *this, trigger, owner, names, propertyChangedTriggerSubscriptions);
+    if (!res) return res.GetStatus();
+    return res.Value() != nullptr;
+}
 
 Base::Result<bool> InteractivityEngine::StartInteractionDataTrigger(
         Aero::DataTrigger& trigger,
         Aero::FrameworkElement& owner,
         const Aero::NameScope* names) noexcept {
-        if (!trigger.GetBinding()) return false;
-        for (const InteractionDataTriggerSubscription& existing :
-             interactionDataTriggerSubscriptions) {
-            auto* ctx = existing.GetContext<InteractionDataTriggerState>();
-            if (existing.owner == &owner && ctx != nullptr &&
-                ctx->trigger == &trigger) {
-                return false;
-            }
-        }
-        Base::Result<InteractionTriggerProperty> property =
-            ResolveInteractionTriggerProperty(
-                *trigger.GetBinding(), owner, names);
-        if (property.GetStatus().code == Base::ErrorCode::NotFound) {
-            PendUntilDataContext(
-                owner, names, &trigger, nullptr);
-            return false;
-        }
-        if (!property) return property.GetStatus();
-        InteractionDataTriggerState* context = nullptr;
-        Base::Result<void> allocated = AllocateObject(
-            *Allocator(), Base::MemoryTag::Ui, context);
-        if (!allocated) return allocated.GetStatus();
-        context->runtime = this;
-        context->trigger = &trigger;
-        context->owner = &owner;
-        context->names = names;
-        context->metadataProperty = property.Value().metadataProperty;
-
-        InteractionDataTriggerSubscription subscription;
-        Base::Result<void> subscribed = subscription.Subscribe(
-            *this,
-            &owner,
-            property.Value(),
-            [context](
-                ::Aero::DependencyObject& object,
-                const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
-                context->Invoke(object, args);
-            },
-            &InteractionDataTriggerState::MetadataInvoke,
-            context,
-            &DefaultWatcherCleanup<InteractionDataTriggerState>);
-        if (!subscribed) {
-            FreeObject(*Allocator(), Base::MemoryTag::Ui, context);
-            return subscribed.GetStatus();
-        }
-        interactionDataTriggerSubscriptions.PushBack(std::move(subscription));
-        Base::Result<bool> evaluated =
-            EvaluateInteractionDataTrigger(*context);
-        if (!evaluated) return evaluated.GetStatus();
-        return true;
-    }
+    Base::Result<InteractionDataTriggerState*> res = StartBindingTriggerHelper<
+        Aero::DataTrigger,
+        InteractionDataTriggerState>(
+        *this, trigger, owner, names, interactionDataTriggerSubscriptions);
+    if (!res) return res.GetStatus();
+    if (res.Value() == nullptr) return false;
+    Base::Result<bool> evaluated =
+        EvaluateInteractionDataTrigger(*res.Value());
+    if (!evaluated) return evaluated.GetStatus();
+    return true;
+}
 
 std::uint32_t InteractivityEngine::KeyCodeFromName(
         Base::StringView key) noexcept {
@@ -2069,31 +2071,13 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
         auto& element =
             static_cast<Aero::FrameworkElement&>(
                 owner);
-        for (const Base::Ref<Base::Object>& authored :
-             actions) {
-            if (!authored ||
-                !runtime->Metadata()->Types().IsDerivedFrom(
-                    authored->RuntimeType(),
-                    Aero::Interactivity::TriggerAction::
-                        StaticTypeId())) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "Style Trigger contains an invalid action");
-            }
-            Base::Result<void> executed =
-                runtime->Storyboards()->ExecuteAnimationAction(
-                    static_cast<Aero::Interactivity::TriggerAction&>(
-                        *authored),
-                    element);
-            if (!executed) return executed.GetStatus();
-        }
-        return {};
+        return runtime->ExecuteTriggerActions(actions, element, nullptr);
     }
 
 bool InteractivityEngine::StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept {
-    return ComparePropertyValues(actual, std::move(expected), Metadata());
+    return DataTemplateTriggerValuesMatch(actual, std::move(expected));
 }
 
 Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(
