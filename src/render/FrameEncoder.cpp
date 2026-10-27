@@ -459,7 +459,6 @@ void UiFrameEncoder::FlushBatch() noexcept {
         }
         static_cast<void>(queuedBatches_.PushBack(std::move(qb)));
 
-        currentBatch_ = Batch{};
         currentBatch_.numIndices = 0U;
         currentBatch_.numVertices = 0U;
         currentBatch_.startIndex = currentIndexCount_;
@@ -529,7 +528,6 @@ void UiFrameEncoder::CommitBatches() noexcept {
         pendingReleaseTargets_.Clear();
     }
 
-    currentBatch_ = Batch{};
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
