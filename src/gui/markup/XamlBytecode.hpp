@@ -22,9 +22,15 @@
 #include <Aero/Controls.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometries.hpp>
+#include <Aero/ContentElement.hpp>
+#include "gui/markup/XamlEventConnection.hpp"
 
 #include <cstdint>
 #include <cstring>
+
+namespace Aero {
+class BindingEngine;
+}
 
 namespace Aero::Markup {
 
@@ -558,6 +564,21 @@ inline XamlBytecodeProgram& EnsureBytecode(const CompiledTemplateBlueprint& blue
     return static_cast<XamlBytecodeContainer*>(blueprint.bytecodeProgram.Get())->program;
 }
 
+struct XamlVMContext {
+    Meta::Registry* runtime = nullptr;
+    Schema* schema = nullptr;
+    const LoadState* loadContext = nullptr;
+    Controls::TemplateBuilder* templateBuilder = nullptr;
+    const Controls::ItemsPanelTemplate* itemsPanel = nullptr;
+    Base::Ref<Base::Object> existingRoot;
+    Base::Ref<Base::Object> dataItemPayload;
+    Base::Object* eventHandlerTarget = nullptr;
+    ::Aero::BindingEngine* bindings = nullptr;
+    Aero::NameScope* documentNames = nullptr;
+    Aero::ResourceDictionary* documentResources = nullptr;
+    VisualContentPlan* visualContent = nullptr;
+};
+
 struct XamlDocumentExecutionContext {
     Schema* schema = nullptr;
     const LoadState* loadContext = nullptr;
@@ -578,6 +599,12 @@ class XamlVM {
 public:
     static Base::Result<void> Execute(
         const XamlBytecodeProgram& program,
+        const XamlVMContext& context,
+        Base::Vector<Base::Ref<Base::Object>>& outObjects,
+        Base::Vector<Media::Visual*>* outVisuals = nullptr) noexcept;
+
+    static Base::Result<void> Execute(
+        const XamlBytecodeProgram& program,
         Meta::Registry& runtime,
         Controls::TemplateBuilder* context,
         Base::Vector<Base::Ref<Base::Object>>& outObjects,
@@ -591,8 +618,7 @@ public:
 
 inline Base::Result<void> XamlVM::Execute(
     const XamlBytecodeProgram& program,
-    Meta::Registry& runtime,
-    Controls::TemplateBuilder* context,
+    const XamlVMContext& context,
     Base::Vector<Base::Ref<Base::Object>>& outObjects,
     Base::Vector<Media::Visual*>* outVisuals) noexcept {
     outObjects.Clear();
@@ -606,9 +632,14 @@ inline Base::Result<void> XamlVM::Execute(
     if (visuals != nullptr) {
         visuals->Clear();
         visuals->Resize(program.slotCount);
-    } else if (context != nullptr) {
+    } else if (context.templateBuilder != nullptr) {
         localVisuals.Resize(program.slotCount);
         visuals = &localVisuals;
+    }
+
+    Meta::Registry* runtime = context.runtime;
+    if (runtime == nullptr && context.schema != nullptr) {
+        runtime = context.schema->Metadata();
     }
 
     XamlBytecodeReader reader{program.instructions.Data(), program.instructions.Data() + program.instructions.Size()};
@@ -619,31 +650,81 @@ inline Base::Result<void> XamlVM::Execute(
         case XamlOpCode::Nop:
             break;
 
+        case XamlOpCode::AdoptOrCreateRoot: {
+            if (!reader.HasBytes(2 + 8)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AdoptOrCreateRoot");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint64_t typeId = reader.ReadU64();
+            if (slot >= outObjects.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AdoptOrCreateRoot");
+            }
+            if (context.existingRoot && slot == 0U) {
+                const Meta::TypeId actual = context.existingRoot->RuntimeType();
+                if (actual != typeId && (runtime == nullptr || !runtime->Types().IsDerivedFrom(actual, typeId))) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidArgument,
+                        "Existing root object type is incompatible with document root");
+                }
+                outObjects[0] = context.existingRoot;
+            } else {
+                if (runtime == nullptr) {
+                    return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in AdoptOrCreateRoot");
+                }
+                Base::Result<Base::Ref<Base::Object>> created = runtime->CreateObject(typeId);
+                if (!created) return created.GetStatus();
+                outObjects[slot] = std::move(created).Value();
+            }
+            if (visuals != nullptr && slot < visuals->Size() && runtime != nullptr) {
+                (*visuals)[slot] = runtime->Types().IsDerivedFrom(typeId, Media::Visual::StaticTypeId())
+                    ? static_cast<Media::Visual*>(outObjects[slot].Get())
+                    : nullptr;
+            }
+            if (slot == 0U && context.dataItemPayload && outObjects[0]) {
+                if (auto* fe = ::Aero::TryCast<FrameworkElement>(outObjects[0].Get())) {
+                    fe->SetDataContext(context.dataItemPayload);
+                }
+            }
+            break;
+        }
+
         case XamlOpCode::CreateObject: {
             if (!reader.HasBytes(2 + 8)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated CreateObject");
             }
             const std::uint16_t slot = reader.ReadU16();
             const std::uint64_t typeId = reader.ReadU64();
-            Base::Result<Base::Ref<Base::Object>> created = runtime.CreateObject(typeId);
+            if (slot >= outObjects.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in CreateObject");
+            }
+            if (runtime == nullptr) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in CreateObject");
+            }
+            Base::Result<Base::Ref<Base::Object>> created = runtime->CreateObject(typeId);
             if (!created) return created.GetStatus();
             Base::Ref<Base::Object> owner = std::move(created).Value();
-            if (!owner || owner->RuntimeType() != typeId ||
-                !runtime.Types().IsDerivedFrom(typeId, DependencyObject::StaticTypeId())) {
+            if (!owner || owner->RuntimeType() != typeId) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
-                    "Compiled template created an incompatible object");
+                    "CreateObject created an incompatible object");
+            }
+            if (context.templateBuilder != nullptr &&
+                !runtime->Types().IsDerivedFrom(typeId, DependencyObject::StaticTypeId())) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Compiled template created an incompatible non-DependencyObject");
             }
             if (visuals != nullptr && slot < visuals->Size()) {
-                Media::Visual* visual = runtime.Types().IsDerivedFrom(
-                    typeId, Media::Visual::StaticTypeId())
+                (*visuals)[slot] = runtime->Types().IsDerivedFrom(typeId, Media::Visual::StaticTypeId())
                     ? static_cast<Media::Visual*>(owner.Get())
                     : nullptr;
-                (*visuals)[slot] = visual;
             }
-            if (slot < outObjects.Size()) {
-                outObjects[slot] = std::move(owner);
+            if (slot == 0U && context.dataItemPayload) {
+                if (auto* fe = ::Aero::TryCast<FrameworkElement>(owner.Get())) {
+                    fe->SetDataContext(context.dataItemPayload);
+                }
             }
+            outObjects[slot] = std::move(owner);
             break;
         }
 
@@ -660,8 +741,36 @@ inline Base::Result<void> XamlVM::Execute(
             if (valIdx >= program.valuePool.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetPropertyValue");
             }
-            auto& depObj = static_cast<DependencyObject&>(*outObjects[slot]);
-            depObj.SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                if (context.templateBuilder != nullptr) {
+                    depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+                } else {
+                    depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+                }
+            } else if (runtime != nullptr) {
+                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[valIdx]));
+            }
+            break;
+        }
+
+        case XamlOpCode::SetDirectPropertyValue: {
+            if (!reader.HasBytes(2 + 8 + 4)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyValue");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint64_t propHandle = reader.ReadU64();
+            const std::uint32_t valIdx = reader.ReadU32();
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetDirectPropertyValue");
+            }
+            if (valIdx >= program.valuePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetDirectPropertyValue");
+            }
+            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+            } else if (runtime != nullptr) {
+                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[valIdx]));
+            }
             break;
         }
 
@@ -677,10 +786,43 @@ inline Base::Result<void> XamlVM::Execute(
                 !outObjects[slot] || !outObjects[srcSlot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyObject");
             }
-            auto& depObj = static_cast<DependencyObject&>(*outObjects[slot]);
-            depObj.SetTemplateValue(
-                Meta::DependencyPropertyHandle{propHandle},
-                Meta::Value::FromObject(valueType, outObjects[srcSlot]));
+            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                if (context.templateBuilder != nullptr) {
+                    depObj->SetTemplateValue(
+                        Meta::DependencyPropertyHandle{propHandle},
+                        Meta::Value::FromObject(valueType, outObjects[srcSlot]));
+                } else {
+                    depObj->SetValue(
+                        Meta::DependencyPropertyHandle{propHandle},
+                        Meta::Value::FromObject(valueType, outObjects[srcSlot]));
+                }
+            } else if (runtime != nullptr) {
+                static_cast<void>(runtime->SetProperty(
+                    *outObjects[slot], propHandle, Meta::Value::FromObject(valueType, outObjects[srcSlot])));
+            }
+            break;
+        }
+
+        case XamlOpCode::SetDirectPropertyObject: {
+            if (!reader.HasBytes(2 + 8 + 8 + 2)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyObject");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint64_t propHandle = reader.ReadU64();
+            const std::uint64_t valueType = reader.ReadU64();
+            const std::uint16_t srcSlot = reader.ReadU16();
+            if (slot >= outObjects.Size() || srcSlot >= outObjects.Size() ||
+                !outObjects[slot] || !outObjects[srcSlot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetDirectPropertyObject");
+            }
+            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                depObj->SetValue(
+                    Meta::DependencyPropertyHandle{propHandle},
+                    Meta::Value::FromObject(valueType, outObjects[srcSlot]));
+            } else if (runtime != nullptr) {
+                static_cast<void>(runtime->SetProperty(
+                    *outObjects[slot], propHandle, Meta::Value::FromObject(valueType, outObjects[srcSlot])));
+            }
             break;
         }
 
@@ -697,16 +839,57 @@ inline Base::Result<void> XamlVM::Execute(
                 !outObjects[parentSlot] || !outObjects[childSlot] || memberId == Meta::InvalidMemberId) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyContent");
             }
+            if (runtime == nullptr) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in SetPropertyContent");
+            }
             Base::Result<void> content = (isPropertyEdge != 0U)
-                ? runtime.SetProperty(
+                ? runtime->SetProperty(
                     *outObjects[parentSlot],
                     memberId,
                     Meta::Value::FromObject(valueType, outObjects[childSlot]))
-                : runtime.WriteContent(
+                : runtime->WriteContent(
                     *outObjects[parentSlot],
                     memberId,
                     outObjects[childSlot]);
             if (!content) return content.GetStatus();
+            break;
+        }
+
+        case XamlOpCode::AttachChildElement: {
+            if (!reader.HasBytes(2 + 2 + 8 + 8)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AttachChildElement");
+            }
+            const std::uint16_t parentSlot = reader.ReadU16();
+            const std::uint16_t childSlot = reader.ReadU16();
+            const std::uint64_t memberId = reader.ReadU64();
+            const std::uint64_t valueType = reader.ReadU64();
+            if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
+                !outObjects[parentSlot] || !outObjects[childSlot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AttachChildElement");
+            }
+            Base::Object* parent = outObjects[parentSlot].Get();
+            Base::Ref<Base::Object> child = outObjects[childSlot];
+            if (memberId != Meta::InvalidMemberId && runtime != nullptr) {
+                Base::Result<void> res = runtime->WriteContent(*parent, memberId, child);
+                if (!res) {
+                    res = runtime->SetProperty(
+                        *parent, memberId, Meta::Value::FromObject(valueType, child));
+                }
+                if (!res) return res.GetStatus();
+            } else {
+                if (auto* panel = ::Aero::TryCast<Controls::Panel>(parent)) {
+                    if (auto* uiChild = ::Aero::TryCast<UIElement>(child.Get())) {
+                        panel->GetChildren().Add(Base::Ref<UIElement>::FromBorrowed(*uiChild));
+                    }
+                } else if (auto* contentCtrl = ::Aero::TryCast<Controls::ContentControl>(parent)) {
+                    contentCtrl->SetContent(child);
+                } else if (runtime != nullptr) {
+                    const Meta::TypeInfo* typeInfo = runtime->Types().FindType(parent->RuntimeType());
+                    if (typeInfo != nullptr && typeInfo->ContentMember() != Meta::InvalidMemberId) {
+                        static_cast<void>(runtime->WriteContent(*parent, typeInfo->ContentMember(), child));
+                    }
+                }
+            }
             break;
         }
 
@@ -716,11 +899,14 @@ inline Base::Result<void> XamlVM::Execute(
             }
             const std::uint16_t slot = reader.ReadU16();
             const std::uint32_t nameIdx = reader.ReadU32();
-            if (context != nullptr && visuals != nullptr && slot < visuals->Size() && (*visuals)[slot] != nullptr) {
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetRootVisual");
+            }
+            if (context.templateBuilder != nullptr && visuals != nullptr && slot < visuals->Size() && (*visuals)[slot] != nullptr) {
                 Base::StringView name = (nameIdx < program.stringPool.Size())
                     ? program.stringPool[nameIdx].View()
                     : Base::StringView{};
-                Base::Result<void> added = context->SetRoot(
+                Base::Result<void> added = context.templateBuilder->SetRoot(
                     name,
                     Base::Ref<Base::Object>::FromBorrowed(*outObjects[slot]),
                     *(*visuals)[slot]);
@@ -736,7 +922,11 @@ inline Base::Result<void> XamlVM::Execute(
             const std::uint16_t parentSlot = reader.ReadU16();
             const std::uint16_t childSlot = reader.ReadU16();
             const std::uint32_t nameIdx = reader.ReadU32();
-            if (context != nullptr && visuals != nullptr) {
+            if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
+                !outObjects[parentSlot] || !outObjects[childSlot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AddVisualChild");
+            }
+            if (context.templateBuilder != nullptr && visuals != nullptr) {
                 if (parentSlot >= visuals->Size() || (*visuals)[parentSlot] == nullptr) {
                     return Base::Status::Failure(
                         Base::ErrorCode::ValidationFailed,
@@ -746,7 +936,7 @@ inline Base::Result<void> XamlVM::Execute(
                     Base::StringView name = (nameIdx < program.stringPool.Size())
                         ? program.stringPool[nameIdx].View()
                         : Base::StringView{};
-                    Base::Result<void> added = context->AddPart(
+                    Base::Result<void> added = context.templateBuilder->AddPart(
                         name,
                         *(*visuals)[parentSlot],
                         Base::Ref<Base::Object>::FromBorrowed(*outObjects[childSlot]),
@@ -763,16 +953,44 @@ inline Base::Result<void> XamlVM::Execute(
             }
             const std::uint16_t slot = reader.ReadU16();
             const std::uint32_t nameIdx = reader.ReadU32();
-            if (context != nullptr && slot < outObjects.Size() && outObjects[slot]) {
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AddObjectPart");
+            }
+            if (context.templateBuilder != nullptr) {
                 Base::StringView name = (nameIdx < program.stringPool.Size())
                     ? program.stringPool[nameIdx].View()
                     : Base::StringView{};
                 if (!name.Empty()) {
-                    Base::Result<void> named = context->AddObjectPart(
-                        name,
-                        Base::Ref<Base::Object>::FromBorrowed(*outObjects[slot]),
-                        *static_cast<DependencyObject*>(outObjects[slot].Get()));
-                    if (!named) return named.GetStatus();
+                    if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                        Base::Result<void> named = context.templateBuilder->AddObjectPart(
+                            name,
+                            Base::Ref<Base::Object>::FromBorrowed(*outObjects[slot]),
+                            *depObj);
+                        if (!named) return named.GetStatus();
+                    }
+                }
+            }
+            break;
+        }
+
+        case XamlOpCode::RegisterDocumentName: {
+            if (!reader.HasBytes(2 + 4)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated RegisterDocumentName");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint32_t nameIdx = reader.ReadU32();
+            if (slot >= outObjects.Size() || !outObjects[slot] || nameIdx >= program.stringPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot or nameIndex in RegisterDocumentName");
+            }
+            Base::StringView name = program.stringPool[nameIdx].View();
+            if (!name.Empty()) {
+                if (context.documentNames != nullptr) {
+                    context.documentNames->Register(name, *outObjects[slot]);
+                }
+                if (!outObjects.Empty() && outObjects[0]) {
+                    if (auto* rootFe = ::Aero::TryCast<FrameworkElement>(outObjects[0].Get())) {
+                        rootFe->RegisterName(name, *outObjects[slot]);
+                    }
                 }
             }
             break;
@@ -787,14 +1005,20 @@ inline Base::Result<void> XamlVM::Execute(
             const std::uint16_t colCount = reader.ReadU16();
             const std::uint32_t rowStart = reader.ReadU32();
             const std::uint16_t rowCount = reader.ReadU16();
-            if (slot < outObjects.Size() && outObjects[slot] &&
-                outObjects[slot]->RuntimeType() == Controls::Grid::StaticTypeId()) {
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetGridDefinitions");
+            }
+            if (colStart + colCount > program.gridLengths.Size() ||
+                rowStart + rowCount > program.gridLengths.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Grid length out of bounds in SetGridDefinitions");
+            }
+            if (outObjects[slot]->RuntimeType() == Controls::Grid::StaticTypeId()) {
                 auto& grid = static_cast<Controls::Grid&>(*outObjects[slot]);
-                if (colCount > 0U && colStart + colCount <= program.gridLengths.Size()) {
+                if (colCount > 0U) {
                     grid.SetColumnDefinitions(Base::Span<const ::Aero::GridLength>(
                         &program.gridLengths[colStart], colCount));
                 }
-                if (rowCount > 0U && rowStart + rowCount <= program.gridLengths.Size()) {
+                if (rowCount > 0U) {
                     grid.SetRowDefinitions(Base::Span<const ::Aero::GridLength>(
                         &program.gridLengths[rowStart], rowCount));
                 }
@@ -808,12 +1032,15 @@ inline Base::Result<void> XamlVM::Execute(
             }
             const std::uint16_t slot = reader.ReadU16();
             const std::uint32_t strIdx = reader.ReadU32();
-            if (slot < outObjects.Size() && outObjects[slot] &&
-                runtime.Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::StreamGeometry::StaticTypeId())) {
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetStreamGeometryData");
+            }
+            if (strIdx >= program.stringPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in SetStreamGeometryData");
+            }
+            if (runtime != nullptr && runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::StreamGeometry::StaticTypeId())) {
                 auto& geom = static_cast<Media::StreamGeometry&>(*outObjects[slot]);
-                if (strIdx < program.stringPool.Size()) {
-                    geom.SetData(program.stringPool[strIdx].View());
-                }
+                geom.SetData(program.stringPool[strIdx].View());
             }
             break;
         }
@@ -825,19 +1052,24 @@ inline Base::Result<void> XamlVM::Execute(
             const std::uint16_t slot = reader.ReadU16();
             const std::uint32_t stopStart = reader.ReadU32();
             const std::uint16_t stopCount = reader.ReadU16();
-            if (slot < outObjects.Size() && outObjects[slot] &&
-                runtime.Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::GradientBrush::StaticTypeId())) {
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetGradientStops");
+            }
+            if (stopStart + stopCount > program.gradientStops.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Gradient stop index out of bounds in SetGradientStops");
+            }
+            if (runtime != nullptr && runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::GradientBrush::StaticTypeId())) {
                 auto& gradient = static_cast<Media::GradientBrush&>(*outObjects[slot]);
                 gradient.ClearGradientStops();
                 for (std::uint16_t i = 0U; i < stopCount; ++i) {
                     const auto& stopRecord = program.gradientStops[stopStart + i];
                     auto stop = Base::MakeRef<Media::GradientStop>();
-                    if (!stop) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+                    if (!stop) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM in SetGradientStops");
                     stop->SetOffset(stopRecord.offset);
                     stop->SetColor(stopRecord.color);
                     gradient.AddGradientStop(stop);
-                    if (context != nullptr && !stopRecord.name.Empty()) {
-                        auto named = context->AddObjectPart(
+                    if (context.templateBuilder != nullptr && !stopRecord.name.Empty()) {
+                        auto named = context.templateBuilder->AddObjectPart(
                             stopRecord.name.View(),
                             Base::Ref<Base::Object>(stop),
                             *stop);
@@ -853,19 +1085,19 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ProjectContent");
             }
             const std::uint16_t presenterSlot = reader.ReadU16();
-            if (context != nullptr && visuals != nullptr && presenterSlot < visuals->Size()) {
-                if (runtime.Types().IsDerivedFrom(
-                        context->TemplatedParent().RuntimeType(),
+            if (context.templateBuilder != nullptr && visuals != nullptr && presenterSlot < visuals->Size() && runtime != nullptr) {
+                if (runtime->Types().IsDerivedFrom(
+                        context.templateBuilder->TemplatedParent().RuntimeType(),
                         Controls::ContentControl::StaticTypeId())) {
                     Media::Visual* contentHost = (*visuals)[presenterSlot];
                     if (contentHost != nullptr) {
-                        Base::Result<bool> projected = runtime.Types().IsDerivedFrom(
+                        Base::Result<bool> projected = runtime->Types().IsDerivedFrom(
                             contentHost->RuntimeType(), Controls::ContentPresenter::StaticTypeId())
-                            ? context->ProjectContent(
-                                static_cast<Controls::ContentControl&>(context->TemplatedParent()),
+                            ? context.templateBuilder->ProjectContent(
+                                static_cast<Controls::ContentControl&>(context.templateBuilder->TemplatedParent()),
                                 static_cast<Controls::ContentPresenter&>(*contentHost))
-                            : context->ProjectContent(
-                                static_cast<Controls::ContentControl&>(context->TemplatedParent()),
+                            : context.templateBuilder->ProjectContent(
+                                static_cast<Controls::ContentControl&>(context.templateBuilder->TemplatedParent()),
                                 static_cast<Controls::ContentControl&>(*contentHost));
                         if (!projected) return projected.GetStatus();
                     }
@@ -878,7 +1110,14 @@ inline Base::Result<void> XamlVM::Execute(
             if (!reader.HasBytes(2)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated PopulateContentPresenter");
             }
-            (void)reader.ReadU16();
+            const std::uint16_t slot = reader.ReadU16();
+            if (context.templateBuilder != nullptr && slot < outObjects.Size() && outObjects[slot] && runtime != nullptr) {
+                if (runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
+                    Base::Result<void> pop = context.templateBuilder->PopulateContentPresenter(
+                        static_cast<Controls::ContentPresenter&>(*outObjects[slot]));
+                    if (!pop) return pop.GetStatus();
+                }
+            }
             break;
         }
 
@@ -886,7 +1125,20 @@ inline Base::Result<void> XamlVM::Execute(
             if (!reader.HasBytes(2)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated PopulateItemsPresenter");
             }
-            (void)reader.ReadU16();
+            const std::uint16_t slot = reader.ReadU16();
+            if (context.templateBuilder != nullptr && slot < outObjects.Size() && outObjects[slot] && runtime != nullptr) {
+                if (runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Controls::ItemsPresenter::StaticTypeId())) {
+                    const Controls::ItemsPanelTemplate* itemsPanel = context.itemsPanel;
+                    if (itemsPanel == nullptr && runtime->Types().IsDerivedFrom(
+                            context.templateBuilder->TemplatedParent().RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
+                        itemsPanel = static_cast<Controls::ItemsControl&>(
+                            context.templateBuilder->TemplatedParent()).GetItemsPanel().Get();
+                    }
+                    Base::Result<void> pop = context.templateBuilder->PopulateItemsPresenter(
+                        static_cast<Controls::ItemsPresenter&>(*outObjects[slot]), itemsPanel);
+                    if (!pop) return pop.GetStatus();
+                }
+            }
             break;
         }
 
@@ -898,15 +1150,69 @@ inline Base::Result<void> XamlVM::Execute(
             const std::uint32_t itemStart = reader.ReadU32();
             const std::uint16_t bCount = reader.ReadU16();
             const std::uint16_t tCount = reader.ReadU16();
-            if (slot < outObjects.Size() && outObjects[slot]) {
-                if (auto* framework = ::Aero::TryCast<FrameworkElement>(outObjects[slot].Get())) {
-                    for (std::uint16_t i = 0U; i < bCount; ++i) {
-                        FrameworkElementSeams::AddStyleBehaviorPrototype(
-                            *framework, program.objectRefs[itemStart + i]);
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AttachBehaviorsAndTriggers");
+            }
+            if (itemStart + bCount + tCount > program.objectRefs.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Object ref index out of bounds in AttachBehaviorsAndTriggers");
+            }
+            if (auto* framework = ::Aero::TryCast<FrameworkElement>(outObjects[slot].Get())) {
+                for (std::uint16_t i = 0U; i < bCount; ++i) {
+                    const auto& objRef = program.objectRefs[itemStart + i];
+                    if (objRef) {
+                        FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, objRef);
                     }
-                    for (std::uint16_t i = 0U; i < tCount; ++i) {
-                        FrameworkElementSeams::AddStyleTriggerPrototype(
-                            *framework, program.objectRefs[itemStart + bCount + i]);
+                }
+                for (std::uint16_t i = 0U; i < tCount; ++i) {
+                    const auto& objRef = program.objectRefs[itemStart + bCount + i];
+                    if (objRef) {
+                        FrameworkElementSeams::AddStyleTriggerPrototype(*framework, objRef);
+                    }
+                }
+            }
+            break;
+        }
+
+        case XamlOpCode::ConnectEventHandler: {
+            if (!reader.HasBytes(2 + 8 + 4)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ConnectEventHandler");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint64_t eventMemberId = reader.ReadU64();
+            const std::uint32_t handlerNameIndex = reader.ReadU32();
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in ConnectEventHandler");
+            }
+            if (handlerNameIndex >= program.stringPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in ConnectEventHandler");
+            }
+            Base::StringView handlerName = program.stringPool[handlerNameIndex].View();
+            if (!handlerName.Empty() && runtime != nullptr) {
+                Base::Object* codeBehind = context.eventHandlerTarget != nullptr
+                    ? context.eventHandlerTarget
+                    : (!outObjects.Empty() ? outObjects[0].Get() : nullptr);
+                if (codeBehind != nullptr) {
+                    Meta::EventHandlerThunk thunk = runtime->Types().FindEventHandler(
+                        codeBehind->RuntimeType(), handlerName);
+                    if (thunk != nullptr) {
+                        auto connection = Base::MakeRef<XamlEventConnection>(
+                            Base::WeakRef<Base::Object>(Base::Ref<Base::Object>::FromBorrowed(*codeBehind)),
+                            thunk);
+                        if (!connection) {
+                            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM creating XamlEventConnection");
+                        }
+                        Base::Delegate<void(Base::Object*, RoutedEventArgs&)> handler(
+                            XamlEventInvoker{std::move(connection)});
+                        const RoutedEventHandle routedEvent{eventMemberId};
+                        if (auto* uiElement = ::Aero::TryCast<UIElement>(outObjects[slot].Get())) {
+                            uiElement->AddHandler(routedEvent, handler);
+                        } else if (auto* contentElement = ::Aero::TryCast<ContentElement>(outObjects[slot].Get())) {
+                            contentElement->AddHandler(routedEvent, handler);
+                        }
+                    } else if (context.loadContext != nullptr && context.loadContext->existingRoot) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "XAML event handler is not registered on the x:Class type");
                     }
                 }
             }
@@ -925,253 +1231,37 @@ inline Base::Result<void> XamlVM::Execute(
     return {};
 }
 
+inline Base::Result<void> XamlVM::Execute(
+    const XamlBytecodeProgram& program,
+    Meta::Registry& runtime,
+    Controls::TemplateBuilder* context,
+    Base::Vector<Base::Ref<Base::Object>>& outObjects,
+    Base::Vector<Media::Visual*>* outVisuals) noexcept {
+    XamlVMContext vmContext;
+    vmContext.runtime = &runtime;
+    vmContext.templateBuilder = context;
+    return Execute(program, vmContext, outObjects, outVisuals);
+}
+
 inline Base::Result<void> XamlVM::ExecuteDocument(
     const XamlBytecodeProgram& program,
     const XamlDocumentExecutionContext& context,
     XamlDocumentExecutionResult& outResult) noexcept {
-    if (program.slotCount == 0U || program.instructions.Empty()) {
-        return {};
+    XamlVMContext vmContext;
+    vmContext.schema = context.schema;
+    vmContext.loadContext = context.loadContext;
+    vmContext.runtime = context.runtime != nullptr ? context.runtime : (context.schema != nullptr ? context.schema->Metadata() : nullptr);
+    if (context.loadContext != nullptr && context.loadContext->existingRoot) {
+        vmContext.existingRoot = context.loadContext->existingRoot;
+        vmContext.eventHandlerTarget = context.loadContext->existingRoot.Get();
     }
+    vmContext.documentNames = &outResult.names;
+    vmContext.documentResources = &outResult.resources;
+    vmContext.visualContent = &outResult.visualContent;
+
     Base::Vector<Base::Ref<Base::Object>> outObjects;
-    outObjects.Resize(program.slotCount);
-
-    XamlBytecodeReader reader{program.instructions.Data(), program.instructions.Data() + program.instructions.Size()};
-
-    while (reader.ip < reader.end) {
-        const auto opcode = static_cast<XamlOpCode>(reader.ReadU8());
-        switch (opcode) {
-        case XamlOpCode::Nop:
-            break;
-
-        case XamlOpCode::AdoptOrCreateRoot: {
-            if (!reader.HasBytes(2 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AdoptOrCreateRoot");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t typeId = reader.ReadU64();
-            if (context.loadContext != nullptr && context.loadContext->existingRoot && slot == 0U) {
-                const Meta::TypeId actual = context.loadContext->existingRoot->RuntimeType();
-                if (actual != typeId && (context.runtime == nullptr || !context.runtime->Types().IsDerivedFrom(actual, typeId))) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::InvalidArgument,
-                        "Existing root object type is incompatible with document root");
-                }
-                outObjects[0] = context.loadContext->existingRoot;
-            } else {
-                if (context.runtime == nullptr) {
-                    return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in ExecuteDocument");
-                }
-                Base::Result<Base::Ref<Base::Object>> created = context.runtime->CreateObject(typeId);
-                if (!created) return created.GetStatus();
-                if (slot < outObjects.Size()) {
-                    outObjects[slot] = std::move(created).Value();
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::CreateObject: {
-            if (!reader.HasBytes(2 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated CreateObject");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t typeId = reader.ReadU64();
-            if (context.runtime == nullptr) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in ExecuteDocument");
-            }
-            Base::Result<Base::Ref<Base::Object>> created = context.runtime->CreateObject(typeId);
-            if (!created) return created.GetStatus();
-            if (slot < outObjects.Size()) {
-                outObjects[slot] = std::move(created).Value();
-            }
-            break;
-        }
-
-        case XamlOpCode::RegisterDocumentName: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated RegisterDocumentName");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t nameIdx = reader.ReadU32();
-            if (slot < outObjects.Size() && outObjects[slot] && nameIdx < program.stringPool.Size()) {
-                Base::StringView name = program.stringPool[nameIdx].View();
-                if (!name.Empty()) {
-                    outResult.names.Register(name, *outObjects[slot]);
-                    if (outObjects[0]) {
-                        if (auto* rootFe = ::Aero::TryCast<FrameworkElement>(outObjects[0].Get())) {
-                            rootFe->RegisterName(name, *outObjects[slot]);
-                        }
-                    }
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::SetDirectPropertyValue: {
-            if (!reader.HasBytes(2 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyValue");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint32_t valIdx = reader.ReadU32();
-            if (slot < outObjects.Size() && outObjects[slot] && valIdx < program.valuePool.Size()) {
-                if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                    depObj->SetValue(
-                        Meta::DependencyPropertyHandle{propHandle},
-                        program.valuePool[valIdx]);
-                } else if (context.runtime != nullptr) {
-                    static_cast<void>(context.runtime->SetProperty(
-                        *outObjects[slot],
-                        propHandle,
-                        program.valuePool[valIdx]));
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::SetDirectPropertyObject: {
-            if (!reader.HasBytes(2 + 8 + 8 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyObject");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint64_t valueType = reader.ReadU64();
-            const std::uint16_t srcSlot = reader.ReadU16();
-            if (slot < outObjects.Size() && srcSlot < outObjects.Size() &&
-                outObjects[slot] && outObjects[srcSlot]) {
-                if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                    depObj->SetValue(
-                        Meta::DependencyPropertyHandle{propHandle},
-                        Meta::Value::FromObject(valueType, outObjects[srcSlot]));
-                } else if (context.runtime != nullptr) {
-                    static_cast<void>(context.runtime->SetProperty(
-                        *outObjects[slot],
-                        propHandle,
-                        Meta::Value::FromObject(valueType, outObjects[srcSlot])));
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::AttachChildElement: {
-            if (!reader.HasBytes(2 + 2 + 8 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AttachChildElement");
-            }
-            const std::uint16_t parentSlot = reader.ReadU16();
-            const std::uint16_t childSlot = reader.ReadU16();
-            const std::uint64_t memberId = reader.ReadU64();
-            const std::uint64_t valueType = reader.ReadU64();
-            if (parentSlot < outObjects.Size() && childSlot < outObjects.Size() &&
-                outObjects[parentSlot] && outObjects[childSlot]) {
-                Base::Object* parent = outObjects[parentSlot].Get();
-                Base::Ref<Base::Object> child = outObjects[childSlot];
-                if (memberId != Meta::InvalidMemberId && context.runtime != nullptr) {
-                    Base::Result<void> res = context.runtime->WriteContent(*parent, memberId, child);
-                    if (!res) {
-                        res = context.runtime->SetProperty(
-                            *parent, memberId, Meta::Value::FromObject(valueType, child));
-                    }
-                } else {
-                    if (auto* panel = ::Aero::TryCast<Controls::Panel>(parent)) {
-                        if (auto* uiChild = ::Aero::TryCast<UIElement>(child.Get())) {
-                            panel->GetChildren().Add(Base::Ref<UIElement>::FromBorrowed(*uiChild));
-                        }
-                    } else if (auto* contentCtrl = ::Aero::TryCast<Controls::ContentControl>(parent)) {
-                        contentCtrl->SetContent(child);
-                    } else if (context.runtime != nullptr) {
-                        const Meta::TypeInfo* typeInfo = context.runtime->Types().FindType(parent->RuntimeType());
-                        if (typeInfo != nullptr && typeInfo->ContentMember() != Meta::InvalidMemberId) {
-                            static_cast<void>(context.runtime->WriteContent(*parent, typeInfo->ContentMember(), child));
-                        }
-                    }
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::ConnectEventHandler: {
-            if (!reader.HasBytes(2 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ConnectEventHandler");
-            }
-            (void)reader.ReadU16();
-            (void)reader.ReadU64();
-            (void)reader.ReadU32();
-            break;
-        }
-
-        case XamlOpCode::SetGridDefinitions: {
-            if (!reader.HasBytes(2 + 4 + 2 + 4 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetGridDefinitions");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t colStart = reader.ReadU32();
-            const std::uint16_t colCount = reader.ReadU16();
-            const std::uint32_t rowStart = reader.ReadU32();
-            const std::uint16_t rowCount = reader.ReadU16();
-            if (slot < outObjects.Size() && outObjects[slot] &&
-                outObjects[slot]->RuntimeType() == Controls::Grid::StaticTypeId()) {
-                auto& grid = static_cast<Controls::Grid&>(*outObjects[slot]);
-                if (colCount > 0U && colStart + colCount <= program.gridLengths.Size()) {
-                    grid.SetColumnDefinitions(Base::Span<const ::Aero::GridLength>(
-                        &program.gridLengths[colStart], colCount));
-                }
-                if (rowCount > 0U && rowStart + rowCount <= program.gridLengths.Size()) {
-                    grid.SetRowDefinitions(Base::Span<const ::Aero::GridLength>(
-                        &program.gridLengths[rowStart], rowCount));
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::SetStreamGeometryData: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetStreamGeometryData");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t strIdx = reader.ReadU32();
-            if (slot < outObjects.Size() && outObjects[slot] && context.runtime != nullptr &&
-                context.runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::StreamGeometry::StaticTypeId())) {
-                auto& geom = static_cast<Media::StreamGeometry&>(*outObjects[slot]);
-                if (strIdx < program.stringPool.Size()) {
-                    geom.SetData(program.stringPool[strIdx].View());
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::SetGradientStops: {
-            if (!reader.HasBytes(2 + 4 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetGradientStops");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t stopStart = reader.ReadU32();
-            const std::uint16_t stopCount = reader.ReadU16();
-            if (slot < outObjects.Size() && outObjects[slot] && context.runtime != nullptr &&
-                context.runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::GradientBrush::StaticTypeId())) {
-                auto& gradient = static_cast<Media::GradientBrush&>(*outObjects[slot]);
-                gradient.ClearGradientStops();
-                for (std::uint16_t i = 0U; i < stopCount; ++i) {
-                    const auto& stopRecord = program.gradientStops[stopStart + i];
-                    auto stop = Base::MakeRef<Media::GradientStop>();
-                    if (!stop) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
-                    stop->SetOffset(stopRecord.offset);
-                    stop->SetColor(stopRecord.color);
-                    gradient.AddGradientStop(stop);
-                }
-            }
-            break;
-        }
-
-        case XamlOpCode::End:
-            if (!outObjects.Empty() && outObjects[0]) {
-                outResult.root = std::move(outObjects[0]);
-            }
-            return {};
-
-        default:
-            break;
-        }
-    }
+    Base::Result<void> executed = Execute(program, vmContext, outObjects, nullptr);
+    if (!executed) return executed.GetStatus();
 
     if (!outObjects.Empty() && outObjects[0]) {
         outResult.root = std::move(outObjects[0]);

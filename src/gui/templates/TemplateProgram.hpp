@@ -70,6 +70,8 @@ public:
         DependencyObject& object) noexcept;
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentPresenter& presenter) noexcept;
     Base::Result<bool> ProjectContent(ContentControl& owner, ContentControl& presenter) noexcept;
+    Base::Result<void> PopulateItemsPresenter(ItemsPresenter& presenter, const ItemsPanelTemplate* itemsPanel) noexcept;
+    Base::Result<void> PopulateContentPresenter(ContentPresenter& presenter) noexcept;
     Control& TemplatedParent() const noexcept;
     ::Aero::Media::Visual* RootVisual() const noexcept;
     UIElement* RootElement() const noexcept;
@@ -81,8 +83,6 @@ private:
     explicit TemplateBuilder(void* state) noexcept : state_(state) {}
     DependencyObject* FindObject(Base::StringView name) const noexcept;
     Base::Result<void> AddOwnedPart(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& visual, void* mount) noexcept;
-    Base::Result<void> PopulateItemsPresenter(ItemsPresenter& presenter, const ItemsPanelTemplate* itemsPanel) noexcept;
-    Base::Result<void> PopulateContentPresenter(ContentPresenter& presenter) noexcept;
     Base::Result<bool> ProjectContentCore(ContentControl& owner, ::Aero::Media::Visual& presenterVisual, ContentPresenter* presenter, ContentControl* contentHost) noexcept;
     void Rollback() noexcept;
     void* state_ = nullptr;

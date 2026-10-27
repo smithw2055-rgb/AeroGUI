@@ -147,7 +147,9 @@ Base::Result<void> BindingEngine::QueueDeferred(
     record.targetProperty = descriptor.targetProperty;
     record.dataContextProperty =
         descriptor.dataContextProperty;
-    record.dataContextOwner = descriptor.dataContextOwner;
+    record.dataContextOwner = descriptor.dataContextOwner != nullptr
+        ? descriptor.dataContextOwner
+        : descriptor.target;
     record.mode = descriptor.mode;
     record.updateSourceTrigger =
         descriptor.updateSourceTrigger;

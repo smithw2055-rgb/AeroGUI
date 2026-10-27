@@ -903,6 +903,7 @@ private:
     friend class CompiledDocument;
     friend class Loader;
     friend class ObjectWriter;
+    friend class XamlVM;
     friend class SchemaManifest;
     friend class XamlStyleSchemaFacet;
     friend class ResourceExtension;

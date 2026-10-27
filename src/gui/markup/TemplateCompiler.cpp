@@ -1604,6 +1604,8 @@ Base::Result<void> BuildCompiledTemplate(
             binding.targetProperty;
         descriptor.dataContextProperty =
             binding.dataContextProperty;
+        descriptor.dataContextOwner =
+            descriptor.target;
         descriptor.path = binding.path.View();
         descriptor.stringFormat =
             binding.stringFormat.View();
@@ -1857,27 +1859,17 @@ BuildCompiledDeferredTemplate(
             "Deferred template bytecode is invalid");
     }
 
+    XamlVMContext vmContext;
+    vmContext.runtime = blueprint->runtime;
+    vmContext.dataItemPayload = payload;
+    vmContext.bindings = bindings;
+
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> executed = XamlVM::Execute(
-        program, *blueprint->runtime, nullptr, objects, nullptr);
+        program, vmContext, objects, nullptr);
     if (!executed) return executed.GetStatus();
 
     Base::Ref<Base::Object> root = objects[0U];
-    if (payload) {
-        // Nested SampleTemplate TextBlocks bind {Binding Name}/{Binding Icon}
-        // on children, not the StackPanel root. Copy the item DataContext onto
-        // every FrameworkElement so those bindings can activate before a later
-        // visual-tree walk (which previously only ran for the selected leaf).
-        for (const Base::Ref<Base::Object>& object : objects) {
-            if (!object ||
-                !blueprint->runtime->Types().IsDerivedFrom(
-                    object->RuntimeType(),
-                    FrameworkElement::StaticTypeId())) {
-                continue;
-            }
-            static_cast<FrameworkElement&>(*object).SetDataContext(payload);
-        }
-    }
     for (const TemplatePrototypeBinding& binding :
          blueprint->bindings) {
         if (binding.metadata == nullptr ||
@@ -1918,6 +1910,10 @@ BuildCompiledDeferredTemplate(
             binding.targetProperty;
         descriptor.dataContextProperty =
             binding.dataContextProperty;
+        descriptor.dataContextOwner =
+            descriptor.target != nullptr
+            ? descriptor.target
+            : (!objects.Empty() ? static_cast<DependencyObject*>(objects[0].Get()) : nullptr);
         descriptor.path = binding.path.View();
         descriptor.stringFormat =
             binding.stringFormat.View();
