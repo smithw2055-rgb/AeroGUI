@@ -1785,26 +1785,28 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCompiledCore(
     if (!compatible) return compatible.GetStatus();
 
     // Step 5: High-speed XamlVM Bytecode Document Execution pipeline
-    XamlBytecodeProgram program;
-    Base::Result<void> bytecodeReady = EnsureDocumentBytecode(
-        document, *schema_, program);
-    if (bytecodeReady && program.IsValid()) {
-        XamlDocumentExecutionContext vmContext;
-        vmContext.schema = schema_;
-        vmContext.loadContext = loadContext_;
-        vmContext.runtime = schema_->Metadata();
+    if (loadContext_ == nullptr || loadContext_->recordingNodes == nullptr) {
+        XamlBytecodeProgram program;
+        Base::Result<void> bytecodeReady = EnsureDocumentBytecode(
+            document, *schema_, program);
+        if (bytecodeReady && program.IsValid()) {
+            XamlDocumentExecutionContext vmContext;
+            vmContext.schema = schema_;
+            vmContext.loadContext = loadContext_;
+            vmContext.runtime = schema_->Metadata();
 
-        XamlDocumentExecutionResult vmResult;
-        Base::Result<void> executed = XamlVM::ExecuteDocument(
-            program, vmContext, vmResult);
-        if (executed && vmResult.root) {
-            consumed_ = true;
-            root_ = std::move(vmResult.root);
-            committedNames_ = std::move(vmResult.names);
-            committedResources_ = std::move(vmResult.resources);
-            resultVisualContent_ = std::move(vmResult.visualContent);
-            Base::Ref<Base::Object> result = std::move(root_);
-            return result;
+            XamlDocumentExecutionResult vmResult;
+            Base::Result<void> executed = XamlVM::ExecuteDocument(
+                program, vmContext, vmResult);
+            if (executed && vmResult.root) {
+                consumed_ = true;
+                root_ = std::move(vmResult.root);
+                committedNames_ = std::move(vmResult.names);
+                committedResources_ = std::move(vmResult.resources);
+                resultVisualContent_ = std::move(vmResult.visualContent);
+                Base::Ref<Base::Object> result = std::move(root_);
+                return result;
+            }
         }
     }
 

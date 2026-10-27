@@ -617,6 +617,12 @@ inline Base::Result<void> XamlVM::Execute(
     if (program.slotCount == 0U || program.instructions.Empty()) {
         return {};
     }
+    if (context.loadContext != nullptr && context.loadContext->maxObjects > 0U &&
+        program.slotCount > context.loadContext->maxObjects) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "XAML object count exceeds configured limits");
+    }
     outObjects.Resize(program.slotCount);
 
     Base::Vector<Media::Visual*> localVisuals;
@@ -1296,7 +1302,8 @@ inline Base::Result<void> CompileDocumentToBytecode(
 
             if (node.Name().LocalName() == "Name" &&
                 (node.Name().NamespaceUri().Empty() ||
-                 node.Name().NamespaceUri() == "http://schemas.microsoft.com/winfx/2006/xaml")) {
+                 node.Name().NamespaceUri() == "http://schemas.microsoft.com/winfx/2006/xaml" ||
+                 node.Name().NamespaceUri() == "http://schemas.microsoft.com/winfx/2006/xaml/presentation")) {
                 mf.isName = true;
             } else if (node.HasCompiledMemberBinding()) {
                 const auto& mb = node.CompiledMember();
