@@ -318,11 +318,7 @@ public:
         std::uint16_t slot,
         Meta::DependencyPropertyHandle property,
         const Meta::Value& value) noexcept {
-        const std::uint32_t valueIndex = AddValue(value);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetDirectPropertyValue)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, property.value));
-        static_cast<void>(AppendU32(instructions_, valueIndex));
+        EmitSetPropertyValue(slot, property, value);
     }
 
     void EmitSetDirectPropertyObject(
@@ -330,11 +326,7 @@ public:
         Meta::DependencyPropertyHandle property,
         Meta::TypeId valueType,
         std::uint16_t sourceSlot) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetDirectPropertyObject)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, property.value));
-        static_cast<void>(AppendU64(instructions_, valueType));
-        static_cast<void>(AppendU16(instructions_, sourceSlot));
+        EmitSetPropertyObject(slot, property, valueType, sourceSlot);
     }
 
     void EmitAttachChildElement(
@@ -728,7 +720,8 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::SetPropertyValue: {
+        case XamlOpCode::SetPropertyValue:
+        case XamlOpCode::SetDirectPropertyValue: {
             if (!reader.HasBytes(2 + 8 + 4)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyValue");
             }
@@ -742,7 +735,7 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetPropertyValue");
             }
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr) {
+                if (context.templateBuilder != nullptr && opcode != XamlOpCode::SetDirectPropertyValue) {
                     depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
                 } else {
                     depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
@@ -753,28 +746,8 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::SetDirectPropertyValue: {
-            if (!reader.HasBytes(2 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyValue");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint32_t valIdx = reader.ReadU32();
-            if (slot >= outObjects.Size() || !outObjects[slot]) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetDirectPropertyValue");
-            }
-            if (valIdx >= program.valuePool.Size()) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetDirectPropertyValue");
-            }
-            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
-            } else if (runtime != nullptr) {
-                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[valIdx]));
-            }
-            break;
-        }
-
-        case XamlOpCode::SetPropertyObject: {
+        case XamlOpCode::SetPropertyObject:
+        case XamlOpCode::SetDirectPropertyObject: {
             if (!reader.HasBytes(2 + 8 + 8 + 2)) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyObject");
             }
@@ -787,7 +760,7 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyObject");
             }
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr) {
+                if (context.templateBuilder != nullptr && opcode != XamlOpCode::SetDirectPropertyObject) {
                     depObj->SetTemplateValue(
                         Meta::DependencyPropertyHandle{propHandle},
                         Meta::Value::FromObject(valueType, outObjects[srcSlot]));
@@ -796,29 +769,6 @@ inline Base::Result<void> XamlVM::Execute(
                         Meta::DependencyPropertyHandle{propHandle},
                         Meta::Value::FromObject(valueType, outObjects[srcSlot]));
                 }
-            } else if (runtime != nullptr) {
-                static_cast<void>(runtime->SetProperty(
-                    *outObjects[slot], propHandle, Meta::Value::FromObject(valueType, outObjects[srcSlot])));
-            }
-            break;
-        }
-
-        case XamlOpCode::SetDirectPropertyObject: {
-            if (!reader.HasBytes(2 + 8 + 8 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetDirectPropertyObject");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint64_t valueType = reader.ReadU64();
-            const std::uint16_t srcSlot = reader.ReadU16();
-            if (slot >= outObjects.Size() || srcSlot >= outObjects.Size() ||
-                !outObjects[slot] || !outObjects[srcSlot]) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetDirectPropertyObject");
-            }
-            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                depObj->SetValue(
-                    Meta::DependencyPropertyHandle{propHandle},
-                    Meta::Value::FromObject(valueType, outObjects[srcSlot]));
             } else if (runtime != nullptr) {
                 static_cast<void>(runtime->SetProperty(
                     *outObjects[slot], propHandle, Meta::Value::FromObject(valueType, outObjects[srcSlot])));
@@ -1369,13 +1319,10 @@ inline Base::Result<void> CompileDocumentToBytecode(
             if (mf.isName) {
                 builder.EmitRegisterDocumentName(mf.parentSlot, node.Value());
             } else if (mf.isEvent) {
-                // Event handlers fallback to cursor state machine for complete conformance
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Event handler connection bailout to cursor engine");
+                builder.EmitConnectEventHandler(mf.parentSlot, mf.memberId, node.Value());
             } else {
                 if (node.HasCompiledValue()) {
-                    builder.EmitSetDirectPropertyValue(
+                    builder.EmitSetPropertyValue(
                         mf.parentSlot,
                         Meta::DependencyPropertyHandle{mf.memberId},
                         node.CompiledValue());
@@ -1393,7 +1340,7 @@ inline Base::Result<void> CompileDocumentToBytecode(
                     Base::Result<Meta::Value> converted = schema.ConvertText(
                         targetType, strVal, nullptr);
                     if (converted) {
-                        builder.EmitSetDirectPropertyValue(
+                        builder.EmitSetPropertyValue(
                             mf.parentSlot,
                             Meta::DependencyPropertyHandle{mf.memberId},
                             converted.Value());
@@ -1427,7 +1374,7 @@ inline Base::Result<void> CompileDocumentToBytecode(
                 ObjectFrame& parent = objectStack.Back();
                 if (!memberStack.Empty()) {
                     MemberFrame& mem = memberStack.Back();
-                    builder.EmitSetDirectPropertyObject(
+                    builder.EmitSetPropertyObject(
                         parent.slot,
                         Meta::DependencyPropertyHandle{mem.memberId},
                         finished.typeId,
