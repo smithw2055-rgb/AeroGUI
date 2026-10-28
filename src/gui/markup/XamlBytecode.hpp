@@ -76,6 +76,28 @@ struct XamlBytecodeProgram {
     Base::Vector<TemplatePrototypeGradientStop> gradientStops;
     Base::Vector<Base::Ref<Base::Object>> objectRefs;
 
+    // Associated template plans (triggers, bindings, states)
+    Base::Vector<TemplatePrototypeBinding> blueprintBindings;
+    Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
+    Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
+    Base::Vector<Base::Ref<Media::Animation::EventTrigger>> controlTemplateEventTriggers;
+    std::uint32_t contentPresenterSlot = UINT32_MAX;
+    Base::Vector<Base::String> slotNames;
+    Base::Vector<Meta::TypeId> slotTypes;
+    Meta::Registry* runtime = nullptr;
+    Meta::DependencyPropertyRegistry* properties = nullptr;
+
+    std::uint32_t FindSlotByName(Base::StringView name) const noexcept {
+        for (std::uint32_t i = 0U; i < slotNames.Size(); ++i) {
+            if (slotNames[i].View() == name) return i;
+        }
+        return UINT32_MAX;
+    }
+
+    Meta::TypeId GetSlotType(std::uint32_t slot) const noexcept {
+        return (slot < slotTypes.Size()) ? slotTypes[slot] : Meta::InvalidTypeId;
+    }
+
     bool IsValid() const noexcept {
         return slotCount > 0U && !instructions.Empty();
     }
@@ -88,6 +110,15 @@ struct XamlBytecodeProgram {
         gridLengths.Clear();
         gradientStops.Clear();
         objectRefs.Clear();
+        blueprintBindings.Clear();
+        dataTemplateTriggers.Clear();
+        controlTemplateDataTriggers.Clear();
+        controlTemplateEventTriggers.Clear();
+        contentPresenterSlot = UINT32_MAX;
+        slotNames.Clear();
+        slotTypes.Clear();
+        runtime = nullptr;
+        properties = nullptr;
     }
 };
 
@@ -505,22 +536,42 @@ inline Base::Result<void> CompileBlueprintToBytecode(
     builder.EmitEnd();
     builder.Finish(outProgram);
 
-    return {};
-}
-
-// ============================================================================
-// EnsureBytecode Helper
-// ============================================================================
-inline XamlBytecodeProgram& EnsureBytecode(const CompiledTemplateBlueprint& blueprint) noexcept {
-    if (!blueprint.bytecodeProgram) {
-        auto container = Base::MakeRef<XamlBytecodeContainer>();
-        if (container) {
-            static_cast<void>(CompileBlueprintToBytecode(blueprint, container->program));
-            blueprint.bytecodeProgram = container;
-        }
-        return container->program;
+    // Copy associated blueprint dynamic metadata and slot names/types
+    outProgram.blueprintBindings = blueprint.bindings;
+    outProgram.contentPresenterSlot = blueprint.contentPresenter;
+    outProgram.runtime = blueprint.runtime;
+    outProgram.properties = blueprint.properties;
+    outProgram.slotNames.Clear();
+    outProgram.slotTypes.Clear();
+    outProgram.slotNames.Reserve(blueprint.nodes.Size());
+    outProgram.slotTypes.Reserve(blueprint.nodes.Size());
+    for (const auto& node : blueprint.nodes) {
+        Base::String nameCopy;
+        static_cast<void>(nameCopy.Assign(node.name.View()));
+        outProgram.slotNames.PushBack(std::move(nameCopy));
+        outProgram.slotTypes.PushBack(node.type);
     }
-    return static_cast<XamlBytecodeContainer*>(blueprint.bytecodeProgram.Get())->program;
+
+    // Copy associated blueprint dynamic metadata and slot names/types
+    outProgram.blueprintBindings = blueprint.bindings;
+    outProgram.dataTemplateTriggers = blueprint.dataTemplateTriggers;
+    outProgram.controlTemplateDataTriggers = blueprint.controlTemplateDataTriggers;
+    outProgram.controlTemplateEventTriggers = blueprint.controlTemplateEventTriggers;
+    outProgram.contentPresenterSlot = blueprint.contentPresenter;
+    outProgram.runtime = blueprint.runtime;
+    outProgram.properties = blueprint.properties;
+    outProgram.slotNames.Clear();
+    outProgram.slotTypes.Clear();
+    outProgram.slotNames.Reserve(blueprint.nodes.Size());
+    outProgram.slotTypes.Reserve(blueprint.nodes.Size());
+    for (const auto& node : blueprint.nodes) {
+        Base::String nameCopy;
+        static_cast<void>(nameCopy.Assign(node.name.View()));
+        outProgram.slotNames.PushBack(std::move(nameCopy));
+        outProgram.slotTypes.PushBack(node.type);
+    }
+
+    return {};
 }
 
 struct XamlVMContext {
@@ -1449,6 +1500,10 @@ inline Base::Result<void> CompileDocumentToBytecode(
                                     extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("StaticResourceExtension"));
                                 } else if (extName == "DynamicResource") {
                                     extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("DynamicResourceExtension"));
+                                } else if (extName == "Binding") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("Binding"));
+                                } else if (extName == "TemplateBinding") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("TemplateBinding"));
                                 } else if (extName == "x:Type" || extName == "Type") {
                                     extTypeId = Meta::MakeTypeId(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml"), Base::StringView("Type"));
                                 } else if (extName == "x:Static" || extName == "Static") {

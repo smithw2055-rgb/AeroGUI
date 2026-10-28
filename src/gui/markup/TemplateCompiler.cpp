@@ -664,30 +664,7 @@ CompileBlueprint(
     return blueprint;
 }
 
-const TemplatePrototypeNode* FindNode(
-    const CompiledTemplateBlueprint& blueprint,
-    Base::StringView name) noexcept {
-    for (const TemplatePrototypeNode& node :
-         blueprint.nodes) {
-        if (node.name.View() == name) {
-            return &node;
-        }
-    }
-    return nullptr;
-}
 
-std::uint32_t FindNodeIndex(
-    const CompiledTemplateBlueprint& blueprint,
-    Base::StringView name) noexcept {
-    for (std::uint32_t index = 0U;
-         index < blueprint.nodes.Size();
-         ++index) {
-        if (blueprint.nodes[index].name.View() == name) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
 
 Base::Result<Value> ConvertAndValidateTemplateValue(
     Value value,
@@ -763,12 +740,12 @@ Base::Result<Value> ConvertAndValidateTemplateValue(
 
 Base::Result<Value> ConvertSetterValue(
     const Setter& setter,
-    const TemplatePrototypeNode& target,
+    TypeId targetType,
     const DependencyProperty& property,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     return ConvertAndValidateTemplateValue(
-        setter.GetAuthoredValue(), target.type, property, runtime, properties, "Setter");
+        setter.GetAuthoredValue(), targetType, property, runtime, properties, "Setter");
 }
 
 Base::Status MissingTemplateProperty(
@@ -808,11 +785,11 @@ Base::Result<Value> ConvertTriggerValue(
 Base::Result<Base::Vector<TemplatePropertyTrigger>>
 CompilePropertyTriggers(
     ControlTemplate& controlTemplate,
-    const CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<TemplatePropertyTrigger> compiled;
-    auto addCondition = [&controlTemplate, &blueprint, &runtime, &properties](
+    auto addCondition = [&controlTemplate, &program, &runtime, &properties](
         Base::StringView propertyName,
         Base::StringView sourceName,
         const Value& authoredValue,
@@ -823,12 +800,12 @@ CompilePropertyTriggers(
         }
         TypeId targetType = controlTemplate.GetTargetType();
         if (!sourceName.Empty()) {
-            const TemplatePrototypeNode* target = FindNode(blueprint, sourceName);
-            if (target == nullptr) {
+            const std::uint32_t slot = program.FindSlotByName(sourceName);
+            if (slot == UINT32_MAX) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate Trigger source was not found");
             }
-            targetType = target->type;
+            targetType = program.GetSlotType(slot);
         }
         const DependencyProperty* property =
             ResolveTemplateProperty(properties, targetType, propertyName);
@@ -848,7 +825,7 @@ CompilePropertyTriggers(
         trigger.conditions.PushBack(std::move(condition));
         return {};
     };
-    auto appendSetters = [&controlTemplate, &blueprint, &runtime, &properties](
+    auto appendSetters = [&controlTemplate, &program, &runtime, &properties](
         Base::Span<const Base::Ref<Setter>> setters,
         TemplatePropertyTrigger& trigger) -> Base::Result<void> {
         for (const Base::Ref<Setter>& setterObject : setters) {
@@ -858,10 +835,9 @@ CompilePropertyTriggers(
             }
             const Base::StringView targetName = setterObject->GetTargetName();
             TypeId targetType = controlTemplate.GetTargetType();
-            const TemplatePrototypeNode* target = nullptr;
             if (!targetName.Empty()) {
-                target = FindNode(blueprint, targetName);
-                if (target == nullptr) {
+                const std::uint32_t slot = program.FindSlotByName(targetName);
+                if (slot == UINT32_MAX) {
                     // RowDefinition/ColumnDefinition and similar named
                     // declaration objects do not belong to the visual clone
                     // graph. They remain represented by the owning Grid's
@@ -875,7 +851,7 @@ CompilePropertyTriggers(
                     return InvalidTemplateCompiler(
                         "ControlTemplate Trigger Setter target was not found");
                 }
-                targetType = target->type;
+                targetType = program.GetSlotType(slot);
             }
             const DependencyProperty* property = ResolveTemplateProperty(
                 properties, targetType, setterObject->GetPropertyName());
@@ -883,11 +859,9 @@ CompilePropertyTriggers(
                 return InvalidTemplateCompiler(
                     "ControlTemplate Trigger Setter property was not found");
             }
-            TemplatePrototypeNode parentTarget;
-            parentTarget.type = targetType;
             Base::Result<Value> value = ConvertSetterValue(
                 *setterObject,
-                target != nullptr ? *target : parentTarget,
+                targetType,
                 *property, runtime, properties);
             if (!value) return value.GetStatus();
             TemplateTriggerSetter setter;
@@ -935,11 +909,11 @@ CompilePropertyTriggers(
 Base::Result<Base::Vector<VisualStateGroupPlan>>
 CompileVisualStates(
     ControlTemplate& controlTemplate,
-    const CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     Base::Vector<VisualStateGroupPlan> groups;
-    auto compileGroup = [&groups, &blueprint, &runtime, &properties](
+    auto compileGroup = [&groups, &program, &runtime, &properties](
         const Base::Ref<Base::Object>& groupObject)
         -> Base::Result<void> {
         if (!groupObject ||
@@ -1013,17 +987,17 @@ CompileVisualStates(
                     return InvalidTemplateCompiler(
                         "Visual state Setter requires TargetName and Property");
                 }
-                const TemplatePrototypeNode* target =
-                    FindNode(
-                        blueprint,
+                const std::uint32_t slot =
+                    program.FindSlotByName(
                         sourceSetter.GetTargetName());
-                if (target == nullptr) {
+                if (slot == UINT32_MAX) {
                     return InvalidTemplateCompiler(
                         "Visual state Setter target was not found");
                 }
+                const TypeId targetType = program.GetSlotType(slot);
                 const DependencyProperty* property =
                     ResolveTemplateProperty(
-                        properties, target->type,
+                        properties, targetType,
                         sourceSetter.GetPropertyName());
                 if (property == nullptr) {
                     return InvalidTemplateCompiler(
@@ -1032,7 +1006,7 @@ CompileVisualStates(
                 Base::Result<Value> value =
                     ConvertSetterValue(
                         sourceSetter,
-                        *target,
+                        targetType,
                         *property,
                         runtime,
                         properties);
@@ -1168,7 +1142,7 @@ CompileVisualStates(
 
 Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     Base::Ref<Aero::TriggerBase> trigger,
-    const CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties) noexcept {
     if (!trigger) {
@@ -1185,19 +1159,20 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     for (const Base::Ref<Setter>& setter : setters) {
         if (!setter) continue;
         const std::uint32_t target = setter->GetTargetName().Empty()
-            ? 0U : FindNodeIndex(blueprint, setter->GetTargetName());
-        if (target >= blueprint.nodes.Size()) {
+            ? 0U : program.FindSlotByName(setter->GetTargetName());
+        if (target >= program.slotNames.Size()) {
             return InvalidTemplateCompiler(
                 "Template trigger Setter target was not found");
         }
+        const TypeId targetType = program.GetSlotType(target);
         const DependencyProperty* property = ResolveTemplateProperty(
-            properties, blueprint.nodes[target].type, setter->GetPropertyName());
+            properties, targetType, setter->GetPropertyName());
         if (property == nullptr) {
             return InvalidTemplateCompiler(
                 "Template trigger Setter property was not found");
         }
         Base::Result<Value> value = ConvertSetterValue(
-            *setter, blueprint.nodes[target], *property, runtime, properties);
+            *setter, targetType, *property, runtime, properties);
         if (!value) return value.GetStatus();
         CompiledTriggerSetter compiledSetter;
         compiledSetter.target = target;
@@ -1230,68 +1205,15 @@ CompileControlTemplateDefinition(
     if (!blueprint) {
         return blueprint.GetStatus();
     }
-    Base::Result<Base::Vector<VisualStateGroupPlan>>
-        groups = CompileVisualStates(
-            controlTemplate,
-            blueprint.Value(),
-            runtime,
-            properties);
-    if (!groups) return groups.GetStatus();
-    Base::Result<Base::Vector<TemplatePropertyTrigger>>
-        triggers = CompilePropertyTriggers(
-            controlTemplate,
-            blueprint.Value(),
-            runtime,
-            properties);
-    if (!triggers) return triggers.GetStatus();
-
-    for (const Base::Ref<Base::Object>& authored :
-         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
-        if (!authored) continue;
-        if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
-            authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-            (authored->RuntimeType() == Trigger::StaticTypeId() &&
-             (!static_cast<const Trigger&>(*authored).
-                    GetEnterActions().Empty() ||
-              !static_cast<const Trigger&>(*authored).
-                    GetExitActions().Empty()))) {
-            Base::Ref<TriggerBase> retained =
-                Base::Ref<TriggerBase>::TryFromBorrowed(
-                    static_cast<TriggerBase&>(*authored));
-            if (!retained) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate instance trigger cannot be retained");
-            }
-            Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                std::move(retained), blueprint.Value(), runtime, properties);
-            if (!plan) return plan.GetStatus();
-            blueprint.Value().controlTemplateDataTriggers.PushBack(
-                std::move(plan).Value());
-        } else if (runtime.Types().IsDerivedFrom(
-                       authored->RuntimeType(),
-                       EventTrigger::StaticTypeId())) {
-            Base::Ref<EventTrigger> retained =
-                Base::Ref<EventTrigger>::TryFromBorrowed(
-                    static_cast<EventTrigger&>(*authored));
-            if (!retained) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate EventTrigger cannot be retained");
-            }
-            Base::Result<void> added{};
-            blueprint.Value().controlTemplateEventTriggers.PushBack(
-                    std::move(retained));
-        }
-    }
 
     CompiledTemplateDefinition definition;
     definition.targetType =
         controlTemplate.GetTargetType();
-    definition.blueprint =
-        std::move(blueprint).Value();
+
     for (std::uint32_t nodeIndex = 0U;
-         nodeIndex < definition.blueprint.nodes.Size(); ++nodeIndex) {
+         nodeIndex < blueprint.Value().nodes.Size(); ++nodeIndex) {
         TemplatePrototypeNode& node =
-            definition.blueprint.nodes[nodeIndex];
+            blueprint.Value().nodes[nodeIndex];
         if (!runtime.Types().IsDerivedFrom(
                 node.type,
                 ContentPresenter::StaticTypeId())) {
@@ -1410,34 +1332,87 @@ CompileControlTemplateDefinition(
             }
         }
     }
+
+    auto container = Base::MakeRef<XamlBytecodeContainer>();
+    if (!container) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    }
+    Base::Result<void> bytecoded = CompileBlueprintToBytecode(
+        blueprint.Value(), container->program);
+    if (!bytecoded) return bytecoded.GetStatus();
+
+    Base::Result<Base::Vector<VisualStateGroupPlan>>
+        groups = CompileVisualStates(
+            controlTemplate,
+            container->program,
+            runtime,
+            properties);
+    if (!groups) return groups.GetStatus();
+    Base::Result<Base::Vector<TemplatePropertyTrigger>>
+        triggers = CompilePropertyTriggers(
+            controlTemplate,
+            container->program,
+            runtime,
+            properties);
+    if (!triggers) return triggers.GetStatus();
+
+    for (const Base::Ref<Base::Object>& authored :
+         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
+        if (!authored) continue;
+        if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
+            authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
+            (authored->RuntimeType() == Trigger::StaticTypeId() &&
+             (!static_cast<const Trigger&>(*authored).
+                    GetEnterActions().Empty() ||
+              !static_cast<const Trigger&>(*authored).
+                    GetExitActions().Empty()))) {
+            Base::Ref<TriggerBase> retained =
+                Base::Ref<TriggerBase>::TryFromBorrowed(
+                    static_cast<TriggerBase&>(*authored));
+            if (!retained) {
+                return InvalidTemplateCompiler(
+                    "ControlTemplate instance trigger cannot be retained");
+            }
+            Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
+                std::move(retained), container->program, runtime, properties);
+            if (!plan) return plan.GetStatus();
+            container->program.controlTemplateDataTriggers.PushBack(
+                std::move(plan).Value());
+        } else if (runtime.Types().IsDerivedFrom(
+                       authored->RuntimeType(),
+                       EventTrigger::StaticTypeId())) {
+            Base::Ref<EventTrigger> retained =
+                Base::Ref<EventTrigger>::TryFromBorrowed(
+                    static_cast<EventTrigger&>(*authored));
+            if (!retained) {
+                return InvalidTemplateCompiler(
+                    "ControlTemplate EventTrigger cannot be retained");
+            }
+            container->program.controlTemplateEventTriggers.PushBack(
+                    std::move(retained));
+        }
+    }
+
+    definition.program = &container->program;
+    definition.programOwner = std::move(container);
     definition.propertyTriggers =
         std::move(triggers).Value();
     definition.visualStateGroups =
         std::move(groups).Value();
-    EnsureBytecode(definition.blueprint);
-    for (auto& node : definition.blueprint.nodes) {
-        node.properties.Clear();
-        node.gridColumns.Clear();
-        node.gridRows.Clear();
-        node.streamGeometryData.Clear();
-        node.gradientStops.Clear();
-        node.authoredBehaviors.Clear();
-        node.authoredTriggers.Clear();
-    }
     return definition;
 }
 
 // Compiles a derived ControlTemplate that inherits its visual tree from a
 // sealed XAML-compiled base template (BasedOn without own VisualTree).
 // Derived-authored property triggers and visual states resolve
-// TargetName/SourceName against the BASE blueprint, i.e. the shared tree.
+// TargetName/SourceName against the BASE program, i.e. the shared tree.
 // Action-bearing Trigger/DataTrigger/EventTrigger declarations cannot be
 // represented in the property-trigger table; they must live in a template
 // that authors its own VisualTree.
 Base::Result<void>
 CompileInheritedControlTemplate(
     ControlTemplate& derivedTemplate,
-    const CompiledTemplateBlueprint& baseBlueprint,
+    const XamlBytecodeProgram& baseProgram,
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties) noexcept {
     for (const Base::Ref<Base::Object>& object :
@@ -1463,7 +1438,7 @@ CompileInheritedControlTemplate(
     }
     Base::Result<Base::Vector<TemplatePropertyTrigger>> triggers =
         CompilePropertyTriggers(
-            derivedTemplate, baseBlueprint, runtime, properties);
+            derivedTemplate, baseProgram, runtime, properties);
     if (!triggers) {
         return triggers.GetStatus();
     }
@@ -1477,7 +1452,7 @@ CompileInheritedControlTemplate(
     }
     Base::Result<Base::Vector<VisualStateGroupPlan>> groups =
         CompileVisualStates(
-            derivedTemplate, baseBlueprint, runtime, properties);
+            derivedTemplate, baseProgram, runtime, properties);
     if (!groups) {
         return groups.GetStatus();
     }
@@ -1514,12 +1489,12 @@ CompileDeferredTemplateBlueprint(
 
 
 static Base::Result<void> AttachCompiledTemplateBindings(
-    CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     const Base::Vector<Base::Ref<Base::Object>>& objects,
     BindingEngine& bindings,
     FrameworkElement* templatedParent,
     const Base::Ref<Base::Object>& payload) noexcept {
-    for (const TemplatePrototypeBinding& binding : blueprint.bindings) {
+    for (const TemplatePrototypeBinding& binding : program.blueprintBindings) {
         if (binding.metadata == nullptr ||
             binding.target >= objects.Size() ||
             (binding.source != UINT32_MAX &&
@@ -1554,7 +1529,7 @@ static Base::Result<void> AttachCompiledTemplateBindings(
             descriptor.source = ResolveTemplateBindingAncestor(
                 binding,
                 *objects[binding.target],
-                *blueprint.runtime);
+                *program.runtime);
             if (descriptor.source == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
@@ -1600,7 +1575,7 @@ static Base::Result<void> AttachCompiledTemplateBindings(
 }
 
 static Base::Result<void> AttachCompiledTemplateTriggers(
-    CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     const Base::Vector<Base::Ref<Base::Object>>& objects,
     const Base::Vector<CompiledTriggerPlan>& triggers,
     const Base::Vector<Base::Ref<EventTrigger>>& eventTriggers,
@@ -1611,7 +1586,7 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
         return {};
     }
     if (objects.Empty() ||
-        !blueprint.runtime->Types().IsDerivedFrom(
+        !program.runtime->Types().IsDerivedFrom(
             objects[0U]->RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return InvalidTemplateCompiler(
@@ -1626,17 +1601,17 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
     triggerContext->root = root;
 
     for (std::uint32_t index = 0U; index < objects.Size(); ++index) {
-        if (blueprint.nodes[index].name.Empty()) continue;
+        if (index >= program.slotNames.Size() || program.slotNames[index].Empty()) continue;
         DataTemplateTriggerInstance::NamedObject named;
         Base::Result<void> namedAssigned = named.name.Assign(
-            blueprint.nodes[index].name.View());
+            program.slotNames[index].View());
         if (!namedAssigned) return namedAssigned.GetStatus();
         named.object = Base::WeakRef<Base::Object>(
             Base::Ref<Base::Object>::FromBorrowed(*objects[index]));
         triggerContext->names.PushBack(std::move(named));
         if (registerNamesInRoot) {
             static_cast<void>(root->RegisterName(
-                blueprint.nodes[index].name.View(),
+                program.slotNames[index].View(),
                 *objects[index]));
         }
     }
@@ -1656,7 +1631,7 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
                     templatedParent,
                     relative->GetAncestorType(),
                     relative->GetAncestorLevel(),
-                    blueprint.runtime->Types());
+                    program.runtime->Types());
             }
             return templatedParent;
         }
@@ -1678,7 +1653,7 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
                 source = root;
             }
             if (source == nullptr ||
-                !blueprint.runtime->Types().IsDerivedFrom(
+                !program.runtime->Types().IsDerivedFrom(
                     source->RuntimeType(),
                     DependencyObject::StaticTypeId())) {
                 return InvalidTemplateCompiler(
@@ -1687,14 +1662,14 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
             const TypeId sourceType = source->RuntimeType();
             const DependencyProperty* sourceProperty =
                 ResolveTemplateProperty(
-                    *blueprint.properties,
+                    *program.properties,
                     sourceType,
                     property.GetPropertyName());
             if (sourceProperty == nullptr) {
                 return MissingTemplateProperty(
                     "Template action trigger property",
                     property.GetPropertyName(), sourceType,
-                    blueprint.runtime->Types());
+                    program.runtime->Types());
             }
             DataTemplateTriggerCondition condition;
             condition.source = Base::WeakRef<Base::Object>(
@@ -1706,7 +1681,7 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
             condition.property = sourceProperty->Handle();
             Base::Result<Value> converted = ConvertTriggerValue(
                 property.GetAuthoredValue(), sourceType, *sourceProperty,
-                *blueprint.runtime, *blueprint.properties);
+                *program.runtime, *program.properties);
             if (!converted) return converted.GetStatus();
             condition.value = std::move(converted).Value();
             runtimeTrigger.conditions.PushBack(std::move(condition));
@@ -1780,35 +1755,27 @@ static Base::Result<void> AttachCompiledTemplateTriggers(
 Base::Result<void> BuildCompiledTemplate(
     TemplateBuilder& context,
     void* factoryContext) noexcept {
-    auto* blueprint =
-        static_cast<CompiledTemplateBlueprint*>(
+    const auto* program =
+        static_cast<const XamlBytecodeProgram*>(
             factoryContext);
-    if (blueprint == nullptr ||
-        blueprint->runtime == nullptr ||
-        blueprint->nodes.Empty()) {
-        return InvalidTemplateCompiler(
-            "Compiled template blueprint is invalid");
-    }
-
-    XamlBytecodeProgram& program = EnsureBytecode(*blueprint);
-    if (!program.IsValid()) {
+    if (program == nullptr || !program->IsValid()) {
         return InvalidTemplateCompiler(
             "Compiled template bytecode is invalid");
     }
 
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> executed = XamlVM::Execute(
-        program, *blueprint->runtime, &context, objects, nullptr);
+        *program, *program->runtime, &context, objects, nullptr);
     if (!executed) return executed.GetStatus();
 
     Base::Result<void> bound = AttachCompiledTemplateBindings(
-        *blueprint, objects, context.Bindings(), &context.TemplatedParent(), {});
+        *program, objects, context.Bindings(), &context.TemplatedParent(), {});
     if (!bound) return bound.GetStatus();
 
     return AttachCompiledTemplateTriggers(
-        *blueprint, objects,
-        blueprint->controlTemplateDataTriggers,
-        blueprint->controlTemplateEventTriggers,
+        *program, objects,
+        program->controlTemplateDataTriggers,
+        program->controlTemplateEventTriggers,
         &context.TemplatedParent(), {}, false);
 }
 
@@ -1817,50 +1784,42 @@ BuildCompiledDeferredTemplate(
     const Base::Ref<Base::Object>& payload,
     void* factoryContext,
     BindingEngine* bindings) noexcept {
-    auto* blueprint =
-        static_cast<CompiledTemplateBlueprint*>(
+    const auto* program =
+        static_cast<const XamlBytecodeProgram*>(
             factoryContext);
-    if (blueprint == nullptr ||
-        blueprint->runtime == nullptr ||
-        blueprint->nodes.Empty()) {
-        return InvalidTemplateCompiler(
-            "Deferred template blueprint is invalid");
-    }
-
-    XamlBytecodeProgram& program = EnsureBytecode(*blueprint);
-    if (!program.IsValid()) {
+    if (program == nullptr || !program->IsValid()) {
         return InvalidTemplateCompiler(
             "Deferred template bytecode is invalid");
     }
 
-    if (bindings == nullptr && !blueprint->bindings.Empty()) {
+    if (bindings == nullptr && !program->blueprintBindings.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "DataTemplate Binding requires a mounted View binding engine");
     }
 
     XamlVMContext vmContext;
-    vmContext.runtime = blueprint->runtime;
+    vmContext.runtime = program->runtime;
     vmContext.dataItemPayload = payload;
     vmContext.bindings = bindings;
 
     Base::Vector<Base::Ref<Base::Object>> objects;
     Base::Result<void> executed = XamlVM::Execute(
-        program, vmContext, objects, nullptr);
+        *program, vmContext, objects, nullptr);
     if (!executed) return executed.GetStatus();
 
     Base::Ref<Base::Object> root = objects[0U];
 
     if (bindings != nullptr) {
         Base::Result<void> bound = AttachCompiledTemplateBindings(
-            *blueprint, objects, *bindings, nullptr, payload);
+            *program, objects, *bindings, nullptr, payload);
         if (!bound) return bound.GetStatus();
     }
 
     static const Base::Vector<Base::Ref<EventTrigger>> noEventTriggers;
     Base::Result<void> triggered = AttachCompiledTemplateTriggers(
-        *blueprint, objects,
-        blueprint->dataTemplateTriggers,
+        *program, objects,
+        program->dataTemplateTriggers,
         noEventTriggers, nullptr, payload, true);
     if (!triggered) return triggered.GetStatus();
 

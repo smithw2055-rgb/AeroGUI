@@ -31,21 +31,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 
 
-class CompiledTemplateProgramOwner
-    : public Base::Object {
-public:
-    explicit CompiledTemplateProgramOwner(
-        CompiledTemplateBlueprint blueprint) noexcept
-        : blueprint_(std::move(blueprint)) {}
-    ~CompiledTemplateProgramOwner() noexcept override = default;
 
-    CompiledTemplateBlueprint& Blueprint() noexcept {
-        return blueprint_;
-    }
-
-private:
-    CompiledTemplateBlueprint blueprint_;
-};
 
 Base::Status InvalidTemplateXaml(
     const char* message) noexcept {
@@ -249,48 +235,36 @@ struct XamlTemplateSchemaFacet::State {
                 return compiled.GetStatus();
             }
             auto& templateObj = static_cast<FrameworkTemplate&>(object);
+            auto container = Base::MakeRefWithAllocator<XamlBytecodeContainer>(*self->allocator);
+            if (!container) {
+                return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+            }
+            Base::Result<void> bytecoded = CompileBlueprintToBytecode(
+                compiled.Value(), container->program);
+            if (!bytecoded) return bytecoded.GetStatus();
+
             if (isDataTemplateFamily) {
                 auto authoredTriggers =
                     ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(templateObj);
-                compiled.Value().
-                    dataTemplateTriggers.Reserve(authoredTriggers.Size());
+                container->program.dataTemplateTriggers.Reserve(authoredTriggers.Size());
                 for (const Base::Ref<Base::Object>& triggerObj : authoredTriggers) {
                     if (triggerObj) {
                         auto retained = Base::Ref<Aero::TriggerBase>::TryFromBorrowed(
                             static_cast<Aero::TriggerBase&>(*triggerObj));
                         if (retained) {
                             Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                                std::move(retained), compiled.Value(),
+                                std::move(retained), container->program,
                                 *self->runtime, *self->properties);
                             if (!plan) return plan.GetStatus();
-                            compiled.Value().dataTemplateTriggers.PushBack(std::move(plan).Value());
+                            container->program.dataTemplateTriggers.PushBack(std::move(plan).Value());
                         }
                     }
                 }
             }
-            EnsureBytecode(compiled.Value());
-            for (auto& node : compiled.Value().nodes) {
-                node.properties.Clear();
-                node.gridColumns.Clear();
-                node.gridRows.Clear();
-                node.streamGeometryData.Clear();
-                node.gradientStops.Clear();
-                node.authoredBehaviors.Clear();
-                node.authoredTriggers.Clear();
-            }
-            Base::Ref<CompiledTemplateProgramOwner>
-                program =
-                    Base::MakeRefWithAllocator<
-                        CompiledTemplateProgramOwner>(
-                        *self->allocator,
-                        std::move(compiled).Value());
-            if (!program) {
-                return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
-            }
-            CompiledTemplateBlueprint* programContext =
-                &program->Blueprint();
+            XamlBytecodeProgram* programContext =
+                &container->program;
             Base::Ref<Base::Object> programOwner =
-                program;
+                container;
             Base::Result<void> configured =
                 ::Aero::Controls::FrameworkTemplateState::Configure(
                     templateObj,
@@ -360,7 +334,7 @@ struct XamlTemplateSchemaFacet::State {
                 Base::Result<void> inherited =
                     CompileInheritedControlTemplate(
                         controlTemplate,
-                        *static_cast<const CompiledTemplateBlueprint*>(
+                        *static_cast<const XamlBytecodeProgram*>(
                             baseFactoryContext),
                         *self->runtime,
                         *self->properties);
@@ -425,26 +399,11 @@ struct XamlTemplateSchemaFacet::State {
             return compiled.GetStatus();
         }
 
-        Base::Ref<CompiledTemplateProgramOwner>
-            program =
-                Base::MakeRefWithAllocator<
-                    CompiledTemplateProgramOwner>(
-                    *self->allocator,
-                    std::move(
-                        compiled.Value().blueprint));
-        if (!program) {
-            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
-        }
-        CompiledTemplateBlueprint* programContext =
-            &program->Blueprint();
-        Base::Ref<Base::Object> programOwner =
-            program;
-
         Base::Result<void> configured =
             ::Aero::Controls::FrameworkTemplateState::ConfigureFactory(controlTemplate,
                 &BuildCompiledTemplate,
-                programContext,
-                std::move(programOwner));
+                compiled.Value().program,
+                std::move(compiled.Value().programOwner));
         if (configured) {
             for (const TemplateBindingPlan& binding :
                  compiled.Value().

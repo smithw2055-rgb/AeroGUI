@@ -87,25 +87,20 @@ struct CompiledTriggerPlan {
     Base::Vector<CompiledTriggerSetter> setters;
 };
 
+struct XamlBytecodeProgram;
+
 struct CompiledTemplateBlueprint {
     ::Aero::Meta::Registry* runtime = nullptr;
     Meta::DependencyPropertyRegistry* properties = nullptr;
     Base::Vector<TemplatePrototypeNode> nodes;
     Base::Vector<TemplatePrototypeBinding> bindings;
-    Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
-    // Non-property triggers are retained on the compiled blueprint so every
-    // control-template instance can materialize its own sources, name scope,
-    // subscriptions, and animation actions.
-    Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
-    Base::Vector<Base::Ref<Media::Animation::EventTrigger>>
-        controlTemplateEventTriggers;
     std::uint32_t contentPresenter = UINT32_MAX;
-    mutable Base::Ref<Base::Object> bytecodeProgram;
 };
 
 struct CompiledTemplateDefinition {
     Meta::TypeId targetType = Meta::InvalidTypeId;
-    CompiledTemplateBlueprint blueprint;
+    Base::Ref<Base::Object> programOwner;
+    XamlBytecodeProgram* program = nullptr;
     Base::Vector<Controls::TemplatePropertyTrigger>
         propertyTriggers;
     Base::Vector<Controls::TemplateBindingPlan>
@@ -116,7 +111,7 @@ struct CompiledTemplateDefinition {
 
 Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     Base::Ref<Aero::TriggerBase> trigger,
-    const CompiledTemplateBlueprint& blueprint,
+    const XamlBytecodeProgram& program,
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties) noexcept;
 
@@ -149,12 +144,12 @@ CompileControlTemplateDefinition(
 
 // BasedOn inheritance for tree-less derived templates: compiles
 // derived-authored property triggers / visual states against the sealed base
-// blueprint and stages them on the derived template. Seal() then inherits
+// program and stages them on the derived template. Seal() then inherits
 // the base factory and prepends base plans.
 Base::Result<void>
 CompileInheritedControlTemplate(
     Controls::ControlTemplate& derivedTemplate,
-    const CompiledTemplateBlueprint& baseBlueprint,
+    const XamlBytecodeProgram& baseProgram,
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties) noexcept;
 
