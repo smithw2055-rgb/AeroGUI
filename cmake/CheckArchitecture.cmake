@@ -223,11 +223,11 @@ aero_require_text(
     "Span<const Markup::ResourceScopeRegistration> resourceScopes;"
     "Product resource scopes must cross the Gui boundary through module data")
 aero_forbid_text(
-    "src/gui/markup/XamlLoader.cpp"
+    "src/gui/markup/XamlReader.cpp"
     "AeroApp/Application.hpp"
     "AeroGui Markup must not include the AeroApp Application contract")
 aero_forbid_text(
-    "src/gui/markup/XamlLoader.cpp"
+    "src/gui/markup/XamlReader.cpp"
     "Aero::Application"
     "AeroGui Markup must not link back to AeroApp symbols")
 aero_require_text(
@@ -441,7 +441,6 @@ foreach(required_source_entry IN ITEMS
         "src/gui/media"
         "src/gui/text"
         "src/gui/templates"
-        "src/gui/markup/XamlProvider.cpp"
         "src/gui/markup/XamlReader.cpp"
         "src/gui/input/Clipboard.cpp"
         "src/gui/input/OverlayHost.cpp"
@@ -1123,7 +1122,7 @@ foreach(view_private_operation IN ITEMS
         "View implementation operations must remain source-only")
 endforeach()
 aero_require_text(
-    "src/gui/markup/ReloadCoordinator.cpp"
+    "src/gui/markup/XamlReader.cpp"
     "gui->QuerySource"
     "ReloadCoordinator must query Gui-owned XAML sources directly")
 aero_require_file("src/gui/ViewRenderer.hpp")
@@ -1197,6 +1196,10 @@ aero_forbid_file("src/gui/data/Binding.cpp")
 aero_forbid_file("src/gui/data/BindingEvaluation.cpp")
 aero_forbid_file("src/gui/data/BindingOperations.cpp")
 aero_forbid_file("src/gui/input/Cursors.cpp")
+aero_forbid_file("src/gui/markup/XamlProvider.cpp")
+aero_forbid_file("src/gui/markup/ReloadCoordinator.cpp")
+aero_forbid_file("src/gui/markup/XamlDocumentCache.cpp")
+aero_forbid_file("src/gui/markup/XamlLoader.cpp")
 aero_forbid_file("src/gui/markup/XamlObjectWriterCommon.cpp")
 aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderLoad.cpp")
 aero_forbid_file("src/gui/markup/XamlObjectWriterBuilderNodes.cpp")

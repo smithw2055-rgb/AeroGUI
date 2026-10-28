@@ -151,12 +151,8 @@ set(_aero_gui_markup_sources
     src/gui/markup/TemplateSupport.cpp
     src/gui/markup/TemplateCompiler.cpp
     src/gui/markup/XamlCompiledDocument.cpp
-    src/gui/markup/XamlDocumentCache.cpp
     src/gui/markup/XamlObjectLoader.cpp
-    src/gui/markup/XamlLoader.cpp
     src/gui/markup/GuiSchema.cpp
-    src/gui/markup/ReloadCoordinator.cpp
-    src/gui/markup/XamlProvider.cpp
     src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources
