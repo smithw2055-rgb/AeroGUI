@@ -142,11 +142,8 @@ set(_aero_gui_controls_sources
 set(_aero_gui_markup_sources
     src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
-    src/gui/markup/XamlParser.cpp
-    src/gui/markup/XamlCompiledSchema.cpp
+    src/gui/markup/XamlCompiler.cpp
     src/gui/markup/XamlSchema.cpp
-    src/gui/markup/TemplateCompiler.cpp
-    src/gui/markup/XamlCompiledDocument.cpp
     src/gui/markup/XamlObjectLoader.cpp
     src/gui/markup/XamlReader.cpp)
 
