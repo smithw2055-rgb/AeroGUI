@@ -5,7 +5,7 @@
 
 #include <Aero/Resources.hpp>
 #include <Aero/ViewOptions.hpp>
-#include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Diagnostics.hpp>
 
 namespace Aero {

@@ -148,6 +148,36 @@ struct ProvidedValue {
     }
 };
 
+class NamespaceScope {
+public:
+    using LookupCallback = Base::Result<Base::StringView> (*)(void* context, Base::StringView prefix) noexcept;
+
+    NamespaceScope() noexcept = default;
+    NamespaceScope(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
+
+    Base::Result<Base::StringView> Lookup(Base::StringView prefix) const noexcept;
+    bool IsAvailable() const noexcept { return lookup_ != nullptr; }
+
+private:
+    LookupCallback lookup_ = nullptr;
+    void* context_ = nullptr;
+};
+
+class ResourceResolver {
+public:
+    using LookupCallback = Base::Result<Aero::ResourceValue> (*)(void* context, Base::StringView key) noexcept;
+
+    ResourceResolver() noexcept = default;
+    ResourceResolver(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
+
+    Base::Result<Aero::ResourceValue> Lookup(Base::StringView key) const noexcept;
+    bool IsAvailable() const noexcept { return lookup_ != nullptr; }
+
+private:
+    LookupCallback lookup_ = nullptr;
+    void* context_ = nullptr;
+};
+
 struct ExtensionServices {
     const Schema* schema = nullptr;
     Base::Object* targetObject = nullptr;

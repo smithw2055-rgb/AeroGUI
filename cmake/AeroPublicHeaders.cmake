@@ -130,13 +130,9 @@ set(AERO_PUBLIC_HEADERS
     include/Aero/Interactivity/TriggerAction.hpp
     include/Aero/Interactivity/Behavior.hpp
     include/Aero/Interactivity/BlendBehaviors.hpp
-    include/Aero/Markup/XamlDocument.hpp
-    include/Aero/Markup/XamlReader.hpp
-    include/Aero/Markup/XamlProvider.hpp
     include/Aero/Markup/MarkupExtension.hpp
-    include/Aero/Markup/ReloadCoordinator.hpp
-    include/Aero/Markup/ResourceScope.hpp
-    include/Aero/Markup/ServiceProvider.hpp
+    include/Aero/Markup/XamlProvider.hpp
+    include/Aero/Markup/XamlReader.hpp
     include/Aero/Media/DrawingContext.hpp
     include/Aero/Media/CompositionTarget.hpp
     include/Aero/Media/Brushes.hpp

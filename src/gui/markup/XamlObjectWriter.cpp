@@ -42,7 +42,7 @@
 
 #include <Aero/Markup/XamlReader.hpp>
 
-#include <Aero/Markup/ServiceProvider.hpp>
+// ServiceProvider.hpp inlined into MarkupExtensionContract.hpp
 
 #include <Aero/VisualStateManager.hpp>
 

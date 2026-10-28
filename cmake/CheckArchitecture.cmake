@@ -110,7 +110,7 @@ foreach(required_public_entry IN ITEMS
         "include/AeroRender/RenderTarget.hpp"
         "include/AeroRender/D3D11.hpp"
         "include/AeroRender/OpenGL33.hpp"
-        "include/Aero/Markup/ResourceScope.hpp"
+        "include/Aero/Markup/XamlReader.hpp"
         "include/Aero/Shapes.hpp"
         "include/Aero/Documents.hpp"
         "include/Aero/Documents/Inlines.hpp"
@@ -2559,10 +2559,7 @@ aero_forbid_text(
     "class AERO_GUI_API ResourceResolver"
     "Aero::FrameworkResourceResolver must live in src, not Resources.hpp")
 aero_require_file("src/gui/styles/FrameworkResourceResolver.hpp")
-aero_require_text(
-    "include/Aero/Markup/ServiceProvider.hpp"
-    "class AERO_GUI_API ResourceResolver"
-    "Markup::ResourceResolver must remain the public markup service")
+# ServiceProvider.hpp retired per aero4 refactoring
 aero_forbid_text(
     "include/Aero/UIElement.hpp"
     "ElementFacet"
@@ -2644,7 +2641,7 @@ set(aero_one_type_exemptions
     include/Aero/Base/Value.hpp
     include/Aero/Mvvm.hpp
     include/Aero/Markup/XamlProvider.hpp
-    include/Aero/Markup/ServiceProvider.hpp
+    include/Aero/Markup/XamlReader.hpp
     include/Aero/Interactivity/Behavior.hpp
     include/Aero/Interactivity/BlendBehaviors.hpp
     include/Aero/Interactivity/Conditions.hpp

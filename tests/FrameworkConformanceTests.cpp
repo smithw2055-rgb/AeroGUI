@@ -17,7 +17,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Gui.hpp>
 #include <Aero/Input.hpp>
-#include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Markup/XamlReader.hpp>

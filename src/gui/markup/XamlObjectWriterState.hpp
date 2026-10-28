@@ -920,7 +920,7 @@ static_assert(
 
 // ===== WriterSupport (shared Writer TU helpers) =====
 
-#include <Aero/Markup/ServiceProvider.hpp>
+#include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/Events.hpp>
 #include <Aero/VisualStateManager.hpp>
 #include <utility>

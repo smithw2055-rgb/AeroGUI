@@ -16,7 +16,7 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
-#include <Aero/Markup/XamlDocument.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>

@@ -6,7 +6,7 @@
 #include <Aero/BuiltinThemes.generated.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Decorators.hpp>
-#include <Aero/Markup/ReloadCoordinator.hpp>
+#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 
 #include <algorithm>

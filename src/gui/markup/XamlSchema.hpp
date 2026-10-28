@@ -22,6 +22,10 @@
 
 namespace Aero::Markup {
 
+inline constexpr Base::StringView LanguageNamespaceUri() noexcept {
+    return Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml");
+}
+
 class Schema;
 class SchemaManifest;
 class CompiledDocument;
