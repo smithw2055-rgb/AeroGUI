@@ -1848,7 +1848,11 @@ inline Base::Result<void> CompileDocumentToBytecode(
                     Base::StringView strVal = node.Value();
                     if (strVal.SizeBytes() >= 2U && strVal[0] == '{' && strVal[1] == '}') {
                         strVal = strVal.Substr(2U, strVal.SizeBytes() - 2U);
-                    } else if (strVal.SizeBytes() > 0U && strVal[0] == '{') {
+                    }
+                    if (TrimAscii(strVal).Empty()) {
+                        break;
+                    }
+                    if (strVal.SizeBytes() > 0U && strVal[0] == '{') {
                         Base::StringView trimmed = TrimAscii(strVal);
                         if (trimmed == "{x:Null}" || trimmed == "{Null}") {
                             Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId)
@@ -1911,6 +1915,22 @@ inline Base::Result<void> CompileDocumentToBytecode(
                     Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId)
                         ? mf.valueType
                         : Meta::TypeOf<Base::String>();
+                    if (targetType == Meta::TypeOf<Meta::TypeReference>()) {
+                        Base::StringView typeName = TrimAscii(strVal);
+                        Base::Result<const Meta::TypeInfo*> resolved = schema.ResolveType(
+                            Meta::AeroNamespaceUri(), typeName);
+                        if (!resolved) {
+                            resolved = schema.ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), typeName);
+                        }
+                        if (resolved && resolved.Value() != nullptr) {
+                            Meta::TypeReference ref{resolved.Value()->Id()};
+                            builder.EmitSetPropertyValue(
+                                mf.parentSlot,
+                                Meta::DependencyPropertyHandle{mf.memberId},
+                                Meta::ValueCodec<Meta::TypeReference>::Encode(ref).Value());
+                            break;
+                        }
+                    }
                     Base::Result<Meta::Value> converted = schema.ConvertText(
                         targetType, strVal, nullptr);
                     if (converted) {
