@@ -4,6 +4,7 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
 #include <Aero/Base/Result.hpp>
@@ -527,6 +528,7 @@ public:
     XamlBytecodeBuilder() noexcept {
         // Index 0 in string pool is empty string
         stringPool_.PushBack(Base::String{});
+        static_cast<void>(stringMap_.Insert(Base::String{}, 0U));
     }
 
     void SetSlotCount(std::uint32_t count) noexcept {
@@ -535,15 +537,14 @@ public:
 
     std::uint32_t AddString(Base::StringView str) noexcept {
         if (str.Empty()) return 0U;
-        for (std::uint32_t index = 1U; index < stringPool_.Size(); ++index) {
-            if (stringPool_[index].View() == str) {
-                return index;
-            }
-        }
-        const std::uint32_t newIndex = stringPool_.Size();
         Base::String s;
         static_cast<void>(s.Assign(str));
-        stringPool_.PushBack(std::move(s));
+        if (const std::uint32_t* found = stringMap_.Find(s)) {
+            return *found;
+        }
+        const std::uint32_t newIndex = stringPool_.Size();
+        stringPool_.PushBack(s);
+        static_cast<void>(stringMap_.Insert(std::move(s), newIndex));
         return newIndex;
     }
 
@@ -775,6 +776,7 @@ private:
     Base::Vector<::Aero::GridLength> gridLengths_;
     Base::Vector<TemplatePrototypeGradientStop> gradientStops_;
     Base::Vector<Base::Ref<Base::Object>> objectRefs_;
+    Base::HashMap<Base::String, std::uint32_t> stringMap_;
 };
 
 // ============================================================================
