@@ -120,6 +120,7 @@ public:
         DependencyObject& object,
         StyleProviderSession& values) noexcept;
 
+
     explicit StyleEngine(
         EffectiveValueEngine& values,
         DependencyPropertyRegistry& properties) noexcept;

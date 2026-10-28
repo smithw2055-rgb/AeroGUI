@@ -793,6 +793,7 @@ Base::Result<void> Style::Seal(
     Base::Result<void> frozenProgram = program_->Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
     if (!frozenProgram) return frozenProgram.GetStatus();
+    program_->ClearAuthored();
     resources_.Seal();
     program_->ClearAuthored();
     authoredSetterObjects_.Clear();
@@ -1167,12 +1168,16 @@ Base::Result<void> StyleEngine::SealProgram(
 
 Base::Span<const StyleSetter> StyleEngine::ProgramSetters(
     const Style& style) noexcept {
-    return Style::Program::RuntimeSetters(style);
+    return style.program_ != nullptr
+        ? style.program_->Setters()
+        : Base::Span<const StyleSetter>{};
 }
 
 Base::Span<const TriggerPlan> StyleEngine::ProgramTriggers(
     const Style& style) noexcept {
-    return Style::Program::RuntimeTriggers(style);
+    return style.program_ != nullptr
+        ? style.program_->Triggers()
+        : Base::Span<const TriggerPlan>{};
 }
 
 std::uint64_t StyleEngine::ProgramTriggerMask(
