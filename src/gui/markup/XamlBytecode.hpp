@@ -1881,10 +1881,10 @@ inline Base::Result<void> CompileDocumentToBytecode(
                                 }
 
                                 Meta::TypeId extTypeId = Meta::InvalidTypeId;
-                                if (extName == "StaticResource") {
+                                if (extName == "StaticResource" || extName == "StaticResourceExtension") {
                                     extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("StaticResourceExtension"));
-                                } else if (extName == "DynamicResource") {
-                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("DynamicResourceExtension"));
+                                } else if (extName == "DynamicResource" || extName == "DynamicResourceExtension") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("DynamicResource"));
                                 } else if (extName == "Binding") {
                                     extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("Binding"));
                                 } else if (extName == "TemplateBinding") {
