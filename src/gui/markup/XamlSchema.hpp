@@ -865,6 +865,9 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
     const struct ExtensionServices& services) noexcept;
 }
 
+class Schema;
+Base::Result<void> RegisterBuiltinMarkupExtensions(Schema& schema) noexcept;
+
 class Schema {
 public:
     Schema(
@@ -914,6 +917,7 @@ private:
         WriterBindingSupport::CreateMultiBindingValueImpl(
             ::Aero::Data::MultiBinding& binding,
             const ExtensionServices& services) noexcept;
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema& schema) noexcept;
     friend class StaticResourceExtension;
     friend class DynamicResourceExtension;
     friend class TypeExtension;
@@ -973,7 +977,6 @@ private:
 
 
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[32768]{};
     XamlFacets* facets_ = nullptr;
     ::Aero::Meta::Registry* domain_ = nullptr;
     bool frozen_ = false;
@@ -1061,7 +1064,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[2048]{};
     State* state_ = nullptr;
 
     explicit SchemaManifest(
@@ -1302,7 +1304,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[2048]{};
     State* state_ = nullptr;
 };
 
@@ -1392,7 +1393,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[8192]{};
     State* state_ = nullptr;
 };
 
@@ -1445,7 +1445,6 @@ private:
 
 
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[512]{};
     LoaderState* state_ = nullptr;
 };
 
@@ -1914,7 +1913,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
     State* state_ = nullptr;
     bool optionsValid_ = false;
 };
@@ -1978,7 +1976,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[1024]{};
     State* state_ = nullptr;
 };
 

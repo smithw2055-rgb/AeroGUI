@@ -1549,19 +1549,14 @@ Loader::Loader(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    static_assert(
-        sizeof(LoaderState) <= 512,
-        "Loader inline state storage is too small");
-    static_assert(
-        alignof(LoaderState) <= alignof(std::max_align_t),
-        "Loader inline state alignment is insufficient");
-    state_ = new (stateStorage_) LoaderState(
-        schema, providers, diagnostics, loadState);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::Markup, state_,
+        schema, providers, diagnostics, loadState));
 }
 
 Loader::~Loader() noexcept {
     if (state_ == nullptr) return;
-    state_->~LoaderState();
+    Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state_);
     state_ = nullptr;
 }
 

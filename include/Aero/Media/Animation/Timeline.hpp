@@ -187,6 +187,12 @@ class AERO_GUI_API Timeline : public ::Aero::Animatable {
     AERO_DECLARE_TYPE(Timeline, ::Aero::Animatable)
 
 public:
+    Base::Ref<Timeline> Clone() const {
+        Base::Ref<Freezable> f = Freezable::Clone();
+        if (!f) return {};
+        return Base::Ref<Timeline>::TryFromBorrowed(static_cast<Timeline&>(*f));
+    }
+
     TimeSpan GetBeginTime() const noexcept { return GetValue(BeginTimeProperty); }
     void SetBeginTime(TimeSpan value) noexcept;
     void SetBeginTime(StringView value) noexcept;

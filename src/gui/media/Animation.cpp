@@ -511,6 +511,25 @@ bool TimelineGroup::FreezeCore(bool isChecking) noexcept {
     return Timeline::FreezeCore(isChecking);
 }
 
+void TimelineGroup::CloneCore(const Freezable& source) {
+    Timeline::CloneCore(source);
+    const auto& src = static_cast<const TimelineGroup&>(source);
+    Clear();
+    for (const auto& tl : src.GetTimelines()) {
+        if (!tl) continue;
+        Base::Ref<Timeline> childClone = tl->Clone();
+        AddChild(childClone ? childClone : tl);
+    }
+}
+
+Base::Ref<Freezable> ParallelTimeline::CreateInstanceCore() const {
+    return Base::MakeRef<ParallelTimeline>();
+}
+
+Base::Ref<Freezable> Storyboard::CreateInstanceCore() const {
+    return Base::MakeRef<Storyboard>();
+}
+
 void BeginStoryboard::SetStoryboard(
     Base::Ref<Storyboard> value) noexcept {
     storyboard_ = std::move(value);

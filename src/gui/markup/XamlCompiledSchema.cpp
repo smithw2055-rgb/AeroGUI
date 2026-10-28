@@ -174,55 +174,27 @@ ConvertManifestPrimitive(
         return Meta::Value::FromDouble(type, parsed.Value());
     }
 
-    if (type == Meta::TypeOf<std::int8_t>()) {
-        Base::Result<std::int8_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::int8_t>(text);
+    auto convertSigned = [&](auto dummy) -> Base::Result<Meta::Value> {
+        using T = decltype(dummy);
+        Base::Result<T> parsed = ::Aero::Base::ValueConversion::ConvertInteger<T>(text);
         if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
         return Meta::Value::FromSignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::int16_t>()) {
-        Base::Result<std::int16_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::int16_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
-        return Meta::Value::FromSignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::int32_t>()) {
-        Base::Result<std::int32_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::int32_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
-        return Meta::Value::FromSignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::int64_t>()) {
-        Base::Result<std::int64_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::int64_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 signed integer literal is invalid");
-        return Meta::Value::FromSignedInteger(type, parsed.Value());
-    }
+    };
+    if (type == Meta::TypeOf<std::int8_t>()) return convertSigned(std::int8_t{});
+    if (type == Meta::TypeOf<std::int16_t>()) return convertSigned(std::int16_t{});
+    if (type == Meta::TypeOf<std::int32_t>()) return convertSigned(std::int32_t{});
+    if (type == Meta::TypeOf<std::int64_t>()) return convertSigned(std::int64_t{});
 
-    if (type == Meta::TypeOf<std::uint8_t>()) {
-        Base::Result<std::uint8_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::uint8_t>(text);
+    auto convertUnsigned = [&](auto dummy) -> Base::Result<Meta::Value> {
+        using T = decltype(dummy);
+        Base::Result<T> parsed = ::Aero::Base::ValueConversion::ConvertInteger<T>(text);
         if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
         return Meta::Value::FromUnsignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::uint16_t>()) {
-        Base::Result<std::uint16_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::uint16_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
-        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::uint32_t>()) {
-        Base::Result<std::uint32_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::uint32_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
-        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
-    }
-    if (type == Meta::TypeOf<std::uint64_t>()) {
-        Base::Result<std::uint64_t> parsed =
-            ::Aero::Base::ValueConversion::ConvertInteger<std::uint64_t>(text);
-        if (!parsed) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB2 unsigned integer literal is invalid");
-        return Meta::Value::FromUnsignedInteger(type, parsed.Value());
-    }
+    };
+    if (type == Meta::TypeOf<std::uint8_t>()) return convertUnsigned(std::uint8_t{});
+    if (type == Meta::TypeOf<std::uint16_t>()) return convertUnsigned(std::uint16_t{});
+    if (type == Meta::TypeOf<std::uint32_t>()) return convertUnsigned(std::uint32_t{});
+    if (type == Meta::TypeOf<std::uint64_t>()) return convertUnsigned(std::uint64_t{});
 
     if (type == Meta::TypeOf<::Aero::Length>()) {
         if (EqualsAsciiInsensitive(text, "auto")) {

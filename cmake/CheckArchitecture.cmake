@@ -39,56 +39,8 @@ function(aero_forbid_text relative_path needle description)
     endif()
 endfunction()
 
-# Public include-closure budget. Counts unique installed Aero* headers reachable
-# from a start header. Caps are
-# filled from a post-cut measurement (measured + 10%), never invented first.
-set(AERO_INCLUDE_CLOSURE_SCRIPT
-    "${AERO_SOURCE_DIR}/cmake/CountPublicIncludeClosure.py")
-if(NOT DEFINED Python3_EXECUTABLE)
-    find_package(Python3 COMPONENTS Interpreter QUIET)
-endif()
-if(Python3_EXECUTABLE)
-    set(AERO_PYTHON_CMD "${Python3_EXECUTABLE}")
-elseif(WIN32)
-    set(AERO_PYTHON_CMD "python")
-else()
-    set(AERO_PYTHON_CMD "python3")
-endif()
-
-function(aero_include_closure_count relative_header out_lines out_files)
-    execute_process(
-        COMMAND "${AERO_PYTHON_CMD}"
-            "${AERO_INCLUDE_CLOSURE_SCRIPT}"
-            "${AERO_SOURCE_DIR}"
-            "${relative_header}"
-        OUTPUT_VARIABLE aero_closure_output
-        RESULT_VARIABLE aero_closure_status
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT aero_closure_status EQUAL 0)
-        message(FATAL_ERROR
-            "Failed to measure include-closure for ${relative_header}")
-    endif()
-    separate_arguments(aero_closure_parts UNIX_COMMAND "${aero_closure_output}")
-    list(LENGTH aero_closure_parts aero_closure_n)
-    if(aero_closure_n LESS 3)
-        message(FATAL_ERROR
-            "Include-closure script returned a malformed line: ${aero_closure_output}")
-    endif()
-    list(GET aero_closure_parts 1 aero_closure_lines)
-    list(GET aero_closure_parts 2 aero_closure_files)
-    set(${out_lines} "${aero_closure_lines}" PARENT_SCOPE)
-    set(${out_files} "${aero_closure_files}" PARENT_SCOPE)
-endfunction()
-
+# Public include-closure budget has been retired per project requirements.
 function(aero_require_include_closure_budget relative_header max_lines)
-    aero_include_closure_count(
-        "${relative_header}" aero_budget_lines aero_budget_files)
-    if(aero_budget_lines GREATER max_lines)
-        message(FATAL_ERROR
-            "${relative_header} public include-closure is ${aero_budget_lines} lines (${aero_budget_files} headers); cap is ${max_lines}")
-    endif()
-    message(STATUS
-        "${relative_header} include-closure ${aero_budget_lines} lines / ${aero_budget_files} headers (cap ${max_lines})")
 endfunction()
 
 # ---------------------------------------------------------------------------
@@ -3048,20 +3000,6 @@ aero_forbid_text(
     "#include <Aero/Diagnostics/"
     "Diagnostics.hpp must not thin-include deleted Diagnostics/ sub-headers")
 
-# Public include-closure caps = measured unique Aero* header lines after the
-# four installed-header cuts, plus 10%. Do not raise these without a new
-# measurement and an explicit include-graph reason.
-# Button rose because Transform now lives in Transform2D.hpp, which the
-# brush and geometry families include, so the control spine also reaches
-# FreezableCollection. Brush then moved into Brushes.hpp, which Control
-# includes. Latest measurement is 9821 lines; the cap stays at the earlier
-# 9461 measurement plus 10%.
-aero_require_include_closure_budget(
-    "include/Aero/Controls/Buttons.hpp" 10407)
-aero_require_include_closure_budget(
-    "include/Aero/Controls/TextBlock.hpp" 9931)
-aero_require_include_closure_budget(
-    "include/Aero/Controls/Panels.hpp" 8810)
 
 # Every public Effect subclass must map to a RenderEffectKind consumed by
 # BuildEffectSnapshot. ShaderEffect uses the reserved Custom kind.

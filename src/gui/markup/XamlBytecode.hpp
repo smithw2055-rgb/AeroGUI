@@ -17,6 +17,7 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/markup/XamlSchema.hpp"
+#include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Grid.hpp>
 #include <Aero/Controls.hpp>
@@ -58,6 +59,7 @@ enum class XamlOpCode : std::uint8_t {
     AdoptOrCreateRoot = 15,     // [slot: u16, typeId: u64]
     RegisterDocumentName = 16,  // [slot: u16, nameIndex: u32]
     ConnectEventHandler = 17,   // [slot: u16, eventMemberId: u64, handlerNameIndex: u32]
+    ApplyMarkupExtension = 18,  // [slot: u16, propertyHandle: u64, extensionTypeId: u64, argStringIndex: u32]
     End = 0xFF
 };
 
@@ -74,13 +76,6 @@ struct XamlBytecodeProgram {
     Base::Vector<TemplatePrototypeGradientStop> gradientStops;
     Base::Vector<Base::Ref<Base::Object>> objectRefs;
 
-    // Associated template plans (triggers, bindings, states)
-    Base::Vector<TemplatePrototypeBinding> blueprintBindings;
-    Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
-    Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
-    Base::Vector<Base::Ref<Media::Animation::EventTrigger>> controlTemplateEventTriggers;
-    std::uint32_t contentPresenterSlot = UINT32_MAX;
-
     bool IsValid() const noexcept {
         return slotCount > 0U && !instructions.Empty();
     }
@@ -93,11 +88,6 @@ struct XamlBytecodeProgram {
         gridLengths.Clear();
         gradientStops.Clear();
         objectRefs.Clear();
-        blueprintBindings.Clear();
-        dataTemplateTriggers.Clear();
-        controlTemplateDataTriggers.Clear();
-        controlTemplateEventTriggers.Clear();
-        contentPresenterSlot = UINT32_MAX;
     }
 };
 
@@ -323,6 +313,19 @@ public:
         static_cast<void>(AppendU32(instructions_, handlerNameIndex));
     }
 
+    void EmitApplyMarkupExtension(
+        std::uint16_t slot,
+        Meta::DependencyPropertyHandle property,
+        Meta::TypeId extensionTypeId,
+        Base::StringView arguments) noexcept {
+        const std::uint32_t argIndex = AddString(arguments);
+        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::ApplyMarkupExtension)));
+        static_cast<void>(AppendU16(instructions_, slot));
+        static_cast<void>(AppendU64(instructions_, property.value));
+        static_cast<void>(AppendU64(instructions_, extensionTypeId));
+        static_cast<void>(AppendU32(instructions_, argIndex));
+    }
+
     void EmitEnd() noexcept {
         static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::End)));
     }
@@ -501,13 +504,6 @@ inline Base::Result<void> CompileBlueprintToBytecode(
     // 6. Terminate
     builder.EmitEnd();
     builder.Finish(outProgram);
-
-    // Copy associated blueprint dynamic metadata
-    outProgram.blueprintBindings = blueprint.bindings;
-    outProgram.dataTemplateTriggers = blueprint.dataTemplateTriggers;
-    outProgram.controlTemplateDataTriggers = blueprint.controlTemplateDataTriggers;
-    outProgram.controlTemplateEventTriggers = blueprint.controlTemplateEventTriggers;
-    outProgram.contentPresenterSlot = blueprint.contentPresenter;
 
     return {};
 }
@@ -1123,6 +1119,102 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
+        case XamlOpCode::ApplyMarkupExtension: {
+            if (!reader.HasBytes(2 + 8 + 8 + 4)) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ApplyMarkupExtension");
+            }
+            const std::uint16_t slot = reader.ReadU16();
+            const std::uint64_t propHandle = reader.ReadU64();
+            const std::uint64_t extTypeId = reader.ReadU64();
+            const std::uint32_t argIdx = reader.ReadU32();
+            if (slot >= outObjects.Size() || !outObjects[slot]) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in ApplyMarkupExtension");
+            }
+            if (argIdx >= program.stringPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in ApplyMarkupExtension");
+            }
+            if (context.schema == nullptr) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Schema missing in ApplyMarkupExtension");
+            }
+            if (slot >= outObjects.Size() || outObjects[slot].Get() == nullptr) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Invalid target slot or null object in ApplyMarkupExtension");
+            }
+            Base::StringView arguments = program.stringPool[argIdx].View();
+            ExtensionServices services;
+            services.schema = context.schema;
+            services.targetObject = outObjects[slot].Get();
+            services.targetObjectType = outObjects[slot]->RuntimeType();
+            services.targetMember = propHandle;
+            services.rootObject = !outObjects.Empty() ? outObjects[0].Get() : nullptr;
+            services.templatedParent = context.templateBuilder != nullptr
+                ? &context.templateBuilder->TemplatedParent()
+                : (context.loadContext != nullptr ? context.loadContext->templatedParent : nullptr);
+            services.baseUri = context.loadContext != nullptr ? context.loadContext->baseUri : nullptr;
+            services.nameScope = context.documentNames;
+            services.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
+            services.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
+            services.fallbackResources = context.documentResources != nullptr
+                ? context.documentResources
+                : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
+
+            const ResourceDictionary* ambientDicts[2] = {
+                context.documentResources,
+                context.loadContext != nullptr ? context.loadContext->resources : nullptr
+            };
+            services.ambientResourceChain = Base::Span<const ResourceDictionary* const>(ambientDicts, 2);
+
+            services.resources = ResourceResolver(
+                +[](void* ctx, Base::StringView key) noexcept -> Base::Result<Aero::Value> {
+                    auto* vmCtx = static_cast<const XamlVMContext*>(ctx);
+                    if (vmCtx != nullptr && vmCtx->documentResources != nullptr) {
+                        Aero::Value val = vmCtx->documentResources->Lookup(key);
+                        if (val.Kind() != Meta::ValueKind::Unset) return val;
+                    }
+                    if (vmCtx != nullptr && vmCtx->loadContext != nullptr) {
+                        if (vmCtx->loadContext->resources != nullptr) {
+                            Aero::Value val = vmCtx->loadContext->resources->Lookup(key);
+                            if (val.Kind() != Meta::ValueKind::Unset) return val;
+                        }
+                        if (vmCtx->loadContext->fallbackResources != nullptr) {
+                            Aero::Value val = vmCtx->loadContext->fallbackResources->Lookup(key);
+                            if (val.Kind() != Meta::ValueKind::Unset) return val;
+                        }
+                    }
+                    return Base::Status::Failure(Base::ErrorCode::NotFound, "Resource not found");
+                },
+                const_cast<XamlVMContext*>(&context)
+            );
+
+            Base::Result<ProvidedValue> provided = context.schema->ProvideMarkupExtensionValue(
+                extTypeId, arguments, services);
+            if (!provided) {
+                return provided.GetStatus();
+            }
+            if (provided.Value().kind == ProvidedValueKind::Value) {
+                if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                    if (context.templateBuilder != nullptr) {
+                        depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, provided.Value().value);
+                    } else {
+                        depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, provided.Value().value);
+                    }
+                } else if (runtime != nullptr) {
+                    static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, provided.Value().value));
+                }
+            } else if (provided.Value().kind == ProvidedValueKind::Deferred) {
+                if (provided.Value().commit != nullptr) {
+                    static_cast<void>(provided.Value().commit(provided.Value().rollbackContext));
+                }
+            } else if (provided.Value().kind == ProvidedValueKind::Expression) {
+                if (services.effectiveValues != nullptr && provided.Value().expression.IsValid()) {
+                    if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
+                        static_cast<void>(services.effectiveValues->SetLocalExpression(
+                            *depObj, Meta::DependencyPropertyHandle{propHandle}, provided.Value().expression));
+                    }
+                }
+            }
+            break;
+        }
+
         case XamlOpCode::End:
             return {};
 
@@ -1198,6 +1290,8 @@ inline Base::Result<void> CompileDocumentToBytecode(
         Meta::MemberKind kind = Meta::MemberKind::Property;
         bool isName = false;
         bool isEvent = false;
+        bool isPropertyElement = false;
+        std::size_t objectStackDepth = 0U;
     };
 
     Base::Vector<ObjectFrame> objectStack;
@@ -1210,6 +1304,43 @@ inline Base::Result<void> CompileDocumentToBytecode(
             break;
 
         case NodeKind::StartObject: {
+            Base::StringView localName = node.Name().LocalName();
+            if (localName == "ControlTemplate" ||
+                localName == "DataTemplate" ||
+                localName == "HierarchicalDataTemplate" ||
+                localName == "ItemsPanelTemplate") {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Templates require cursor-based template compiler");
+            }
+            const void* dotPtr = localName.Data() != nullptr ? std::memchr(localName.Data(), '.', localName.SizeBytes()) : nullptr;
+            if (dotPtr != nullptr && !objectStack.Empty()) {
+                const std::uint16_t parentSlot = objectStack.Back().slot;
+                MemberFrame mf;
+                mf.parentSlot = parentSlot;
+                mf.isPropertyElement = true;
+                mf.objectStackDepth = objectStack.Size();
+                if (node.HasCompiledMemberBinding()) {
+                    const auto& mb = node.CompiledMember();
+                    mf.memberId = mb.id;
+                    mf.valueType = mb.valueType;
+                    mf.kind = mb.kind;
+                } else {
+                    mf.memberId = node.CompiledMemberId();
+                    if (mf.memberId == Meta::InvalidMemberId) {
+                        Base::Result<ResolvedMember> resolved = schema.ResolveMember(
+                            objectStack.Back().typeId, node.Name(), MemberSyntax::PropertyElement);
+                        if (resolved) {
+                            mf.memberId = resolved.Value().id;
+                            mf.valueType = resolved.Value().valueType;
+                            mf.kind = resolved.Value().kind;
+                        }
+                    }
+                }
+                memberStack.PushBack(mf);
+                break;
+            }
+
             const std::uint16_t slot = nextSlot++;
             Meta::TypeId typeId = node.CompiledTypeId();
             if (typeId == Meta::InvalidTypeId && node.HasCompiledTypeBinding()) {
@@ -1283,7 +1414,59 @@ inline Base::Result<void> CompileDocumentToBytecode(
                         node.CompiledValue());
                 } else if (!node.Value().Empty()) {
                     Base::StringView strVal = node.Value();
-                    if (strVal.SizeBytes() > 0U && strVal[0] == '{') {
+                    if (strVal.SizeBytes() >= 2U && strVal[0] == '{' && strVal[1] == '}') {
+                        strVal = strVal.Substr(2U, strVal.SizeBytes() - 2U);
+                    } else if (strVal.SizeBytes() > 0U && strVal[0] == '{') {
+                        Base::StringView trimmed = TrimAscii(strVal);
+                        if (trimmed == "{x:Null}" || trimmed == "{Null}") {
+                            Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId)
+                                ? mf.valueType
+                                : Meta::TypeOf<Base::String>();
+                            builder.EmitSetPropertyValue(
+                                mf.parentSlot,
+                                Meta::DependencyPropertyHandle{mf.memberId},
+                                Meta::Value::NullObject(targetType));
+                            break;
+                        }
+                        if (trimmed.SizeBytes() >= 2U && trimmed[trimmed.SizeBytes() - 1U] == '}') {
+                            Base::StringView inner = TrimAscii(trimmed.Substr(1U, trimmed.SizeBytes() - 2U));
+                            std::uint32_t nameEnd = 0U;
+                            while (nameEnd < inner.SizeBytes() &&
+                                   inner[nameEnd] != ' ' && inner[nameEnd] != '\t' &&
+                                   inner[nameEnd] != '\r' && inner[nameEnd] != '\n' &&
+                                   inner[nameEnd] != ',') {
+                                ++nameEnd;
+                            }
+                            if (nameEnd > 0U) {
+                                Base::StringView extName = inner.Substr(0U, nameEnd);
+                                Base::StringView args = TrimAscii(inner.Substr(nameEnd, inner.SizeBytes() - nameEnd));
+                                if (!args.Empty() && args[0] == ',') {
+                                    args = TrimAscii(args.Substr(1U, args.SizeBytes() - 1U));
+                                }
+
+                                Meta::TypeId extTypeId = Meta::InvalidTypeId;
+                                if (extName == "StaticResource") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("StaticResourceExtension"));
+                                } else if (extName == "DynamicResource") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("DynamicResourceExtension"));
+                                } else if (extName == "x:Type" || extName == "Type") {
+                                    extTypeId = Meta::MakeTypeId(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml"), Base::StringView("Type"));
+                                } else if (extName == "x:Static" || extName == "Static") {
+                                    extTypeId = Meta::MakeTypeId(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml"), Base::StringView("Static"));
+                                } else if (extName == "aero:Loc" || extName == "Loc") {
+                                    extTypeId = Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("Loc"));
+                                }
+
+                                if (extTypeId != Meta::InvalidTypeId) {
+                                    builder.EmitApplyMarkupExtension(
+                                        mf.parentSlot,
+                                        Meta::DependencyPropertyHandle{mf.memberId},
+                                        extTypeId,
+                                        args);
+                                    break;
+                                }
+                            }
+                        }
                         // Complex dynamic markup extension: bail out to cursor engine for 100% conformance!
                         return Base::Status::Failure(
                             Base::ErrorCode::Unsupported,
@@ -1317,6 +1500,11 @@ inline Base::Result<void> CompileDocumentToBytecode(
         }
 
         case NodeKind::EndObject: {
+            if (!memberStack.Empty() && memberStack.Back().isPropertyElement &&
+                objectStack.Size() == memberStack.Back().objectStackDepth) {
+                memberStack.PopBack();
+                break;
+            }
             if (objectStack.Empty()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
@@ -1329,11 +1517,20 @@ inline Base::Result<void> CompileDocumentToBytecode(
                 ObjectFrame& parent = objectStack.Back();
                 if (!memberStack.Empty()) {
                     MemberFrame& mem = memberStack.Back();
-                    builder.EmitSetPropertyObject(
-                        parent.slot,
-                        Meta::DependencyPropertyHandle{mem.memberId},
-                        finished.typeId,
-                        finished.slot);
+                    if (mem.isPropertyElement) {
+                        builder.EmitSetPropertyContent(
+                            parent.slot,
+                            mem.memberId,
+                            finished.slot,
+                            finished.typeId,
+                            false);
+                    } else {
+                        builder.EmitSetPropertyObject(
+                            parent.slot,
+                            Meta::DependencyPropertyHandle{mem.memberId},
+                            finished.typeId,
+                            finished.slot);
+                    }
                 } else {
                     builder.EmitSetPropertyContent(
                         parent.slot,

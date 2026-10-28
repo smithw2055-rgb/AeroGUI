@@ -361,27 +361,20 @@ SchemaManifest::SchemaManifest(
 SchemaManifest::SchemaManifest(
     Base::IAllocator& allocator,
     SchemaManifest::State* state) noexcept
-    : allocator_(&allocator) {
-    if (state == nullptr) return;
-    state_ = new (stateStorage_) SchemaManifest::State(std::move(*state));
-    DestroyManifestState(allocator, state);
-}
+    : allocator_(&allocator),
+      state_(state) {}
 
 SchemaManifest::~SchemaManifest() noexcept {
     if (state_ == nullptr) return;
-    state_->~State();
+    DestroyManifestState(*allocator_, state_);
     state_ = nullptr;
 }
 
 SchemaManifest::SchemaManifest(
     SchemaManifest&& other) noexcept
-    : allocator_(other.allocator_) {
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    : allocator_(other.allocator_),
+      state_(other.state_) {
+    other.state_ = nullptr;
     other.allocator_ = &Base::GetDefaultAllocator();
 }
 
@@ -389,16 +382,11 @@ SchemaManifest& SchemaManifest::operator=(
     SchemaManifest&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~State();
-        state_ = nullptr;
+        DestroyManifestState(*allocator_, state_);
     }
     allocator_ = other.allocator_;
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    state_ = other.state_;
+    other.state_ = nullptr;
     other.allocator_ = &Base::GetDefaultAllocator();
     return *this;
 }

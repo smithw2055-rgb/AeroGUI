@@ -95,6 +95,7 @@ struct ReloadCoordinatorState final {
                 Base::ErrorCode::InvalidArgument,
                 "XAML reload root URI is empty");
         }
+        output.Reserve(1U + document.Dependencies().Size());
         Base::Result<void> root = AddTracked(output, resolvedRoot);
         if (!root) return root.GetStatus();
         for (const Base::ResourceUri& dependency : document.Dependencies()) {
@@ -172,22 +173,17 @@ ReloadCoordinator::ReloadCoordinator(
           : &Base::GetDefaultAllocator()) {
     Gui& gui = view.GetGui();
     GuiRuntime* guiState = gui.state_.Get();
-    void* memory = allocator_->Allocate({sizeof(ReloadCoordinatorState),
-        alignof(ReloadCoordinatorState), Base::MemoryTag::Markup});
-    if (memory == nullptr) {
-        Base::ReportOutOfMemory(sizeof(ReloadCoordinatorState),
-            alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
-    }
-    state_ = new (memory) ReloadCoordinatorState(
-        view, *allocator_, guiState);
+    ReloadCoordinatorState* state = nullptr;
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::Markup, state, view, *allocator_, guiState));
+    state_ = state;
 }
 
 ReloadCoordinator::~ReloadCoordinator() noexcept {
     if (state_ == nullptr) return;
     auto* state = static_cast<ReloadCoordinatorState*>(state_);
-    state->~ReloadCoordinatorState();
-    allocator_->Deallocate(state, sizeof(ReloadCoordinatorState),
-        alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
+    Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state);
+    state_ = nullptr;
 }
 
 ReloadCoordinator::ReloadCoordinator(
@@ -202,9 +198,7 @@ ReloadCoordinator& ReloadCoordinator::operator=(
     if (this == &other) return *this;
     if (state_ != nullptr) {
         auto* state = static_cast<ReloadCoordinatorState*>(state_);
-        state->~ReloadCoordinatorState();
-        allocator_->Deallocate(state, sizeof(ReloadCoordinatorState),
-            alignof(ReloadCoordinatorState), Base::MemoryTag::Markup);
+        Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state);
     }
     allocator_ = other.allocator_;
     state_ = other.state_;

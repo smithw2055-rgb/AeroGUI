@@ -416,20 +416,17 @@ Style::Style(
       basedOn_(basedOn),
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
-    void* memory = implAllocator_->Allocate({
-        sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui});
-    if (memory == nullptr) {
+    auto allocResult = Base::AllocateObject<Style::Program>(
+        *implAllocator_, Base::MemoryTag::Ui, program_);
+    if (!allocResult || program_ == nullptr) {
         Base::ReportOutOfMemory(
             sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui);
     }
-    program_ = new (memory) Style::Program{};
 }
 
 Style::~Style() {
     if (program_ == nullptr) return;
-    program_->~Program();
-    implAllocator_->Deallocate(
-        program_, sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui);
+    Base::FreeObject(*implAllocator_, Base::MemoryTag::Ui, program_);
     program_ = nullptr;
 }
 

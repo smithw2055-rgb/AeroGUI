@@ -2348,32 +2348,21 @@ Base::Result<void> BindingExtension::Register(
 
 
 Base::Result<ProvidedValue> BindingExtension::ProvideValue(
-
     Base::StringView arguments,
-
     const ExtensionServices& services,
-
     void* context) noexcept {
-
-    BindingExtension* extension =
-
-        static_cast<BindingExtension*>(context);
-
-    if (extension == nullptr ||
-
-        services.schema == nullptr || services.targetObject == nullptr ||
-
+    if (services.schema == nullptr || services.targetObject == nullptr ||
         services.nameScope == nullptr ||
-
         services.targetMember == Meta::InvalidMemberId) {
-
         return Base::Status::Failure(
-
             Base::ErrorCode::InvalidState,
-
             "Binding markup extension has no target service context");
-
     }
+
+    const Meta::DependencyPropertyHandle dataContextProperty =
+        (context != nullptr && static_cast<BindingExtension*>(context)->options_.dataContextProperty.IsValid())
+            ? static_cast<BindingExtension*>(context)->options_.dataContextProperty
+            : FrameworkElement::DataContextProperty.Handle();
 
 
 
@@ -3098,72 +3087,39 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
 
     } else {
-
-        if (!extension->options_.dataContextProperty.IsValid()) {
-
+        if (!dataContextProperty.IsValid()) {
             return Base::Status::Failure(
-
                 Base::ErrorCode::Unsupported,
-
                 "Binding without ElementName requires a DataContext property");
-
         }
-
     }
 
-
-
     if (services.deferredContentOwner != nullptr &&
-
         services.deferredContent != nullptr) {
-
         Meta::PropertyValue stagedParameter;
-
         if (!converterParameter.Empty()) {
-
             Base::Result<Meta::PropertyValue> parameter =
-
                 Meta::PropertyValue::TryFromString(
-
                     Meta::TypeOf<Base::String>(),
-
                     converterParameter);
-
             if (!parameter) return parameter.GetStatus();
-
             stagedParameter = std::move(parameter).Value();
-
         }
-
         Base::Result<void> staged =
-
             services.deferredContent->StageBinding(
-
                 *services.deferredContentOwner,
-
                 source,
-
                 elementName,
-
                 relativeSource == RelativeSourceKind::Ancestor
-
                     ? ancestorType
-
                     : Base::StringView{},
-
                 relativeSource == RelativeSourceKind::Ancestor
-
                     ? ancestorLevel
-
                     : 0U,
-
                 *target,
-
                 *services.schema->Metadata(),
-
                 targetHandle,
-
-                extension->options_.dataContextProperty,
+                dataContextProperty,
 
                 path,
 
@@ -3241,43 +3197,25 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     }
 
     state->target = state->targetOwner.Get();
-
     state->targetProperty = targetHandle;
-
-    state->dataContextProperty = extension->options_.dataContextProperty;
-
+    state->dataContextProperty = dataContextProperty;
     state->dataContextOwner = target;
 
     if (source == nullptr &&
-
         services.rootObject != nullptr &&
-
         services.schema->Metadata()->Types().IsDerivedFrom(
-
             services.rootObject->RuntimeType(),
-
             ::Aero::DependencyObject::StaticTypeId())) {
-
         auto* root = static_cast<::Aero::DependencyObject*>(
-
             services.rootObject);
-
         const bool targetCanInheritDataContext =
-
             services.schema->Metadata()->Types().IsDerivedFrom(
-
                 target->RuntimeType(), FrameworkElement::StaticTypeId());
-
         if (!targetCanInheritDataContext &&
-
             DependencyObjectAccess::PropertyRegistry(root).Find(
-
-                extension->options_.dataContextProperty) != nullptr) {
-
+                dataContextProperty) != nullptr) {
             state->dataContextOwner = root;
-
         }
-
     }
 
     state->mode = mode;
@@ -4362,15 +4300,11 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     Base::StringView arguments,
     const ExtensionServices& services,
     void* context) noexcept {
-    DynamicResourceExtension* extension =
-        static_cast<DynamicResourceExtension*>(context);
     if (services.schema == nullptr || services.targetObject == nullptr ||
         services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-
             "DynamicResource markup extension has no target service context");
-
     }
 
     Base::StringView key = TrimAscii(arguments);
@@ -4481,20 +4415,14 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     }
 
     Meta::EffectiveValueEngine* effectiveValues =
-
         services.effectiveValues != nullptr
-
-        ? services.effectiveValues
-
-        : extension->options_.effectiveValues;
+            ? services.effectiveValues
+            : (context != nullptr ? static_cast<DynamicResourceExtension*>(context)->options_.effectiveValues : nullptr);
 
     ResourceDictionary* fallbackResources =
-
         services.fallbackResources != nullptr
-
-        ? services.fallbackResources
-
-        : extension->options_.resources;
+            ? services.fallbackResources
+            : (context != nullptr ? static_cast<DynamicResourceExtension*>(context)->options_.resources : nullptr);
 
 
 
@@ -6141,44 +6069,46 @@ Base::Result<void> RegisterBuiltinMarkupExtensions(
     Base::Result<void> status = resourceExtension.Register(schema);
     if (!status) return status;
 
-    StaticExtension staticExtension;
-    status = staticExtension.Register(
-        schema,
-        Meta::MakeTypeId(
-            LanguageNamespaceUri(),
-            Base::StringView("Static")));
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("DynamicResource")),
+        &DynamicResourceExtension::ProvideValue,
+        nullptr});
     if (!status) return status;
 
-    StaticResourceExtension staticResourceExtension;
-    status = staticResourceExtension.Register(
-        schema,
-        Meta::MakeTypeId(
-            Meta::AeroNamespaceUri(),
-            Base::StringView("StaticResourceExtension")));
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("Binding")),
+        &BindingExtension::ProvideValue,
+        nullptr});
     if (!status) return status;
 
-    TypeExtension typeExtension;
-    status = typeExtension.Register(
-        schema,
-        Meta::MakeTypeId(
-            LanguageNamespaceUri(),
-            Base::StringView("Type")));
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(LanguageNamespaceUri(), Base::StringView("Static")),
+        &StaticExtension::ProvideValue,
+        nullptr});
     if (!status) return status;
 
-    LocExtension locExtension;
-    status = locExtension.Register(
-        schema,
-        Meta::MakeTypeId(
-            Meta::AeroNamespaceUri(),
-            Base::StringView("Loc")));
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("StaticResourceExtension")),
+        &StaticResourceExtension::ProvideValue,
+        nullptr});
     if (!status) return status;
 
-    TemplateBindingExtension templateBindingExtension;
-    status = templateBindingExtension.Register(
-        schema,
-        Meta::MakeTypeId(
-            Meta::AeroNamespaceUri(),
-            Base::StringView("TemplateBinding")));
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(LanguageNamespaceUri(), Base::StringView("Type")),
+        &TypeExtension::ProvideValue,
+        nullptr});
+    if (!status) return status;
+
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("Loc")),
+        &LocExtension::ProvideValue,
+        nullptr});
+    if (!status) return status;
+
+    status = schema.AddMarkupExtension({
+        Meta::MakeTypeId(Meta::AeroNamespaceUri(), Base::StringView("TemplateBinding")),
+        &TemplateBindingExtension::ProvideValue,
+        nullptr});
     return status;
 }
 

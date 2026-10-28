@@ -520,13 +520,6 @@ struct XamlTemplateSchemaFacet::State {
     }
 };
 
-static_assert(
-    sizeof(XamlTemplateSchemaFacet::State) <= 1024,
-    "XamlTemplateSchemaFacet inline state storage is too small");
-static_assert(
-    alignof(XamlTemplateSchemaFacet::State) <= alignof(std::max_align_t),
-    "XamlTemplateSchemaFacet inline state alignment is insufficient");
-
 XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
     Meta::Registry& runtime,
     DependencyPropertyRegistry& properties,
@@ -534,17 +527,15 @@ XamlTemplateSchemaFacet::XamlTemplateSchemaFacet(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) XamlTemplateSchemaFacet::State(
-        runtime,
-        properties,
-        *allocator_);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::General, state_, runtime, properties, *allocator_));
 }
 
 XamlTemplateSchemaFacet::~XamlTemplateSchemaFacet() noexcept {
     if (state_ == nullptr) {
         return;
     }
-    state_->~State();
+    Base::FreeObject(*allocator_, Base::MemoryTag::General, state_);
     state_ = nullptr;
 }
 
@@ -560,33 +551,6 @@ Base::Result<void> XamlTemplateSchemaFacet::Register(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "XAML template extension registration is invalid");
-    }
-    const PropertyInfo* targetType =
-        schema.Types().FindProperty(
-            ControlTemplate::StaticTypeId(),
-            Base::StringView("TargetType"),
-            false);
-    const PropertyInfo* targetName =
-        schema.Types().FindProperty(
-            Setter::StaticTypeId(),
-            Base::StringView("TargetName"),
-            false);
-    const PropertyInfo* dataType =
-        schema.Types().FindProperty(
-            DataTemplate::StaticTypeId(),
-            Base::StringView("DataType"),
-            false);
-    if (targetType == nullptr ||
-        dataType == nullptr ||
-        targetName == nullptr ||
-        targetType->ValueType() !=
-            TypeOf<TypeReference>() ||
-        dataType->ValueType() !=
-            TypeOf<TypeReference>() ||
-        targetName->ValueType() !=
-            TypeOf<Base::String>()) {
-        return InvalidTemplateXaml(
-            "Template XAML metadata is incomplete");
     }
 
     state_->schema = &schema;

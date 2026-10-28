@@ -98,24 +98,21 @@ DependencyGraph::DependencyGraph(
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_) DependencyGraph::State(*allocator_);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::Markup, state_, *allocator_));
 }
 
 DependencyGraph::~DependencyGraph() noexcept {
     if (state_ == nullptr) return;
-    state_->~State();
+    Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state_);
     state_ = nullptr;
 }
 
 DependencyGraph::DependencyGraph(
     DependencyGraph&& other) noexcept
-    : allocator_(other.allocator_) {
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    : allocator_(other.allocator_),
+      state_(other.state_) {
+    other.state_ = nullptr;
     other.allocator_ = nullptr;
 }
 
@@ -123,16 +120,11 @@ DependencyGraph& DependencyGraph::operator=(
     DependencyGraph&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~State();
-        state_ = nullptr;
+        Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state_);
     }
     allocator_ = other.allocator_;
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    state_ = other.state_;
+    other.state_ = nullptr;
     other.allocator_ = nullptr;
     return *this;
 }
@@ -345,11 +337,10 @@ std::uint64_t DependencyGraph::Generation() const noexcept {
 
 struct DocumentCache::State {
     struct Entry {
-        explicit Entry(Base::IAllocator& allocator) noexcept
-            : compiledBytes(&allocator) {}
+        explicit Entry(Base::IAllocator&) noexcept {}
 
         Base::ResourceUri uri;
-        Base::Vector<std::uint8_t> compiledBytes;
+        std::uint64_t entrySize = 0U;
         CompiledDocument document;
         std::uint64_t sourceRevision = 0U;
         std::uint64_t sourceIdentity = 0U;
@@ -371,7 +362,7 @@ struct DocumentCache::State {
         if (!key) return false;
         Entry* entry = entries.Find(key.Value());
         if (entry == nullptr) return false;
-        compiledBytes -= entry->compiledBytes.Size();
+        compiledBytes -= entry->entrySize;
         entries.Erase(key.Value());
         graph.Remove(uri);
         if (eviction) ++evictions;
@@ -414,38 +405,27 @@ struct DocumentCache::State {
     std::uint64_t generation = 0U;
 };
 
-static_assert(
-    sizeof(DocumentCache::State) <= 8192,
-    "DocumentCache inline state storage is too small");
-static_assert(
-    alignof(DocumentCache::State) <= alignof(std::max_align_t),
-    "DocumentCache inline state alignment is insufficient");
-
 DocumentCache::DocumentCache(
     Base::IAllocator* allocator,
     const DocumentCacheLimits& limits) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
-    state_ = new (stateStorage_)
-        State(*allocator_, limits);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::Markup, state_, *allocator_, limits));
 }
 
 DocumentCache::~DocumentCache() noexcept {
     if (state_ == nullptr) return;
-    state_->~State();
+    Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state_);
     state_ = nullptr;
 }
 
 DocumentCache::DocumentCache(
     DocumentCache&& other) noexcept
-    : allocator_(other.allocator_) {
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    : allocator_(other.allocator_),
+      state_(other.state_) {
+    other.state_ = nullptr;
     other.allocator_ = nullptr;
 }
 
@@ -453,16 +433,11 @@ DocumentCache& DocumentCache::operator=(
     DocumentCache&& other) noexcept {
     if (this == &other) return *this;
     if (state_ != nullptr) {
-        state_->~State();
-        state_ = nullptr;
+        Base::FreeObject(*allocator_, Base::MemoryTag::Markup, state_);
     }
     allocator_ = other.allocator_;
-    if (other.state_ != nullptr) {
-        state_ = new (stateStorage_)
-            State(std::move(*other.state_));
-        other.state_->~State();
-        other.state_ = nullptr;
-    }
+    state_ = other.state_;
+    other.state_ = nullptr;
     other.allocator_ = nullptr;
     return *this;
 }
@@ -474,6 +449,8 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
     const ::Aero::Meta::Registry& domain,
     const CompiledDocumentLimits& limits) noexcept {
     DocumentCacheLookup result;
+    (void)domain;
+    (void)limits;
     if (state_ == nullptr || uri.Empty()) return result;
     Base::Result<Base::String> key = MakeKey(uri, *allocator_);
     if (!key) return key.GetStatus();
@@ -491,19 +468,6 @@ Base::Result<DocumentCacheLookup> DocumentCache::Lookup(
         return result;
     }
 
-    if (!entry->document.IsValid() && !entry->compiledBytes.Empty()) {
-        Base::Result<CompiledDocument> document =
-            CompiledDocument::Deserialize(
-                entry->compiledBytes.AsSpan(), domain, limits);
-        if (!document) {
-            ++state_->misses;
-            Base::Result<std::uint32_t> invalidated =
-                Invalidate(uri, true);
-            if (!invalidated) return invalidated.GetStatus();
-            return result;
-        }
-        entry->document = std::move(document).Value();
-    }
     if (!entry->document.IsValid()) {
         ++state_->misses;
         return result;
@@ -542,35 +506,30 @@ Base::Result<void> StoreInternal(
         doc = std::move(cloned).Value();
     }
 
-    Base::Vector<std::uint8_t> serializedBytes(allocator);
-    if (state->limits.maxCompiledBytes != 0U) {
-        Base::Result<Base::Vector<std::uint8_t>> serialized = doc.Serialize();
-        if (!serialized) return serialized.GetStatus();
-        serializedBytes = std::move(serialized).Value();
-    }
-    const std::uint64_t serializedSize = serializedBytes.Size();
+    const std::uint64_t serializedSize =
+        static_cast<std::uint64_t>(doc.Nodes().Size()) * sizeof(Node) + sizeof(CompiledDocument);
 
     Base::Result<Base::String> key = MakeKey(uri, *allocator);
     if (!key) return key.GetStatus();
     DocumentCache::State::Entry* existing = state->entries.Find(key.Value());
     if (existing != nullptr) {
-        state->compiledBytes -= existing->compiledBytes.Size();
+        state->compiledBytes -= existing->entrySize;
         existing->uri = uri;
-        existing->compiledBytes = std::move(serializedBytes);
+        existing->entrySize = serializedSize;
         existing->document = std::move(doc);
         existing->sourceRevision = sourceRevision;
         existing->sourceIdentity = sourceIdentity;
         existing->lastAccess = ++state->accessSequence;
-        state->compiledBytes += existing->compiledBytes.Size();
+        state->compiledBytes += existing->entrySize;
     } else {
         DocumentCache::State::Entry entry(*allocator);
         entry.uri = uri;
-        entry.compiledBytes = std::move(serializedBytes);
+        entry.entrySize = serializedSize;
         entry.document = std::move(doc);
         entry.sourceRevision = sourceRevision;
         entry.sourceIdentity = sourceIdentity;
         entry.lastAccess = ++state->accessSequence;
-        state->compiledBytes += entry.compiledBytes.Size();
+        state->compiledBytes += entry.entrySize;
         typename Base::HashMap<Base::String, DocumentCache::State::Entry>::InsertResult
             inserted = state->entries.Insert(
                 std::move(key).Value(), std::move(entry));

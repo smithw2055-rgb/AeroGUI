@@ -24,11 +24,6 @@ struct GuiSchema::State {
     const ModuleSet* modules = nullptr;
 
     Markup::Schema* schema = nullptr;
-    std::aligned_storage_t<sizeof(Markup::DynamicResourceExtension), alignof(Markup::DynamicResourceExtension)> dynamicResourceStorage;
-    std::aligned_storage_t<sizeof(Markup::BindingExtension), alignof(Markup::BindingExtension)> bindingStorage;
-    std::aligned_storage_t<sizeof(Markup::UiObjectModel), alignof(Markup::UiObjectModel)> uiObjectModelStorage;
-    Markup::DynamicResourceExtension* dynamicResource = nullptr;
-    Markup::BindingExtension* binding = nullptr;
     Markup::UiObjectModel* uiObjectModel = nullptr;
     bool prepared = false;
     bool frozen = false;
@@ -36,19 +31,12 @@ struct GuiSchema::State {
 
     ~State() noexcept {
         if (uiObjectModel != nullptr) {
-            uiObjectModel->~UiObjectModel();
+            Base::FreeObject(*allocator, Base::MemoryTag::General, uiObjectModel);
             uiObjectModel = nullptr;
-        }
-        if (binding != nullptr) {
-            binding->~BindingExtension();
-            binding = nullptr;
-        }
-        if (dynamicResource != nullptr) {
-            dynamicResource->~DynamicResourceExtension();
-            dynamicResource = nullptr;
         }
         if (schema != nullptr) {
             Base::FreeObject(*allocator, Base::MemoryTag::General, schema);
+            schema = nullptr;
         }
     }
 };
@@ -113,37 +101,19 @@ Base::Result<void> GuiSchema::Finalize(
         return status;
     }
 
-    state_->dynamicResource = new (&state_->dynamicResourceStorage)
-        Markup::DynamicResourceExtension(Markup::DynamicResourceExtensionOptions{});
-
-    state_->binding = new (&state_->bindingStorage)
-        Markup::BindingExtension(Markup::BindingExtensionOptions{
-            nullptr,
-            Aero::FrameworkElement::DataContextProperty.Handle()});
-
-    state_->uiObjectModel = new (&state_->uiObjectModelStorage)
-        Markup::UiObjectModel(Markup::UiObjectModelOptions{
-            &state_->metadata,
-            &(state_->metadata).DependencyProperties(),
-            &programAllocator});
-
-    status = state_->dynamicResource->Register(
-        *state_->schema,
-        Meta::MakeTypeId(
-            Base::StringView("urn:aero"),
-            Base::StringView("DynamicResource")));
+    status = Markup::RegisterBuiltinMarkupExtensions(*state_->schema);
     if (status) {
-        status = state_->binding->Register(
-            *state_->schema,
-            Meta::MakeTypeId(
-                Base::StringView("urn:aero"),
-                Base::StringView("Binding")));
-    }
-    if (status) {
-        status = Markup::RegisterBuiltinMarkupExtensions(*state_->schema);
-    }
-    if (status) {
-        status = state_->uiObjectModel->Register(*state_->schema);
+        status = Base::AllocateObject(
+            *state_->allocator,
+            Base::MemoryTag::General,
+            state_->uiObjectModel,
+            Markup::UiObjectModelOptions{
+                &state_->metadata,
+                &(state_->metadata).DependencyProperties(),
+                &programAllocator});
+        if (status) {
+            status = state_->uiObjectModel->Register(*state_->schema);
+        }
     }
     if (status && state_->modules != nullptr) {
         status = state_->modules->RegisterResourceScopes(*state_->schema);

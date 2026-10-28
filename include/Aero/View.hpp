@@ -117,8 +117,6 @@ private:
     friend struct ViewFrame;
     friend class Media::CompositionTarget;
     friend class Markup::XamlReader;
-    friend class Markup::ReloadCoordinator;
-    friend struct Markup::ReloadCoordinatorState;
     friend class App::DesktopHost;
     template<class T, class... Args> friend Ref<T> Base::MakeRefWithAllocator(Base::IAllocator&,
         Args&&...) noexcept;

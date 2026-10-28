@@ -141,6 +141,14 @@ public:
 
 protected:
     explicit AnimationBase(Meta::TypeId runtimeType) noexcept : AnimationTimeline(runtimeType) {}
+    void CloneCore(const Freezable& source) override {
+        AnimationTimeline::CloneCore(source);
+        const auto& src = static_cast<const AnimationBase<T>&>(source);
+        from_ = src.from_;
+        to_ = src.to_;
+        hasFrom_ = src.hasFrom_;
+        hasTo_ = src.hasTo_;
+    }
 
 private:
     T from_{};
@@ -206,6 +214,18 @@ public:
 
 protected:
     explicit Animation(Meta::TypeId runtimeType) noexcept : AnimationBase<T>(runtimeType) {}
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        return Base::MakeRef<Animation<T>>();
+    }
+    void CloneCore(const Freezable& source) override {
+        AnimationBase<T>::CloneCore(source);
+        const auto& src = static_cast<const Animation<T>&>(source);
+        easing_ = src.easing_;
+        if constexpr (std::is_same_v<T, double>) {
+            this->accelerationRatio_ = src.accelerationRatio_;
+            this->decelerationRatio_ = src.decelerationRatio_;
+        }
+    }
 
 private:
     Ref<EasingFunctionBase> easing_;
@@ -237,6 +257,17 @@ public:
 
 protected:
     explicit AnimationUsingKeyFrames(Meta::TypeId runtimeType) noexcept : AnimationTimeline(runtimeType) {}
+    Base::Ref<Freezable> CreateInstanceCore() const override {
+        return Base::MakeRef<AnimationUsingKeyFrames<TKeyFrame>>();
+    }
+    void CloneCore(const Freezable& source) override {
+        AnimationTimeline::CloneCore(source);
+        const auto& src = static_cast<const AnimationUsingKeyFrames<TKeyFrame>&>(source);
+        keyFrames_.Clear();
+        for (const auto& kf : src.keyFrames_) {
+            if (kf) keyFrames_.PushBack(kf);
+        }
+    }
 
 private:
     Base::Vector<Ref<TKeyFrame>> keyFrames_;

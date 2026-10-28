@@ -159,54 +159,6 @@ Base::Result<void> XamlStyleSchemaFacet::Register(
         return InvalidStyleXaml("XAML Style, Setter, and Trigger must be registered object types");
     }
 
-    const Meta::PropertyInfo* targetType =
-        schema.Types().FindProperty(styleType, Base::StringView("TargetType"), false);
-    const Meta::PropertyInfo* basedOn =
-        schema.Types().FindProperty(styleType, Base::StringView("BasedOn"), false);
-    const Meta::PropertyInfo* setters =
-        schema.Types().FindProperty(styleType, Base::StringView("Setters"), false);
-    const Meta::PropertyInfo* property =
-        schema.Types().FindProperty(setterType, Base::StringView("Property"), false);
-    const Meta::PropertyInfo* value =
-        schema.Types().FindProperty(setterType, Base::StringView("Value"), false);
-    if (targetType == nullptr || basedOn == nullptr || setters == nullptr ||
-        property == nullptr || value == nullptr ||
-        targetType->ValueType() !=
-            Meta::TypeOf<Meta::TypeReference>() ||
-        basedOn->ValueType() != styleType || setters->ValueType() != setterType ||
-        property->ValueType() !=
-            Meta::TypeOf<Base::String>() ||
-        value->ValueType() !=
-            Meta::TypeOf<Meta::Value>() ||
-        schema.Types().FindContentMember(styleType) != setters->Id()) {
-        return InvalidStyleXaml("XAML Style metadata members are invalid");
-    }
-
-    const Meta::PropertyInfo* triggers = nullptr;
-    const Meta::PropertyInfo* triggerProperty = nullptr;
-    const Meta::PropertyInfo* triggerValue = nullptr;
-    const Meta::PropertyInfo* triggerSetters = nullptr;
-    if (triggerType != Meta::InvalidTypeId) {
-        triggers = schema.Types().FindProperty(
-            styleType, Base::StringView("Triggers"), false);
-        triggerProperty = schema.Types().FindProperty(
-            triggerType, Base::StringView("Property"), false);
-        triggerValue = schema.Types().FindProperty(
-            triggerType, Base::StringView("Value"), false);
-        triggerSetters = schema.Types().FindProperty(
-            triggerType, Base::StringView("Setters"), true);
-        if (triggers == nullptr || triggerProperty == nullptr ||
-            triggerValue == nullptr || triggerSetters == nullptr ||
-            !schema.Types().IsAssignableFrom(
-                triggers->ValueType(), triggerType) ||
-            triggerProperty->ValueType() !=
-                Meta::TypeOf<Base::String>() ||
-            triggerValue->ValueType() !=
-                Meta::TypeOf<Meta::Value>() ||
-            triggerSetters->ValueType() != setterType) {
-            return InvalidStyleXaml("XAML Trigger metadata members are invalid");
-        }
-    }
 
     const Meta::DependencyProperty* styleDependency = options_.properties->Find(styleProperty);
     if (styleDependency == nullptr || styleDependency->ValueType() != styleType) {
@@ -613,13 +565,6 @@ struct UiObjectModel::State {
     bool registered = false;
 };
 
-static_assert(
-    sizeof(UiObjectModel::State) <= 4096,
-    "UiObjectModel inline state storage is too small");
-static_assert(
-    alignof(UiObjectModel::State) <= alignof(std::max_align_t),
-    "UiObjectModel inline state alignment is insufficient");
-
 UiObjectModel::UiObjectModel(
     const UiObjectModelOptions& options) noexcept
     : allocator_(options.allocator != nullptr
@@ -630,12 +575,13 @@ UiObjectModel::UiObjectModel(
         return;
     }
     optionsValid_ = true;
-    state_ = new (stateStorage_) UiObjectModel::State(options);
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::General, state_, options));
 }
 
 UiObjectModel::~UiObjectModel() noexcept {
     if (state_ == nullptr) return;
-    state_->~State();
+    Base::FreeObject(*allocator_, Base::MemoryTag::General, state_);
     state_ = nullptr;
 }
 

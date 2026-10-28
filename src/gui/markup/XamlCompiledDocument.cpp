@@ -232,21 +232,21 @@ struct SerializeInterner {
     Base::Vector<std::uint64_t>& members;
     Base::Vector<AxbValueRecord>& values;
 
-    Base::HashMap<Base::String, std::uint32_t> stringMap;
+    Base::HashMap<Base::StringView, std::uint32_t> stringMap;
     Base::HashMap<std::uint64_t, std::uint32_t> typeMap;
     Base::HashMap<std::uint64_t, std::uint32_t> memberMap;
     Base::HashMap<AxbValueRecord, std::uint32_t, AxbValueHash, AxbValueEqual> valueMap;
 
     Base::Result<std::uint32_t> InternString(Base::StringView value) noexcept {
-        Base::String s;
-        s.Assign(value);
-        if (const std::uint32_t* found = stringMap.Find(s)) {
+        if (const std::uint32_t* found = stringMap.Find(value)) {
             return *found;
         }
         const std::uint32_t index = strings.Size();
-        Base::String copy = s;
-        strings.PushBack(std::move(copy));
-        stringMap.Insert(std::move(s), index);
+        Base::String s;
+        Base::Result<void> assigned = s.Assign(value);
+        if (!assigned) return assigned.GetStatus();
+        strings.PushBack(std::move(s));
+        stringMap.Insert(value, index);
         return index;
     }
 
@@ -283,9 +283,7 @@ struct SerializeInterner {
     }
 
     Base::Result<std::uint32_t> FindString(Base::StringView value) const noexcept {
-        Base::String s;
-        s.Assign(value);
-        if (const std::uint32_t* found = stringMap.Find(s)) {
+        if (const std::uint32_t* found = stringMap.Find(value)) {
             return *found;
         }
         return Base::Status::Failure(

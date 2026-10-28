@@ -27,6 +27,7 @@ protected:
     explicit TimelineGroup(Meta::TypeId runtimeType) noexcept : Timeline(runtimeType) {}
     ~TimelineGroup() override;
     bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
 
 private:
     void OnTimelineChanged(Freezable&) noexcept;
@@ -42,6 +43,7 @@ public:
 
 protected:
     explicit ParallelTimeline(Meta::TypeId runtimeType) noexcept : TimelineGroup(runtimeType) {}
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 class AERO_GUI_API Storyboard : public ParallelTimeline {
@@ -49,6 +51,12 @@ class AERO_GUI_API Storyboard : public ParallelTimeline {
 
 public:
     Storyboard() noexcept : Storyboard(StaticTypeId()) {}
+
+    Base::Ref<Storyboard> Clone() const {
+        Base::Ref<Freezable> f = Freezable::Clone();
+        if (!f) return {};
+        return Base::Ref<Storyboard>::TryFromBorrowed(static_cast<Storyboard&>(*f));
+    }
 
     void AddTimeline(Ref<Timeline> value) noexcept { AddChild(std::move(value)); }
 
@@ -59,6 +67,7 @@ public:
 
 protected:
     explicit Storyboard(Meta::TypeId runtimeType) noexcept : ParallelTimeline(runtimeType) {}
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 } // namespace Aero::Media::Animation

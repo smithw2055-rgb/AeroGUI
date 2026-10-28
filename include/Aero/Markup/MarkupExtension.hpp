@@ -15,7 +15,7 @@ namespace Aero::Markup {
 
 // Context provided to MarkupExtension::ProvideValue, exposing target object,
 // target property, base URI, and type resolution.
-class AERO_GUI_API MarkupExtensionContext {
+class MarkupExtensionContext {
 public:
     using TypeResolverCallback =
         Base::Result<const Meta::TypeInfo*> (*)(void* context, Base::StringView qualifiedTypeName) noexcept;

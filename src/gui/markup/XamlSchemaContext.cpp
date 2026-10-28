@@ -60,12 +60,13 @@ Schema::Schema(
           : &Base::GetDefaultAllocator()),
       domain_(&metadata) {
     AERO_ASSERT(metadata.IsSealed());
-    facets_ = new (stateStorage_) XamlFacets();
+    static_cast<void>(Base::AllocateObject(
+        *allocator_, Base::MemoryTag::Markup, facets_));
 }
 
 Schema::~Schema() noexcept {
     if (facets_ == nullptr) return;
-    facets_->~XamlFacets();
+    Base::FreeObject(*allocator_, Base::MemoryTag::Markup, facets_);
     facets_ = nullptr;
 }
 
