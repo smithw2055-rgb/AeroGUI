@@ -144,15 +144,10 @@ set(_aero_gui_markup_sources
     src/gui/markup/XamlMarkupExtensions.cpp
     src/gui/markup/XamlParser.cpp
     src/gui/markup/XamlCompiledSchema.cpp
-    src/gui/markup/XamlSchemaMetadata.cpp
-    src/gui/markup/XamlSchemaManifest.cpp
-    src/gui/markup/XamlSchemaContext.cpp
-    src/gui/markup/StyleSupport.cpp
-    src/gui/markup/TemplateSupport.cpp
+    src/gui/markup/XamlSchema.cpp
     src/gui/markup/TemplateCompiler.cpp
     src/gui/markup/XamlCompiledDocument.cpp
     src/gui/markup/XamlObjectLoader.cpp
-    src/gui/markup/GuiSchema.cpp
     src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources

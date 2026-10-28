@@ -1196,6 +1196,12 @@ aero_forbid_file("src/gui/data/Binding.cpp")
 aero_forbid_file("src/gui/data/BindingEvaluation.cpp")
 aero_forbid_file("src/gui/data/BindingOperations.cpp")
 aero_forbid_file("src/gui/input/Cursors.cpp")
+aero_forbid_file("src/gui/markup/GuiSchema.cpp")
+aero_forbid_file("src/gui/markup/StyleSupport.cpp")
+aero_forbid_file("src/gui/markup/TemplateSupport.cpp")
+aero_forbid_file("src/gui/markup/XamlSchemaContext.cpp")
+aero_forbid_file("src/gui/markup/XamlSchemaMetadata.cpp")
+aero_forbid_file("src/gui/markup/XamlSchemaManifest.cpp")
 aero_forbid_file("src/gui/markup/XamlProvider.cpp")
 aero_forbid_file("src/gui/markup/ReloadCoordinator.cpp")
 aero_forbid_file("src/gui/markup/XamlDocumentCache.cpp")
@@ -2012,7 +2018,7 @@ aero_forbid_text(
     "RegisterAlias<EasingFunctionBase>"
     "BuiltinModules must not RegisterAlias eases; Animation.cpp owns them")
 aero_require_text(
-    "src/gui/markup/XamlSchemaMetadata.cpp"
+    "src/gui/markup/XamlSchema.cpp"
     "PopulateMarkupMetadata"
     "XamlSchemaMetadata must own PopulateMarkupMetadata token registration")
 aero_require_text(
