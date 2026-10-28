@@ -2,7 +2,6 @@
 
 // Object-writer session, deferred content, facets, and WriterSupport.
 #include "gui/markup/MarkupExtensionContract.hpp"
-#include "gui/markup/XamlEventConnection.hpp"
 
 // ===== DeferredContent contract =====
 
@@ -1040,8 +1039,6 @@ private:
     std::uint32_t index_ = 0U;
 };
 
-using ::Aero::Markup::XamlEventConnection;
-using ::Aero::Markup::XamlEventInvoker;
 
 inline Base::Status InvalidStateStatus() noexcept {
     return Base::Status::Failure(

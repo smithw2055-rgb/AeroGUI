@@ -1,7 +1,7 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/markup/XamlSchemaConventions.hpp"
-#include "gui/markup/XamlBinaryCodec.hpp"
+#include "gui/markup/XamlBytecode.hpp"
 #include "gui/core/ValueConversion.hpp"
 
 // ===== SchemaManifest =====

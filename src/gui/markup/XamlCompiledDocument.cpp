@@ -1,6 +1,6 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/markup/XamlSchema.hpp"
-#include "gui/markup/XamlBinaryCodec.hpp"
+#include "gui/markup/XamlBytecode.hpp"
 #include <Aero/VisualStateManager.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Base/HashMap.hpp>

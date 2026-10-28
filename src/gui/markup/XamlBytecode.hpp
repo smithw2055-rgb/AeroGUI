@@ -11,9 +11,7 @@
 #include <Aero/Resources.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Events.hpp>
-#include "gui/markup/XamlBinaryCodec.hpp"
 #include "gui/templates/TemplateProgram.hpp"
-#include "gui/templates/TemplateBlueprint.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/markup/XamlSchema.hpp"
@@ -24,7 +22,6 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/ContentElement.hpp>
-#include "gui/markup/XamlEventConnection.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -34,6 +31,405 @@ class BindingEngine;
 }
 
 namespace Aero::Markup {
+
+// ============================================================================
+// XamlBinaryCodec (Inlined)
+// ============================================================================
+
+
+inline Base::Result<void> AppendU8(
+    Base::Vector<std::uint8_t>& output,
+    std::uint8_t value) noexcept {
+    output.PushBack(value);
+    return {};
+}
+
+inline Base::Result<void> AppendU16(
+    Base::Vector<std::uint8_t>& output,
+    std::uint16_t value) noexcept {
+    output.PushBack(static_cast<std::uint8_t>(value));
+    output.PushBack(static_cast<std::uint8_t>(value >> 8U));
+    return {};
+}
+
+inline Base::Result<void> AppendU32(
+    Base::Vector<std::uint8_t>& output,
+    std::uint32_t value) noexcept {
+    for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
+        output.PushBack(static_cast<std::uint8_t>(value >> shift));
+    }
+    return {};
+}
+
+inline Base::Result<void> AppendU64(
+    Base::Vector<std::uint8_t>& output,
+    std::uint64_t value) noexcept {
+    for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
+        output.PushBack(static_cast<std::uint8_t>(value >> shift));
+    }
+    return {};
+}
+
+inline Base::Result<void> AppendVarU64(
+    Base::Vector<std::uint8_t>& output,
+    std::uint64_t value) noexcept {
+    do {
+        std::uint8_t byte = static_cast<std::uint8_t>(value & 0x7FU);
+        value >>= 7U;
+        if (value != 0U) {
+            byte = static_cast<std::uint8_t>(byte | 0x80U);
+        }
+        output.PushBack(byte);
+    } while (value != 0U);
+    return {};
+}
+
+inline Base::Result<void> AppendVarU32(
+    Base::Vector<std::uint8_t>& output,
+    std::uint32_t value) noexcept {
+    return AppendVarU64(output, value);
+}
+
+inline Base::Result<void> AppendString(
+    Base::Vector<std::uint8_t>& output,
+    Base::StringView value) noexcept {
+    Base::Result<void> length = AppendU32(output, value.SizeBytes());
+    if (!length) return length.GetStatus();
+    for (std::uint32_t index = 0U; index < value.SizeBytes(); ++index) {
+        output.PushBack(static_cast<std::uint8_t>(value[index]));
+    }
+    return {};
+}
+
+class Decoder {
+public:
+    explicit Decoder(
+        Base::Span<const std::uint8_t> bytes,
+        const char* truncatedMessage = "Binary payload is truncated") noexcept
+        : bytes_(bytes), truncatedMessage_(truncatedMessage) {}
+
+    Base::Result<std::uint8_t> ReadU8() noexcept {
+        if (offset_ >= bytes_.Size()) return Truncated();
+        return bytes_[offset_++];
+    }
+
+    Base::Result<std::uint16_t> ReadU16() noexcept {
+        if (bytes_.Size() - offset_ < 2U) return Truncated();
+        const std::uint16_t value = static_cast<std::uint16_t>(bytes_[offset_]) |
+            static_cast<std::uint16_t>(bytes_[offset_ + 1U] << 8U);
+        offset_ += 2U;
+        return value;
+    }
+
+    Base::Result<std::uint32_t> ReadU32() noexcept {
+        if (bytes_.Size() - offset_ < 4U) return Truncated();
+        std::uint32_t value = 0U;
+        for (std::uint32_t shift = 0U; shift < 32U; shift += 8U) {
+            value |= static_cast<std::uint32_t>(bytes_[offset_++]) << shift;
+        }
+        return value;
+    }
+
+    Base::Result<std::uint64_t> ReadU64() noexcept {
+        if (bytes_.Size() - offset_ < 8U) return Truncated();
+        std::uint64_t value = 0U;
+        for (std::uint32_t shift = 0U; shift < 64U; shift += 8U) {
+            value |= static_cast<std::uint64_t>(bytes_[offset_++]) << shift;
+        }
+        return value;
+    }
+
+    Base::Result<std::uint64_t> ReadVarU64() noexcept {
+        std::uint64_t value = 0U;
+        for (std::uint32_t byteIndex = 0U; byteIndex < 10U; ++byteIndex) {
+            Base::Result<std::uint8_t> byte = ReadU8();
+            if (!byte) return byte.GetStatus();
+            const std::uint8_t payload = static_cast<std::uint8_t>(byte.Value() & 0x7FU);
+            if (byteIndex == 9U && payload > 1U) {
+                return InvalidVarUInt();
+            }
+            value |= static_cast<std::uint64_t>(payload) << (byteIndex * 7U);
+            if ((byte.Value() & 0x80U) == 0U) {
+                return value;
+            }
+        }
+        return InvalidVarUInt();
+    }
+
+    Base::Result<std::uint32_t> ReadVarU32() noexcept {
+        Base::Result<std::uint64_t> value = ReadVarU64();
+        if (!value) return value.GetStatus();
+        if (value.Value() > UINT32_MAX) {
+            return InvalidVarUInt();
+        }
+        return static_cast<std::uint32_t>(value.Value());
+    }
+
+    Base::Result<Base::String> ReadString(
+        std::uint32_t& totalStringBytes,
+        std::uint32_t maxStringBytes) noexcept {
+        return ReadStringInternal(nullptr, totalStringBytes, maxStringBytes);
+    }
+
+    Base::Result<Base::String> ReadString(
+        Base::IAllocator& allocator,
+        std::uint32_t& totalStringBytes,
+        std::uint32_t maxStringBytes) noexcept {
+        return ReadStringInternal(&allocator, totalStringBytes, maxStringBytes);
+    }
+
+    bool AtEnd() const noexcept { return offset_ == bytes_.Size(); }
+    std::uint32_t Offset() const noexcept { return offset_; }
+    Base::Span<const std::uint8_t> RemainingBytes() const noexcept {
+        return bytes_.Subspan(offset_, bytes_.Size() - offset_);
+    }
+
+private:
+    Base::Result<Base::String> ReadStringInternal(
+        Base::IAllocator* allocator,
+        std::uint32_t& totalStringBytes,
+        std::uint32_t maxStringBytes) noexcept {
+        Base::Result<std::uint32_t> length = ReadU32();
+        if (!length) return length.GetStatus();
+        if (length.Value() > bytes_.Size() - offset_ ||
+            length.Value() > maxStringBytes ||
+            totalStringBytes > maxStringBytes - length.Value()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Binary string bounds are invalid");
+        }
+        Base::String value = allocator != nullptr ? Base::String(allocator) : Base::String();
+        Base::Result<void> assigned = value.Assign(
+            Base::StringView(
+                reinterpret_cast<const char*>(bytes_.Data() + offset_),
+                length.Value()));
+        if (!assigned) return assigned.GetStatus();
+        offset_ += length.Value();
+        totalStringBytes += length.Value();
+        return value;
+    }
+
+    Base::Status Truncated() const noexcept {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            truncatedMessage_);
+    }
+
+    static Base::Status InvalidVarUInt() noexcept {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Binary variable-length integer is invalid");
+    }
+
+    Base::Span<const std::uint8_t> bytes_;
+    std::uint32_t offset_ = 0U;
+    const char* truncatedMessage_ = "Binary payload is truncated";
+};
+
+
+
+// ============================================================================
+// XamlEventConnection (Inlined)
+// ============================================================================
+
+
+class XamlEventConnection final : public Base::Object {
+public:
+    XamlEventConnection(
+        Base::WeakRef<Base::Object> target,
+        Meta::EventHandlerThunk thunk) noexcept
+        : target_(std::move(target)),
+          thunk_(thunk) {}
+
+    void Invoke(
+        Base::Object* sender,
+        RoutedEventArgs& args) noexcept {
+        Base::Ref<Base::Object> target = target_.Lock();
+        if (target && thunk_ != nullptr) {
+            thunk_(target.Get(), sender, args);
+        }
+    }
+
+private:
+    Base::WeakRef<Base::Object> target_;
+    Meta::EventHandlerThunk thunk_ = nullptr;
+};
+
+struct XamlEventInvoker {
+    Base::Ref<XamlEventConnection> connection;
+
+    void operator()(
+        Base::Object* sender,
+        RoutedEventArgs& args) const noexcept {
+        if (connection) connection->Invoke(sender, args);
+    }
+
+    bool operator==(const XamlEventInvoker& other) const noexcept {
+        return connection.Get() == other.connection.Get();
+    }
+};
+
+
+
+// ============================================================================
+// Template Blueprint & Compilation Contracts (Inlined)
+// ============================================================================
+
+struct DeferredContentEdge;
+struct DeferredBindingEdge;
+
+
+
+struct TemplatePrototypeProperty {
+    Meta::DependencyPropertyHandle property;
+    Meta::Value value;
+    // A dependency-object property participating in a template Binding is
+    // cloned as part of the instance graph rather than shared with the
+    // authored prototype (for example SolidColorBrush.Color in a DataTemplate).
+    std::uint32_t objectNode = UINT32_MAX;
+};
+
+struct TemplatePrototypeGradientStop {
+    double offset = 0.0;
+    ::Aero::Base::Color color{};
+    // EnsureAuthoredName / x:Name for a TemplatedParent Binding on this stop.
+    // Apply clones a new GradientStop into the brush and registers this name
+    // so AttachMetadataBindings FindTarget can resolve the bound child.
+    Base::String name;
+};
+
+struct TemplatePrototypeNode {
+    Meta::TypeId type = Meta::InvalidTypeId;
+    Base::String name;
+    std::uint32_t parent = UINT32_MAX;
+    Meta::MemberId contentMember = Meta::InvalidMemberId;
+    Base::Vector<TemplatePrototypeProperty> properties;
+    Base::Vector<::Aero::GridLength> gridColumns;
+    Base::Vector<::Aero::GridLength> gridRows;
+    Base::String streamGeometryData;
+    Base::Vector<TemplatePrototypeGradientStop> gradientStops;
+    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors;
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
+};
+
+struct TemplatePrototypeBinding {
+    std::uint32_t target = UINT32_MAX;
+    std::uint32_t source = UINT32_MAX;
+    // resolved from the templated parent's document NameScope for each
+    // ControlTemplate instance. Internal names continue to use source above.
+    Base::String sourceName;
+    // FindAncestor sources are instance-relative and cannot be captured from
+    // the authored prototype graph. Resolve them after the cloned visual tree
+    // has been connected.
+    Base::String relativeAncestorType;
+    std::uint32_t relativeAncestorLevel = 0U;
+    ::Aero::Meta::Registry* metadata = nullptr;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
+    Base::String path;
+    Base::String stringFormat;
+    bool bindsToSource = false;
+    Data::BindingMode mode =
+        Data::BindingMode::Default;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
+};
+
+struct CompiledTriggerSetter {
+    std::uint32_t target = 0U;
+    Meta::DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+};
+
+struct CompiledTriggerPlan {
+    Base::Ref<Aero::TriggerBase> trigger;
+    Base::Vector<CompiledTriggerSetter> setters;
+};
+
+struct XamlBytecodeProgram;
+
+struct CompiledTemplateBlueprint {
+    ::Aero::Meta::Registry* runtime = nullptr;
+    Meta::DependencyPropertyRegistry* properties = nullptr;
+    Base::Vector<TemplatePrototypeNode> nodes;
+    Base::Vector<TemplatePrototypeBinding> bindings;
+    std::uint32_t contentPresenter = UINT32_MAX;
+};
+
+struct CompiledTemplateDefinition {
+    Meta::TypeId targetType = Meta::InvalidTypeId;
+    Base::Ref<Base::Object> programOwner;
+    XamlBytecodeProgram* program = nullptr;
+    Base::Vector<Controls::TemplatePropertyTrigger>
+        propertyTriggers;
+    Base::Vector<Controls::TemplateBindingPlan>
+        contentSourceBindings;
+    Base::Vector<Controls::VisualStateGroupPlan>
+        visualStateGroups;
+};
+
+Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
+    Base::Ref<Aero::TriggerBase> trigger,
+    const XamlBytecodeProgram& program,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
+
+Base::Result<void> BuildCompiledTemplate(
+    Controls::TemplateBuilder& context,
+    void* factoryContext) noexcept;
+
+Base::Result<Base::Ref<Base::Object>>
+BuildCompiledDeferredTemplate(
+    const Base::Ref<Base::Object>& payload,
+    void* factoryContext,
+    Aero::BindingEngine* bindings) noexcept;
+
+Base::Result<CompiledTemplateBlueprint>
+CompileDeferredTemplateBlueprint(
+    const Base::Ref<Base::Object>& visualTree,
+    const Aero::NameScope* names,
+    Base::Span<const DeferredContentEdge> edges,
+    Base::Span<const DeferredBindingEdge> bindings,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
+
+Base::Result<CompiledTemplateDefinition>
+CompileControlTemplateDefinition(
+    Controls::ControlTemplate& controlTemplate,
+    Base::Span<const DeferredContentEdge> edges,
+    Base::Span<const DeferredBindingEdge> bindings,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
+
+// BasedOn inheritance for tree-less derived templates: compiles
+// derived-authored property triggers / visual states against the sealed base
+// program and stages them on the derived template. Seal() then inherits
+// the base factory and prepends base plans.
+Base::Result<void>
+CompileInheritedControlTemplate(
+    Controls::ControlTemplate& derivedTemplate,
+    const XamlBytecodeProgram& baseProgram,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept;
+
+} // namespace Aero::Markup
+
+// Markup implementation sources historically referred to the template
+// compiler contracts through Markup. Keep that source-only bridge
+// while the canonical declarations live in Aero::Base; no aliases are
+// exposed by installed headers.
+namespace Aero::Markup {
+using ::Aero::Markup::CompiledTemplateBlueprint;
+using ::Aero::Markup::CompiledTemplateDefinition;
+using ::Aero::Markup::BuildCompiledTemplate;
+using ::Aero::Markup::BuildCompiledDeferredTemplate;
+using ::Aero::Markup::CompileDeferredTemplateBlueprint;
+using ::Aero::Markup::CompileControlTemplateDefinition;
+using ::Aero::Markup::CompileInheritedControlTemplate;
+
+
 
 // ============================================================================
 // XamlBytecode OpCodes (Instruction Set Architecture)
@@ -552,24 +948,7 @@ inline Base::Result<void> CompileBlueprintToBytecode(
         outProgram.slotTypes.PushBack(node.type);
     }
 
-    // Copy associated blueprint dynamic metadata and slot names/types
-    outProgram.blueprintBindings = blueprint.bindings;
-    outProgram.dataTemplateTriggers = blueprint.dataTemplateTriggers;
-    outProgram.controlTemplateDataTriggers = blueprint.controlTemplateDataTriggers;
-    outProgram.controlTemplateEventTriggers = blueprint.controlTemplateEventTriggers;
-    outProgram.contentPresenterSlot = blueprint.contentPresenter;
-    outProgram.runtime = blueprint.runtime;
-    outProgram.properties = blueprint.properties;
-    outProgram.slotNames.Clear();
-    outProgram.slotTypes.Clear();
-    outProgram.slotNames.Reserve(blueprint.nodes.Size());
-    outProgram.slotTypes.Reserve(blueprint.nodes.Size());
-    for (const auto& node : blueprint.nodes) {
-        Base::String nameCopy;
-        static_cast<void>(nameCopy.Assign(node.name.View()));
-        outProgram.slotNames.PushBack(std::move(nameCopy));
-        outProgram.slotTypes.PushBack(node.type);
-    }
+
 
     return {};
 }
