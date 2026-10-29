@@ -250,7 +250,7 @@ struct FrameworkTemplateState {
         const Meta::DependencyPropertyRegistry& properties) noexcept;
 
     // VisualStateManager execution path (forwarding to VisualStateManagerExecution).
-    static ::Aero::VisualStateManager* CreateVisualStateManager(
+    static Base::Ref<::Aero::VisualStateManager> CreateVisualStateManager(
         Meta::EffectiveValueEngine& values,
         ::Aero::Controls::TemplateEngine& templates,
         ::Aero::AnimationEngine& animations,

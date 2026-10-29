@@ -238,6 +238,11 @@ protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     bool EnsureDefaultItemsPresenter() noexcept;
+    virtual Ref<Panel> CreateDefaultItemsPanel() const noexcept;
+    virtual void ApplyHierarchicalDataTemplate(
+        const Ref<HierarchicalDataTemplate>& templateObj,
+        const Ref<Base::Object>& item) noexcept;
+    virtual void ClearHierarchicalDataTemplate() noexcept;
 
     [[deprecated("Use GetContainerForItemOverride()")]]
     virtual Ref<FrameworkElement> CreateContainer(const Ref<Base::Object>& item) noexcept;

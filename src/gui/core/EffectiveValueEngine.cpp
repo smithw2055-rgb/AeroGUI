@@ -16,6 +16,7 @@
 
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
+#include <Aero/Base/HashSet.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/TryCast.hpp>
@@ -1221,11 +1222,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     Base::Vector<MemberId> keys;
-    child.ForEachStoredKey(
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
+    child.CopyStoredKeys(keys);
     for (MemberId key : keys) {
         Base::Result<void> queued =
             QueueObjectProperty(child, DependencyPropertyHandle{key});
@@ -1256,71 +1253,47 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
     DependencyObject& parent,
     DependencyPropertyHandle property) noexcept {
     Base::Vector<DependencyObject*> frontier;
+    Base::HashSet<DependencyObject*> visited;
     frontier.PushBack(&parent);
+    visited.Insert(&parent);
     const DependencyProperty* registered = registry_->Find(property);
-    std::uint32_t cursor = 0U;
-    while (cursor < frontier.Size()) {
-        DependencyObject* current = frontier[cursor++];
-        auto enqueue = [&](DependencyObject* child) -> Base::Result<void> {
-            if (child == nullptr || child == current) {
-                return {};
-            }
-            for (DependencyObject* seen : frontier) {
-                if (seen == child) {
-                    return {};
-                }
-            }
-            const TypeId childType = child->RuntimeType();
-            const PropertyMetadata* metadata = registered != nullptr
-                ? registered->MetadataFor(childType)
-                : nullptr;
-            const bool inherits = metadata != nullptr &&
-                HasFlag(
-                    metadata->flags,
-                    FrameworkPropertyMetadataOptions::Inherits);
-            if (inherits ||
-                (*child).FindStoredEntry(property) != nullptr) {
-                Base::Result<void> queued =
-                    QueueObjectProperty(*child, property);
-                if (!queued) return queued.GetStatus();
-            }
-            frontier.PushBack(child);
-            return {};
-        };
 
-        Base::Vector<DependencyObject*> children;
+    auto enqueue = [&](DependencyObject* current, DependencyObject* child) -> Base::Result<void> {
+        if (child == nullptr || child == current || !visited.Insert(child).inserted) {
+            return {};
+        }
+        const PropertyMetadata* metadata = registered != nullptr
+            ? registered->MetadataFor(child->RuntimeType())
+            : nullptr;
+        const bool inherits = metadata != nullptr &&
+            HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits);
+        if (inherits || child->FindStoredEntry(property) != nullptr) {
+            Base::Result<void> queued = QueueObjectProperty(*child, property);
+            if (!queued) return queued.GetStatus();
+        }
+        frontier.PushBack(child);
+        return {};
+    };
+
+    for (std::uint32_t cursor = 0U; cursor < frontier.Size(); ++cursor) {
+        DependencyObject* current = frontier[cursor];
         if (auto* explicitChildren = childrenByParent_.Find(current)) {
             for (DependencyObject* child : *explicitChildren) {
-                if (child != nullptr) {
-                    children.PushBack(child);
-                }
+                Base::Result<void> res = enqueue(current, child);
+                if (!res) return res.GetStatus();
             }
         }
-
-        if (::Aero::Media::Visual* visual =
-                ::Aero::TryCast<::Aero::Media::Visual>(current)) {
-            const std::uint32_t visualCount =
-                ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
-            for (std::uint32_t index = 0U; index < visualCount; ++index) {
-                ::Aero::Media::Visual* childVisual =
-                    ::Aero::Media::VisualTreeHelper::GetChild(*visual, index);
-                if (childVisual == nullptr) continue;
-                children.PushBack(childVisual);
+        if (auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(current)) {
+            const std::uint32_t vCount = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
+            for (std::uint32_t i = 0U; i < vCount; ++i) {
+                Base::Result<void> res = enqueue(current, ::Aero::Media::VisualTreeHelper::GetChild(*visual, i));
+                if (!res) return res.GetStatus();
             }
         }
-
-        const std::uint32_t logicalCount =
-            ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
-        for (std::uint32_t index = 0U; index < logicalCount; ++index) {
-            DependencyObject* child =
-                ::Aero::LogicalTreeHelper::GetChild(*current, index);
-            if (child == nullptr) continue;
-            children.PushBack(child);
-        }
-
-        for (DependencyObject* child : children) {
-            Base::Result<void> queued = enqueue(child);
-            if (!queued) return queued.GetStatus();
+        const std::uint32_t lCount = ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
+        for (std::uint32_t i = 0U; i < lCount; ++i) {
+            Base::Result<void> res = enqueue(current, ::Aero::LogicalTreeHelper::GetChild(*current, i));
+            if (!res) return res.GetStatus();
         }
     }
     return {};
@@ -1531,11 +1504,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
         "A property provider origin must be nonzero");
     std::uint32_t removed = 0U;
     Base::Vector<MemberId> keys;
-    (object).ForEachStoredKey(
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
+    (object).CopyStoredKeys(keys);
     for (MemberId key : keys) {
         DependencyPropertyHandle property{key};
         const bool cleared =
@@ -1647,11 +1616,7 @@ Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) 
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     OnObjectDestroyed(object);
     Base::Vector<MemberId> keys;
-    (object).ForEachStoredKey(
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
+    (object).CopyStoredKeys(keys);
     for (MemberId key : keys) {
         Base::Result<void> cleared =
             (object).DropEngineValueStateInternal( DependencyPropertyHandle{key});
@@ -1670,6 +1635,15 @@ std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
 
 namespace Aero {
 
+void DependencyObject::CopyStoredKeys(Base::Vector<MemberId>& outKeys) const noexcept {
+    const PropertyStore* store = Store();
+    if (store == nullptr) return;
+    outKeys.Reserve(outKeys.Size() + store->entries.Size());
+    for (const auto& record : store->entries) {
+        outKeys.PushBack(record.Key());
+    }
+}
+
 void DependencyObject::ForEachStoredKey(
     void (*visitor)(void*, MemberId) noexcept,
     void* context) noexcept {
@@ -1684,11 +1658,7 @@ std::uint32_t DependencyObject::ClearAllProviderOrigin(
     std::uint32_t origin) noexcept {
     std::uint32_t removed = 0U;
     Base::Vector<MemberId> keys;
-    ForEachStoredKey(
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
+    CopyStoredKeys(keys);
     for (MemberId key : keys) {
         if (ClearProviderOriginInternal(DependencyPropertyHandle{key}, origin)) {
             ++removed;
@@ -1699,11 +1669,7 @@ std::uint32_t DependencyObject::ClearAllProviderOrigin(
 
 Base::Result<void> DependencyObject::DropAllEngineValueState() noexcept {
     Base::Vector<MemberId> keys;
-    ForEachStoredKey(
-        [](void* context, MemberId key) noexcept {
-            static_cast<Base::Vector<MemberId>*>(context)->PushBack(key);
-        },
-        &keys);
+    CopyStoredKeys(keys);
     for (MemberId key : keys) {
         Base::Result<void> dropped =
             DropEngineValueStateInternal(DependencyPropertyHandle{key});

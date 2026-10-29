@@ -80,6 +80,13 @@ Base::Result<FT_UInt> ToPixelSize(float pixelSize) noexcept {
 
 } // namespace
 
+HarfBuzzAdapter::~HarfBuzzAdapter() {
+    if (buffer_ != nullptr) {
+        hb_buffer_destroy(static_cast<hb_buffer_t*>(buffer_));
+        buffer_ = nullptr;
+    }
+}
+
 bool HarfBuzzAdapter::Supports(
     FontProviderIdentity provider) const noexcept {
     return fonts_ != nullptr &&
@@ -128,12 +135,18 @@ Base::Result<void> HarfBuzzAdapter::Shape(
             Base::ErrorCode::OutOfMemory,
             "HarfBuzz font creation failed");
     }
-    hb_buffer_t* buffer = hb_buffer_create();
+    hb_buffer_t* buffer = static_cast<hb_buffer_t*>(buffer_);
     if (buffer == nullptr) {
-        hb_font_destroy(font);
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "HarfBuzz buffer creation failed");
+        buffer = hb_buffer_create();
+        if (buffer == nullptr) {
+            hb_font_destroy(font);
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "HarfBuzz buffer creation failed");
+        }
+        buffer_ = buffer;
+    } else {
+        hb_buffer_clear_contents(buffer);
     }
 
     hb_buffer_add_utf8(
@@ -176,7 +189,6 @@ Base::Result<void> HarfBuzzAdapter::Shape(
         glyph.offsetY = From26Dot6(positions[index].y_offset);
         output.glyphs.PushBack(glyph);
     }
-    hb_buffer_destroy(buffer);
     hb_font_destroy(font);
     return {};
 }

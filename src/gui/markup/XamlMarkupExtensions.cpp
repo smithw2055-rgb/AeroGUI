@@ -1,6 +1,7 @@
 #include "gui/markup/XamlSchema.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/data/BindingEngine.hpp"
+#include "gui/data/BindingCommon.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
@@ -641,59 +642,16 @@ Base::Result<std::uint64_t> CommitBinding(void* context) noexcept {
             "Deferred Binding state is invalid");
     }
     if (state->source == nullptr && !state->relativeAncestorType.Empty()) {
-        Base::StringView ancestorName = state->relativeAncestorType.View();
-        for (std::uint32_t index = 0U; index < ancestorName.SizeBytes(); ++index) {
-            if (ancestorName[index] == ':') {
-                ancestorName = ancestorName.Substr(
-                    index + 1U,
-                    ancestorName.SizeBytes() - index - 1U);
-                break;
-            }
-        }
-        const std::uint32_t requestedLevel =
-            state->relativeAncestorLevel > 0U ? state->relativeAncestorLevel : 1U;
-        std::uint32_t matchedLevel = 0U;
-        Media::Visual* current = ::Aero::TryCast<Media::Visual>(state->target);
-        if (current != nullptr) {
-            Media::Visual* parent =
-                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
-            if (parent == nullptr) {
-                parent = current->GetVisualParent();
-            }
-            if (parent == nullptr) {
-                if (auto* fe = ::Aero::TryCast<FrameworkElement>(current)) {
-                    parent = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
-                }
-            }
-            current = parent;
-        }
-        while (current != nullptr) {
-            const Meta::TypeInfo* type =
-                state->metadata != nullptr
-                    ? state->metadata->Types().FindType(current->RuntimeType())
-                    : nullptr;
-            const bool matchesType = ancestorName.Empty() ||
-                (type != nullptr && (type->Name() == ancestorName ||
-                 (state->metadata != nullptr &&
-                  state->metadata->Types().IsDerivedFrom(current->RuntimeType(),
-                      state->metadata->Types().FindType({}, ancestorName) != nullptr
-                          ? state->metadata->Types().FindType({}, ancestorName)->Id()
-                          : Meta::TypeId{}))));
-            if (matchesType && ++matchedLevel == requestedLevel) {
-                state->source = current;
-                break;
-            }
-            Media::Visual* next =
-                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
-            if (next == nullptr) {
-                next = current->GetVisualParent();
-            }
-            if (next == nullptr) {
-                if (auto* fe = ::Aero::TryCast<FrameworkElement>(current)) {
-                    next = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
-                }
-            }
-            current = next;
+        Media::Visual* targetVis = ::Aero::TryCast<Media::Visual>(state->target);
+        if (targetVis != nullptr && state->metadata != nullptr) {
+            const std::uint32_t requestedLevel =
+                state->relativeAncestorLevel > 0U ? state->relativeAncestorLevel : 1U;
+            state->source = Data::FindVisualOrLogicalAncestor(
+                targetVis,
+                state->relativeAncestorType.View(),
+                requestedLevel,
+                state->metadata->Types(),
+                false);
         }
     }
     Data::MetadataBindingDescriptor descriptor;
@@ -2138,15 +2096,8 @@ Base::Result<Meta::PropertyExpression> DynamicResource::CreateExpression(
             CleanupDynamicResource(state);
             return assigned.GetStatus();
         }
-        FrameworkElement* next = ::Aero::TryCast<FrameworkElement>(
-            current->GetLogicalParent());
-        if (next == nullptr) {
-            next = ::Aero::TryCast<FrameworkElement>(current->GetVisualParent());
-        }
-        if (next == nullptr) {
-            next = ::Aero::TryCast<FrameworkElement>(current->GetTemplatedParent());
-        }
-        current = next;
+        current = ::Aero::TryCast<FrameworkElement>(
+            Data::GetVisualOrLogicalParent(current));
     }
     for (const ResourceDictionary* resources :
          resourceChain) {
@@ -2213,17 +2164,10 @@ static bool IsSameOrDescendant(
     DependencyObject* ancestor) noexcept {
     if (target == nullptr || ancestor == nullptr) return false;
     if (target == ancestor) return true;
-    auto* current = ::Aero::TryCast<FrameworkElement>(target);
+    auto* current = ::Aero::TryCast<Media::Visual>(target);
     while (current != nullptr) {
         if (current == ancestor) return true;
-        auto* next = ::Aero::TryCast<FrameworkElement>(current->GetLogicalParent());
-        if (next == nullptr) {
-            next = ::Aero::TryCast<FrameworkElement>(current->GetVisualParent());
-        }
-        if (next == nullptr) {
-            next = ::Aero::TryCast<FrameworkElement>(current->GetTemplatedParent());
-        }
-        current = next;
+        current = Data::GetVisualOrLogicalParent(current);
     }
     return false;
 }

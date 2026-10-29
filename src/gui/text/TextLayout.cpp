@@ -607,14 +607,24 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         };
 
         auto appendPiece = [&](
-            const TextSegment& piece) noexcept -> Base::Result<void> {
-            Base::Vector<GlyphRun> runs(allocator);
-            float pieceWidth = 0.0F;
-            Base::Result<void> shaped =
-                shapeSegment(
-                    piece.start, piece.length,
-                    lineWidth, runs, pieceWidth);
-            if (!shaped) return shaped.GetStatus();
+            const TextSegment& piece,
+            Base::Vector<GlyphRun>* preShapedRuns = nullptr,
+            float preShapedWidth = 0.0F) noexcept -> Base::Result<void> {
+            Base::Vector<GlyphRun> localRuns(allocator);
+            Base::Vector<GlyphRun>& runs = (preShapedRuns != nullptr)
+                ? *preShapedRuns
+                : localRuns;
+            float pieceWidth = (preShapedRuns != nullptr)
+                ? preShapedWidth
+                : 0.0F;
+
+            if (preShapedRuns == nullptr) {
+                Base::Result<void> shaped =
+                    shapeSegment(
+                        piece.start, piece.length,
+                        0.0F, runs, pieceWidth);
+                if (!shaped) return shaped.GetStatus();
+            }
 
             if (wrap &&
                 lineWidth > 0.0F &&
@@ -636,11 +646,17 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     lineEnd = lineStart;
                     return {};
                 }
-                runs.Clear();
-                shaped = shapeSegment(
-                    piece.start, piece.length,
-                    0.0F, runs, pieceWidth);
-                if (!shaped) return shaped.GetStatus();
+                for (GlyphRun& run : runs) {
+                    for (PositionedGlyph& glyph : run.glyphs) {
+                        glyph.y += lineHeight;
+                    }
+                }
+            } else if (lineWidth > 0.0F) {
+                for (GlyphRun& run : runs) {
+                    for (PositionedGlyph& glyph : run.glyphs) {
+                        glyph.x += lineWidth;
+                    }
+                }
             }
 
             if (piece.kind == SegmentKind::Whitespace &&
@@ -700,7 +716,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 }
             } else {
                 Base::Result<void> appended =
-                    appendPiece(segment);
+                    appendPiece(segment, &probe, probeWidth);
                 if (!appended) return appended.GetStatus();
             }
         }

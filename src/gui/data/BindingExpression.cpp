@@ -156,43 +156,27 @@ Base::Status BindingOpsUnsupported(const char* message) noexcept {
 
 } // namespace
 
-Media::Visual* FindTemplateAncestor(
+Media::Visual* FindVisualOrLogicalAncestor(
     Media::Visual* start,
     Base::StringView ancestorType,
     std::uint32_t level,
-    const Meta::TypeRegistry& types) noexcept {
+    const Meta::TypeRegistry& types,
+    bool startAtSelf) noexcept {
     if (start == nullptr || level == 0U) return nullptr;
-    Base::StringView ancestorName = ancestorType;
-    for (std::uint32_t index = 0U; index < ancestorName.SizeBytes(); ++index) {
-        if (ancestorName[index] == ':') {
-            ancestorName = ancestorName.Substr(
-                index + 1U, ancestorName.SizeBytes() - index - 1U);
+    for (std::uint32_t i = 0U; i < ancestorType.SizeBytes(); ++i) {
+        if (ancestorType[i] == ':') {
+            ancestorType = ancestorType.Substr(i + 1U, ancestorType.SizeBytes() - i - 1U);
             break;
         }
     }
+    const Meta::TypeInfo* targetType = !ancestorType.Empty() ? types.FindType({}, ancestorType) : nullptr;
     std::uint32_t matched = 0U;
-    Media::Visual* current = start->GetVisualParent();
-    if (current == nullptr) current = ::Aero::TryCast<Media::Visual>(start->GetLogicalParent());
-    if (current == nullptr) {
-        if (auto* fe = ::Aero::TryCast<FrameworkElement>(start)) {
-            current = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
-        }
-    }
-    while (current != nullptr) {
-        const Meta::TypeInfo* type = types.FindType(current->RuntimeType());
-        if ((ancestorName.Empty() ||
-             (type != nullptr && type->Name() == ancestorName)) &&
-            ++matched == level) {
-            return current;
-        }
-        Media::Visual* next = current->GetVisualParent();
-        if (next == nullptr) next = ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
-        if (next == nullptr) {
-            if (auto* fe = ::Aero::TryCast<FrameworkElement>(current)) {
-                next = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
-            }
-        }
-        current = next;
+    for (Media::Visual* curr = startAtSelf ? start : GetVisualOrLogicalParent(start); curr != nullptr; curr = GetVisualOrLogicalParent(curr)) {
+        const Meta::TypeInfo* info = types.FindType(curr->RuntimeType());
+        const bool matches = ancestorType.Empty() ||
+            (info != nullptr && info->Name() == ancestorType) ||
+            (targetType != nullptr && types.IsDerivedFrom(curr->RuntimeType(), targetType->Id()));
+        if (matches && ++matched == level) return curr;
     }
     return nullptr;
 }
@@ -242,51 +226,25 @@ Base::Result<Base::Object*> ResolveCodeBindingSource(
         return static_cast<Base::Object*>(framework->GetTemplatedParent());
     }
     if (mode == RelativeSourceMode::FindAncestor) {
-        Base::StringView ancestorName =
-            binding.GetRelativeSource()->GetAncestorType();
-        for (std::uint32_t nameIndex = 0U;
-             nameIndex < ancestorName.SizeBytes(); ++nameIndex) {
-            if (ancestorName[nameIndex] == ':') {
-                ancestorName = ancestorName.Substr(
-                    nameIndex + 1U,
-                    ancestorName.SizeBytes() - nameIndex - 1U);
-                break;
-            }
+        Media::Visual* start = ::Aero::TryCast<Media::Visual>(&target);
+        if (start == nullptr) {
+            return BindingOpsNotFound(
+                "Binding FindAncestor requires a Visual target");
         }
-        const std::uint32_t requestedLevel =
-            binding.GetRelativeSource()->GetAncestorLevel();
-        std::uint32_t matchedLevel = 0U;
-        Media::Visual* current = nullptr;
-        if (startAtTarget) {
-            current = ::Aero::TryCast<Media::Visual>(&target);
-        } else {
-            Media::Visual* targetVisual = ::Aero::TryCast<Media::Visual>(&target);
-            if (targetVisual != nullptr) {
-                current = ::Aero::TryCast<Media::Visual>(targetVisual->GetLogicalParent());
-                if (current == nullptr) {
-                    current = targetVisual->GetVisualParent();
-                }
-            }
+        const Meta::TypeRegistry* types = metadata != nullptr ? &metadata->Types() : nullptr;
+        Media::Visual* found = types != nullptr
+            ? FindVisualOrLogicalAncestor(
+                start,
+                binding.GetRelativeSource()->GetAncestorType(),
+                binding.GetRelativeSource()->GetAncestorLevel(),
+                *types,
+                startAtTarget)
+            : nullptr;
+        if (found == nullptr) {
+            return BindingOpsNotFound(
+                "Binding FindAncestor source was not found");
         }
-        while (current != nullptr) {
-            const Meta::TypeInfo* type =
-                metadata != nullptr
-                    ? metadata->Types().FindType(current->RuntimeType())
-                    : nullptr;
-            const bool matchesType = ancestorName.Empty() ||
-                (type != nullptr && type->Name() == ancestorName);
-            if (matchesType && ++matchedLevel == requestedLevel) {
-                return static_cast<Base::Object*>(current);
-            }
-            Media::Visual* next =
-                ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
-            if (next == nullptr) {
-                next = current->GetVisualParent();
-            }
-            current = next;
-        }
-        return BindingOpsNotFound(
-            "Binding FindAncestor source was not found");
+        return static_cast<Base::Object*>(found);
     }
     return BindingOpsUnsupported(
         "Binding RelativeSource mode is not supported by SetBinding");
@@ -487,6 +445,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         descriptor.updateSourceTrigger);
     const std::uint32_t newIndex = bindings_.Size();
     bindings_.PushBack(std::move(record));
+    hasDirtyBindings_ = true;
     static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
     AddTargetBinding(descriptor.target, bindings_.Back().handle);
     AddSourceBinding(descriptor.source, bindings_.Back().handle);
@@ -686,7 +645,11 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     }
 
     const std::uint32_t newIndex = bindings_.Size();
+    if (record.dataContextProperty.IsValid() && record.descriptor.targetProperty == record.dataContextProperty) {
+        ++writesDataContextCount_;
+    }
     bindings_.PushBack(std::move(record));
+    hasDirtyBindings_ = true;
     BindingRecord& stored = bindings_.Back();
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     AddTargetBinding(stored.descriptor.target, stored.handle);
@@ -755,6 +718,7 @@ bool BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     }
     record->targetDirty = true;
     record->forceSourceUpdate = true;
+    hasDirtyBindings_ = true;
     return true;
 }
 
@@ -765,6 +729,7 @@ bool BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
     BindingRecord* record = FindRecord(handle);
     if (record == nullptr) return false;
     record->sourceDirty = true;
+    hasDirtyBindings_ = true;
     if (!flushing_) {
         Base::Result<std::uint32_t> flushed = Flush();
         if (!flushed) return false;

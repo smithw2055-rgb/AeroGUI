@@ -377,6 +377,9 @@ private:
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
     bool hasPendingDetaches_ = false;
+    bool hasDirtyBindings_ = true;
+    std::uint32_t pollingBindingCount_ = 0U;
+    std::uint32_t writesDataContextCount_ = 0U;
     Base::Status lastError_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
 

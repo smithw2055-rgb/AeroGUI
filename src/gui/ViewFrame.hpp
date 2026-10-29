@@ -367,14 +367,6 @@ inline void ForEachVisualAndLogicalChild(Aero::Media::Visual& node, TFn&& fn) {
             fn(child);
         }
     }
-    const std::uint32_t visualCount = Aero::Media::VisualTreeHelper::GetChildrenCount(node);
-    for (std::uint32_t i = 0U; i < visualCount; ++i) {
-        if (Aero::Media::Visual* child = Aero::Media::VisualTreeHelper::GetChild(node, i)) {
-            if (child->GetVisualParent() != &node) {
-                fn(child);
-            }
-        }
-    }
     const std::uint32_t logicalCount = Aero::LogicalTreeHelper::GetChildrenCount(node);
     for (std::uint32_t i = 0U; i < logicalCount; ++i) {
         if (DependencyObject* child = Aero::LogicalTreeHelper::GetChild(node, i)) {
@@ -508,7 +500,7 @@ struct ViewEngines {
     Aero::Controls::TemplateEngine templates;
     OverlayHost overlays;
     FocusHost focus;
-    VisualStateManager* visualStates = nullptr;
+    Base::Ref<VisualStateManager> visualStates;
 
     ViewEngines(
         ViewFrame& frame,
@@ -567,7 +559,7 @@ inline Aero::AnimationEngine* ViewFrame::Animations() const noexcept {
     return engines != nullptr ? &engines->animations : nullptr;
 }
 inline VisualStateManager* ViewFrame::VisualStates() const noexcept {
-    return engines != nullptr ? engines->visualStates : nullptr;
+    return engines != nullptr ? engines->visualStates.Get() : nullptr;
 }
 inline Aero::Controls::TemplateEngine* ViewFrame::Templates() const noexcept {
     return engines != nullptr ? &engines->templates : nullptr;

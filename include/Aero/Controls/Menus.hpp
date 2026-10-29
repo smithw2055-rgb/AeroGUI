@@ -234,6 +234,7 @@ public:
 
 protected:
     Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
+    Ref<Panel> CreateDefaultItemsPanel() const noexcept override;
 };
 
 } // namespace Aero::Controls

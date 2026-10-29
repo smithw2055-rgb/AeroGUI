@@ -281,13 +281,13 @@ using namespace ::Aero::Meta;
 using namespace ::Aero::Media;
 using namespace ::Aero::Controls;
 
-VisualStateManager*
+Base::Ref<VisualStateManager>
 Controls::VisualStateManagerExecution::Create(
     Meta::EffectiveValueEngine& values,
     ::Aero::Controls::TemplateEngine& templates,
     ::Aero::AnimationEngine& animations,
     Meta::DependencyPropertyRegistry& properties) noexcept {
-    return new (std::nothrow) VisualStateManagerState(
+    return Base::MakeRef<VisualStateManagerState>(
         values, templates, animations, properties);
 }
 

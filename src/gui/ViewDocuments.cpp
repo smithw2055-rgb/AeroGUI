@@ -659,69 +659,10 @@ Base::Result<void> DetachFragment(ViewFrame& state,
              fragment.document.visualContent.nodes.Size()});
 
         ElementTree& context = *state.Tree();
-        const auto reconcileAttachment =
-            [](Aero::Markup::VisualEdge& edge) noexcept {
-                auto& edgeState = edge.state;
-                if (edgeState.child == nullptr) {
-                    edgeState.logicalAttached = false;
-                    edgeState.visualAttached = false;
-                    edgeState.layoutAttached = false;
-                    edgeState.renderAttached = false;
-                    return;
-                }
-                edgeState.logicalAttached =
-                    edgeState.logicalParent != nullptr &&
-                    edgeState.child->GetLogicalParent() == edgeState.logicalParent;
-                edgeState.visualAttached =
-                    edgeState.visualParent != nullptr &&
-                    edgeState.child->GetVisualParent() == edgeState.visualParent;
-                UIElement* childElement = ::Aero::TryCast<UIElement>(edgeState.child);
-                UIElement* parentElement = edgeState.visualParent != nullptr
-                    ? ::Aero::TryCast<UIElement>(edgeState.visualParent)
-                    : nullptr;
-                edgeState.layoutAttached =
-                    childElement != nullptr && parentElement != nullptr &&
-                    childElement->GetIsLayoutAttached() &&
-                    childElement->LayoutParent() == parentElement;
-                edgeState.renderAttached =
-                    edgeState.child->IsRenderAttached() &&
-                    edgeState.child->GetVisualParent() == edgeState.visualParent;
-            };
-
-        std::uint32_t remaining = 0U;
-        for (Aero::Markup::VisualEdge& edge :
-             fragment.document.visualContent.mountEdges) {
-            reconcileAttachment(edge);
-            if (edge.state.IsAttached()) ++remaining;
-        }
-        while (remaining > 0U) {
-            bool progressed = false;
-            for (Aero::Markup::VisualEdge& edge :
-                 fragment.document.visualContent.mountEdges) {
-                reconcileAttachment(edge);
-                if (!edge.state.IsAttached()) continue;
-                bool hasMountedChild = false;
-                for (const Aero::Markup::VisualEdge& candidate :
-                     fragment.document.visualContent.mountEdges) {
-                    if (candidate.state.IsAttached() &&
-                        candidate.parent == edge.child) {
-                        hasMountedChild = true;
-                        break;
-                    }
-                }
-                if (hasMountedChild) continue;
-                Base::Result<void> detached = context.DetachElement(edge.state);
-                if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
-                    return detached.GetStatus();
-                }
-                edge.state = {};
-                --remaining;
-                progressed = true;
-            }
-            if (!progressed) {
-                break;
-            }
-        }
+        Base::Result<void> detachedEdges = context.DetachVisualEdges(
+            {fragment.document.visualContent.mountEdges.Data(),
+             fragment.document.visualContent.mountEdges.Size()});
+        if (!detachedEdges) return detachedEdges.GetStatus();
         if (fragment.rootEdge.child != nullptr) {
             fragment.rootEdge.logicalAttached =
                 fragment.rootEdge.logicalParent != nullptr &&

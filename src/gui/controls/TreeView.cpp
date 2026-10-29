@@ -318,6 +318,46 @@ void TreeViewItem::ClearHierarchicalContent() noexcept {
     hierarchicalItemTemplate_.Reset();
 }
 
+void TreeViewItem::ApplyHierarchicalDataTemplate(
+    const Base::Ref<HierarchicalDataTemplate>& templateObj,
+    const Base::Ref<Base::Object>& item) noexcept {
+    if (!templateObj) return;
+    Base::Ref<Base::Object> hierarchicalSource = templateObj->GetItemsSource();
+    const Base::Ref<Base::Object> hierarchicalTemplate = templateObj->GetItemTemplate();
+    Base::Ref<DataTemplate> childItemTemplate;
+    if (hierarchicalTemplate &&
+        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            hierarchicalTemplate->RuntimeType(),
+            DataTemplate::StaticTypeId())) {
+        childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
+            static_cast<DataTemplate&>(*hierarchicalTemplate));
+    }
+    if (!childItemTemplate) {
+        childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
+            static_cast<DataTemplate&>(*templateObj));
+    }
+    if (!hierarchicalSource) {
+        SetItemTemplate(std::move(childItemTemplate));
+        return;
+    }
+    if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+            hierarchicalSource->RuntimeType(),
+            Data::Binding::StaticTypeId())) {
+        SetHierarchicalContent(hierarchicalSource, std::move(childItemTemplate));
+        return;
+    }
+    const auto& binding = static_cast<const Data::Binding&>(*hierarchicalSource);
+    SetHierarchicalBinding(
+        Base::Ref<Data::Binding>::FromBorrowed(const_cast<Data::Binding&>(binding)),
+        item,
+        std::move(childItemTemplate));
+}
+
+void TreeViewItem::ClearHierarchicalDataTemplate() noexcept {
+    ClearHierarchicalContent();
+    ItemsControl::ClearHierarchicalDataTemplate();
+}
+
 void TreeViewItem::ActivateHierarchicalContent() noexcept {
     SetItemTemplate(hierarchicalItemTemplate_);
     if (hierarchicalItemsSource_) {

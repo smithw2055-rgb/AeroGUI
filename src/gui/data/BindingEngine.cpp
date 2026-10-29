@@ -124,6 +124,9 @@ void BindingEngine::Shutdown() noexcept {
     targetToBindings_.Clear();
     dataContextBindings_.Clear();
     flushing_ = false;
+    hasDirtyBindings_ = true;
+    pollingBindingCount_ = 0U;
+    writesDataContextCount_ = 0U;
     initialized_ = false;
 }
 
@@ -133,6 +136,7 @@ void BindingEngine::Shutdown() noexcept {
 
 Base::Result<void> BindingEngine::QueueDeferred(
     const MetadataBindingDescriptor& descriptor) noexcept {
+    hasDirtyBindings_ = true;
     if (descriptor.metadata == nullptr ||
         descriptor.target == nullptr ||
         !descriptor.targetProperty.IsValid() ||
@@ -187,6 +191,7 @@ Base::Result<void> BindingEngine::QueueDeferred(
 Base::Result<std::uint32_t>
 BindingEngine::ActivateDeferred(
     DependencyObject& target) noexcept {
+    hasDirtyBindings_ = true;
     std::uint32_t activated = 0U;
     for (std::uint32_t index = 0U;
          index < deferredBindings_.Size();) {
@@ -249,6 +254,7 @@ BindingEngine::ActivateDeferred(
 
 Base::Result<void> BindingEngine::ActivateDeferredWhenReady(
     DependencyObject& target) noexcept {
+    hasDirtyBindings_ = true;
     if (!flushing_) {
         Base::Result<std::uint32_t> activated =
             ActivateDeferred(target);
@@ -1330,6 +1336,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (flushing_) {
         return std::uint32_t{0U};
     }
+    if (!hasDirtyBindings_ && pollingBindingCount_ == 0U && pendingDeferredActivations_.Empty()) {
+        return std::uint32_t{0U};
+    }
 
     flushing_ = true;
     lastError_ = {};
@@ -1341,7 +1350,8 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         // Equip slots author DataContext="{Binding Player.Slots[i]}" plus
         // Content="{Binding}". Apply DataContext writes first so empty-path
         // Content bindings in the same Flush see the slot object.
-        for (std::uint32_t pass = 0U; pass < 2U; ++pass) {
+        const std::uint32_t startPass = (writesDataContextCount_ > 0U) ? 0U : 1U;
+        for (std::uint32_t pass = startPass; pass < 2U; ++pass) {
             for (std::uint32_t index = 0U; index < currentCount; ++index) {
                 if (index >= bindings_.Size() || bindings_[index].handle.value == 0U) {
                     continue;
@@ -1516,6 +1526,31 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         }
     }
     flushing_ = false;
+    std::uint32_t pollCount = 0U;
+    bool anyDirty = false;
+    for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
+        if (bindings_[index].handle.value == 0U) continue;
+        const bool metadataPath =
+            bindings_[index].sourceKind != BindingSourceKind::DependencyProperty;
+        const bool hasNotify =
+            bindings_[index].notificationSubscription != 0U ||
+            bindings_[index].sourceDependencyProperty.IsValid();
+        const bool unresolvedDataContext =
+            bindings_[index].sourceKind == BindingSourceKind::DataContext &&
+            (!bindings_[index].applied || bindings_[index].metadataSource == nullptr ||
+             (!bindings_[index].bindsToSource && !bindings_[index].pathPlan.IsValid()));
+        const bool pollMetadata =
+            (metadataPath && !hasNotify) || unresolvedDataContext;
+        if (pollMetadata) {
+            ++pollCount;
+        }
+        if (!bindings_[index].applied || bindings_[index].sourceDirty || bindings_[index].targetDirty) {
+            anyDirty = true;
+        }
+    }
+    pollingBindingCount_ = pollCount;
+    hasDirtyBindings_ = anyDirty;
+
     if (hasPendingDetaches_) {
         hasPendingDetaches_ = false;
         std::uint32_t writeIndex = 0U;
@@ -1622,6 +1657,7 @@ void BindingEngine::DataBindHook(void* context) noexcept {
 void BindingEngine::OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept {
+    hasDirtyBindings_ = true;
     bool lostFocusFlush = false;
 
     if (const auto* targetList = targetToBindings_.Find(&object)) {
@@ -1698,6 +1734,7 @@ void BindingEngine::OnPropertyChanged(
 void BindingEngine::OnMetadataPropertyChanged(
     Base::Object& object,
     MemberId property) noexcept {
+    hasDirtyBindings_ = true;
     if (const auto* sourceList = sourceToBindings_.Find(&object)) {
         for (BindingHandle handle : *sourceList) {
             BindingRecord* record = FindRecord(handle);
@@ -2126,15 +2163,18 @@ void BindingEngine::CleanupRecord(BindingRecord& record) noexcept {
 
 void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     if (index >= bindings_.Size()) return;
+    if (bindings_[index].dataContextProperty.IsValid() &&
+        bindings_[index].descriptor.targetProperty == bindings_[index].dataContextProperty &&
+        writesDataContextCount_ > 0U) {
+        --writesDataContextCount_;
+    }
+    hasDirtyBindings_ = true;
     handleIndexMap_.Erase(bindings_[index].handle.value);
     CleanupRecord(bindings_[index]);
-    for (std::uint32_t current = index + 1U;
-         current < bindings_.Size();
-         ++current) {
-        bindings_[current - 1U] = std::move(bindings_[current]);
-        static_cast<void>(handleIndexMap_.Set(bindings_[current - 1U].handle.value, current - 1U));
+    bindings_.Erase(index);
+    for (std::uint32_t current = index; current < bindings_.Size(); ++current) {
+        static_cast<void>(handleIndexMap_.Set(bindings_[current].handle.value, current));
     }
-    bindings_.PopBack();
 }
 
 void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {

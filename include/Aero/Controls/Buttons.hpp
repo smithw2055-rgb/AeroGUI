@@ -136,6 +136,7 @@ protected:
     void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
     void OnKeyUp(KeyEventArgs& args);
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
 };
 
 } // namespace Primitives

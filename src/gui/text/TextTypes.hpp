@@ -191,6 +191,7 @@ struct GlyphBitmap  {
     std::uint32_t strideBytes = 0U;
     std::int32_t bearingX = 0;
     std::int32_t bearingY = 0;
+    float advanceX = 0.0F;
     Base::Vector<std::uint8_t> pixels;
 };
 

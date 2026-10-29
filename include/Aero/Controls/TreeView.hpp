@@ -59,6 +59,10 @@ protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void ApplyHierarchicalDataTemplate(
+        const Ref<HierarchicalDataTemplate>& templateObj,
+        const Ref<Base::Object>& item) noexcept override;
+    void ClearHierarchicalDataTemplate() noexcept override;
 
 private:
     friend class ItemsControl;

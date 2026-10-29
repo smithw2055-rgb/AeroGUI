@@ -1012,11 +1012,11 @@ PropertyValue DependencyObject::ReadLocalValue(
 
 // from src/gui/core/EffectiveValueEngine.cpp
 
-PropertyValue DependencyObject::GetValue(
+const PropertyValue* DependencyObject::FindEffectiveValuePtr(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) {
-        return PropertyValue::Unset();
+        return nullptr;
     }
 
     // Canonical-handle hot path: probe the store by the incoming MemberId
@@ -1025,66 +1025,40 @@ PropertyValue DependencyObject::GetValue(
     if (store != nullptr) {
         if (const StoredValueEntry* hit =
                 store->entries.Find(propertyHandle.value)) {
-            return hit->effectiveValue;
+            return &hit->effectiveValue;
         }
     }
 
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
+        registry_ != nullptr ? registry_->Find(propertyHandle) : nullptr;
     if (property == nullptr) {
-        return PropertyValue::Unset();
+        return nullptr;
     }
     const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
     if (metadata == nullptr) {
-        return PropertyValue::Unset();
+        return nullptr;
     }
 
     const MemberId canonical = property->Handle().value;
     if (store != nullptr && canonical != propertyHandle.value) {
         if (const StoredValueEntry* aliasHit = store->entries.Find(canonical)) {
-            return aliasHit->effectiveValue;
+            return &aliasHit->effectiveValue;
         }
     }
-    return metadata->defaultValue;
+    return &metadata->defaultValue;
+}
+
+PropertyValue DependencyObject::GetValue(
+    DependencyPropertyHandle propertyHandle) const noexcept {
+    const PropertyValue* val = FindEffectiveValuePtr(propertyHandle);
+    return val != nullptr ? *val : PropertyValue::Unset();
 }
 
 Base::StringView DependencyObject::GetStringView(
     DependencyPropertyHandle propertyHandle) const noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) {
-        return {};
-    }
-
-    const PropertyStore* store = static_cast<const PropertyStore*>(valueStore_);
-    if (store != nullptr) {
-        if (const StoredValueEntry* hit =
-                store->entries.Find(propertyHandle.value)) {
-            if (hit->effectiveValue.Kind() == Base::ValueKind::String) {
-                return hit->effectiveValue.AsString();
-            }
-        }
-    }
-
-    const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
-    if (property == nullptr) {
-        return {};
-    }
-    const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
-    if (metadata == nullptr) {
-        return {};
-    }
-
-    const MemberId canonical = property->Handle().value;
-    if (store != nullptr && canonical != propertyHandle.value) {
-        if (const StoredValueEntry* aliasHit = store->entries.Find(canonical)) {
-            if (aliasHit->effectiveValue.Kind() == Base::ValueKind::String) {
-                return aliasHit->effectiveValue.AsString();
-            }
-        }
-    }
-    if (metadata->defaultValue.Kind() == Base::ValueKind::String) {
-        return metadata->defaultValue.AsString();
+    const PropertyValue* val = FindEffectiveValuePtr(propertyHandle);
+    if (val != nullptr && val->Kind() == Base::ValueKind::String) {
+        return val->AsString();
     }
     return {};
 }

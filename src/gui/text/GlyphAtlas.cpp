@@ -304,19 +304,13 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     Base::Result<void> rasterized =
         fonts.RasterizeGlyph(request, bitmap);
     if (!rasterized) return rasterized.GetStatus();
-    Base::Result<void> sdf = ConvertCoverageToSdf(bitmap, allocator_);
-    if (!sdf) return sdf.GetStatus();
-    GlyphMetrics metrics;
-    Base::Result<void> measured =
-        fonts.GetGlyphMetrics(request, metrics);
-    if (!measured) return measured.GetStatus();
     if (bitmap.width == 0U || bitmap.height == 0U) {
         GlyphAtlasPlacement emptyPlacement{};
         emptyPlacement.key = key;
         emptyPlacement.deviceGeneration = state_->deviceGeneration;
         emptyPlacement.width = 0U;
         emptyPlacement.height = 0U;
-        emptyPlacement.advanceX = metrics.advanceX;
+        emptyPlacement.advanceX = bitmap.advanceX;
         GlyphAtlasState::Entry entry{key, emptyPlacement};
         const std::uint32_t newIndex = state_->entries.Size();
         (void)state_->entries.PushBack(entry);
@@ -324,6 +318,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
         output = emptyPlacement;
         return {};
     }
+    Base::Result<void> sdf = ConvertCoverageToSdf(bitmap, allocator_);
+    if (!sdf) return sdf.GetStatus();
 
     const std::uint32_t padding = state_->config.padding;
     if (AddWouldOverflow(bitmap.width, padding * 2U) ||
@@ -403,7 +399,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     placement.height = bitmap.height;
     placement.bearingX = bitmap.bearingX;
     placement.bearingY = bitmap.bearingY;
-    placement.advanceX = metrics.advanceX;
+    placement.advanceX = bitmap.advanceX;
 
     GlyphAtlasState::Entry entry;
     entry.key = key;

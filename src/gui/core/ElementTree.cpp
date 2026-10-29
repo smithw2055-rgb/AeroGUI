@@ -381,20 +381,7 @@ void ForEachElementTreeChild(
     for (std::uint32_t index = 0U; index < logicalCount; ++index) {
         ::Aero::Media::Visual* child = ::Aero::TryCast<::Aero::Media::Visual>(
             LogicalTreeHelper::GetChild(node, index));
-        if (child == nullptr) {
-            continue;
-        }
-        bool duplicate = false;
-        for (std::uint32_t visualIndex = 0U;
-             visualIndex < visualCount;
-             ++visualIndex) {
-            if (::Aero::Media::VisualTreeHelper::GetChild(
-                    node, visualIndex) == child) {
-                duplicate = true;
-                break;
-            }
-        }
-        if (!duplicate) {
+        if (child != nullptr && child->GetVisualParent() != &node) {
             fn(*child);
         }
     }
@@ -1451,35 +1438,10 @@ Base::Result<void> ElementTree::AttachVisualGraph(
                 static_cast<void*>(renderTree_);
         };
 
-    std::uint32_t attached = 0U;
-    while (attached < edges.Size()) {
-        bool progressed = false;
-        for (Markup::VisualEdge& edge : edges) {
-            if (edge.state.logicalAttached || edge.parent == nullptr ||
-                edge.child == nullptr ||
-                VisualTree(edge.parent) != this ||
-                !parentRenderReady(*edge.parent)) {
-                continue;
-            }
-            ::Aero::Media::Visual* visualParent = edge.parent;
-            if (edge.child->GetVisualParent() != nullptr &&
-                VisualTree(edge.child->GetVisualParent()) == this) {
-                visualParent = edge.child->GetVisualParent();
-            }
-            if (!parentRenderReady(*visualParent)) {
-                continue;
-            }
-            Base::Result<Aero::ElementAttachment> edgeAttached =
-                AttachElement(*edge.parent, *visualParent, *edge.child);
-            if (!edgeAttached) {
-                static_cast<void>(DetachVisualGraph(outAttachment, edges));
-                return edgeAttached.GetStatus();
-            }
-            edge.state = std::move(edgeAttached).Value();
-            ++attached;
-            progressed = true;
-        }
-        if (!progressed) break;
+    Base::Result<void> completed = CompleteVisualEdges(edges);
+    if (!completed) {
+        static_cast<void>(DetachVisualGraph(outAttachment, edges));
+        return completed.GetStatus();
     }
     return {};
 }
@@ -1546,11 +1508,8 @@ Base::Result<void> ElementTree::ResizeRoot(
     return {};
 }
 
-Base::Result<void> ElementTree::DetachVisualGraph(
-    RootAttachment& attachment,
+Base::Result<void> ElementTree::DetachVisualEdges(
     Base::Span<Markup::VisualEdge> edges) noexcept {
-    if (!attachment.IsAttached() && root_ == nullptr) return {};
-
     const auto reconcileAttachment =
         [this](Markup::VisualEdge& edge) noexcept {
             auto& state = edge.state;
@@ -1622,16 +1581,26 @@ Base::Result<void> ElementTree::DetachVisualGraph(
             }
             if (hasAttachedChild) continue;
             Base::Result<void> detached = DetachElement(edge.state);
-            if (!detached) return detached.GetStatus();
+            if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
+                return detached.GetStatus();
+            }
+            edge.state = {};
             --remaining;
             progressed = true;
         }
         if (!progressed) {
-            return InvalidState(
-                "Visual edges cannot be detached leaf-first");
+            break;
         }
     }
+    return {};
+}
 
+Base::Result<void> ElementTree::DetachVisualGraph(
+    RootAttachment& attachment,
+    Base::Span<Markup::VisualEdge> edges) noexcept {
+    if (!attachment.IsAttached() && root_ == nullptr) return {};
+    Base::Result<void> detachedEdges = DetachVisualEdges(edges);
+    if (!detachedEdges) return detachedEdges.GetStatus();
     Base::Result<void> rootDetached = DetachRoot(attachment);
     if (!rootDetached) return rootDetached.GetStatus();
     attachment = {};

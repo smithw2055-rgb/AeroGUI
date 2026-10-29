@@ -790,6 +790,15 @@ StatusBar::GetContainerForItemOverride() const noexcept {
     return Base::MakeRef<StatusBarItem>();
 }
 
+Base::Ref<Panel>
+StatusBar::CreateDefaultItemsPanel() const noexcept {
+    Base::Ref<DockPanel> dock = Base::MakeRef<DockPanel>();
+    if (dock) {
+        dock->SetLastChildFill(false);
+    }
+    return dock;
+}
+
 AERO_DESCRIBE(ToolBar) {
     using namespace Aero::Meta;
     Register<ToolBar>(context)

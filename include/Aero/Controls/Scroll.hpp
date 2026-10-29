@@ -207,6 +207,7 @@ private:
     friend class ScrollContentPresenter;
 
     void EnsureFallbackPresenter() noexcept;
+    void SyncContentToPresenter() noexcept;
     void AdoptPresenterData(ScrollContentPresenter& presenter, const ScrollData& data, ScrollInputKind kind) noexcept;
     void OnScrollDataChanged(const ScrollData& oldData, const ScrollData& newData, ScrollInputKind kind) noexcept;
     void UpdateComputedScrollBarVisibility(const ScrollData& data) noexcept;

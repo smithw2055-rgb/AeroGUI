@@ -135,6 +135,8 @@ private:
     void ForEachStoredKey(
         void (*visitor)(void*, MemberId) noexcept,
         void* context) noexcept;
+    void CopyStoredKeys(Base::Vector<MemberId>& outKeys) const noexcept;
+    const PropertyValue* FindEffectiveValuePtr(DependencyPropertyHandle property) const noexcept;
     std::uint32_t ClearAllProviderOrigin(std::uint32_t origin) noexcept;
     Result<void> DropAllEngineValueState() noexcept;
     bool HasUnfreezableValueState() const noexcept;

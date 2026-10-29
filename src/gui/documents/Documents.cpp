@@ -46,33 +46,30 @@ public:
                     owner.RuntimeType(), Documents::Span::StaticTypeId());
     }
 
-    static std::uint32_t GetCount(const Base::Object& owner) noexcept {
+    static Base::Vector<Base::Ref<Documents::Inline>>* GetInlinesVector(Base::Object& owner) noexcept {
         if (IsTextBlock(owner)) {
-            return static_cast<const Controls::TextBlock&>(owner)
-                .ownedInlines_.Size();
+            return &static_cast<Controls::TextBlock&>(owner).ownedInlines_;
         }
         if (IsSpan(owner)) {
-            return static_cast<const Documents::Span&>(owner)
-                .inlines_.Size();
+            return &static_cast<Documents::Span&>(owner).inlines_;
         }
-        return 0U;
+        return nullptr;
+    }
+
+    static const Base::Vector<Base::Ref<Documents::Inline>>* GetInlinesVector(const Base::Object& owner) noexcept {
+        return GetInlinesVector(const_cast<Base::Object&>(owner));
+    }
+
+    static std::uint32_t GetCount(const Base::Object& owner) noexcept {
+        const auto* vec = GetInlinesVector(owner);
+        return vec != nullptr ? vec->Size() : 0U;
     }
 
     static Documents::Inline* At(
         Base::Object& owner,
         std::uint32_t index) noexcept {
-        if (IsTextBlock(owner)) {
-            auto& text = static_cast<Controls::TextBlock&>(owner);
-            if (index >= text.ownedInlines_.Size()) return nullptr;
-            return static_cast<Documents::Inline*>(
-                text.ownedInlines_[index].Get());
-        }
-        if (IsSpan(owner)) {
-            auto& span = static_cast<Documents::Span&>(owner);
-            return index < span.inlines_.Size()
-                ? span.inlines_[index].Get() : nullptr;
-        }
-        return nullptr;
+        auto* vec = GetInlinesVector(owner);
+        return (vec != nullptr && index < vec->Size()) ? (*vec)[index].Get() : nullptr;
     }
 
     static const Documents::Inline* At(
@@ -182,7 +179,7 @@ public:
 
         if (IsTextBlock(owner)) {
             static_cast<Controls::TextBlock&>(owner)
-                .AddOwnedInline(Base::Ref<Base::Object>(value));
+                .AddOwnedInline(value);
         } else {
             static_cast<Documents::Span&>(owner)
                 .AddOwnedInline(value);
@@ -199,44 +196,27 @@ public:
         if (!access) return false;
         if (value.GetParent() != &owner) return false;
 
-        if (IsTextBlock(owner)) {
-            auto& text = static_cast<Controls::TextBlock&>(owner);
-            for (std::uint32_t index = 0U;
-                 index < text.ownedInlines_.Size(); ++index) {
-                if (text.ownedInlines_[index].Get() != &value) continue;
-                ClearHost(value);
-                for (std::uint32_t move = index + 1U;
-                     move < text.ownedInlines_.Size(); ++move) {
-                    text.ownedInlines_[move - 1U] =
-                        std::move(text.ownedInlines_[move]);
-                }
-                text.ownedInlines_.PopBack();
-                text.pendingInline_ = text.ownedInlines_.Empty()
-                    ? Base::Ref<Base::Object>{}
-                    : text.ownedInlines_.Back();
-                text.InvalidateDocumentText();
-                return true;
-            }
-            return false;
-        }
+        auto* vec = GetInlinesVector(owner);
+        if (vec == nullptr) return false;
 
-        auto& span = static_cast<Documents::Span&>(owner);
-        for (std::uint32_t index = 0U;
-             index < span.inlines_.Size(); ++index) {
-            if (span.inlines_[index].Get() != &value) continue;
+        for (std::uint32_t index = 0U; index < vec->Size(); ++index) {
+            if ((*vec)[index].Get() != &value) continue;
             ClearHost(value);
-            for (std::uint32_t move = index + 1U;
-                 move < span.inlines_.Size(); ++move) {
-                span.inlines_[move - 1U] =
-                    std::move(span.inlines_[move]);
-            }
-            span.inlines_.PopBack();
-            span.pendingInline_ = span.inlines_.Empty()
+            vec->Erase(index);
+            Base::Ref<Documents::Inline> pending = vec->Empty()
                 ? Base::Ref<Documents::Inline>{}
-                : span.inlines_.Back();
-            Controls::TextBlock* host = Host(owner);
-            if (host != nullptr) {
-                host->InvalidateDocumentText();
+                : (*vec).Back();
+            if (IsTextBlock(owner)) {
+                auto& text = static_cast<Controls::TextBlock&>(owner);
+                text.pendingInline_ = pending;
+                text.InvalidateDocumentText();
+            } else {
+                auto& span = static_cast<Documents::Span&>(owner);
+                span.pendingInline_ = pending;
+                Controls::TextBlock* host = Host(owner);
+                if (host != nullptr) {
+                    host->InvalidateDocumentText();
+                }
             }
             return true;
         }
@@ -361,11 +341,11 @@ public:
             }
             owner.flatText_.Append(owner.GetText());
             InlineStyleContext defaultContext{};
-            for (const Base::Ref<Base::Object>& item : owner.ownedInlines_) {
+            for (const Base::Ref<Documents::Inline>& item : owner.ownedInlines_) {
                 if (!item) continue;
                 AppendInline(
                     owner,
-                    *static_cast<const Documents::Inline*>(item.Get()),
+                    *item,
                     owner.flatText_,
                     owner.richTextStyleRanges_,
                     defaultContext);

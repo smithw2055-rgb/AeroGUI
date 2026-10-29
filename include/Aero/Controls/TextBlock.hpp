@@ -6,6 +6,7 @@
 #include <Aero/Media/Brushes.hpp>
 
 namespace Aero::Documents {
+class Inline;
 class InlineCollection;
 class InlineCollectionView;
 class TextPointer;
@@ -38,7 +39,7 @@ public:
 
     void AttachTextLayout(void* service, bool invalidate = false) noexcept;
     void InvalidateDocumentText() noexcept;
-    void AddOwnedInline(const Ref<Base::Object>& inlineObject) noexcept;
+    void AddOwnedInline(Ref<Documents::Inline> inlineObject) noexcept;
 
     StringView GetText() const noexcept;
     void SetText(StringView value) noexcept;
@@ -115,11 +116,11 @@ private:
 
     Base::Vector<std::uint64_t> glyphRuns_;
     Base::Vector<TextHitRegion> textHitRegions_;
-    Base::Vector<Ref<Base::Object>> ownedInlines_;
+    Base::Vector<Ref<Documents::Inline>> ownedInlines_;
     mutable Base::String flatText_;
     mutable bool flatTextValid_ = false;
     mutable Base::Vector<RichTextStyleRange> richTextStyleRanges_;
-    Ref<Base::Object> pendingInline_;
+    Ref<Documents::Inline> pendingInline_;
     Size glyphRunSize_;
     bool serviceOwnsGlyphRun_ = false;
     bool arrangingText_ = false;

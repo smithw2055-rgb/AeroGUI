@@ -748,32 +748,26 @@ void ScrollViewer::AdoptPresenterData(
     OnScrollDataChanged(oldData, data, kind);
 }
 
-void ScrollViewer::EnsureFallbackPresenter() noexcept {
-    if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
-    if (!ownedPresenter_) {
-        ownedPresenter_ = Base::MakeRef<ScrollContentPresenter>();
-        if (!ownedPresenter_) return;
-    }
-    contentPresenter_ = ownedPresenter_.Get();
+void ScrollViewer::SyncContentToPresenter() noexcept {
+    if (contentPresenter_ == nullptr) return;
     UIElement* content = GetContentElement();
     if (content != nullptr && content != contentPresenter_) {
-        if (content->GetVisualParent() == this) RemoveVisualChild(content);
-        contentPresenter_->SetContent(content);
-    }
-    if (contentPresenter_->GetVisualParent() == nullptr) {
-        if (ElementTree* tree = VisualTree(this)) {
-            static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
-        } else {
-            AddVisualChild(contentPresenter_);
+        if (content->GetVisualParent() == this) {
+            RemoveVisualChild(content);
         }
-    }
-    if (content != nullptr && content->GetVisualParent() != contentPresenter_) {
+        if (contentPresenter_->GetContentElement() != content) {
+            contentPresenter_->SetContent(content);
+        }
         if (ElementTree* tree = VisualTree(this)) {
-            static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
+            if (content->GetVisualParent() != contentPresenter_) {
+                static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
+            }
             AttachOwnedContentSubtree(*tree, *content);
-        } else {
+        } else if (content->GetVisualParent() != contentPresenter_) {
             ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
         }
+    } else if (content == nullptr) {
+        contentPresenter_->SetContent(nullptr);
     }
     contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
     const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
@@ -783,6 +777,23 @@ void ScrollViewer::EnsureFallbackPresenter() noexcept {
     contentPresenter_->SetCanHorizontallyScroll(canH);
     contentPresenter_->SetCanVerticallyScroll(canV);
     contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
+}
+
+void ScrollViewer::EnsureFallbackPresenter() noexcept {
+    if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
+    if (!ownedPresenter_) {
+        ownedPresenter_ = Base::MakeRef<ScrollContentPresenter>();
+        if (!ownedPresenter_) return;
+    }
+    contentPresenter_ = ownedPresenter_.Get();
+    if (contentPresenter_->GetVisualParent() == nullptr) {
+        if (ElementTree* tree = VisualTree(this)) {
+            static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
+        } else {
+            AddVisualChild(contentPresenter_);
+        }
+    }
+    SyncContentToPresenter();
 }
 
 void ScrollViewer::OnApplyTemplate()
@@ -817,31 +828,7 @@ void ScrollViewer::OnApplyTemplate()
         ownedPresenter_.Reset();
     }
     if (contentPresenter_ != nullptr) {
-        UIElement* content = GetContentElement();
-        if (content != nullptr && content != contentPresenter_) {
-            if (content->GetVisualParent() == this) {
-                RemoveVisualChild(content);
-            }
-            if (contentPresenter_->GetContentElement() != content) {
-                contentPresenter_->SetContent(content);
-            }
-            if (ElementTree* tree = VisualTree(this)) {
-                if (content->GetVisualParent() != contentPresenter_) {
-                    static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
-                }
-                AttachOwnedContentSubtree(*tree, *content);
-            } else if (content->GetVisualParent() != contentPresenter_) {
-                ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
-            }
-        }
-        contentPresenter_->SetContentScrollInfo(pendingScrollInfo_);
-        const bool canH = (GetHorizontalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
-            GetValue(CanHorizontallyScrollProperty);
-        const bool canV = (GetVerticalScrollBarVisibility() != ScrollBarVisibility::Disabled) &&
-            GetValue(CanVerticallyScrollProperty);
-        contentPresenter_->SetCanHorizontallyScroll(canH);
-        contentPresenter_->SetCanVerticallyScroll(canV);
-        contentPresenter_->SetCanContentScroll(GetValue(CanContentScrollProperty));
+        SyncContentToPresenter();
     }
     AttachScrollBars();
     EnsureCommands();
@@ -850,27 +837,7 @@ void ScrollViewer::OnApplyTemplate()
 
 void ScrollViewer::OnContentChanged(const Value& oldContent, const Value& newContent) {
     ContentControl::OnContentChanged(oldContent, newContent);
-    if (contentPresenter_ != nullptr) {
-        UIElement* content = GetContentElement();
-        if (content != nullptr && content != contentPresenter_) {
-            if (content->GetVisualParent() == this) {
-                RemoveVisualChild(content);
-            }
-            if (contentPresenter_->GetContentElement() != content) {
-                contentPresenter_->SetContent(content);
-            }
-            if (ElementTree* tree = VisualTree(this)) {
-                if (content->GetVisualParent() != contentPresenter_) {
-                    static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
-                }
-                AttachOwnedContentSubtree(*tree, *content);
-            } else if (content->GetVisualParent() != contentPresenter_) {
-                ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
-            }
-        } else if (content == nullptr) {
-            contentPresenter_->SetContent(nullptr);
-        }
-    }
+    SyncContentToPresenter();
 }
 
 void ScrollViewer::OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept {

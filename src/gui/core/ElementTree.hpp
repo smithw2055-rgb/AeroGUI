@@ -275,6 +275,8 @@ public:
         RootAttachment& outAttachment) noexcept;
     Base::Result<void> CompleteVisualEdges(
         Base::Span<Markup::VisualEdge> edges) noexcept;
+    Base::Result<void> DetachVisualEdges(
+        Base::Span<Markup::VisualEdge> edges) noexcept;
     Base::Result<void> DetachVisualGraph(
         RootAttachment& attachment,
         Base::Span<Markup::VisualEdge> edges) noexcept;

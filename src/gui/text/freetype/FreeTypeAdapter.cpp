@@ -604,6 +604,7 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
     output.strideBytes = bitmap.width;
     output.bearingX = face->freeTypeFace->glyph->bitmap_left;
     output.bearingY = face->freeTypeFace->glyph->bitmap_top;
+    output.advanceX = From26Dot6(face->freeTypeFace->glyph->metrics.horiAdvance);
     return {};
 }
 

@@ -188,6 +188,21 @@ void Popup::OnOpened(RoutedEventArgs& e) {
     RaiseEvent(OpenedEvent, &e);
 }
 
+namespace {
+
+constexpr double kUnconstrainedMeasure = 1.0e12;
+
+void SyncPopupHitTestAndMeasure(
+    FrameworkElement& host,
+    bool open,
+    UIElement* child) noexcept {
+    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
+    static_cast<void>(host.SetIsHitTestVisible(hitTest));
+    host.InvalidateMeasure();
+}
+
+} // namespace
+
 void Popup::OnClosed(RoutedEventArgs& e) {
     RaiseEvent(ClosedEvent, &e);
 }
@@ -197,19 +212,7 @@ void Popup::OnPropertyChanged(
     ContentControl::OnPropertyChanged(args);
     if (args.GetProperty() == IsOpenProperty) {
         const bool open = args.GetNewValue().AsBoolean();
-        bool hitTest = open;
-        if (open) {
-            UIElement* popupChild = GetChild();
-            // Tooltips set IsHitTestVisible=False on the content so the pointer
-            // can keep hitting the placement target. Forcing the Popup itself
-            // hittable would steal MouseEnter/Leave from the planet underneath.
-            if (popupChild != nullptr &&
-                !popupChild->GetIsHitTestVisible()) {
-                hitTest = false;
-            }
-        }
-        static_cast<void>(SetIsHitTestVisible(hitTest));
-        InvalidateMeasure();
+        SyncPopupHitTestAndMeasure(*this, open, GetChild());
         RoutedEventArgs eventArgs;
         if (open) {
             OnOpened(eventArgs);
@@ -227,8 +230,7 @@ Size Popup::MeasureOverride(
     if (!GetIsOpen() || popupChild == nullptr) {
         return Size{};
     }
-    constexpr double Unconstrained = 1.0e12;
-    MeasureChild(*popupChild, Size{Unconstrained, Unconstrained});
+    MeasureChild(*popupChild, Size{kUnconstrainedMeasure, kUnconstrainedMeasure});
     popupDesiredSize_ =
         popupChild->GetDesiredSize();
     // Popup content participates in rendering and input, but never consumes
@@ -511,9 +513,7 @@ void ToolTip::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) 
     if (args.GetProperty() != IsOpenProperty) return;
     const bool open = args.GetNewValue().AsBoolean();
     UIElement* child = GetTemplateRoot() != nullptr ? GetTemplateRoot() : GetContentElement();
-    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
-    static_cast<void>(SetIsHitTestVisible(hitTest));
-    InvalidateMeasure();
+    SyncPopupHitTestAndMeasure(*this, open, child);
 }
 
 Size ToolTip::MeasureOverride(Size availableSize) noexcept {
@@ -525,8 +525,7 @@ Size ToolTip::MeasureOverride(Size availableSize) noexcept {
         ? GetTemplateRoot()
         : (GetFallbackPresenter() != nullptr ? static_cast<UIElement*>(GetFallbackPresenter()) : GetContentElement());
     if (!GetIsOpen() || child == nullptr) return Size{};
-    constexpr double Unconstrained = 1.0e12;
-    MeasureChild(*child, Size{Unconstrained, Unconstrained});
+    MeasureChild(*child, Size{kUnconstrainedMeasure, kUnconstrainedMeasure});
     return Size{};
 }
 

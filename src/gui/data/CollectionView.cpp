@@ -18,28 +18,16 @@ struct DefaultViewEntry {
     Ref<CollectionView> view;
 };
 
-Base::Vector<CollectionView*>& LiveViews() noexcept {
-    static auto* views = new Base::Vector<CollectionView*>();
-    return *views;
-}
-
 CollectionView* AsCollectionView(
     Collections::IItemsSource* source) noexcept {
     if (source == nullptr) return nullptr;
-    Base::Vector<CollectionView*>& live = LiveViews();
-    for (std::uint32_t index = 0U; index < live.Size(); ++index) {
-        CollectionView* view = live[index];
-        if (view != nullptr &&
-            static_cast<Collections::IItemsSource*>(view) == source) {
-            return view;
-        }
-    }
-    return nullptr;
+    Base::Object* obj = source->AsObject();
+    return obj != nullptr ? ::Aero::TryCast<CollectionView>(obj) : nullptr;
 }
 
 Base::Vector<DefaultViewEntry>& DefaultViews() noexcept {
-    static auto* views = new Base::Vector<DefaultViewEntry>();
-    return *views;
+    static thread_local Base::Vector<DefaultViewEntry> views;
+    return views;
 }
 
 int CompareSortPropertyValues(
@@ -155,7 +143,6 @@ CollectionView::CollectionView(
     Collections::IItemsSource* source) noexcept
     : inner_(source),
       innerHandler_(this, &CollectionView::OnInnerChanged) {
-    static_cast<void>(LiveViews().PushBack(this));
     if (inner_ != nullptr) {
         Base::Object* obj = inner_->AsObject();
         if (obj != nullptr) {
@@ -168,14 +155,6 @@ CollectionView::CollectionView(
 }
 
 CollectionView::~CollectionView() {
-    Base::Vector<CollectionView*>& live = LiveViews();
-    for (std::uint32_t index = 0U; index < live.Size(); ++index) {
-        if (live[index] == this) {
-            live[index] = live.Back();
-            live.PopBack();
-            break;
-        }
-    }
     if (inner_ != nullptr) {
         if (!innerObj_.Expired()) {
             static_cast<void>(inner_->RemoveItemsChanged(innerHandler_));

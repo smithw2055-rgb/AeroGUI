@@ -263,13 +263,11 @@ void TextBlock::SetInlineValue(
     if (value.Kind() == Meta::ValueKind::Object &&
         !value.IsNullObject() &&
         value.AsObject()) {
-        Base::Ref<Base::Object> inlineObject = value.AsObject();
-        if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                inlineObject->RuntimeType(),
-                Documents::Inline::StaticTypeId())) {
+        auto* inlinePtr = ::Aero::TryCast<Documents::Inline>(value.AsObject().Get());
+        if (inlinePtr == nullptr) {
             return;
         }
-        AddOwnedInline(inlineObject);
+        AddOwnedInline(Base::Ref<Documents::Inline>::FromBorrowed(*inlinePtr));
         return;
     }
     if (value.Kind() != Meta::ValueKind::String) {
@@ -281,25 +279,19 @@ void TextBlock::SetInlineValue(
     AddOwnedInline(std::move(created));
 }
 void TextBlock::AddOwnedInline(
-    const Base::Ref<Base::Object>& inlineObject) noexcept {
+    Base::Ref<Documents::Inline> inlineObject) noexcept {
     if (!inlineObject) { AERO_ASSERT(false); return; }
     if (!VerifyAccess()) { AERO_ASSERT(false); return; }
-    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((*this)).Types();
-    const TypeId type = inlineObject->RuntimeType();
-    const bool supported = types.IsDerivedFrom(
-        type, Documents::Inline::StaticTypeId());
-    if (!supported) { AERO_ASSERT(false); return; }
-    for (const Base::Ref<Base::Object>& owned :
-         ownedInlines_) {
+    for (const Base::Ref<Documents::Inline>& owned : ownedInlines_) {
         if (owned.Get() == inlineObject.Get()) { AERO_ASSERT(false); return; }
     }
-    ownedInlines_.PushBack(inlineObject);
     pendingInline_ = inlineObject;
+    ownedInlines_.PushBack(std::move(inlineObject));
     InvalidateDocumentText();
 }
 void TextBlock::ClearOwnedInlines() noexcept {
     if (!VerifyAccess()) return;
-    for (Base::Ref<Base::Object>& item : ownedInlines_) {
+    for (Base::Ref<Documents::Inline>& item : ownedInlines_) {
         if (item) {
             if (Documents::InlineUIContainer* container =
                     ::Aero::TryCast<Documents::InlineUIContainer>(item.Get())) {
@@ -307,7 +299,7 @@ void TextBlock::ClearOwnedInlines() noexcept {
                     RemoveVisualChild(child);
                 }
             }
-            (*static_cast<Documents::Inline*>(item.Get())).Detach();
+            item->Detach();
         }
     }
     ownedInlines_.Clear();
@@ -351,10 +343,9 @@ void CollectInlineUiChildren(
 
 std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
     Base::Vector<UIElement*> children;
-    for (const Base::Ref<Base::Object>& item : ownedInlines_) {
+    for (const Base::Ref<Documents::Inline>& item : ownedInlines_) {
         if (!item) continue;
-        CollectInlineUiChildren(
-            *static_cast<const Documents::Inline*>(item.Get()), children);
+        CollectInlineUiChildren(*item, children);
     }
     std::uint32_t count = 0U;
     for (UIElement* child : children) {
@@ -368,10 +359,9 @@ std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
 ::Aero::Media::Visual* TextBlock::GetVisualChild(
     std::uint32_t index) const noexcept {
     Base::Vector<UIElement*> children;
-    for (const Base::Ref<Base::Object>& item : ownedInlines_) {
+    for (const Base::Ref<Documents::Inline>& item : ownedInlines_) {
         if (!item) continue;
-        CollectInlineUiChildren(
-            *static_cast<const Documents::Inline*>(item.Get()), children);
+        CollectInlineUiChildren(*item, children);
     }
     std::uint32_t current = 0U;
     for (UIElement* child : children) {
@@ -823,13 +813,12 @@ void AddTextBlockInline(
     if (!child) {
         return;
     }
-    auto& text = static_cast<TextBlock&>(owner);
-    if (!DependencyObjectAccess::PropertyRegistry((text)).Types().IsDerivedFrom(
-            child->RuntimeType(),
-            Aero::Documents::Inline::StaticTypeId())) {
+    auto* inlinePtr = ::Aero::TryCast<Aero::Documents::Inline>(child.Get());
+    if (inlinePtr == nullptr) {
         return;
     }
-    text.AddOwnedInline(child);
+    auto& text = static_cast<TextBlock&>(owner);
+    text.AddOwnedInline(Base::Ref<Aero::Documents::Inline>::FromBorrowed(*inlinePtr));
 }
 
 void ClearTextBlockInlines(

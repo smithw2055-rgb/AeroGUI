@@ -346,6 +346,7 @@ Base::Result<void> FontManager::RasterizeGlyph(
     output.width = 0U;
     output.height = 0U;
     output.strideBytes = 0U;
+    output.advanceX = 0.0F;
     Base::Result<void> rasterized =
         record->rasterizer->Rasterize(request, output);
     if (!rasterized) return rasterized.GetStatus();

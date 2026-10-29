@@ -16,7 +16,7 @@ class TemplateEngine;
 
 class VisualStateManagerExecution {
 public:
-    static VisualStateManager* Create(
+    static Base::Ref<VisualStateManager> Create(
         Meta::EffectiveValueEngine& values,
         TemplateEngine& templates,
         AnimationEngine& animations,

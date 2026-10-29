@@ -31,11 +31,30 @@ using Aero::Meta::BindingPathCompileError;
 using PropertyValue = ::Aero::PropertyValue;
 using DependencyProperty = ::Aero::Meta::DependencyProperty;
 
-Media::Visual* FindTemplateAncestor(
+Media::Visual* FindVisualOrLogicalAncestor(
     Media::Visual* start,
     Base::StringView ancestorType,
     std::uint32_t level,
-    const Meta::TypeRegistry& types) noexcept;
+    const Meta::TypeRegistry& types,
+    bool startAtSelf = false) noexcept;
+
+inline Media::Visual* GetVisualOrLogicalParent(Media::Visual* node) noexcept {
+    if (node == nullptr) return nullptr;
+    if (auto* v = node->GetVisualParent()) return v;
+    if (auto* l = ::Aero::TryCast<Media::Visual>(node->GetLogicalParent())) return l;
+    if (auto* fe = ::Aero::TryCast<FrameworkElement>(node)) {
+        return ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
+    }
+    return nullptr;
+}
+
+inline Media::Visual* FindTemplateAncestor(
+    Media::Visual* start,
+    Base::StringView ancestorType,
+    std::uint32_t level,
+    const Meta::TypeRegistry& types) noexcept {
+    return FindVisualOrLogicalAncestor(start, ancestorType, level, types, false);
+}
 
 Base::Result<Base::Object*> ResolveCodeBindingSource(
     const Binding& binding,

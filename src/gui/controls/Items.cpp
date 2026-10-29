@@ -439,22 +439,10 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
             }
         }
         if (panel == nullptr) {
-            // WPF parity: StatusBar defaults to DockPanel (see
-            // ItemsControl.ItemsPanel docs), everything else to StackPanel.
-            // Without this, StatusBar items stack vertically when no
-            // ItemsPanel is set (gallery StatusBar sample).
-            if (RuntimeType() == StatusBar::StaticTypeId()) {
-                Base::Ref<DockPanel> dock = Base::MakeRef<DockPanel>();
-                if (!dock) return {};
-                dock->SetLastChildFill(false);
-                panelOwner = dock;
-                panel = dock.Get();
-            } else {
-                Base::Ref<StackPanel> stack = Base::MakeRef<StackPanel>();
-                if (!stack) return {};
-                panelOwner = stack;
-                panel = stack.Get();
-            }
+            Base::Ref<Panel> defaultPanel = CreateDefaultItemsPanel();
+            if (!defaultPanel) return {};
+            panel = defaultPanel.Get();
+            panelOwner = std::move(defaultPanel);
         }
         panel->SetValue(Panel::IsItemsHostProperty, true);
         return {std::move(panelOwner), panel};
@@ -704,13 +692,24 @@ void ItemsControl::PrepareContainerForItemOverride(
         return;
     }
 
-    const Base::Ref<Base::Object> hierarchicalSource =
-        hierarchical->GetItemsSource();
-    const Base::Ref<Base::Object> hierarchicalTemplate =
-        hierarchical->GetItemTemplate();
-    if (!hierarchicalSource && !hierarchicalTemplate) return;
+    if (auto* childItems = TryCast<ItemsControl>(&container)) {
+        childItems->ApplyHierarchicalDataTemplate(
+            Base::Ref<HierarchicalDataTemplate>::FromBorrowed(
+                *const_cast<HierarchicalDataTemplate*>(hierarchical)),
+            item);
+    }
+}
 
-    auto& childItems = static_cast<ItemsControl&>(container);
+Base::Ref<Panel> ItemsControl::CreateDefaultItemsPanel() const noexcept {
+    return Base::MakeRef<StackPanel>();
+}
+
+void ItemsControl::ApplyHierarchicalDataTemplate(
+    const Base::Ref<HierarchicalDataTemplate>& templateObj,
+    const Base::Ref<Base::Object>& item) noexcept {
+    if (!templateObj) return;
+    Base::Ref<Base::Object> hierarchicalSource = templateObj->GetItemsSource();
+    const Base::Ref<Base::Object> hierarchicalTemplate = templateObj->GetItemTemplate();
     Base::Ref<DataTemplate> childItemTemplate;
     if (hierarchicalTemplate &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
@@ -719,58 +718,44 @@ void ItemsControl::PrepareContainerForItemOverride(
         childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
             static_cast<DataTemplate&>(*hierarchicalTemplate));
     }
+    if (!childItemTemplate) {
+        childItemTemplate = Base::Ref<DataTemplate>::FromBorrowed(
+            static_cast<DataTemplate&>(*templateObj));
+    }
     if (!hierarchicalSource) {
-        childItems.SetItemTemplate(std::move(childItemTemplate));
+        SetItemTemplate(std::move(childItemTemplate));
         return;
     }
     if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             hierarchicalSource->RuntimeType(),
             Data::Binding::StaticTypeId())) {
-        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                container.RuntimeType(),
-                TreeViewItem::StaticTypeId())) {
-            static_cast<TreeViewItem&>(container).SetHierarchicalContent(
-                hierarchicalSource,
-                std::move(childItemTemplate));
-            return;
-        }
-        childItems.SetItemTemplate(std::move(childItemTemplate));
-        childItems.SetItemsSource(hierarchicalSource);
+        SetItemTemplate(std::move(childItemTemplate));
+        SetItemsSource(hierarchicalSource);
         return;
     }
 
-    auto* bindings = ElementTree::BindingsOf(childItems);
+    auto* bindings = ElementTree::BindingsOf(*this);
     if (bindings == nullptr || bindings->Metadata() == nullptr) {
         AERO_ASSERT(false);
         return;
     }
     const auto& binding =
         static_cast<const Data::Binding&>(*hierarchicalSource);
-    if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            container.RuntimeType(),
-            TreeViewItem::StaticTypeId())) {
-        static_cast<TreeViewItem&>(container).SetHierarchicalBinding(
-            Base::Ref<Data::Binding>::FromBorrowed(
-                const_cast<Data::Binding&>(binding)),
-            item,
-            std::move(childItemTemplate));
-        return;
-    }
-    childItems.SetItemTemplate(std::move(childItemTemplate));
+    SetItemTemplate(std::move(childItemTemplate));
     Data::MetadataBindingDescriptor descriptor;
     descriptor.metadata = bindings->Metadata();
     descriptor.source = item.Get();
-    descriptor.target = &childItems;
+    descriptor.target = this;
     descriptor.targetProperty = ItemsSourceProperty.Handle();
     descriptor.path = binding.GetPathText();
     descriptor.stringFormat = binding.GetStringFormat();
     descriptor.mode = bindings->ResolveBindingMode(
-        childItems,
+        *this,
         ItemsSourceProperty.Handle(),
         binding.GetMode());
     descriptor.updateSourceTrigger =
         bindings->ResolveUpdateSourceTrigger(
-            childItems,
+            *this,
             ItemsSourceProperty.Handle(),
             binding.GetUpdateSourceTrigger());
     descriptor.converterResource = binding.GetConverter();
@@ -779,7 +764,12 @@ void ItemsControl::PrepareContainerForItemOverride(
     descriptor.targetNullValue = binding.GetTargetNullValue();
     Base::Result<void> queued = bindings->QueueDeferred(descriptor);
     if (!queued) return;
-    static_cast<void>(bindings->ActivateDeferredWhenReady(childItems));
+    static_cast<void>(bindings->ActivateDeferredWhenReady(*this));
+}
+
+void ItemsControl::ClearHierarchicalDataTemplate() noexcept {
+    SetItemsSource(Base::Ref<Base::Object>{});
+    SetItemTemplate(Base::Ref<DataTemplate>{});
 }
 
 void ItemsControl::ClearContainerForItemOverride(
@@ -792,18 +782,10 @@ void ItemsControl::ClearContainerForItemOverride(
     }
     const Base::Ref<DataTemplate> resolved =
         GetTemplateForItemOverride(item, 0U);
-    if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr &&
-        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            container.RuntimeType(), ItemsControl::StaticTypeId())) {
-        auto& childItems = static_cast<ItemsControl&>(container);
-        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                container.RuntimeType(),
-                TreeViewItem::StaticTypeId())) {
-            static_cast<TreeViewItem&>(container)
-                .ClearHierarchicalContent();
+    if (TryCast<HierarchicalDataTemplate>(resolved.Get()) != nullptr) {
+        if (auto* childItems = TryCast<ItemsControl>(&container)) {
+            childItems->ClearHierarchicalDataTemplate();
         }
-        childItems.SetItemsSource(Base::Ref<Base::Object>{});
-        childItems.SetItemTemplate(Base::Ref<DataTemplate>{});
     }
     container.ClearValue(
         FrameworkElement::DataContextProperty);
@@ -1693,13 +1675,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             // display them. Extracting TextBlock.Text only covers string headers.
             const Value header = Value::FromObject(
                 record.content->RuntimeType(), record.content);
-            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-                    container.RuntimeType(),
-                    TreeViewItem::StaticTypeId())) {
-                static_cast<TreeViewItem&>(container).SetHeader(header);
-            } else {
-                headeredItemsControl->SetHeader(header);
-            }
+            headeredItemsControl->SetHeader(header);
             record.generatedHeader = true;
         }
     } else if (!record.itemIsOwnContainer && contentControl != nullptr) {
@@ -1863,7 +1839,7 @@ ItemContainerGenerator::GeneratorState::ProjectGeneratedContent(
             }
             if (&node != &container) {
                 if (::Aero::TryCast<ItemsPresenter>(&node) != nullptr ||
-                    ::Aero::TryCast<TreeViewItem>(&node) != nullptr) {
+                    ::Aero::TryCast<HeaderedItemsControl>(&node) != nullptr) {
                     return;
                 }
             }
@@ -1972,13 +1948,6 @@ ItemContainerGenerator::GeneratorState::UpdateGeneratedHeader(
     }
     const Base::StringView text =
         static_cast<TextBlock*>(record.content.Get())->GetText();
-    if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-            record.container->RuntimeType(),
-            TreeViewItem::StaticTypeId())) {
-        static_cast<TreeViewItem*>(record.container.Get())
-            ->SetHeader(text);
-        return;
-    }
     static_cast<HeaderedItemsControl*>(record.container.Get())
         ->SetHeader(text);
 }
@@ -2059,17 +2028,8 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
                         TextBlock::TextProperty,
                         generatedHeaderChangedHandler_));
         }
-        const auto clearHeader = [&]() noexcept {
-            if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-                    container.RuntimeType(), TreeViewItem::StaticTypeId())) {
-                static_cast<TreeViewItem&>(container).SetHeader(
-                    Value::NullObject(Meta::TypeOf<Base::Object>()));
-                return;
-            }
-            headeredItemsControl->SetHeader(
-                Value::NullObject(Meta::TypeOf<Base::Object>()));
-        };
-        clearHeader();
+        headeredItemsControl->SetHeader(
+            Value::NullObject(Meta::TypeOf<Base::Object>()));
         record.generatedHeader = false;
     }
     if (record.appliedStyle != nullptr && styles_ != nullptr) {

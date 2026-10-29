@@ -244,12 +244,12 @@ Base::Result<void> ViewFrame::Initialize(
                     engines->templates,
                     engines->animations,
                     (*metadata).DependencyProperties());
-            if (engines->visualStates == nullptr) {
+            if (!engines->visualStates) {
                 status = Base::Status::Failure(
                     Base::ErrorCode::OutOfMemory,
                     "VisualStateManager allocation failed");
             } else {
-                engines->tree.SetVisualStates(engines->visualStates);
+                engines->tree.SetVisualStates(engines->visualStates.Get());
             }
         }
         if (status) {

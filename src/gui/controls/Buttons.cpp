@@ -141,13 +141,6 @@ void ButtonBase::OnPropertyChanged(const DependencyPropertyChangedEventArgs& arg
             if (mouseOver && !wasMouseOver_ && GetIsEnabled()) {
                 OnClick();
             }
-            if (auto* repeat = TryCast<RepeatButton>(this)) {
-                if (mouseOver && GetIsEnabled()) {
-                    ElementTree::SetActiveRepeatButton(*this, repeat);
-                } else {
-                    ElementTree::SetActiveRepeatButton(*this, nullptr);
-                }
-            }
         } else if (pointerDown_) {
             static_cast<void>(SetPressedState(mouseOver));
         }
@@ -161,9 +154,6 @@ void ButtonBase::OnPropertyChanged(const DependencyPropertyChangedEventArgs& arg
             }
             keyboardDown_ = false;
             static_cast<void>(SetPressedState(false));
-            if (auto* repeat = TryCast<RepeatButton>(this)) {
-                ElementTree::SetActiveRepeatButton(*this, nullptr);
-            }
         }
         UpdateVisualState();
     } else if (args.GetProperty() == IsPressedProperty ||
@@ -517,6 +507,23 @@ void RepeatButton::OnKeyUp(KeyEventArgs& args) {
     ButtonBase::OnKeyUp(args);
     if (args.GetKey() == KeyboardKeySpace || args.GetKey() == KeyboardKeyEnter) {
         if (GetClickMode() != ClickMode::Hover || !GetIsMouseOver()) {
+            ElementTree::SetActiveRepeatButton(*this, nullptr);
+        }
+    }
+}
+
+void RepeatButton::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
+    ButtonBase::OnPropertyChanged(args);
+    if (args.GetProperty() == IsMouseOverProperty) {
+        if (GetClickMode() == ClickMode::Hover) {
+            if (GetIsMouseOver() && GetIsEnabled()) {
+                ElementTree::SetActiveRepeatButton(*this, this);
+            } else {
+                ElementTree::SetActiveRepeatButton(*this, nullptr);
+            }
+        }
+    } else if (args.GetProperty() == IsEnabledProperty) {
+        if (!GetIsEnabled()) {
             ElementTree::SetActiveRepeatButton(*this, nullptr);
         }
     }

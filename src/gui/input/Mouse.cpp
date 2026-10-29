@@ -75,10 +75,10 @@ void Mouse::SetOverrideCursor(std::nullptr_t) noexcept {
 
 namespace Aero::Input::DeviceState {
 
-static InputRouter* g_activeRouter = nullptr;
-static Base::Point g_lastPointerPosition{};
-static std::uint32_t g_lastModifiers = 0U;
-static Base::Ref<Cursor> g_overrideCursor;
+static thread_local InputRouter* g_activeRouter = nullptr;
+static thread_local Base::Point g_lastPointerPosition{};
+static thread_local std::uint32_t g_lastModifiers = 0U;
+static thread_local Base::Ref<Cursor> g_overrideCursor;
 
 InputRouter* ActiveRouter() noexcept { return g_activeRouter; }
 void SetActiveRouter(InputRouter* router) noexcept {

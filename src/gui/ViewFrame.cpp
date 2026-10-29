@@ -468,12 +468,7 @@ ViewEngines::ViewEngines(
       overlays(frame),
       focus(frame) {}
 
-ViewEngines::~ViewEngines() noexcept {
-    if (visualStates != nullptr) {
-        delete visualStates;
-        visualStates = nullptr;
-    }
-}
+ViewEngines::~ViewEngines() noexcept = default;
 
 
 Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(

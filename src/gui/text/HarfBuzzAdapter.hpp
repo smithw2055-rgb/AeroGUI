@@ -13,6 +13,7 @@ public:
     explicit HarfBuzzAdapter(
         FreeTypeAdapter& fonts) noexcept
         : fonts_(&fonts) {}
+    ~HarfBuzzAdapter() override;
 
     bool Supports(
         FontProviderIdentity provider) const noexcept override;
@@ -22,6 +23,7 @@ public:
 
 private:
     FreeTypeAdapter* fonts_ = nullptr;
+    void* buffer_ = nullptr;
 };
 
 } // namespace Aero::Text
