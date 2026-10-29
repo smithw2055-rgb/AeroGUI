@@ -2,6 +2,7 @@
 // One TU; sections are module registration methods, not separate .inl files.
 
 #include "BuiltinModules.hpp"
+#include "gui/markup/XamlSchema.hpp"
 
 #include "gui/core/Describe.hpp"
 #include "gui/core/EnumRegistration.hpp"
@@ -19,7 +20,6 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/media/AnimationModel.hpp"
 #include "gui/templates/TemplateInstance.hpp"
-#include "gui/markup/XamlObjectWriterState.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>

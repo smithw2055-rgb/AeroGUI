@@ -1,4 +1,4 @@
-#include "gui/markup/MarkupExtensionContract.hpp"
+#include "gui/markup/XamlSchema.hpp"
 
 #include "gui/core/ValueConversion.hpp"
 
@@ -16,7 +16,6 @@
 
 #include "gui/templates/TemplateInstance.hpp"
 
-#include "gui/markup/XamlObjectWriterState.hpp"
 
 #include <cstdio>
 

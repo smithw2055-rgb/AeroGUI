@@ -1,11 +1,11 @@
 #include "gui/triggers/TriggerEngine.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Meta.hpp>

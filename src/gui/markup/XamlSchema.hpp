@@ -9,19 +9,602 @@
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/ValueConversion.hpp"
 
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/HashMap.hpp>
+#include <Aero/Base/HashSet.hpp>
+#include <Aero/Base/ResourceUri.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/Base/StringView.hpp>
+#include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/Menus.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Markup/MarkupExtension.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Brushes.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/UIElement.hpp>
+#include "gui/templates/TemplateInstance.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <utility>
 
-// Private XAML schema/loader/parse contract (WPF: XamlSchemaContext /
-// ParserContext / XamlReader node surface). Not an include umbrella —
-// consumers that need ElementTree/Layout/Metadata include those directly.
+namespace Aero {
+class NameScope;
+class DependencyObject;
+class ResourceDictionary;
+class ResourceKey;
+class BindingEngine;
+}
+
+namespace Aero::Controls {
+class ControlTemplate;
+}
 
 namespace Aero::Markup {
 
+class Schema;
+class SchemaManifest;
+class CompiledDocument;
+class NodeReader;
+class ObjectWriter;
+struct VisualContentPlan;
+struct EffectServices;
+struct ExtensionServices;
+
+// ===== DeferredContent edges =====
+struct DeferredContentEdge {
+    Base::Object* owner = nullptr;
+    Base::Object* parent = nullptr;
+    Base::Ref<Base::Object> child;
+    ::Aero::Meta::Registry* metadata = nullptr;
+    Meta::MemberId member = Meta::InvalidMemberId;
+    bool property = false;
+};
+
+struct DeferredBindingEdge {
+    Base::Object* owner = nullptr;
+    Base::Object* source = nullptr;
+    Base::String sourceName;
+    Base::String relativeAncestorType;
+    std::uint32_t relativeAncestorLevel = 0U;
+    ::Aero::DependencyObject* target = nullptr;
+    ::Aero::Meta::Registry* metadata = nullptr;
+    Meta::DependencyPropertyHandle targetProperty;
+    Meta::DependencyPropertyHandle dataContextProperty;
+    Base::String path;
+    Base::String stringFormat;
+    bool bindsToSource = false;
+    Data::BindingMode mode =
+        Data::BindingMode::Default;
+    Meta::UpdateSourceTrigger updateSourceTrigger =
+        Meta::UpdateSourceTrigger::PropertyChanged;
+    Base::Ref<Data::IValueConverter> converter;
+    Meta::PropertyValue converterParameter;
+};
+
+class DeferredContentPlan {
+public:
+    Base::Result<void> Stage(
+        Base::Object& owner,
+        Base::Object& parent,
+        const Base::Ref<Base::Object>& child,
+        ::Aero::Meta::Registry& metadata,
+        Meta::MemberId member) noexcept;
+    Base::Result<void> StageProperty(
+        Base::Object& owner,
+        Base::Object& parent,
+        const Base::Ref<Base::Object>& child,
+        ::Aero::Meta::Registry& metadata,
+        Meta::MemberId member) noexcept;
+    Base::Result<void> CopyForOwner(
+        const Base::Object& owner,
+        Base::Vector<DeferredContentEdge>& output) const noexcept;
+    Base::Result<void> StageBinding(
+        Base::Object& owner,
+        Base::Object* source,
+        Base::StringView sourceName,
+        Base::StringView relativeAncestorType,
+        std::uint32_t relativeAncestorLevel,
+        ::Aero::DependencyObject& target,
+        ::Aero::Meta::Registry& metadata,
+        Meta::DependencyPropertyHandle targetProperty,
+        Meta::DependencyPropertyHandle dataContextProperty,
+        Base::StringView path,
+        Base::StringView stringFormat,
+        Data::BindingMode mode,
+        Meta::UpdateSourceTrigger updateSourceTrigger,
+        bool bindsToSource,
+        const Base::Ref<Data::IValueConverter>& converter,
+        const Meta::PropertyValue& converterParameter) noexcept;
+    Base::Result<void> CopyBindingsForOwner(
+        const Base::Object& owner,
+        Base::Vector<DeferredBindingEdge>& output) const noexcept;
+    void ReleaseOwner(Base::Object& owner) noexcept;
+    void ReleaseAll() noexcept;
+    bool Empty() const noexcept {
+        return edges_.Empty() && bindings_.Empty();
+    }
+
+private:
+    Base::Vector<DeferredContentEdge> edges_;
+    Base::Vector<DeferredBindingEdge> bindings_;
+};
+
+// ============================================================================
+// SECTION: ProvidedValue & ExtensionServices Contract
+// ============================================================================
+inline Base::StringView TrimAscii(Base::StringView value) noexcept {
+    return ::Aero::Base::ValueConversion::Trim(value);
+}
+
+
+class DeferredContentPlan;
+class Schema;
+struct VisualContentPlan;
+
+enum class ProvidedValueKind : std::uint8_t {
+    Value = 0U,
+    Handled,
+    Expression,
+    Deferred
+};
+
+using ProvidedPrepareCallback =
+    Base::Result<void> (*)(
+        void* context,
+        const Aero::NameScope& names) noexcept;
+using ProvidedCommitCallback =
+    Base::Result<std::uint64_t> (*)(void* context) noexcept;
+using ProvidedRollbackCallback = void (*)(
+    void* context,
+    std::uint64_t token) noexcept;
+using ProvidedCleanupCallback = void (*)(void* context) noexcept;
+using ProvidedBindCallback = Base::Result<void> (*)(
+    void* context, const EffectServices& services) noexcept;
+
+struct ProvidedValue {
+    ProvidedValueKind kind = ProvidedValueKind::Value;
+    Meta::Value value;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Meta::PropertyExpression expression;
+    void* rollbackContext = nullptr;
+    std::uint64_t rollbackToken = 0U;
+    ProvidedRollbackCallback rollback = nullptr;
+    ProvidedPrepareCallback prepare = nullptr;
+    ProvidedCommitCallback commit = nullptr;
+    ProvidedCleanupCallback cleanup = nullptr;
+    ProvidedBindCallback bind = nullptr;
+
+    static ProvidedValue FromValue(
+        Meta::Value&& provided) noexcept {
+        ProvidedValue result;
+        result.value = static_cast<Meta::Value&&>(provided);
+        return result;
+    }
+    static ProvidedValue Handled(
+        void* context = nullptr,
+        std::uint64_t token = 0U,
+        ProvidedRollbackCallback rollbackCallback = nullptr) noexcept {
+        ProvidedValue result;
+        result.kind = ProvidedValueKind::Handled;
+        result.rollbackContext = context;
+        result.rollbackToken = token;
+        result.rollback = rollbackCallback;
+        return result;
+    }
+    static ProvidedValue Expression(
+        Meta::EffectiveValueEngine& engine,
+        const Meta::PropertyExpression& provided) noexcept {
+        ProvidedValue result;
+        result.kind = ProvidedValueKind::Expression;
+        result.effectiveValues = &engine;
+        result.expression = provided;
+        return result;
+    }
+    static ProvidedValue Deferred(
+        void* context,
+        ProvidedCommitCallback commitCallback,
+        ProvidedRollbackCallback rollbackCallback,
+        ProvidedCleanupCallback cleanupCallback,
+        ProvidedPrepareCallback prepareCallback = nullptr,
+        ProvidedBindCallback bindCallback = nullptr) noexcept {
+        ProvidedValue result;
+        result.kind = ProvidedValueKind::Deferred;
+        result.rollbackContext = context;
+        result.prepare = prepareCallback;
+        result.commit = commitCallback;
+        result.rollback = rollbackCallback;
+        result.cleanup = cleanupCallback;
+        result.bind = bindCallback;
+        return result;
+    }
+    void Discard() noexcept {
+        if (kind == ProvidedValueKind::Expression &&
+            expression.cleanup != nullptr) {
+            expression.cleanup(expression.context);
+        } else if (kind == ProvidedValueKind::Handled &&
+                   rollback != nullptr) {
+            rollback(rollbackContext, rollbackToken);
+        } else if (kind == ProvidedValueKind::Deferred &&
+                   cleanup != nullptr) {
+            cleanup(rollbackContext);
+        }
+        expression = {};
+        rollbackContext = nullptr;
+        rollbackToken = 0U;
+        rollback = nullptr;
+        prepare = nullptr;
+        commit = nullptr;
+        cleanup = nullptr;
+        bind = nullptr;
+    }
+};
+
+class NamespaceScope {
+public:
+    using LookupCallback = Base::Result<Base::StringView> (*)(void* context, Base::StringView prefix) noexcept;
+
+    NamespaceScope() noexcept = default;
+    NamespaceScope(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
+
+    Base::Result<Base::StringView> Lookup(Base::StringView prefix) const noexcept;
+    bool IsAvailable() const noexcept { return lookup_ != nullptr; }
+
+private:
+    LookupCallback lookup_ = nullptr;
+    void* context_ = nullptr;
+};
+
+class ResourceResolver {
+public:
+    using LookupCallback = Base::Result<Aero::ResourceValue> (*)(void* context, Base::StringView key) noexcept;
+
+    ResourceResolver() noexcept = default;
+    ResourceResolver(LookupCallback lookup, void* context) noexcept : lookup_(lookup), context_(context) {}
+
+    Base::Result<Aero::ResourceValue> Lookup(Base::StringView key) const noexcept;
+    bool IsAvailable() const noexcept { return lookup_ != nullptr; }
+
+private:
+    LookupCallback lookup_ = nullptr;
+    void* context_ = nullptr;
+};
+
+struct ExtensionServices {
+    const Schema* schema = nullptr;
+    Base::Object* targetObject = nullptr;
+    Meta::TypeId targetObjectType = Meta::InvalidTypeId;
+    Meta::MemberId targetMember = Meta::InvalidMemberId;
+    Meta::TypeId targetValueType = Meta::InvalidTypeId;
+    Base::Object* rootObject = nullptr;
+    Base::Object* templatedParent = nullptr;
+    const Base::ResourceUri* baseUri = nullptr;
+    ::Aero::Diagnostics::SourceSpan source;
+    const Aero::NameScope* nameScope = nullptr;
+    NamespaceScope namespaces;
+    ResourceResolver resources;
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::BindingEngine* bindings = nullptr;
+    Aero::ResourceDictionary* fallbackResources = nullptr;
+    Base::Span<const Aero::ResourceDictionary* const>
+        ambientResourceChain;
+    VisualContentPlan* visualContent = nullptr;
+    Base::Object* deferredContentOwner = nullptr;
+    DeferredContentPlan* deferredContent = nullptr;
+};
+
+// ============================================================================
+// SECTION: XamlFacets Contract
+// ============================================================================
+using XamlInitializationCallback = Base::Result<void> (*)(
+    Base::Object& object,
+    void* context) noexcept;
+using XamlInitializationWithServicesCallback = Base::Result<void> (*)(
+    Base::Object& object,
+    const ExtensionServices& services,
+    void* context) noexcept;
+using XamlAbortInitializationCallback = void (*)(
+    Base::Object& object,
+    void* context) noexcept;
+using XamlRegisterNameCallback = Base::Result<void> (*)(
+    Base::Object& scopeOwner,
+    Base::StringView name,
+    Base::Object& object,
+    void* context) noexcept;
+using XamlAddResourceCallback = Base::Result<void> (*)(
+    Base::Object& scopeOwner,
+    const Aero::ResourceKey& key,
+    const Meta::Value& value,
+    void* context) noexcept;
+using XamlResolveResourceScopeCallback =
+    Aero::ResourceDictionary* (*)(
+        Base::Object& scopeOwner,
+        void* context) noexcept;
+using XamlResolveImplicitResourceKeyCallback =
+    Base::Result<Aero::ResourceKey> (*)(
+        const Base::Object& object,
+        void* context) noexcept;
+using XamlResolvePropertyTargetCallback =
+    ::Aero::DependencyObject* (*)(
+        Base::Object& object,
+        void* context) noexcept;
+using XamlProvideValueCallback =
+    Base::Result<ProvidedValue> (*)(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+
+enum class XamlFacetInheritancePolicy : std::uint8_t {
+    ExactOnly = 0U,
+    NearestBase,
+    ComposeBaseToDerived
+};
+
+// Compatibility registration DTO. Add() atomically projects this record to
+// the narrow capability slots retained by XamlFacets.
+struct XamlTypeFacet {
+    Meta::TypeId type = Meta::InvalidTypeId;
+    XamlInitializationCallback beginInit = nullptr;
+    XamlInitializationCallback endInit = nullptr;
+    XamlAbortInitializationCallback abortInit = nullptr;
+    void* context = nullptr;
+    bool createsNameScope = false;
+    bool createsResourceScope = false;
+    XamlRegisterNameCallback registerName = nullptr;
+    XamlAddResourceCallback addResource = nullptr;
+    XamlResolveResourceScopeCallback resolveResourceScope = nullptr;
+    XamlInitializationWithServicesCallback endInitWithServices = nullptr;
+    bool defersVisualContent = false;
+    XamlResolveImplicitResourceKeyCallback resolveImplicitResourceKey =
+        nullptr;
+    XamlResolvePropertyTargetCallback resolvePropertyTarget = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlLifecycleFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::ComposeBaseToDerived;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    XamlInitializationCallback beginInit = nullptr;
+    XamlInitializationCallback endInit = nullptr;
+    XamlAbortInitializationCallback abortInit = nullptr;
+    XamlInitializationWithServicesCallback endInitWithServices = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlNameScopeFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    bool createsNameScope = true;
+    XamlRegisterNameCallback registerName = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlResourceScopeFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    bool createsResourceScope = true;
+    XamlAddResourceCallback addResource = nullptr;
+    XamlResolveResourceScopeCallback resolveResourceScope = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlDeferredContentFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    bool defersVisualContent = true;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlImplicitResourceKeyFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    XamlResolveImplicitResourceKeyCallback resolve = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlPropertyTargetFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::NearestBase;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    XamlResolvePropertyTargetCallback resolve = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+struct XamlMarkupExtensionFacet {
+    inline static constexpr XamlFacetInheritancePolicy InheritancePolicy =
+        XamlFacetInheritancePolicy::ExactOnly;
+
+    Meta::TypeId type = Meta::InvalidTypeId;
+    XamlProvideValueCallback provideValue = nullptr;
+    void* context = nullptr;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+class XamlFacets {
+public:
+    XamlFacets() noexcept = default;
+
+    XamlFacets(const XamlFacets&) = delete;
+    XamlFacets& operator=(const XamlFacets&) = delete;
+
+    Base::Result<void> Add(
+        const XamlTypeFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlLifecycleFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlNameScopeFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlResourceScopeFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlDeferredContentFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlImplicitResourceKeyFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlPropertyTargetFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Add(
+        const XamlMarkupExtensionFacet& facet,
+        const Meta::TypeRegistry& descriptors) noexcept;
+    Base::Result<void> Freeze(
+        const Meta::TypeRegistry& descriptors) noexcept;
+
+    bool IsFrozen() const noexcept { return frozen_; }
+
+    Base::Span<const std::uint32_t> LifecyclePlan(
+        Meta::TypeId type) const noexcept;
+    const XamlLifecycleFacet* LifecycleAt(
+        std::uint32_t index) const noexcept;
+    const XamlLifecycleFacet* FindLifecycle(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlNameScopeFacet* FindNameScope(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlResourceScopeFacet* FindResourceScope(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlDeferredContentFacet* FindDeferredContent(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlImplicitResourceKeyFacet* FindImplicitResourceKey(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlPropertyTargetFacet* FindPropertyTarget(
+        Meta::TypeId type,
+        const Meta::TypeRegistry& descriptors) const noexcept;
+    const XamlMarkupExtensionFacet* FindMarkupExtension(
+        Meta::TypeId type) const noexcept;
+
+private:
+    enum class FacetKind : std::uint8_t {
+        Lifecycle = 0U,
+        NameScope,
+        ResourceScope,
+        DeferredContent,
+        ImplicitResourceKey,
+        PropertyTarget,
+        MarkupExtension,
+        Count
+    };
+
+    using FacetMask = std::uint16_t;
+    inline static constexpr std::uint32_t InvalidFacetIndex = UINT32_MAX;
+
+    struct DraftType {
+        Meta::TypeId type = Meta::InvalidTypeId;
+        std::uint32_t facets[
+            static_cast<std::uint8_t>(FacetKind::Count)] = {
+                InvalidFacetIndex,
+                InvalidFacetIndex,
+                InvalidFacetIndex,
+                InvalidFacetIndex,
+                InvalidFacetIndex,
+                InvalidFacetIndex,
+                InvalidFacetIndex};
+    };
+
+    // Runtime record. Exact facets are stored as a compact run in facetRefs_;
+    // lifecycle inheritance is flattened once at Freeze().
+    struct XamlTypePlan {
+        Meta::TypeId type = Meta::InvalidTypeId;
+        std::uint32_t firstFacetRef = 0U;
+        std::uint32_t firstLifecycleRef = 0U;
+        FacetMask facetMask = 0U;
+        std::uint16_t facetCount = 0U;
+        std::uint16_t lifecycleCount = 0U;
+        std::uint16_t reserved = 0U;
+    };
+
+    static_assert(sizeof(XamlTypePlan) <= 40U,
+        "XamlTypePlan must remain compact");
+    static_assert(sizeof(std::uint32_t) == 4U,
+        "XAML facet references must remain 32-bit");
+
+    using FacetIndex = Base::HashMap<Meta::TypeId, std::uint32_t>;
+
+    Base::Vector<DraftType> drafts_;
+    Base::Vector<XamlTypePlan> plans_;
+    Base::Vector<std::uint32_t> facetRefs_;
+    Base::Vector<std::uint32_t> lifecycleRefs_;
+    Base::Vector<XamlLifecycleFacet> lifecycles_;
+    Base::Vector<XamlNameScopeFacet> nameScopes_;
+    Base::Vector<XamlResourceScopeFacet> resourceScopes_;
+    Base::Vector<XamlDeferredContentFacet> deferredContents_;
+    Base::Vector<XamlImplicitResourceKeyFacet> implicitResourceKeys_;
+    Base::Vector<XamlPropertyTargetFacet> propertyTargets_;
+    Base::Vector<XamlMarkupExtensionFacet> markupExtensions_;
+    FacetIndex index_;
+    bool frozen_ = false;
+
+    static constexpr FacetMask FacetBit(FacetKind kind) noexcept {
+        return static_cast<FacetMask>(
+            1U << static_cast<std::uint8_t>(kind));
+    }
+    static std::uint16_t FacetCountBefore(
+        FacetMask mask, FacetKind kind) noexcept;
+    Base::Result<DraftType*> EnsureType(Meta::TypeId type) noexcept;
+    template<class Facet, class ColumnType>
+    Base::Result<void> AddFacetCore(
+        ColumnType& column,
+        FacetKind kind,
+        const Facet& facet,
+        const Meta::TypeRegistry& descriptors,
+        bool isInvalid,
+        const char* invalidMessage,
+        const char* duplicateMessage) noexcept;
+    DraftType* FindDraft(Meta::TypeId type) noexcept;
+    const DraftType* FindDraft(Meta::TypeId type) const noexcept;
+    const XamlTypePlan* FindPlan(Meta::TypeId type) const noexcept;
+    std::uint32_t FindFacetIndex(
+        Meta::TypeId type, FacetKind kind) const noexcept;
+    Base::Result<void> BuildLifecyclePlans(
+        const Meta::TypeRegistry& descriptors) noexcept;
+
+    const XamlLifecycleFacet* FindLifecycleExact(
+        Meta::TypeId type) const noexcept;
+    const XamlNameScopeFacet* FindNameScopeExact(
+        Meta::TypeId type) const noexcept;
+    const XamlResourceScopeFacet* FindResourceScopeExact(
+        Meta::TypeId type) const noexcept;
+    const XamlDeferredContentFacet* FindDeferredContentExact(
+        Meta::TypeId type) const noexcept;
+    const XamlImplicitResourceKeyFacet* FindImplicitResourceKeyExact(
+        Meta::TypeId type) const noexcept;
+    const XamlPropertyTargetFacet* FindPropertyTargetExact(
+        Meta::TypeId type) const noexcept;
+};
+
+// ============================================================================
+// SECTION: XamlSchema Core Contract
+// ============================================================================
 inline constexpr Base::StringView LanguageNamespaceUri() noexcept {
     return Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml");
 }
@@ -2003,4 +2586,634 @@ const ::Aero::Markup::EffectLifetime* XamlDocumentEffectLifetime(
     const ::Aero::Markup::XamlDocument& document) noexcept;
 ::Aero::Markup::LoaderResult TakeXamlDocument(
     ::Aero::Markup::XamlDocument& document) noexcept;
+
+// ============================================================================
+// SECTION: XamlSchemaConventions
+// ============================================================================
+
+inline constexpr Base::StringView WpfPresentationNamespace(
+    "http://schemas.microsoft.com/winfx/2006/xaml/presentation");
+inline constexpr Base::StringView BehaviorsNamespace(
+    "http://schemas.microsoft.com/xaml/behaviors");
+inline constexpr Base::StringView BlendInteractivityNamespace(
+    "http://schemas.microsoft.com/expression/2010/interactivity");
+inline constexpr Base::StringView SystemNamespacePrefix(
+    "clr-namespace:System");
+
+inline bool MatchesClrNamespacePrefix(
+    Base::StringView value,
+    Base::StringView prefix) noexcept {
+    return value.SizeBytes() >= prefix.SizeBytes() &&
+        value.Substr(0U, prefix.SizeBytes()) == prefix;
 }
+
+inline bool IsExtensionsClrNamespace(Base::StringView value) noexcept {
+    if (value.SizeBytes() < 31 ||
+        !MatchesClrNamespacePrefix(value, Base::StringView("clr-namespace:"))) {
+        return false;
+    }
+    return MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
+        MatchesClrNamespacePrefix(
+            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
+}
+
+inline Base::StringView CanonicalXamlNamespace(
+    Base::StringView value) noexcept {
+    if (value.SizeBytes() < 31) {
+        return value;
+    }
+    return value == WpfPresentationNamespace ||
+            value == BehaviorsNamespace ||
+            value == BlendInteractivityNamespace ||
+            IsExtensionsClrNamespace(value)
+        ? Meta::AeroNamespaceUri()
+        : value;
+}
+
+inline bool IsSystemNamespace(
+    Base::StringView value) noexcept {
+    return value.SizeBytes() >=
+            SystemNamespacePrefix.SizeBytes() &&
+        value.Substr(0U, SystemNamespacePrefix.SizeBytes()) ==
+            SystemNamespacePrefix;
+}
+
+inline Base::StringView CanonicalXamlTypeName(
+    Base::StringView value) noexcept {
+    switch (value.SizeBytes()) {
+    case 8:
+        if (value == Base::StringView("Geometry")) {
+            return Base::StringView("StreamGeometry");
+        }
+        break;
+    case 10:
+        if (value == Base::StringView("WavesBrush")) {
+            return Base::StringView("WavesShader");
+        }
+        break;
+    case 15:
+        if (value == Base::StringView("MonochromeBrush")) {
+            return Base::StringView("MonochromeShader");
+        }
+        break;
+    case 18:
+        if (value == Base::StringView("ConicGradientBrush")) {
+            return Base::StringView("ConicGradientShader");
+        }
+        break;
+    case 21:
+        if (value == Base::StringView("VisualStateTransition")) {
+            return Base::StringView("VisualTransition");
+        }
+        break;
+    default:
+        break;
+    }
+    return value;
+}
+
+inline bool IsAeroExtensionsFacade(
+    Base::StringView xamlNamespace,
+    Base::StringView ownerName) noexcept {
+    if (!IsExtensionsClrNamespace(xamlNamespace)) {
+        return false;
+    }
+    switch (ownerName.SizeBytes()) {
+    case 4:
+        return ownerName == Base::StringView("Text") ||
+               ownerName == Base::StringView("Path");
+    case 5:
+        return ownerName == Base::StringView("Brush");
+    case 7:
+        return ownerName == Base::StringView("Element");
+    case 8:
+        return ownerName == Base::StringView("RichText");
+    default:
+        return false;
+    }
+}
+
+struct ParsedXamlMemberName {
+    Base::StringView ownerName;
+    Base::StringView memberName;
+    Base::StringView ownerNamespace;
+    bool hasOwner = false;
+    bool isAliasedToBlendMode = false;
+};
+
+inline Base::Result<ParsedXamlMemberName> ParseXamlMemberName(
+    Base::StringView localName,
+    Base::StringView namespaceUri,
+    Base::StringView targetXamlNamespace) noexcept {
+    if (localName.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML member name cannot be empty");
+    }
+    std::uint32_t dot = localName.SizeBytes();
+    for (std::uint32_t index = 0U; index < localName.SizeBytes(); ++index) {
+        if (localName[index] != '.') continue;
+        if (dot != localName.SizeBytes()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "XAML member contains multiple owner separators");
+        }
+        dot = index;
+    }
+
+    ParsedXamlMemberName result;
+    if (dot == localName.SizeBytes()) {
+        result.hasOwner = false;
+        result.memberName = localName;
+        return result;
+    }
+
+    if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "XAML member owner syntax is invalid");
+    }
+
+    result.hasOwner = true;
+    result.ownerName = localName.Substr(0U, dot);
+    result.memberName = localName.Substr(dot + 1U, localName.SizeBytes() - dot - 1U);
+    result.ownerNamespace = namespaceUri.Empty()
+        ? targetXamlNamespace : namespaceUri;
+
+    if (IsAeroExtensionsFacade(result.ownerNamespace, result.ownerName)) {
+        if (result.ownerName == Base::StringView("Element") &&
+            result.memberName == Base::StringView("BlendingMode")) {
+            result.hasOwner = false;
+            result.memberName = Base::StringView("BlendMode");
+            result.isAliasedToBlendMode = true;
+        }
+    }
+
+    return result;
+}
+
+inline bool HasPropertyFlag(
+    Meta::PropertyFlags flags,
+    Meta::PropertyFlags test) noexcept {
+    return (static_cast<std::uint32_t>(flags) &
+            static_cast<std::uint32_t>(test)) != 0U;
+}
+
+inline bool HasEventFlag(
+    Meta::EventFlags flags,
+    Meta::EventFlags test) noexcept {
+    return (static_cast<std::uint32_t>(flags) &
+            static_cast<std::uint32_t>(test)) != 0U;
+}
+
+inline ResolvedMember MakeResolvedPropertyMember(
+    Meta::MemberId id,
+    Meta::TypeId ownerType,
+    Meta::TypeId valueType,
+    Meta::PropertyFlags flags) noexcept {
+    ResolvedMember resolved;
+    resolved.id = id;
+    resolved.kind = Meta::MemberKind::Property;
+    resolved.ownerType = ownerType;
+    resolved.valueType = valueType;
+    resolved.propertyFlags = flags;
+    resolved.attached = HasPropertyFlag(flags, Meta::PropertyFlags::Attached);
+    return resolved;
+}
+
+inline ResolvedMember MakeResolvedEventMember(
+    Meta::MemberId id,
+    Meta::TypeId ownerType,
+    Meta::TypeId eventArgsType,
+    Meta::EventFlags flags) noexcept {
+    ResolvedMember resolved;
+    resolved.id = id;
+    resolved.kind = Meta::MemberKind::Event;
+    resolved.ownerType = ownerType;
+    resolved.valueType = eventArgsType;
+    resolved.eventFlags = flags;
+    resolved.attached = HasEventFlag(flags, Meta::EventFlags::Attached);
+    return resolved;
+}
+
+
+// ============================================================================
+// SECTION: XamlPropertyResolution
+// ============================================================================
+
+inline const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
+    const ::Aero::Meta::DependencyPropertyRegistry& properties,
+    ::Aero::Meta::TypeId targetType,
+    ::Aero::Base::StringView name) noexcept {
+    const ::Aero::Meta::DependencyProperty* property = properties.Find(targetType, name);
+    if (property != nullptr) return property;
+
+    if (name == ::Aero::Base::StringView("IsFocused") &&
+        properties.Types().IsDerivedFrom(targetType, ::Aero::UIElement::StaticTypeId())) {
+        return properties.Find(::Aero::UIElement::IsKeyboardFocusedProperty.Handle());
+    }
+
+    if (name == ::Aero::Base::StringView("ContextMenu")) {
+        property = properties.Find(
+            ::Aero::Controls::ContextMenuService::ContextMenuProperty.Handle());
+        if (property != nullptr) return property;
+    }
+
+    std::uint32_t separator = UINT32_MAX;
+    for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
+        if (name[index] == '.') separator = index;
+    }
+    if (separator == UINT32_MAX || separator == 0U || separator + 1U >= name.SizeBytes()) {
+        return nullptr;
+    }
+
+    ::Aero::Base::StringView ownerName = name.Substr(0U, separator);
+    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
+        if (ownerName[index] == ':') {
+            ownerName = ownerName.Substr(index + 1U, ownerName.SizeBytes() - index - 1U);
+            break;
+        }
+    }
+
+    const ::Aero::Meta::TypeInfo* owner = properties.Types().FindType(
+        ::Aero::Meta::AeroNamespaceUri(), ownerName);
+    if (owner == nullptr && ownerName == ::Aero::Base::StringView("Text")) {
+        owner = properties.Types().FindType(
+            ::Aero::Meta::AeroNamespaceUri(), "TextProperties");
+    }
+    const ::Aero::Base::StringView member = name.Substr(
+        separator + 1U, name.SizeBytes() - separator - 1U);
+    if (owner != nullptr) {
+        property = properties.Find(owner->Id(), member);
+        if (property != nullptr) return property;
+    }
+
+    return properties.Find(targetType, member);
+}
+
+inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
+    ::Aero::Meta::TypeId targetPropertyType,
+    const ::Aero::Meta::Value& value) noexcept {
+    if (value.Type() == targetPropertyType) {
+        return value;
+    }
+
+    if ((targetPropertyType == ::Aero::Length::StaticTypeId() ||
+         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Length>() ||
+         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) &&
+        (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger ||
+         value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger ||
+         value.Kind() == ::Aero::Meta::ValueKind::Double)) {
+        double numericVal = 0.0;
+        if (value.Kind() == ::Aero::Meta::ValueKind::Double) {
+            auto num = ::Aero::Meta::ValueCodec<double>::Decode(value);
+            if (num) numericVal = num.Value();
+        } else if (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger) {
+            auto num = ::Aero::Meta::ValueCodec<std::int64_t>::Decode(value);
+            if (num) numericVal = static_cast<double>(num.Value());
+        } else if (value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger) {
+            auto num = ::Aero::Meta::ValueCodec<std::uint64_t>::Decode(value);
+            if (num) numericVal = static_cast<double>(num.Value());
+        }
+        if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) {
+            return ::Aero::Meta::ValueCodec<::Aero::GridLength>::Encode(::Aero::GridLength::Pixel(numericVal));
+        }
+        return ::Aero::Meta::ValueCodec<::Aero::Length>::Encode(::Aero::Length::Pixels(numericVal));
+    }
+
+    if (targetPropertyType == ::Aero::Media::Brush::StaticTypeId() &&
+        value.Type() == ::Aero::Meta::TypeOf<::Aero::Base::Color>()) {
+        auto color = ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Decode(value);
+        if (!color) return color.GetStatus();
+        auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
+        if (!brush) {
+            return ::Aero::Base::Status::Failure(::Aero::Base::ErrorCode::OutOfMemory, "Failed to create brush");
+        }
+        return ::Aero::Meta::Value::FromObject(
+            ::Aero::Media::Brush::StaticTypeId(),
+            ::Aero::Base::Ref<::Aero::Base::Object>(std::move(brush)));
+    }
+
+    if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {
+        if (value.IsNullObject()) {
+            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
+        }
+        if (value.Type() == ::Aero::Meta::TypeOf<bool>() ||
+            value.Kind() == ::Aero::Meta::ValueKind::Boolean) {
+            auto boolVal = ::Aero::Meta::ValueCodec<bool>::Decode(value);
+            if (!boolVal) return boolVal.GetStatus();
+            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
+                ::Aero::Nullable<bool>(boolVal.Value()));
+        }
+    }
+
+    if (value.IsNullObject() && value.Type() != targetPropertyType) {
+        return ::Aero::Meta::Value::NullObject(targetPropertyType);
+    }
+
+    return value;
+}
+
+inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
+    const ::Aero::Meta::DependencyProperty& property,
+    const ::Aero::Meta::Value& value,
+    const ::Aero::Meta::TypeRegistry& types) noexcept {
+    if (property.ValueType() == ::Aero::Meta::TypeOf<::Aero::Base::Color>() &&
+        value.Kind() == ::Aero::Meta::ValueKind::Object &&
+        types.IsDerivedFrom(value.Type(), ::Aero::Media::Brush::StaticTypeId())) {
+        ::Aero::Base::Result<::Aero::Base::Ref<::Aero::Media::Brush>> brush =
+            ::Aero::Meta::ValueCodec<::Aero::Base::Ref<::Aero::Media::Brush>>::Decode(value);
+        if (!brush) return brush.GetStatus();
+        if (brush.Value() == nullptr ||
+            brush->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
+            return ::Aero::Base::Status::Failure(
+                ::Aero::Base::ErrorCode::InvalidArgument,
+                "Color-backed text property requires SolidColorBrush");
+        }
+        return ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Encode(
+            static_cast<const ::Aero::Media::SolidColorBrush&>(*brush.Value()).GetColor());
+    }
+
+    return CoerceXamlValueForProperty(property.ValueType(), value);
+}
+
+
+// ============================================================================
+// SECTION: MarkupExtension Providers & Context
+// ============================================================================
+
+struct BindingExtensionOptions {
+    BindingExtensionOptions() noexcept = default;
+    BindingExtensionOptions(
+        Aero::BindingEngine* bindingManager,
+        Meta::DependencyPropertyHandle dataContext) noexcept
+        : bindings(bindingManager),
+          dataContextProperty(dataContext) {}
+
+    Aero::BindingEngine* bindings = nullptr;
+    Meta::DependencyPropertyHandle dataContextProperty;
+};
+
+// Registers a {Binding ElementName=..., Path=..., Mode=...} provider. Explicit
+// ElementName wins over DataContext. Paths are compiled to immutable metadata
+// plans; DataContext paths are resolved after tree attachment and recompiled
+// only when the concrete source type changes.
+class BindingExtension {
+public:
+    explicit BindingExtension(
+        const BindingExtensionOptions& options) noexcept;
+
+    BindingExtension(const BindingExtension&) = delete;
+    BindingExtension& operator=(const BindingExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId bindingExtensionType) noexcept;
+    void SetDataContextProperty(
+        Meta::DependencyPropertyHandle property) noexcept {
+        options_.dataContextProperty = property;
+    }
+
+private:
+    BindingExtensionOptions options_;
+
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class DynamicResource {
+public:
+    static Base::Result<void> Attach(
+        Meta::EffectiveValueEngine& effectiveValues,
+        Aero::ResourceDictionary& resources,
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        Base::StringView key) noexcept;
+    static Base::Result<void> Attach(
+        Meta::EffectiveValueEngine& effectiveValues,
+        Base::Span<
+            const Aero::ResourceDictionary* const> resourceChain,
+        Aero::ResourceDictionary* fallbackResources,
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        Base::StringView key) noexcept;
+    static Base::Result<Meta::PropertyExpression> CreateExpression(
+        Meta::EffectiveValueEngine& effectiveValues,
+        Base::Span<
+            const Aero::ResourceDictionary* const> resourceChain,
+        Aero::ResourceDictionary* fallbackResources,
+        ::Aero::DependencyObject& target,
+        Meta::DependencyPropertyHandle property,
+        Base::StringView key) noexcept;
+};
+
+struct DynamicResourceExtensionOptions {
+    DynamicResourceExtensionOptions() noexcept = default;
+    DynamicResourceExtensionOptions(
+        Meta::EffectiveValueEngine* effectiveValueEngine,
+        Aero::ResourceDictionary* resourceDictionary) noexcept
+        : effectiveValues(effectiveValueEngine),
+          resources(resourceDictionary) {}
+
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::ResourceDictionary* resources = nullptr;
+};
+
+class DynamicResourceExtension {
+public:
+    explicit DynamicResourceExtension(
+        const DynamicResourceExtensionOptions& options) noexcept;
+
+    DynamicResourceExtension(const DynamicResourceExtension&) = delete;
+    DynamicResourceExtension& operator=(
+        const DynamicResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId dynamicResourceExtensionType) noexcept;
+
+private:
+    DynamicResourceExtensionOptions options_;
+
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+// Mirrors WPF's {StaticResource key}/StaticResourceExtension. Unlike
+// DynamicResourceExtension it resolves the resource dictionary key exactly once
+// while the XAML tree is authored and returns the value directly; there is no
+// expression and no change tracking once the tree is live.
+class StaticResourceExtension {
+public:
+    StaticResourceExtension() noexcept = default;
+
+    StaticResourceExtension(const StaticResourceExtension&) = delete;
+    StaticResourceExtension& operator=(
+        const StaticResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId staticResourceExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class TypeExtension {
+public:
+    TypeExtension() noexcept = default;
+
+    TypeExtension(const TypeExtension&) = delete;
+    TypeExtension& operator=(const TypeExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+// Compatibility provider for AeroGUIExtensions.Loc. Its attached Source is
+// registered by the markup schema; the provider supplies values to ordinary
+// property attributes such as {aero:Loc TitleLabel}.
+class LocExtension {
+public:
+    LocExtension() noexcept = default;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+    // Called by the inheritable aero:Loc.Source compatibility property.  The
+    // implementation swaps the source XAML dictionary for all Loc values
+    // authored in the same loaded visual tree.
+    static void OnSourceChanged(
+        ::Aero::DependencyObject& object,
+        const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+// Records a WPF-style one-way property mapping while a ControlTemplate
+// prototype is authored. The prototype keeps no live expression; its immutable
+// runtime plan applies the mapping to every instantiated template tree.
+class TemplateBindingExtension {
+public:
+    TemplateBindingExtension() noexcept = default;
+
+    TemplateBindingExtension(
+        const TemplateBindingExtension&) = delete;
+    TemplateBindingExtension& operator=(
+        const TemplateBindingExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+// Implements the WPF-compatible {x:Static Type.Member} form for registered
+// enum values. The returned Meta::Value retains the enum's concrete metadata
+// type so AnyValue members (for example discrete object key frames) can defer
+// assignment until their target dependency property is known.
+class StaticExtension {
+public:
+    StaticExtension() noexcept = default;
+
+    StaticExtension(const StaticExtension&) = delete;
+    StaticExtension& operator=(const StaticExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+
+Base::Result<long double> ReadConstantBindingNumber(
+    const Meta::Value& value) noexcept;
+Base::Result<Meta::Value> ConvertConstantBindingValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Base::Result<ProvidedValue> CreateMultiBindingValue(
+    Data::MultiBinding& binding,
+    const ExtensionServices& services) noexcept;
+Base::Result<void> CaptureControlTemplateChildName(
+    Controls::ControlTemplate& controlTemplate,
+    const Aero::NameScope* nameScope,
+    Base::Object& target,
+    Base::String& storage) noexcept;
+Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
+    const Meta::PropertyValue& value,
+    const Meta::DependencyProperty& property) noexcept;
+Base::Result<void> RegisterBuiltinMarkupExtensions(
+    Schema& schema) noexcept;
+
+inline MarkupExtensionContext MakeMarkupExtensionContext(
+    const ExtensionServices& services) noexcept {
+    auto typeResolver = [](void* ctx, Base::StringView name) noexcept -> Base::Result<const Meta::TypeInfo*> {
+        const auto* s = static_cast<const ExtensionServices*>(ctx);
+        if (s == nullptr || s->schema == nullptr || name.Empty()) {
+            return Base::Status::Failure(Base::ErrorCode::InvalidState, "ExtensionServices is null or name is empty");
+        }
+        std::uint32_t colon = name.SizeBytes();
+        for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
+            if (name[index] != ':') continue;
+            if (colon != name.SizeBytes()) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference contains multiple namespace prefixes");
+            }
+            colon = index;
+        }
+        Base::StringView prefix;
+        Base::StringView localName = name;
+        if (colon != name.SizeBytes()) {
+            if (colon == 0U || colon + 1U >= name.SizeBytes()) {
+                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference namespace prefix is malformed");
+            }
+            prefix = name.Substr(0U, colon);
+            localName = name.Substr(colon + 1U, name.SizeBytes() - colon - 1U);
+        }
+        Base::Result<Base::StringView> uri = s->namespaces.Lookup(prefix);
+        if (!uri) return uri.GetStatus();
+        return s->schema->ResolveType(uri.Value(), localName);
+    };
+    return MarkupExtensionContext(
+        services.targetObject,
+        services.targetMember,
+        services.baseUri,
+        const_cast<ExtensionServices*>(&services),
+        typeResolver);
+}
+
+
+} // namespace Aero::Markup

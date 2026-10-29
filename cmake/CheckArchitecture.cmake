@@ -1045,7 +1045,7 @@ aero_require_text(
     "friend class BindingEngine;"
     "Freezable::Parent must stay private to BindingEngine")
 aero_require_text(
-    "src/gui/markup/XamlObjectWriter.cpp"
+    "src/gui/markup/XamlReader.cpp"
     "ObjectWriter::ConnectEvent("
     "XAML event attributes must connect through the object-writer pipeline")
 aero_require_file("samples/HelloWpf/App.xaml")
@@ -1196,6 +1196,12 @@ aero_forbid_file("src/gui/data/Binding.cpp")
 aero_forbid_file("src/gui/data/BindingEvaluation.cpp")
 aero_forbid_file("src/gui/data/BindingOperations.cpp")
 aero_forbid_file("src/gui/input/Cursors.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectLoader.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriter.cpp")
+aero_forbid_file("src/gui/markup/XamlObjectWriterState.hpp")
+aero_forbid_file("src/gui/markup/MarkupExtensionContract.hpp")
+aero_forbid_file("src/gui/markup/XamlSchemaConventions.hpp")
+aero_forbid_file("src/gui/markup/XamlPropertyResolution.hpp")
 aero_forbid_file("src/gui/markup/XamlParser.cpp")
 aero_forbid_file("src/gui/markup/XamlCompiledDocument.cpp")
 aero_forbid_file("src/gui/markup/XamlCompiledSchema.cpp")

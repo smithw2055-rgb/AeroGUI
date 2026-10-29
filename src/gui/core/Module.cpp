@@ -1,7 +1,7 @@
 #include "ModuleSet.hpp"
 
 #include "gui/BuiltinModules.hpp"
-#include "gui/markup/XamlObjectWriterState.hpp"
+#include "gui/markup/XamlSchema.hpp"
 
 #include <utility>
 

@@ -16,7 +16,6 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/markup/XamlSchema.hpp"
-#include "gui/markup/MarkupExtensionContract.hpp"
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Grid.hpp>
 #include <Aero/Controls.hpp>

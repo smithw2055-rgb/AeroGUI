@@ -1,8 +1,4 @@
 #include "gui/markup/XamlSchema.hpp"
-#include "gui/markup/XamlSchemaConventions.hpp"
-#include "gui/markup/XamlPropertyResolution.hpp"
-#include "gui/markup/MarkupExtensionContract.hpp"
-#include "gui/markup/XamlObjectWriterState.hpp"
 #include "gui/markup/XamlBytecode.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"

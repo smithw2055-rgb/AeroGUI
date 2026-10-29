@@ -140,11 +140,9 @@ set(_aero_gui_controls_sources
     src/gui/controls/ControlsEnumsDescribe.cpp)
 
 set(_aero_gui_markup_sources
-    src/gui/markup/XamlObjectWriter.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
     src/gui/markup/XamlCompiler.cpp
     src/gui/markup/XamlSchema.cpp
-    src/gui/markup/XamlObjectLoader.cpp
     src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources
@@ -200,9 +198,8 @@ set(_aero_gui_internal_headers
     src/gui/data/BindingPath.hpp
     src/gui/core/EnumRegistration.hpp
     src/gui/controls/ControlPropertyValidators.hpp
-    src/gui/markup/MarkupExtensionContract.hpp
-    src/gui/markup/XamlObjectWriterState.hpp
     src/gui/markup/XamlBytecode.hpp
+    src/gui/markup/XamlSchema.hpp
     src/gui/media/AnimationEngineCommon.hpp
     src/gui/ViewRenderer.hpp
     src/gui/ViewFrame.hpp)
