@@ -1032,6 +1032,7 @@ void EffectiveValueEngine::Shutdown() noexcept {
     }
     ClearQueueLinks();
     parents_.Clear();
+    childrenByParent_.Clear();
 }
 
 EffectiveValueEngine::~EffectiveValueEngine() noexcept {
@@ -1190,10 +1191,33 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     DependencyObject* previousParent = InheritanceParent(child);
-    if (parent != nullptr) {
-        parents_.Set(&child, parent);
-    } else {
-        parents_.Erase(&child);
+    if (previousParent != parent) {
+        if (previousParent != nullptr) {
+            if (auto* list = childrenByParent_.Find(previousParent)) {
+                for (std::uint32_t i = 0U; i < list->Size(); ++i) {
+                    if ((*list)[i] == &child) {
+                        list->Erase(i);
+                        break;
+                    }
+                }
+                if (list->Empty()) {
+                    childrenByParent_.Erase(previousParent);
+                }
+            }
+        }
+        if (parent != nullptr) {
+            parents_.Set(&child, parent);
+            auto* list = childrenByParent_.Find(parent);
+            if (list == nullptr) {
+                Base::Vector<DependencyObject*> emptyList;
+                list = childrenByParent_.Set(parent, std::move(emptyList));
+            }
+            if (list != nullptr) {
+                list->PushBack(&child);
+            }
+        } else {
+            parents_.Erase(&child);
+        }
     }
 
     Base::Vector<MemberId> keys;
@@ -1265,9 +1289,12 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
         };
 
         Base::Vector<DependencyObject*> children;
-        for (auto& link : parents_) {
-            if (link.Value() != current || link.Key() == nullptr) continue;
-            children.PushBack(link.Key());
+        if (auto* explicitChildren = childrenByParent_.Find(current)) {
+            for (DependencyObject* child : *explicitChildren) {
+                if (child != nullptr) {
+                    children.PushBack(child);
+                }
+            }
         }
 
         if (::Aero::Media::Visual* visual =
@@ -1591,15 +1618,28 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
         }
         cursor = next;
     }
-    parents_.Erase(&object);
-    Base::Vector<DependencyObject*> children;
-    for (auto& link : parents_) {
-        if (link.Value() == &object) {
-            children.PushBack(link.Key());
+    DependencyObject* previousParent = InheritanceParent(object);
+    if (previousParent != nullptr) {
+        if (auto* list = childrenByParent_.Find(previousParent)) {
+            for (std::uint32_t i = 0U; i < list->Size(); ++i) {
+                if ((*list)[i] == &object) {
+                    list->Erase(i);
+                    break;
+                }
+            }
+            if (list->Empty()) {
+                childrenByParent_.Erase(previousParent);
+            }
         }
     }
-    for (DependencyObject* child : children) {
-        parents_.Erase(child);
+    parents_.Erase(&object);
+    if (auto* list = childrenByParent_.Find(&object)) {
+        for (DependencyObject* child : *list) {
+            if (child != nullptr) {
+                parents_.Erase(child);
+            }
+        }
+        childrenByParent_.Erase(&object);
     }
 }
 

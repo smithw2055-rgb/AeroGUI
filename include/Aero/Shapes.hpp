@@ -24,25 +24,15 @@ class AERO_GUI_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
 
 public:
-    Ref<Brush> GetFill() const noexcept;
-    void SetFill(Ref<Brush> value) noexcept;
-    Ref<Brush> GetStroke() const noexcept;
-    void SetStroke(Ref<Brush> value) noexcept;
     bool HitTestCore() const noexcept override {
         return GetFill() != nullptr || GetStroke() != nullptr;
     }
-    Ref<Media::Pen> GetPen() const noexcept;
-    void SetPen(Ref<Media::Pen> value) noexcept;
-    double GetStrokeThickness() const noexcept;
-    void SetStrokeThickness(double value) noexcept;
-    Stretch GetStretch() const noexcept;
-    void SetStretch(Stretch value) noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(Ref<Brush>, Fill);
-    AERO_DEPENDENCY_PROPERTY(Ref<Brush>, Stroke);
-    AERO_DEPENDENCY_PROPERTY(Ref<Media::Pen>, Pen);
-    AERO_DEPENDENCY_PROPERTY(double, StrokeThickness);
-    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Brush>, Fill);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Brush>, Stroke);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Media::Pen>, Pen);
+    AERO_DEPENDENCY_PROPERTY2(double, StrokeThickness);
+    AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
 
 protected:
     explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
@@ -59,13 +49,8 @@ public:
     Rectangle() noexcept : Shape(StaticTypeId()) {}
     ~Rectangle() override = default;
 
-    double GetRadiusX() const noexcept;
-    void SetRadiusX(double value) noexcept;
-    double GetRadiusY() const noexcept;
-    void SetRadiusY(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusY);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
@@ -91,19 +76,10 @@ public:
     Line() noexcept : Shape(StaticTypeId()) {}
     ~Line() override = default;
 
-    double GetX1() const noexcept;
-    void SetX1(double value) noexcept;
-    double GetY1() const noexcept;
-    void SetY1(double value) noexcept;
-    double GetX2() const noexcept;
-    void SetX2(double value) noexcept;
-    double GetY2() const noexcept;
-    void SetY2(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, X1);
-    AERO_DEPENDENCY_PROPERTY(double, Y1);
-    AERO_DEPENDENCY_PROPERTY(double, X2);
-    AERO_DEPENDENCY_PROPERTY(double, Y2);
+    AERO_DEPENDENCY_PROPERTY2(double, X1);
+    AERO_DEPENDENCY_PROPERTY2(double, Y1);
+    AERO_DEPENDENCY_PROPERTY2(double, X2);
+    AERO_DEPENDENCY_PROPERTY2(double, Y2);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
@@ -121,15 +97,13 @@ public:
 
     void AddPoint(Point point) noexcept;
 
-    FillRule GetFillRule() const noexcept;
-    void SetFillRule(FillRule value) noexcept;
+    AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule);
+
     Span<const Point> GetPoints() const noexcept;
     void SetPoints(Span<const Point> points) noexcept;
     void SetPoints(StringView text) noexcept;
     void ClearPoints() noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
-
-    AERO_DEPENDENCY_PROPERTY(FillRule, FillRule);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
@@ -181,38 +155,24 @@ public:
     void AttachMeshResources(void* services, bool force = false) noexcept;
     void ReleaseMesh() noexcept;
 
-    Ref<Geometry> GetData() const noexcept;
-    void SetData(Ref<Geometry> value) noexcept;
-    FillRule GetFillRule() const noexcept;
-    void SetFillRule(FillRule value) noexcept;
-    PenLineJoin GetStrokeLineJoin() const noexcept;
-    void SetStrokeLineJoin(PenLineJoin value) noexcept;
-    PenLineCap GetStrokeStartLineCap() const noexcept;
-    void SetStrokeStartLineCap(PenLineCap value) noexcept;
-    PenLineCap GetStrokeEndLineCap() const noexcept;
-    void SetStrokeEndLineCap(PenLineCap value) noexcept;
     double GetTrimStart() const noexcept;
     void SetTrimStart(double value) noexcept;
     double GetTrimEnd() const noexcept;
     void SetTrimEnd(double value) noexcept;
     StringView GetStrokeDashArray() const noexcept;
     void SetStrokeDashArray(StringView value) noexcept;
-    double GetStrokeDashOffset() const noexcept;
-    void SetStrokeDashOffset(double value) noexcept;
-    Ref<Media::DashStyle> GetDashStyle() const noexcept;
-    void SetDashStyle(Ref<Media::DashStyle> value) noexcept;
     Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
 
-    AERO_DEPENDENCY_PROPERTY(Ref<Geometry>, Data);
-    AERO_DEPENDENCY_PROPERTY(FillRule, FillRule);
-    AERO_DEPENDENCY_PROPERTY(PenLineJoin, StrokeLineJoin);
-    AERO_DEPENDENCY_PROPERTY(PenLineCap, StrokeStartLineCap);
-    AERO_DEPENDENCY_PROPERTY(PenLineCap, StrokeEndLineCap);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Geometry>, Data);
+    AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule);
+    AERO_DEPENDENCY_PROPERTY2(PenLineJoin, StrokeLineJoin);
+    AERO_DEPENDENCY_PROPERTY2(PenLineCap, StrokeStartLineCap);
+    AERO_DEPENDENCY_PROPERTY2(PenLineCap, StrokeEndLineCap);
     AERO_ATTACHED_PROPERTY(double, TrimStart);
     AERO_ATTACHED_PROPERTY(double, TrimEnd);
     AERO_DEPENDENCY_PROPERTY(String, StrokeDashArray);
-    AERO_DEPENDENCY_PROPERTY(double, StrokeDashOffset);
-    AERO_DEPENDENCY_PROPERTY(Ref<Media::DashStyle>, DashStyle);
+    AERO_DEPENDENCY_PROPERTY2(double, StrokeDashOffset);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Media::DashStyle>, DashStyle);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

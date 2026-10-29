@@ -38,22 +38,9 @@ using namespace Aero::Media;
 using namespace Aero::Meta;
 using namespace Aero::Threading;
 
+#include "gui/core/RoutedEventHandlerStore.hpp"
+
 namespace Aero {
-namespace {
-
-struct RoutedHandlerRecord {
-    RoutedEventHandle event;
-    Aero::RoutedHandlerStorage handler;
-    std::uint64_t sequence = 0U;
-    bool handledEventsToo = false;
-};
-
-struct UIElementHandlerState {
-    Base::Vector<RoutedHandlerRecord> handlers;
-    std::uint64_t nextSequence = 1U;
-};
-
-} // namespace
 
 // from src/gui/controls/Layout.cpp
 
@@ -555,14 +542,9 @@ void UIElement::RaiseEvent(
 // from src/gui/controls/Layout.cpp
 
 void UIElement::CleanupHandlers() noexcept {
-    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
-    if (state == nullptr) return;
-    state->~UIElementHandlerState();
-    Base::GetDefaultAllocator().Deallocate(
-        state,
-        sizeof(UIElementHandlerState),
-        alignof(UIElementHandlerState),
-        Base::MemoryTag::Ui);
+    auto* store = static_cast<RoutedEventHandlerStore*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
+    if (store == nullptr) return;
+    RoutedEventHandlerStore::Destroy(store);
     if (rare_ != nullptr) rare_->routedHandlers = nullptr;
 }
 
@@ -570,19 +552,14 @@ void UIElement::CleanupHandlers() noexcept {
 
 bool UIElement::EnsureRoutedHandlers() noexcept {
     if (!VerifyAccess()) return false;
-    auto* state = static_cast<UIElementHandlerState*>(
+    auto* store = static_cast<RoutedEventHandlerStore*>(
         (rare_ != nullptr ? rare_->routedHandlers : nullptr));
-    if (state != nullptr) return true;
-    Base::IAllocator& allocator = Base::GetDefaultAllocator();
-    void* memory = allocator.Allocate({
-        sizeof(UIElementHandlerState),
-        alignof(UIElementHandlerState),
-        Base::MemoryTag::Ui});
-    if (memory == nullptr) {
+    if (store != nullptr) return true;
+    store = RoutedEventHandlerStore::Create();
+    if (store == nullptr) {
         return false;
     }
-    state = new (memory) UIElementHandlerState();
-    EnsureRare().routedHandlers = state;
+    EnsureRare().routedHandlers = store;
     return true;
 }
 
@@ -736,17 +713,9 @@ void UIElement::InvokeHandlers(
         InvokeClassHandler(event, args);
     }
 
-    auto* state = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
-    if (state == nullptr) return;
-    const std::uint32_t count = state->handlers.Size();
-    for (std::uint32_t index = 0U;
-         index < count && index < state->handlers.Size();
-         ++index) {
-        const RoutedHandlerRecord record = state->handlers[index];
-        if (record.event == event && (!args.GetHandled() || record.handledEventsToo)) {
-            record.handler.Invoke(this, args);
-        }
-    }
+    auto* store = static_cast<RoutedEventHandlerStore*>((rare_ != nullptr ? rare_->routedHandlers : nullptr));
+    if (store == nullptr) return;
+    store->Invoke(this, event, args);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -762,26 +731,8 @@ bool UIElement::RemoveHandlerErased(
         (rare_ != nullptr ? rare_->routedHandlers : nullptr) == nullptr) {
         return false;
     }
-    Aero::RoutedHandlerStorage probe(
-        handler,
-        size,
-        alignment,
-        argsType,
-        &CopyErasedDelegate,
-        &DestroyErasedDelegate,
-        &EqualsErasedDelegate,
-        &InvokeErasedDelegate);
-    auto& handlers = static_cast<UIElementHandlerState*>((rare_ != nullptr ? rare_->routedHandlers : nullptr))->handlers;
-    for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
-        if (handlers[index].event == event && handlers[index].handler.Equals(probe)) {
-            for (std::uint32_t current = index + 1U; current < handlers.Size(); ++current) {
-                handlers[current - 1U] = std::move(handlers[current]);
-            }
-            handlers.PopBack();
-            return true;
-        }
-    }
-    return false;
+    return static_cast<RoutedEventHandlerStore*>(rare_->routedHandlers)->RemoveHandler(
+        event, handler, size, alignment, argsType);
 }
 
 // from src/gui/controls/Layout.cpp
@@ -804,25 +755,8 @@ void UIElement::AddHandlerErased(
     if (!EnsureRoutedHandlers()) {
         return;
     }
-    auto* state = static_cast<UIElementHandlerState*>(rare_->routedHandlers);
-    if (state->nextSequence == 0U) {
-        return;
-    }
-
-    RoutedHandlerRecord record;
-    record.event = event;
-    record.handler = Aero::RoutedHandlerStorage(
-        handler,
-        size,
-        alignment,
-        argsType,
-        &CopyErasedDelegate,
-        &DestroyErasedDelegate,
-        &EqualsErasedDelegate,
-        &InvokeErasedDelegate);
-    record.sequence = state->nextSequence++;
-    record.handledEventsToo = handledEventsToo;
-    (void)state->handlers.PushBack(std::move(record));
+    auto* store = static_cast<RoutedEventHandlerStore*>(rare_->routedHandlers);
+    store->AddHandler(event, handler, size, alignment, argsType, handledEventsToo);
 }
 
 // from src/gui/input/Input.cpp

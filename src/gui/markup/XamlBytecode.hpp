@@ -298,20 +298,6 @@ struct TemplatePrototypeGradientStop {
     Base::String name;
 };
 
-struct TemplatePrototypeNode {
-    Meta::TypeId type = Meta::InvalidTypeId;
-    Base::String name;
-    std::uint32_t parent = UINT32_MAX;
-    Meta::MemberId contentMember = Meta::InvalidMemberId;
-    Base::Vector<TemplatePrototypeProperty> properties;
-    Base::Vector<::Aero::GridLength> gridColumns;
-    Base::Vector<::Aero::GridLength> gridRows;
-    Base::String streamGeometryData;
-    Base::Vector<TemplatePrototypeGradientStop> gradientStops;
-    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors;
-    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
-};
-
 struct TemplatePrototypeBinding {
     std::uint32_t target = UINT32_MAX;
     std::uint32_t source = UINT32_MAX;
@@ -349,14 +335,7 @@ struct CompiledTriggerPlan {
 };
 
 struct XamlBytecodeProgram;
-
-struct CompiledTemplateBlueprint {
-    ::Aero::Meta::Registry* runtime = nullptr;
-    Meta::DependencyPropertyRegistry* properties = nullptr;
-    Base::Vector<TemplatePrototypeNode> nodes;
-    Base::Vector<TemplatePrototypeBinding> bindings;
-    std::uint32_t contentPresenter = UINT32_MAX;
-};
+class XamlBytecodeContainer;
 
 struct CompiledTemplateDefinition {
     Meta::TypeId targetType = Meta::InvalidTypeId;
@@ -386,14 +365,15 @@ BuildCompiledDeferredTemplate(
     void* factoryContext,
     Aero::BindingEngine* bindings) noexcept;
 
-Base::Result<CompiledTemplateBlueprint>
-CompileDeferredTemplateBlueprint(
+Base::Result<void>
+CompileDeferredTemplateToBytecode(
     const Base::Ref<Base::Object>& visualTree,
     const Aero::NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     ::Aero::Meta::Registry& runtime,
-    Meta::DependencyPropertyRegistry& properties) noexcept;
+    Meta::DependencyPropertyRegistry& properties,
+    XamlBytecodeProgram& outProgram) noexcept;
 
 Base::Result<CompiledTemplateDefinition>
 CompileControlTemplateDefinition(
@@ -421,11 +401,10 @@ CompileInheritedControlTemplate(
 // while the canonical declarations live in Aero::Base; no aliases are
 // exposed by installed headers.
 namespace Aero::Markup {
-using ::Aero::Markup::CompiledTemplateBlueprint;
 using ::Aero::Markup::CompiledTemplateDefinition;
 using ::Aero::Markup::BuildCompiledTemplate;
 using ::Aero::Markup::BuildCompiledDeferredTemplate;
-using ::Aero::Markup::CompileDeferredTemplateBlueprint;
+using ::Aero::Markup::CompileDeferredTemplateToBytecode;
 using ::Aero::Markup::CompileControlTemplateDefinition;
 using ::Aero::Markup::CompileInheritedControlTemplate;
 
@@ -438,26 +417,39 @@ using ::Aero::Markup::CompileInheritedControlTemplate;
 // aligned with modern high-performance retained-mode GUI bytecode VMs.
 enum class XamlOpCode : std::uint8_t {
     Nop = 0,
-    CreateObject,               // [slot: u16, typeId: u64]
-    SetPropertyValue,           // [slot: u16, propertyHandle: u64, valueIndex: u32]
-    SetPropertyObject,          // [slot: u16, propertyHandle: u64, valueType: u64, sourceSlot: u16]
-    SetPropertyContent,         // [parentSlot: u16, memberId: u64, childSlot: u16, valueType: u64, isPropertyEdge: u8]
-    SetRootVisual,              // [slot: u16, nameIndex: u32]
-    AddVisualChild,             // [parentSlot: u16, childSlot: u16, nameIndex: u32]
-    AddObjectPart,              // [slot: u16, nameIndex: u32]
-    SetGridDefinitions,         // [slot: u16, colStart: u32, colCount: u16, rowStart: u32, rowCount: u16]
-    SetStreamGeometryData,      // [slot: u16, stringIndex: u32]
-    SetGradientStops,           // [slot: u16, stopStart: u32, stopCount: u16]
-    ProjectContent,             // [presenterSlot: u16]
-    PopulateContentPresenter,   // [slot: u16]
-    PopulateItemsPresenter,     // [slot: u16]
-    AttachBehaviorsAndTriggers, // [slot: u16, itemStart: u32, behaviorCount: u16, triggerCount: u16]
-    AdoptOrCreateRoot = 15,     // [slot: u16, typeId: u64]
-    RegisterDocumentName = 16,  // [slot: u16, nameIndex: u32]
-    ConnectEventHandler = 17,   // [slot: u16, eventMemberId: u64, handlerNameIndex: u32]
-    ApplyMarkupExtension = 18,  // [slot: u16, propertyHandle: u64, extensionTypeId: u64, argStringIndex: u32]
+    CreateObject,               // [slot: targetSlot, typeOrPropIdx: typePoolIdx]
+    SetPropertyValue,           // [slot: targetSlot, typeOrPropIdx: propPoolIdx, operandIdx: valuePoolIdx]
+    SetPropertyObject,          // [slot: targetSlot, auxSlot: sourceSlot, typeOrPropIdx: propPoolIdx, extraIdx: typePoolIdx]
+    SetPropertyContent,         // [slot: parentSlot, auxSlot: childSlot, typeOrPropIdx: propPoolIdx, extraIdx: typePoolIdx, flags: isPropertyEdge]
+    SetRootVisual,              // [slot: targetSlot, operandIdx: stringPoolIdx]
+    AddVisualChild,             // [slot: parentSlot, auxSlot: childSlot, operandIdx: stringPoolIdx]
+    AddObjectPart,              // [slot: targetSlot, operandIdx: stringPoolIdx]
+    SetGridDefinitions,         // [slot: targetSlot, auxSlot: colCount, typeOrPropIdx: rowCount, operandIdx: colStart, extraIdx: rowStart]
+    SetGradientStops = 10,      // [slot: targetSlot, auxSlot: stopCount, operandIdx: stopStart]
+    ProjectContent,             // [slot: presenterSlot]
+    PopulateContentPresenter,   // [slot: targetSlot]
+    PopulateItemsPresenter,     // [slot: targetSlot]
+    AttachBehaviorsAndTriggers, // [slot: targetSlot, auxSlot: bCount, typeOrPropIdx: tCount, operandIdx: itemStart]
+    AdoptOrCreateRoot = 15,     // [slot: targetSlot, typeOrPropIdx: typePoolIdx]
+    RegisterDocumentName = 16,  // [slot: targetSlot, operandIdx: stringPoolIdx]
+    ConnectEventHandler = 17,   // [slot: targetSlot, typeOrPropIdx: propPoolIdx, operandIdx: stringPoolIdx]
+    ApplyMarkupExtension = 18,  // [slot: targetSlot, typeOrPropIdx: propPoolIdx, extraIdx: typePoolIdx, operandIdx: stringPoolIdx]
     End = 0xFF
 };
+
+// ============================================================================
+// XamlInstruction (16-Byte Aligned Fixed-Length Instruction)
+// ============================================================================
+struct alignas(8) XamlInstruction {
+    XamlOpCode op = XamlOpCode::Nop;     // 1 byte
+    std::uint8_t flags = 0U;             // 1 byte (flags, e.g. isPropertyEdge)
+    std::uint16_t slot = 0U;             // 2 bytes (primary target / parent / presenter slot)
+    std::uint16_t auxSlot = 0U;          // 2 bytes (secondary / child / source slot, or count)
+    std::uint16_t typeOrPropIdx = 0U;    // 2 bytes (index into typePool or propertyPool, or count)
+    std::uint32_t operandIdx = 0U;       // 4 bytes (index into valuePool, stringPool, or offset)
+    std::uint32_t extraIdx = 0U;         // 4 bytes (secondary index, e.g. second type, offset)
+};
+static_assert(sizeof(XamlInstruction) == 16U, "XamlInstruction must be exactly 16 bytes");
 
 // ============================================================================
 // XamlBytecodeProgram Container
@@ -465,12 +457,15 @@ enum class XamlOpCode : std::uint8_t {
 // Self-contained, immutable binary program ready for fast VM execution.
 struct XamlBytecodeProgram {
     std::uint32_t slotCount = 0U;
-    Base::Vector<std::uint8_t> instructions;
+    Base::Vector<XamlInstruction> instructions;
+    Base::Vector<Meta::TypeId> typePool;
+    Base::Vector<std::uint64_t> propertyPool;
     Base::Vector<Base::String> stringPool;
     Base::Vector<Meta::Value> valuePool;
     Base::Vector<::Aero::GridLength> gridLengths;
     Base::Vector<TemplatePrototypeGradientStop> gradientStops;
     Base::Vector<Base::Ref<Base::Object>> objectRefs;
+    Base::Vector<Base::Ref<Base::Object>> subPrograms;
 
     // Associated template plans (triggers, bindings, states)
     Base::Vector<TemplatePrototypeBinding> blueprintBindings;
@@ -501,11 +496,14 @@ struct XamlBytecodeProgram {
     void Clear() noexcept {
         slotCount = 0U;
         instructions.Clear();
+        typePool.Clear();
+        propertyPool.Clear();
         stringPool.Clear();
         valuePool.Clear();
         gridLengths.Clear();
         gradientStops.Clear();
         objectRefs.Clear();
+        subPrograms.Clear();
         blueprintBindings.Clear();
         dataTemplateTriggers.Clear();
         controlTemplateDataTriggers.Clear();
@@ -532,6 +530,24 @@ public:
 
     void SetSlotCount(std::uint32_t count) noexcept {
         slotCount_ = count;
+    }
+
+    std::uint16_t AddType(Meta::TypeId typeId) noexcept {
+        for (std::uint16_t i = 0U; i < static_cast<std::uint16_t>(typePool_.Size()); ++i) {
+            if (typePool_[i] == typeId) return i;
+        }
+        const auto idx = static_cast<std::uint16_t>(typePool_.Size());
+        typePool_.PushBack(typeId);
+        return idx;
+    }
+
+    std::uint16_t AddProperty(std::uint64_t propOrMember) noexcept {
+        for (std::uint16_t i = 0U; i < static_cast<std::uint16_t>(propertyPool_.Size()); ++i) {
+            if (propertyPool_[i] == propOrMember) return i;
+        }
+        const auto idx = static_cast<std::uint16_t>(propertyPool_.Size());
+        propertyPool_.PushBack(propOrMember);
+        return idx;
     }
 
     std::uint32_t AddString(Base::StringView str) noexcept {
@@ -581,20 +597,23 @@ public:
     }
 
     void EmitCreateObject(std::uint16_t slot, Meta::TypeId typeId) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::CreateObject)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, typeId));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::CreateObject;
+        inst.slot = slot;
+        inst.typeOrPropIdx = AddType(typeId);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetPropertyValue(
         std::uint16_t slot,
         Meta::DependencyPropertyHandle property,
         const Meta::Value& value) noexcept {
-        const std::uint32_t valueIndex = AddValue(value);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetPropertyValue)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, property.value));
-        static_cast<void>(AppendU32(instructions_, valueIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetPropertyValue;
+        inst.slot = slot;
+        inst.typeOrPropIdx = AddProperty(property.value);
+        inst.operandIdx = AddValue(value);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetPropertyObject(
@@ -602,11 +621,13 @@ public:
         Meta::DependencyPropertyHandle property,
         Meta::TypeId valueType,
         std::uint16_t sourceSlot) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetPropertyObject)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, property.value));
-        static_cast<void>(AppendU64(instructions_, valueType));
-        static_cast<void>(AppendU16(instructions_, sourceSlot));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetPropertyObject;
+        inst.slot = slot;
+        inst.auxSlot = sourceSlot;
+        inst.typeOrPropIdx = AddProperty(property.value);
+        inst.extraIdx = AddType(valueType);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetPropertyContent(
@@ -615,88 +636,88 @@ public:
         std::uint16_t childSlot,
         Meta::TypeId valueType,
         bool isPropertyEdge) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetPropertyContent)));
-        static_cast<void>(AppendU16(instructions_, parentSlot));
-        static_cast<void>(AppendU64(instructions_, memberId));
-        static_cast<void>(AppendU16(instructions_, childSlot));
-        static_cast<void>(AppendU64(instructions_, valueType));
-        static_cast<void>(AppendU8(instructions_, isPropertyEdge ? 1U : 0U));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetPropertyContent;
+        inst.flags = isPropertyEdge ? 1U : 0U;
+        inst.slot = parentSlot;
+        inst.auxSlot = childSlot;
+        inst.typeOrPropIdx = AddProperty(memberId);
+        inst.extraIdx = AddType(valueType);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetRootVisual(std::uint16_t slot, Base::StringView name) noexcept {
-        const std::uint32_t nameIndex = AddString(name);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetRootVisual)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, nameIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetRootVisual;
+        inst.slot = slot;
+        inst.operandIdx = AddString(name);
+        instructions_.PushBack(inst);
     }
 
     void EmitAddVisualChild(
         std::uint16_t parentSlot,
         std::uint16_t childSlot,
         Base::StringView name) noexcept {
-        const std::uint32_t nameIndex = AddString(name);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::AddVisualChild)));
-        static_cast<void>(AppendU16(instructions_, parentSlot));
-        static_cast<void>(AppendU16(instructions_, childSlot));
-        static_cast<void>(AppendU32(instructions_, nameIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::AddVisualChild;
+        inst.slot = parentSlot;
+        inst.auxSlot = childSlot;
+        inst.operandIdx = AddString(name);
+        instructions_.PushBack(inst);
     }
 
     void EmitAddObjectPart(std::uint16_t slot, Base::StringView name) noexcept {
-        const std::uint32_t nameIndex = AddString(name);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::AddObjectPart)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, nameIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::AddObjectPart;
+        inst.slot = slot;
+        inst.operandIdx = AddString(name);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetGridDefinitions(
         std::uint16_t slot,
         Base::Span<const ::Aero::GridLength> cols,
         Base::Span<const ::Aero::GridLength> rows) noexcept {
-        const std::uint32_t colStart = AddGridLengths(cols);
-        const std::uint16_t colCount = static_cast<std::uint16_t>(cols.Size());
-        const std::uint32_t rowStart = AddGridLengths(rows);
-        const std::uint16_t rowCount = static_cast<std::uint16_t>(rows.Size());
-
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetGridDefinitions)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, colStart));
-        static_cast<void>(AppendU16(instructions_, colCount));
-        static_cast<void>(AppendU32(instructions_, rowStart));
-        static_cast<void>(AppendU16(instructions_, rowCount));
-    }
-
-    void EmitSetStreamGeometryData(std::uint16_t slot, Base::StringView data) noexcept {
-        const std::uint32_t strIndex = AddString(data);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetStreamGeometryData)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, strIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetGridDefinitions;
+        inst.slot = slot;
+        inst.auxSlot = static_cast<std::uint16_t>(cols.Size());
+        inst.typeOrPropIdx = static_cast<std::uint16_t>(rows.Size());
+        inst.operandIdx = AddGridLengths(cols);
+        inst.extraIdx = AddGridLengths(rows);
+        instructions_.PushBack(inst);
     }
 
     void EmitSetGradientStops(
         std::uint16_t slot,
         Base::Span<const TemplatePrototypeGradientStop> stops) noexcept {
-        const std::uint32_t stopStart = AddGradientStops(stops);
-        const std::uint16_t stopCount = static_cast<std::uint16_t>(stops.Size());
-
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::SetGradientStops)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, stopStart));
-        static_cast<void>(AppendU16(instructions_, stopCount));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::SetGradientStops;
+        inst.slot = slot;
+        inst.auxSlot = static_cast<std::uint16_t>(stops.Size());
+        inst.operandIdx = AddGradientStops(stops);
+        instructions_.PushBack(inst);
     }
 
     void EmitProjectContent(std::uint16_t presenterSlot) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::ProjectContent)));
-        static_cast<void>(AppendU16(instructions_, presenterSlot));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::ProjectContent;
+        inst.slot = presenterSlot;
+        instructions_.PushBack(inst);
     }
 
     void EmitPopulateContentPresenter(std::uint16_t slot) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::PopulateContentPresenter)));
-        static_cast<void>(AppendU16(instructions_, slot));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::PopulateContentPresenter;
+        inst.slot = slot;
+        instructions_.PushBack(inst);
     }
 
     void EmitPopulateItemsPresenter(std::uint16_t slot) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::PopulateItemsPresenter)));
-        static_cast<void>(AppendU16(instructions_, slot));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::PopulateItemsPresenter;
+        inst.slot = slot;
+        instructions_.PushBack(inst);
     }
 
     void EmitAttachBehaviorsAndTriggers(
@@ -705,39 +726,41 @@ public:
         Base::Span<const Base::Ref<Base::Object>> triggers) noexcept {
         const std::uint32_t itemStart = AddObjectRefs(behaviors);
         static_cast<void>(AddObjectRefs(triggers));
-        const std::uint16_t behaviorCount = static_cast<std::uint16_t>(behaviors.Size());
-        const std::uint16_t triggerCount = static_cast<std::uint16_t>(triggers.Size());
-
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::AttachBehaviorsAndTriggers)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, itemStart));
-        static_cast<void>(AppendU16(instructions_, behaviorCount));
-        static_cast<void>(AppendU16(instructions_, triggerCount));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::AttachBehaviorsAndTriggers;
+        inst.slot = slot;
+        inst.auxSlot = static_cast<std::uint16_t>(behaviors.Size());
+        inst.typeOrPropIdx = static_cast<std::uint16_t>(triggers.Size());
+        inst.operandIdx = itemStart;
+        instructions_.PushBack(inst);
     }
 
     void EmitAdoptOrCreateRoot(std::uint16_t slot, Meta::TypeId typeId) noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::AdoptOrCreateRoot)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, typeId));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::AdoptOrCreateRoot;
+        inst.slot = slot;
+        inst.typeOrPropIdx = AddType(typeId);
+        instructions_.PushBack(inst);
     }
 
     void EmitRegisterDocumentName(std::uint16_t slot, Base::StringView name) noexcept {
-        const std::uint32_t nameIndex = AddString(name);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::RegisterDocumentName)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU32(instructions_, nameIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::RegisterDocumentName;
+        inst.slot = slot;
+        inst.operandIdx = AddString(name);
+        instructions_.PushBack(inst);
     }
-
 
     void EmitConnectEventHandler(
         std::uint16_t slot,
         Meta::MemberId eventMemberId,
         Base::StringView handlerName) noexcept {
-        const std::uint32_t handlerNameIndex = AddString(handlerName);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::ConnectEventHandler)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, eventMemberId));
-        static_cast<void>(AppendU32(instructions_, handlerNameIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::ConnectEventHandler;
+        inst.slot = slot;
+        inst.typeOrPropIdx = AddProperty(eventMemberId);
+        inst.operandIdx = AddString(handlerName);
+        instructions_.PushBack(inst);
     }
 
     void EmitApplyMarkupExtension(
@@ -745,21 +768,26 @@ public:
         Meta::DependencyPropertyHandle property,
         Meta::TypeId extensionTypeId,
         Base::StringView arguments) noexcept {
-        const std::uint32_t argIndex = AddString(arguments);
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::ApplyMarkupExtension)));
-        static_cast<void>(AppendU16(instructions_, slot));
-        static_cast<void>(AppendU64(instructions_, property.value));
-        static_cast<void>(AppendU64(instructions_, extensionTypeId));
-        static_cast<void>(AppendU32(instructions_, argIndex));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::ApplyMarkupExtension;
+        inst.slot = slot;
+        inst.typeOrPropIdx = AddProperty(property.value);
+        inst.extraIdx = AddType(extensionTypeId);
+        inst.operandIdx = AddString(arguments);
+        instructions_.PushBack(inst);
     }
 
     void EmitEnd() noexcept {
-        static_cast<void>(AppendU8(instructions_, static_cast<std::uint8_t>(XamlOpCode::End)));
+        XamlInstruction inst;
+        inst.op = XamlOpCode::End;
+        instructions_.PushBack(inst);
     }
 
     void Finish(XamlBytecodeProgram& outProgram) noexcept {
         outProgram.slotCount = slotCount_;
         outProgram.instructions = std::move(instructions_);
+        outProgram.typePool = std::move(typePool_);
+        outProgram.propertyPool = std::move(propertyPool_);
         outProgram.stringPool = std::move(stringPool_);
         outProgram.valuePool = std::move(valuePool_);
         outProgram.gridLengths = std::move(gridLengths_);
@@ -769,7 +797,9 @@ public:
 
 private:
     std::uint32_t slotCount_ = 0U;
-    Base::Vector<std::uint8_t> instructions_;
+    Base::Vector<XamlInstruction> instructions_;
+    Base::Vector<Meta::TypeId> typePool_;
+    Base::Vector<std::uint64_t> propertyPool_;
     Base::Vector<Base::String> stringPool_;
     Base::Vector<Meta::Value> valuePool_;
     Base::Vector<::Aero::GridLength> gridLengths_;
@@ -778,181 +808,10 @@ private:
     Base::HashMap<Base::String, std::uint32_t> stringMap_;
 };
 
-// ============================================================================
-// XamlBytecode Reader & Container
-// ============================================================================
-struct XamlBytecodeReader {
-    const std::uint8_t* ip = nullptr;
-    const std::uint8_t* end = nullptr;
-
-    bool HasBytes(std::size_t n) const noexcept {
-        return static_cast<std::size_t>(end - ip) >= n;
-    }
-
-    std::uint8_t ReadU8() noexcept {
-        return *ip++;
-    }
-
-    std::uint16_t ReadU16() noexcept {
-        std::uint16_t v = 0;
-        std::memcpy(&v, ip, sizeof(v));
-        ip += sizeof(v);
-        return v;
-    }
-
-    std::uint32_t ReadU32() noexcept {
-        std::uint32_t v = 0;
-        std::memcpy(&v, ip, sizeof(v));
-        ip += sizeof(v);
-        return v;
-    }
-
-    std::uint64_t ReadU64() noexcept {
-        std::uint64_t v = 0;
-        std::memcpy(&v, ip, sizeof(v));
-        ip += sizeof(v);
-        return v;
-    }
-};
-
 class XamlBytecodeContainer : public Base::Object {
 public:
     XamlBytecodeProgram program;
 };
-
-// ============================================================================
-// Blueprint -> Bytecode Compiler (Bridge)
-// ============================================================================
-inline Base::Result<void> CompileBlueprintToBytecode(
-    const CompiledTemplateBlueprint& blueprint,
-    XamlBytecodeProgram& outProgram) noexcept {
-    outProgram.Clear();
-    outProgram.slotCount = blueprint.nodes.Size();
-    if (blueprint.nodes.Empty()) {
-        return {};
-    }
-
-    XamlBytecodeBuilder builder;
-    builder.SetSlotCount(blueprint.nodes.Size());
-
-    // 1. Create all objects
-    for (std::uint16_t slot = 0U; slot < blueprint.nodes.Size(); ++slot) {
-        const TemplatePrototypeNode& node = blueprint.nodes[slot];
-        builder.EmitCreateObject(slot, node.type);
-    }
-
-    // 2. Set properties, grids, geometries, stops, behaviors/triggers
-    for (std::uint16_t slot = 0U; slot < blueprint.nodes.Size(); ++slot) {
-        const TemplatePrototypeNode& node = blueprint.nodes[slot];
-        for (const TemplatePrototypeProperty& prop : node.properties) {
-            if (prop.objectNode != UINT32_MAX) {
-                builder.EmitSetPropertyObject(
-                    slot, prop.property, prop.value.Type(), static_cast<std::uint16_t>(prop.objectNode));
-            } else {
-                builder.EmitSetPropertyValue(slot, prop.property, prop.value);
-            }
-        }
-        if (!node.gridColumns.Empty() || !node.gridRows.Empty()) {
-            builder.EmitSetGridDefinitions(
-                slot, node.gridColumns.AsSpan(), node.gridRows.AsSpan());
-        }
-        if (!node.streamGeometryData.Empty()) {
-            builder.EmitSetStreamGeometryData(slot, node.streamGeometryData.View());
-        }
-        if (!node.gradientStops.Empty()) {
-            builder.EmitSetGradientStops(slot, node.gradientStops.AsSpan());
-        }
-        if (!node.authoredBehaviors.Empty() || !node.authoredTriggers.Empty()) {
-            builder.EmitAttachBehaviorsAndTriggers(
-                slot, node.authoredBehaviors.AsSpan(), node.authoredTriggers.AsSpan());
-        }
-    }
-
-    // 3. Set parent-child structural/content edges
-    for (std::uint16_t slot = 0U; slot < blueprint.nodes.Size(); ++slot) {
-        const TemplatePrototypeNode& node = blueprint.nodes[slot];
-        if (node.parent == UINT32_MAX) continue;
-        const PropertyInfo* structuralProperty = blueprint.runtime != nullptr
-            ? blueprint.runtime->Types().FindProperty(node.contentMember)
-            : nullptr;
-        const bool propertyEdge = structuralProperty != nullptr &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
-            blueprint.runtime->CanWriteProperty(node.contentMember);
-        const Meta::TypeId valueType = structuralProperty != nullptr
-            ? structuralProperty->ValueType()
-            : Meta::InvalidTypeId;
-        builder.EmitSetPropertyContent(
-            static_cast<std::uint16_t>(node.parent),
-            node.contentMember,
-            slot,
-            valueType,
-            propertyEdge);
-    }
-
-    // 4. Register visual tree structure and named parts
-    for (std::uint16_t slot = 0U; slot < blueprint.nodes.Size(); ++slot) {
-        const TemplatePrototypeNode& node = blueprint.nodes[slot];
-        const bool isVisual = blueprint.runtime != nullptr &&
-            blueprint.runtime->Types().IsDerivedFrom(node.type, Visual::StaticTypeId());
-        if (!isVisual) {
-            if (!node.name.Empty()) {
-                builder.EmitAddObjectPart(slot, node.name.View());
-            }
-            continue;
-        }
-        if (node.parent == UINT32_MAX) {
-            builder.EmitSetRootVisual(slot, node.name.View());
-        } else {
-            builder.EmitAddVisualChild(
-                static_cast<std::uint16_t>(node.parent), slot, node.name.View());
-        }
-    }
-
-    // 5. Presenters
-    if (blueprint.contentPresenter != UINT32_MAX) {
-        builder.EmitProjectContent(
-            static_cast<std::uint16_t>(blueprint.contentPresenter));
-    }
-    for (std::uint16_t slot = 0U; slot < blueprint.nodes.Size(); ++slot) {
-        const TemplatePrototypeNode& node = blueprint.nodes[slot];
-        if (blueprint.runtime != nullptr) {
-            if (blueprint.runtime->Types().IsDerivedFrom(
-                    node.type, Aero::Controls::ContentPresenter::StaticTypeId())) {
-                builder.EmitPopulateContentPresenter(slot);
-            } else if (blueprint.runtime->Types().IsDerivedFrom(
-                           node.type, Aero::Controls::ItemsPresenter::StaticTypeId())) {
-                builder.EmitPopulateItemsPresenter(slot);
-            }
-        }
-    }
-
-    // 6. Terminate
-    builder.EmitEnd();
-    builder.Finish(outProgram);
-
-    // Copy associated blueprint dynamic metadata and slot names/types
-    outProgram.blueprintBindings = blueprint.bindings;
-    outProgram.contentPresenterSlot = blueprint.contentPresenter;
-    outProgram.runtime = blueprint.runtime;
-    outProgram.properties = blueprint.properties;
-    outProgram.slotNames.Clear();
-    outProgram.slotTypes.Clear();
-    outProgram.slotNames.Reserve(blueprint.nodes.Size());
-    outProgram.slotTypes.Reserve(blueprint.nodes.Size());
-    for (const auto& node : blueprint.nodes) {
-        Base::String nameCopy;
-        static_cast<void>(nameCopy.Assign(node.name.View()));
-        outProgram.slotNames.PushBack(std::move(nameCopy));
-        outProgram.slotTypes.PushBack(node.type);
-    }
-
-
-
-    return {};
-}
 
 struct XamlVMContext {
     Meta::Registry* runtime = nullptr;
@@ -1038,23 +897,23 @@ inline Base::Result<void> XamlVM::Execute(
         runtime = context.schema->Metadata();
     }
 
-    XamlBytecodeReader reader{program.instructions.Data(), program.instructions.Data() + program.instructions.Size()};
+    const XamlInstruction* ip = program.instructions.Data();
+    const XamlInstruction* const end = ip + program.instructions.Size();
 
-    while (reader.ip < reader.end) {
-        const auto opcode = static_cast<XamlOpCode>(reader.ReadU8());
-        switch (opcode) {
+    for (; ip != end; ++ip) {
+        switch (ip->op) {
         case XamlOpCode::Nop:
             break;
 
         case XamlOpCode::AdoptOrCreateRoot: {
-            if (!reader.HasBytes(2 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AdoptOrCreateRoot");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t typeId = reader.ReadU64();
+            const std::uint16_t slot = ip->slot;
             if (slot >= outObjects.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AdoptOrCreateRoot");
             }
+            if (ip->typeOrPropIdx >= program.typePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid type index in AdoptOrCreateRoot");
+            }
+            const Meta::TypeId typeId = program.typePool[ip->typeOrPropIdx];
             if (context.existingRoot && slot == 0U) {
                 const Meta::TypeId actual = context.existingRoot->RuntimeType();
                 if (actual != typeId && (runtime == nullptr || !runtime->Types().IsDerivedFrom(actual, typeId))) {
@@ -1085,14 +944,14 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::CreateObject: {
-            if (!reader.HasBytes(2 + 8)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated CreateObject");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t typeId = reader.ReadU64();
+            const std::uint16_t slot = ip->slot;
             if (slot >= outObjects.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in CreateObject");
             }
+            if (ip->typeOrPropIdx >= program.typePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid type index in CreateObject");
+            }
+            const Meta::TypeId typeId = program.typePool[ip->typeOrPropIdx];
             if (runtime == nullptr) {
                 return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in CreateObject");
             }
@@ -1125,42 +984,44 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::SetPropertyValue: {
-            if (!reader.HasBytes(2 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyValue");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint32_t valIdx = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyValue");
             }
-            if (valIdx >= program.valuePool.Size()) {
+            if (ip->typeOrPropIdx >= program.propertyPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid property index in SetPropertyValue");
+            }
+            if (ip->operandIdx >= program.valuePool.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetPropertyValue");
             }
+            const std::uint64_t propHandle = program.propertyPool[ip->typeOrPropIdx];
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
                 if (context.templateBuilder != nullptr) {
-                    depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+                    depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[ip->operandIdx]);
                 } else {
-                    depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[valIdx]);
+                    depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[ip->operandIdx]);
                 }
             } else if (runtime != nullptr) {
-                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[valIdx]));
+                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[ip->operandIdx]));
             }
             break;
         }
 
         case XamlOpCode::SetPropertyObject: {
-            if (!reader.HasBytes(2 + 8 + 8 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyObject");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint64_t valueType = reader.ReadU64();
-            const std::uint16_t srcSlot = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
+            const std::uint16_t srcSlot = ip->auxSlot;
             if (slot >= outObjects.Size() || srcSlot >= outObjects.Size() ||
                 !outObjects[slot] || !outObjects[srcSlot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyObject");
             }
+            if (ip->typeOrPropIdx >= program.propertyPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid property index in SetPropertyObject");
+            }
+            if (ip->extraIdx >= program.typePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueType index in SetPropertyObject");
+            }
+            const std::uint64_t propHandle = program.propertyPool[ip->typeOrPropIdx];
+            const std::uint64_t valueType = program.typePool[ip->extraIdx];
             if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
                 if (context.templateBuilder != nullptr) {
                     depObj->SetTemplateValue(
@@ -1179,18 +1040,21 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::SetPropertyContent: {
-            if (!reader.HasBytes(2 + 8 + 2 + 8 + 1)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetPropertyContent");
-            }
-            const std::uint16_t parentSlot = reader.ReadU16();
-            const std::uint64_t memberId = reader.ReadU64();
-            const std::uint16_t childSlot = reader.ReadU16();
-            const std::uint64_t valueType = reader.ReadU64();
-            const std::uint8_t isPropertyEdge = reader.ReadU8();
+            const std::uint16_t parentSlot = ip->slot;
+            const std::uint16_t childSlot = ip->auxSlot;
             if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
                 !outObjects[parentSlot] || !outObjects[childSlot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyContent");
             }
+            if (ip->typeOrPropIdx >= program.propertyPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid member index in SetPropertyContent");
+            }
+            if (ip->extraIdx >= program.typePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueType index in SetPropertyContent");
+            }
+            const std::uint64_t memberId = program.propertyPool[ip->typeOrPropIdx];
+            const std::uint64_t valueType = program.typePool[ip->extraIdx];
+            const std::uint8_t isPropertyEdge = ip->flags;
             Base::Object* parent = outObjects[parentSlot].Get();
             Base::Ref<Base::Object> child = outObjects[childSlot];
             if (memberId != Meta::InvalidMemberId) {
@@ -1225,11 +1089,8 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::SetRootVisual: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetRootVisual");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t nameIdx = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t nameIdx = ip->operandIdx;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetRootVisual");
             }
@@ -1247,12 +1108,9 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::AddVisualChild: {
-            if (!reader.HasBytes(2 + 2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AddVisualChild");
-            }
-            const std::uint16_t parentSlot = reader.ReadU16();
-            const std::uint16_t childSlot = reader.ReadU16();
-            const std::uint32_t nameIdx = reader.ReadU32();
+            const std::uint16_t parentSlot = ip->slot;
+            const std::uint16_t childSlot = ip->auxSlot;
+            const std::uint32_t nameIdx = ip->operandIdx;
             if (parentSlot >= outObjects.Size() || childSlot >= outObjects.Size() ||
                 !outObjects[parentSlot] || !outObjects[childSlot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AddVisualChild");
@@ -1279,11 +1137,8 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::AddObjectPart: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AddObjectPart");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t nameIdx = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t nameIdx = ip->operandIdx;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AddObjectPart");
             }
@@ -1305,11 +1160,8 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::RegisterDocumentName: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated RegisterDocumentName");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t nameIdx = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t nameIdx = ip->operandIdx;
             if (slot >= outObjects.Size() || !outObjects[slot] || nameIdx >= program.stringPool.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot or nameIndex in RegisterDocumentName");
             }
@@ -1328,14 +1180,11 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::SetGridDefinitions: {
-            if (!reader.HasBytes(2 + 4 + 2 + 4 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetGridDefinitions");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t colStart = reader.ReadU32();
-            const std::uint16_t colCount = reader.ReadU16();
-            const std::uint32_t rowStart = reader.ReadU32();
-            const std::uint16_t rowCount = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t colStart = ip->operandIdx;
+            const std::uint16_t colCount = ip->auxSlot;
+            const std::uint32_t rowStart = ip->extraIdx;
+            const std::uint16_t rowCount = ip->typeOrPropIdx;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetGridDefinitions");
             }
@@ -1357,32 +1206,10 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::SetStreamGeometryData: {
-            if (!reader.HasBytes(2 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetStreamGeometryData");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t strIdx = reader.ReadU32();
-            if (slot >= outObjects.Size() || !outObjects[slot]) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetStreamGeometryData");
-            }
-            if (strIdx >= program.stringPool.Size()) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in SetStreamGeometryData");
-            }
-            if (runtime != nullptr && runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Media::StreamGeometry::StaticTypeId())) {
-                auto& geom = static_cast<Media::StreamGeometry&>(*outObjects[slot]);
-                geom.SetData(program.stringPool[strIdx].View());
-            }
-            break;
-        }
-
         case XamlOpCode::SetGradientStops: {
-            if (!reader.HasBytes(2 + 4 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated SetGradientStops");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t stopStart = reader.ReadU32();
-            const std::uint16_t stopCount = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t stopStart = ip->operandIdx;
+            const std::uint16_t stopCount = ip->auxSlot;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetGradientStops");
             }
@@ -1412,10 +1239,7 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::ProjectContent: {
-            if (!reader.HasBytes(2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ProjectContent");
-            }
-            const std::uint16_t presenterSlot = reader.ReadU16();
+            const std::uint16_t presenterSlot = ip->slot;
             if (context.templateBuilder != nullptr && visuals != nullptr && presenterSlot < visuals->Size() && runtime != nullptr) {
                 if (runtime->Types().IsDerivedFrom(
                         context.templateBuilder->TemplatedParent().RuntimeType(),
@@ -1438,10 +1262,7 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::PopulateContentPresenter: {
-            if (!reader.HasBytes(2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated PopulateContentPresenter");
-            }
-            const std::uint16_t slot = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
             if (context.templateBuilder != nullptr && slot < outObjects.Size() && outObjects[slot] && runtime != nullptr) {
                 if (runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
                     Base::Result<void> pop = context.templateBuilder->PopulateContentPresenter(
@@ -1453,10 +1274,7 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::PopulateItemsPresenter: {
-            if (!reader.HasBytes(2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated PopulateItemsPresenter");
-            }
-            const std::uint16_t slot = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
             if (context.templateBuilder != nullptr && slot < outObjects.Size() && outObjects[slot] && runtime != nullptr) {
                 if (runtime->Types().IsDerivedFrom(outObjects[slot]->RuntimeType(), Controls::ItemsPresenter::StaticTypeId())) {
                     const Controls::ItemsPanelTemplate* itemsPanel = context.itemsPanel;
@@ -1474,13 +1292,10 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::AttachBehaviorsAndTriggers: {
-            if (!reader.HasBytes(2 + 4 + 2 + 2)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated AttachBehaviorsAndTriggers");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint32_t itemStart = reader.ReadU32();
-            const std::uint16_t bCount = reader.ReadU16();
-            const std::uint16_t tCount = reader.ReadU16();
+            const std::uint16_t slot = ip->slot;
+            const std::uint32_t itemStart = ip->operandIdx;
+            const std::uint16_t bCount = ip->auxSlot;
+            const std::uint16_t tCount = ip->typeOrPropIdx;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in AttachBehaviorsAndTriggers");
             }
@@ -1505,18 +1320,18 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::ConnectEventHandler: {
-            if (!reader.HasBytes(2 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ConnectEventHandler");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t eventMemberId = reader.ReadU64();
-            const std::uint32_t handlerNameIndex = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in ConnectEventHandler");
             }
-            if (handlerNameIndex >= program.stringPool.Size()) {
+            if (ip->typeOrPropIdx >= program.propertyPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid event member index in ConnectEventHandler");
+            }
+            if (ip->operandIdx >= program.stringPool.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in ConnectEventHandler");
             }
+            const std::uint64_t eventMemberId = program.propertyPool[ip->typeOrPropIdx];
+            const std::uint32_t handlerNameIndex = ip->operandIdx;
             Base::StringView handlerName = program.stringPool[handlerNameIndex].View();
             if (!handlerName.Empty() && runtime != nullptr) {
                 Base::Object* codeBehind = context.eventHandlerTarget != nullptr
@@ -1551,25 +1366,25 @@ inline Base::Result<void> XamlVM::Execute(
         }
 
         case XamlOpCode::ApplyMarkupExtension: {
-            if (!reader.HasBytes(2 + 8 + 8 + 4)) {
-                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Truncated ApplyMarkupExtension");
-            }
-            const std::uint16_t slot = reader.ReadU16();
-            const std::uint64_t propHandle = reader.ReadU64();
-            const std::uint64_t extTypeId = reader.ReadU64();
-            const std::uint32_t argIdx = reader.ReadU32();
+            const std::uint16_t slot = ip->slot;
             if (slot >= outObjects.Size() || !outObjects[slot]) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in ApplyMarkupExtension");
             }
-            if (argIdx >= program.stringPool.Size()) {
+            if (ip->typeOrPropIdx >= program.propertyPool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid property index in ApplyMarkupExtension");
+            }
+            if (ip->extraIdx >= program.typePool.Size()) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid extension type index in ApplyMarkupExtension");
+            }
+            if (ip->operandIdx >= program.stringPool.Size()) {
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "String index out of bounds in ApplyMarkupExtension");
             }
             if (context.schema == nullptr) {
                 return Base::Status::Failure(Base::ErrorCode::InvalidState, "Schema missing in ApplyMarkupExtension");
             }
-            if (slot >= outObjects.Size() || outObjects[slot].Get() == nullptr) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidState, "Invalid target slot or null object in ApplyMarkupExtension");
-            }
+            const std::uint64_t propHandle = program.propertyPool[ip->typeOrPropIdx];
+            const std::uint64_t extTypeId = program.typePool[ip->extraIdx];
+            const std::uint32_t argIdx = ip->operandIdx;
             Base::StringView arguments = program.stringPool[argIdx].View();
             ExtensionServices services;
             services.schema = context.schema;

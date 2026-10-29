@@ -16,22 +16,9 @@
 #include <new>
 #include <utility>
 
+#include "gui/core/RoutedEventHandlerStore.hpp"
+
 namespace Aero {
-namespace {
-
-struct RoutedHandlerRecord {
-    RoutedEventHandle event;
-    Aero::RoutedHandlerStorage handler;
-    std::uint64_t sequence = 0U;
-    bool handledEventsToo = false;
-};
-
-struct ContentElementHandlerState {
-    Base::Vector<RoutedHandlerRecord> handlers;
-    std::uint64_t nextSequence = 1U;
-};
-
-} // namespace
 
 ContentElement::ContentElement(Meta::TypeId runtimeType) noexcept
     : DependencyObject(runtimeType) {}
@@ -57,37 +44,13 @@ void ContentElement::AddHandlerErased(
         return;
     }
 
-    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
-    if (state == nullptr) {
-        Base::IAllocator& allocator = Base::GetDefaultAllocator();
-        void* memory = allocator.Allocate({
-            sizeof(ContentElementHandlerState),
-            alignof(ContentElementHandlerState),
-            Base::MemoryTag::Ui});
-        if (memory == nullptr) {
-            return;
-        }
-        state = new (memory) ContentElementHandlerState();
-        routedHandlers_ = state;
+    auto* store = static_cast<RoutedEventHandlerStore*>(routedHandlers_);
+    if (store == nullptr) {
+        store = RoutedEventHandlerStore::Create();
+        if (store == nullptr) return;
+        routedHandlers_ = store;
     }
-    if (state->nextSequence == 0U) {
-        return;
-    }
-
-    RoutedHandlerRecord record;
-    record.event = event;
-    record.handler = Aero::RoutedHandlerStorage(
-        handler,
-        size,
-        alignment,
-        argsType,
-        &CopyErasedDelegate,
-        &DestroyErasedDelegate,
-        &EqualsErasedDelegate,
-        &InvokeErasedDelegate);
-    record.sequence = state->nextSequence++;
-    record.handledEventsToo = handledEventsToo;
-    (void)state->handlers.PushBack(std::move(record));
+    store->AddHandler(event, handler, size, alignment, argsType, handledEventsToo);
 }
 
 bool ContentElement::RemoveHandlerErased(
@@ -101,57 +64,22 @@ bool ContentElement::RemoveHandlerErased(
         routedHandlers_ == nullptr) {
         return false;
     }
-    Aero::RoutedHandlerStorage probe(
-        handler,
-        size,
-        alignment,
-        argsType,
-        &CopyErasedDelegate,
-        &DestroyErasedDelegate,
-        &EqualsErasedDelegate,
-        &InvokeErasedDelegate);
-    auto& handlers =
-        static_cast<ContentElementHandlerState*>(routedHandlers_)->handlers;
-    for (std::uint32_t index = 0U; index < handlers.Size(); ++index) {
-        if (handlers[index].event == event &&
-            handlers[index].handler.Equals(probe)) {
-            for (std::uint32_t current = index + 1U;
-                 current < handlers.Size(); ++current) {
-                handlers[current - 1U] = std::move(handlers[current]);
-            }
-            handlers.PopBack();
-            return true;
-        }
-    }
-    return false;
+    return static_cast<RoutedEventHandlerStore*>(routedHandlers_)->RemoveHandler(
+        event, handler, size, alignment, argsType);
 }
 
 void ContentElement::InvokeHandlers(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
-    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
-    if (state == nullptr) return;
-    const std::uint32_t count = state->handlers.Size();
-    for (std::uint32_t index = 0U;
-         index < count && index < state->handlers.Size();
-         ++index) {
-        const RoutedHandlerRecord record = state->handlers[index];
-        if (record.event == event &&
-            (!args.GetHandled() || record.handledEventsToo)) {
-            record.handler.Invoke(this, args);
-        }
-    }
+    auto* store = static_cast<RoutedEventHandlerStore*>(routedHandlers_);
+    if (store == nullptr) return;
+    store->Invoke(this, event, args);
 }
 
 void ContentElement::CleanupHandlers() noexcept {
-    auto* state = static_cast<ContentElementHandlerState*>(routedHandlers_);
-    if (state == nullptr) return;
-    state->~ContentElementHandlerState();
-    Base::GetDefaultAllocator().Deallocate(
-        state,
-        sizeof(ContentElementHandlerState),
-        alignof(ContentElementHandlerState),
-        Base::MemoryTag::Ui);
+    auto* store = static_cast<RoutedEventHandlerStore*>(routedHandlers_);
+    if (store == nullptr) return;
+    RoutedEventHandlerStore::Destroy(store);
     routedHandlers_ = nullptr;
 }
 

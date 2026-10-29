@@ -31,10 +31,7 @@ class AERO_GUI_API BlurEffect : public Effect {
 public:
     BlurEffect() noexcept : Effect(StaticTypeId()) {}
 
-    double GetRadius() const noexcept;
-    void SetRadius(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, Radius);
+    AERO_DEPENDENCY_PROPERTY2(double, Radius);
 };
 
 class AERO_GUI_API DropShadowEffect : public Effect {
@@ -43,22 +40,11 @@ class AERO_GUI_API DropShadowEffect : public Effect {
 public:
     DropShadowEffect() noexcept : Effect(StaticTypeId()) {}
 
-    double GetBlurRadius() const noexcept;
-    void SetBlurRadius(double value) noexcept;
-    double GetDirection() const noexcept;
-    void SetDirection(double value) noexcept;
-    double GetShadowDepth() const noexcept;
-    void SetShadowDepth(double value) noexcept;
-    double GetOpacity() const noexcept;
-    void SetOpacity(double value) noexcept;
-    Base::Color GetColor() const noexcept;
-    void SetColor(Base::Color value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, BlurRadius);
-    AERO_DEPENDENCY_PROPERTY(double, Direction);
-    AERO_DEPENDENCY_PROPERTY(double, ShadowDepth);
-    AERO_DEPENDENCY_PROPERTY(double, Opacity);
-    AERO_DEPENDENCY_PROPERTY(Base::Color, Color);
+    AERO_DEPENDENCY_PROPERTY2(double, BlurRadius);
+    AERO_DEPENDENCY_PROPERTY2(double, Direction);
+    AERO_DEPENDENCY_PROPERTY2(double, ShadowDepth);
+    AERO_DEPENDENCY_PROPERTY2(double, Opacity);
+    AERO_DEPENDENCY_PROPERTY2(Base::Color, Color);
 };
 
 class AERO_GUI_API PixelateEffect : public Effect {
@@ -67,10 +53,7 @@ class AERO_GUI_API PixelateEffect : public Effect {
 public:
     PixelateEffect() noexcept : Effect(StaticTypeId()) {}
 
-    double GetSize() const noexcept;
-    void SetSize(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, Size);
+    AERO_DEPENDENCY_PROPERTY2(double, Size);
 };
 
 class AERO_GUI_API TintEffect : public Effect {
@@ -79,10 +62,7 @@ class AERO_GUI_API TintEffect : public Effect {
 public:
     TintEffect() noexcept : Effect(StaticTypeId()) {}
 
-    Base::Color GetColor() const noexcept;
-    void SetColor(Base::Color value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Base::Color, Color);
+    AERO_DEPENDENCY_PROPERTY2(Base::Color, Color);
 };
 
 class AERO_GUI_API DirectionalBlurEffect : public Effect {
@@ -91,13 +71,8 @@ class AERO_GUI_API DirectionalBlurEffect : public Effect {
 public:
     DirectionalBlurEffect() noexcept : Effect(StaticTypeId()) {}
 
-    double GetRadius() const noexcept;
-    void SetRadius(double value) noexcept;
-    double GetAngle() const noexcept;
-    void SetAngle(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(double, Radius);
-    AERO_DEPENDENCY_PROPERTY(double, Angle);
+    AERO_DEPENDENCY_PROPERTY2(double, Radius);
+    AERO_DEPENDENCY_PROPERTY2(double, Angle);
 };
 
 class AERO_GUI_API ShaderEffect : public Effect {

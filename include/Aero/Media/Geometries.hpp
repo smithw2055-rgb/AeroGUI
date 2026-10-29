@@ -77,9 +77,7 @@ class AERO_GUI_API LineSegment : public PathSegment {
 
 public:
     LineSegment() noexcept : PathSegment(StaticTypeId()) {}
-    Point GetPoint() const noexcept { return GetValue(PointProperty); }
-    void SetPoint(Point value) noexcept { SetValue(PointProperty, value); }
-    AERO_DEPENDENCY_PROPERTY(Point, Point);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
 };
 
@@ -88,15 +86,9 @@ class AERO_GUI_API BezierSegment : public PathSegment {
 
 public:
     BezierSegment() noexcept : PathSegment(StaticTypeId()) {}
-    Point GetPoint1() const noexcept { return GetValue(Point1Property); }
-    Point GetPoint2() const noexcept { return GetValue(Point2Property); }
-    Point GetPoint3() const noexcept { return GetValue(Point3Property); }
-    void SetPoint1(Point value) noexcept { SetValue(Point1Property, value); }
-    void SetPoint2(Point value) noexcept { SetValue(Point2Property, value); }
-    void SetPoint3(Point value) noexcept { SetValue(Point3Property, value); }
-    AERO_DEPENDENCY_PROPERTY(Point, Point1);
-    AERO_DEPENDENCY_PROPERTY(Point, Point2);
-    AERO_DEPENDENCY_PROPERTY(Point, Point3);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point1);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point2);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point3);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
 };
 
@@ -105,12 +97,8 @@ class AERO_GUI_API QuadraticBezierSegment : public PathSegment {
 
 public:
     QuadraticBezierSegment() noexcept : PathSegment(StaticTypeId()) {}
-    Point GetPoint1() const noexcept { return GetValue(Point1Property); }
-    Point GetPoint2() const noexcept { return GetValue(Point2Property); }
-    void SetPoint1(Point value) noexcept { SetValue(Point1Property, value); }
-    void SetPoint2(Point value) noexcept { SetValue(Point2Property, value); }
-    AERO_DEPENDENCY_PROPERTY(Point, Point1);
-    AERO_DEPENDENCY_PROPERTY(Point, Point2);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point1);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point2);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
 };
 
@@ -175,21 +163,11 @@ class AERO_GUI_API ArcSegment : public PathSegment {
 
 public:
     ArcSegment() noexcept : PathSegment(StaticTypeId()) {}
-    Point GetPoint() const noexcept { return GetValue(PointProperty); }
-    Size GetSize() const noexcept { return GetValue(SizeProperty); }
-    double GetRotationAngle() const noexcept { return GetValue(RotationAngleProperty); }
-    bool GetIsLargeArc() const noexcept { return GetValue(IsLargeArcProperty); }
-    SweepDirection GetSweepDirection() const noexcept { return GetValue(SweepDirectionProperty); }
-    void SetPoint(Point value) noexcept { SetValue(PointProperty, value); }
-    void SetSize(Size value) noexcept { SetValue(SizeProperty, value); }
-    void SetRotationAngle(double value) noexcept { SetValue(RotationAngleProperty, value); }
-    void SetIsLargeArc(bool value) noexcept { SetValue(IsLargeArcProperty, value); }
-    void SetSweepDirection(SweepDirection value) noexcept { SetValue(SweepDirectionProperty, value); }
-    AERO_DEPENDENCY_PROPERTY(Point, Point);
-    AERO_DEPENDENCY_PROPERTY(Size, Size);
-    AERO_DEPENDENCY_PROPERTY(double, RotationAngle);
-    AERO_DEPENDENCY_PROPERTY(bool, IsLargeArc);
-    AERO_DEPENDENCY_PROPERTY(SweepDirection, SweepDirection);
+    AERO_DEPENDENCY_PROPERTY2(Point, Point);
+    AERO_DEPENDENCY_PROPERTY2(Size, Size);
+    AERO_DEPENDENCY_PROPERTY2(double, RotationAngle);
+    AERO_DEPENDENCY_PROPERTY2(bool, IsLargeArc);
+    AERO_DEPENDENCY_PROPERTY2(SweepDirection, SweepDirection);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
 };
 
@@ -198,10 +176,6 @@ class AERO_GUI_API PathFigure : public Animatable {
 
 public:
     PathFigure() noexcept : Animatable(StaticTypeId()) {}
-    Point GetStartPoint() const noexcept { return GetValue(StartPointProperty); }
-    void SetStartPoint(Point value) noexcept { SetValue(StartPointProperty, value); }
-    bool GetIsClosed() const noexcept { return GetValue(IsClosedProperty); }
-    void SetIsClosed(bool value) noexcept { SetValue(IsClosedProperty, value); }
     void AddSegment(Ref<PathSegment> value) noexcept;
     void ClearSegments() noexcept {
         if (!WritePreamble()) return;
@@ -209,8 +183,8 @@ public:
         WritePostscript();
     }
     Span<const Ref<PathSegment>> GetSegments() const noexcept { return segments_.AsSpan(); }
-    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
-    AERO_DEPENDENCY_PROPERTY(bool, IsClosed);
+    AERO_DEPENDENCY_PROPERTY2(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY2(bool, IsClosed);
 
 private:
     FreezableCollection<PathSegment> segments_;
@@ -253,16 +227,10 @@ class AERO_GUI_API RectangleGeometry : public Geometry {
 public:
     RectangleGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Rect GetRect() const noexcept { return GetValue(RectProperty); }
-    double GetRadiusX() const noexcept { return GetValue(RadiusXProperty); }
-    double GetRadiusY() const noexcept { return GetValue(RadiusYProperty); }
-    void SetRect(Rect value) noexcept { SetValue(RectProperty, value); }
-    void SetRadiusX(double value) noexcept { SetValue(RadiusXProperty, value); }
-    void SetRadiusY(double value) noexcept { SetValue(RadiusYProperty, value); }
     Rect GetBounds() const noexcept override { return GetRect(); }
-    AERO_DEPENDENCY_PROPERTY(Rect, Rect);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+    AERO_DEPENDENCY_PROPERTY2(Rect, Rect);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusY);
 
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
@@ -274,16 +242,10 @@ class AERO_GUI_API EllipseGeometry : public Geometry {
 public:
     EllipseGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Point GetCenter() const noexcept { return GetValue(CenterProperty); }
-    double GetRadiusX() const noexcept { return GetValue(RadiusXProperty); }
-    double GetRadiusY() const noexcept { return GetValue(RadiusYProperty); }
-    void SetCenter(Point value) noexcept { SetValue(CenterProperty, value); }
-    void SetRadiusX(double value) noexcept { SetValue(RadiusXProperty, value); }
-    void SetRadiusY(double value) noexcept { SetValue(RadiusYProperty, value); }
     Rect GetBounds() const noexcept override;
-    AERO_DEPENDENCY_PROPERTY(Point, Center);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+    AERO_DEPENDENCY_PROPERTY2(Point, Center);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusY);
 
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
@@ -295,13 +257,9 @@ class AERO_GUI_API LineGeometry : public Geometry {
 public:
     LineGeometry() noexcept : Geometry(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    Point GetStartPoint() const noexcept { return GetValue(StartPointProperty); }
-    Point GetEndPoint() const noexcept { return GetValue(EndPointProperty); }
-    void SetStartPoint(Point value) noexcept { SetValue(StartPointProperty, value); }
-    void SetEndPoint(Point value) noexcept { SetValue(EndPointProperty, value); }
     Rect GetBounds() const noexcept override;
-    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
-    AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
+    AERO_DEPENDENCY_PROPERTY2(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY2(Point, EndPoint);
 
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;
@@ -343,11 +301,9 @@ public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Geometry> GetGeometry1() const noexcept { return geometry1_; }
     Ref<Geometry> GetGeometry2() const noexcept { return geometry2_; }
-    GeometryCombineMode GetGeometryCombineMode() const noexcept { return GetValue(GeometryCombineModeProperty); }
     void SetGeometry1(Ref<Geometry> value) noexcept;
     void SetGeometry2(Ref<Geometry> value) noexcept;
-    void SetGeometryCombineMode(GeometryCombineMode value) noexcept { SetValue(GeometryCombineModeProperty, value); }
-    AERO_DEPENDENCY_PROPERTY(GeometryCombineMode, GeometryCombineMode);
+    AERO_DEPENDENCY_PROPERTY2(GeometryCombineMode, GeometryCombineMode);
 
 protected:
     void FlattenCore(FlattenSink& sink) const noexcept override;

@@ -51,18 +51,11 @@ class AERO_GUI_API Brush : public Animatable {
 
 public:
 
-    double GetOpacity() const noexcept;
-    void SetOpacity(double value) noexcept;
-    Ref<Base::Object> GetShader() const noexcept { return GetValue(ShaderProperty); }
-    void SetShader(Ref<Base::Object> value) noexcept { SetValue(ShaderProperty, std::move(value)); }
-    Ref<Transform> GetRelativeTransform() const noexcept { return GetValue(RelativeTransformProperty); }
-    void SetRelativeTransform(Ref<Transform> value) noexcept { SetValue(RelativeTransformProperty, std::move(value)); }
-
     std::uint64_t GetRevision() const noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(double, Opacity);
-    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Shader);
-    AERO_DEPENDENCY_PROPERTY(Ref<Transform>, RelativeTransform);
+    AERO_DEPENDENCY_PROPERTY2(double, Opacity);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Base::Object>, Shader);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Transform>, RelativeTransform);
 
 protected:
     explicit Brush(TypeId runtimeType) noexcept : Animatable(runtimeType) {}
@@ -76,15 +69,10 @@ public:
     GradientStop() noexcept : Animatable(StaticTypeId()) {}
     ~GradientStop() override = default;
 
-    double GetOffset() const noexcept;
-    Color GetColor() const noexcept;
-    void SetOffset(double value) noexcept;
-    void SetColor(Color value) noexcept;
-
     std::uint64_t GetRevision() const noexcept { return Revision(); }
 
-    AERO_DEPENDENCY_PROPERTY(double, Offset);
-    AERO_DEPENDENCY_PROPERTY(Color, Color);
+    AERO_DEPENDENCY_PROPERTY2(double, Offset);
+    AERO_DEPENDENCY_PROPERTY2(Color, Color);
 
 };
 
@@ -173,10 +161,8 @@ class AERO_GUI_API WavesShader : public BrushShader {
 
 public:
     WavesShader() noexcept : BrushShader(StaticTypeId()) {}
-    double GetTime() const noexcept;
-    void SetTime(double value) noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(double, Time);
+    AERO_DEPENDENCY_PROPERTY2(double, Time);
 
 protected:
     Base::Ref<Freezable> CreateInstanceCore() const override {
@@ -192,10 +178,7 @@ public:
     explicit SolidColorBrush(Color color) noexcept : Brush(StaticTypeId()), initialColor_(color) {}
     ~SolidColorBrush() override = default;
 
-    Color GetColor() const noexcept;
-    void SetColor(Color value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Color, Color);
+    AERO_DEPENDENCY_PROPERTY2(Color, Color);
 
 private:
     Color initialColor_{};
@@ -210,13 +193,9 @@ public:
     Span<const Ref<GradientStop>> GetGradientStops() const noexcept { return stops_.AsSpan(); }
     void AddGradientStop(Ref<GradientStop> stop) noexcept;
     void ClearGradientStops() noexcept;
-    BrushMappingMode GetMappingMode() const noexcept;
-    void SetMappingMode(BrushMappingMode value) noexcept;
-    GradientSpreadMethod GetSpreadMethod() const noexcept;
-    void SetSpreadMethod(GradientSpreadMethod value) noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, MappingMode);
-    AERO_DEPENDENCY_PROPERTY(GradientSpreadMethod, SpreadMethod);
+    AERO_DEPENDENCY_PROPERTY2(BrushMappingMode, MappingMode);
+    AERO_DEPENDENCY_PROPERTY2(GradientSpreadMethod, SpreadMethod);
 
 protected:
     explicit GradientBrush(TypeId runtimeType) noexcept : Brush(runtimeType),
@@ -239,13 +218,8 @@ public:
     LinearGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~LinearGradientBrush() override = default;
 
-    Point GetStartPoint() const noexcept;
-    Point GetEndPoint() const noexcept;
-    void SetStartPoint(Point value) noexcept;
-    void SetEndPoint(Point value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Point, StartPoint);
-    AERO_DEPENDENCY_PROPERTY(Point, EndPoint);
+    AERO_DEPENDENCY_PROPERTY2(Point, StartPoint);
+    AERO_DEPENDENCY_PROPERTY2(Point, EndPoint);
 };
 
 class AERO_GUI_API RadialGradientBrush : public GradientBrush {
@@ -255,51 +229,24 @@ public:
     RadialGradientBrush() noexcept : GradientBrush(StaticTypeId()) {}
     ~RadialGradientBrush() override = default;
 
-    Point GetCenter() const noexcept;
-    Point GetGradientOrigin() const noexcept;
-    double GetRadiusX() const noexcept;
-    double GetRadiusY() const noexcept;
-    void SetCenter(Point value) noexcept;
-    void SetGradientOrigin(Point value) noexcept;
-    void SetRadiusX(double value) noexcept;
-    void SetRadiusY(double value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Point, Center);
-    AERO_DEPENDENCY_PROPERTY(Point, GradientOrigin);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusX);
-    AERO_DEPENDENCY_PROPERTY(double, RadiusY);
+    AERO_DEPENDENCY_PROPERTY2(Point, Center);
+    AERO_DEPENDENCY_PROPERTY2(Point, GradientOrigin);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusY);
 };
 
 class AERO_GUI_API TileBrush : public Brush {
     AERO_DECLARE_TYPE(TileBrush, Brush)
 
 public:
-    Stretch GetStretch() const noexcept;
-    Rect GetViewbox() const noexcept;
-    Rect GetViewport() const noexcept;
-    BrushMappingMode GetViewboxUnits() const noexcept;
-    BrushMappingMode GetViewportUnits() const noexcept;
-    TileMode GetTileMode() const noexcept;
-    HorizontalAlignment GetAlignmentX() const noexcept;
-    VerticalAlignment GetAlignmentY() const noexcept;
-
-    void SetStretch(Stretch value) noexcept;
-    void SetViewbox(Rect value) noexcept;
-    void SetViewport(Rect value) noexcept;
-    void SetViewboxUnits(BrushMappingMode value) noexcept;
-    void SetViewportUnits(BrushMappingMode value) noexcept;
-    void SetTileMode(TileMode value) noexcept;
-    void SetAlignmentX(HorizontalAlignment value) noexcept;
-    void SetAlignmentY(VerticalAlignment value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
-    AERO_DEPENDENCY_PROPERTY(Rect, Viewbox);
-    AERO_DEPENDENCY_PROPERTY(Rect, Viewport);
-    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, ViewboxUnits);
-    AERO_DEPENDENCY_PROPERTY(BrushMappingMode, ViewportUnits);
-    AERO_DEPENDENCY_PROPERTY(TileMode, TileMode);
-    AERO_DEPENDENCY_PROPERTY(HorizontalAlignment, AlignmentX);
-    AERO_DEPENDENCY_PROPERTY(VerticalAlignment, AlignmentY);
+    AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY2(Rect, Viewbox);
+    AERO_DEPENDENCY_PROPERTY2(Rect, Viewport);
+    AERO_DEPENDENCY_PROPERTY2(BrushMappingMode, ViewboxUnits);
+    AERO_DEPENDENCY_PROPERTY2(BrushMappingMode, ViewportUnits);
+    AERO_DEPENDENCY_PROPERTY2(TileMode, TileMode);
+    AERO_DEPENDENCY_PROPERTY2(HorizontalAlignment, AlignmentX);
+    AERO_DEPENDENCY_PROPERTY2(VerticalAlignment, AlignmentY);
 
 protected:
     explicit TileBrush(TypeId runtimeType) noexcept : Brush(runtimeType) {}
@@ -312,10 +259,10 @@ public:
     ImageBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~ImageBrush() override = default;
 
-    Ref<ImageSource> GetSource() const noexcept;
-    void SetSource(Ref<ImageSource> value) noexcept;
+    AERO_DEPENDENCY_PROPERTY2(Ref<ImageSource>, ImageSource);
 
-    AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, ImageSource);
+    Ref<ImageSource> GetSource() const noexcept { return GetImageSource(); }
+    void SetSource(Ref<ImageSource> value) noexcept { SetImageSource(std::move(value)); }
 
     std::uint64_t GetRenderImageId() const noexcept { return renderImage_; }
     std::uint32_t GetPixelWidth() const noexcept { return pixelWidth_; }
@@ -335,10 +282,7 @@ public:
     VisualBrush() noexcept : TileBrush(StaticTypeId()) {}
     ~VisualBrush() override = default;
 
-    Ref<Base::Object> GetVisual() const noexcept { return GetValue(VisualProperty); }
-    void SetVisual(Ref<Base::Object> value) noexcept { SetValue(VisualProperty, std::move(value)); }
-
-    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Visual);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Base::Object>, Visual);
 };
 
 } // namespace Aero::Media

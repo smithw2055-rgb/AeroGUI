@@ -3551,32 +3551,29 @@ struct XamlTemplateSchemaFacet::State {
                 }
                 return InvalidTemplateXaml("Template requires a VisualTree");
             }
-            Base::Result<CompiledTemplateBlueprint>
-                compiled =
-                    CompileDeferredTemplateBlueprint(
-                        visualTree,
-                        isDataTemplateFamily
-                            ? &::Aero::Controls::FrameworkTemplateState::AuthoredNames(static_cast<DataTemplate&>(object))
-                            : nullptr,
-                        {
-                            edges.Data(),
-                            edges.Size()},
-                        {
-                            bindings.Data(),
-                            bindings.Size()},
-                        *self->runtime,
-                        *self->properties);
-            if (!compiled) {
-                return compiled.GetStatus();
-            }
             auto& templateObj = static_cast<FrameworkTemplate&>(object);
             auto container = Base::MakeRefWithAllocator<XamlBytecodeContainer>(*self->allocator);
             if (!container) {
                 return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
             }
-            Base::Result<void> bytecoded = CompileBlueprintToBytecode(
-                compiled.Value(), container->program);
-            if (!bytecoded) return bytecoded.GetStatus();
+            Base::Result<void> bytecoded =
+                CompileDeferredTemplateToBytecode(
+                    visualTree,
+                    isDataTemplateFamily
+                        ? &::Aero::Controls::FrameworkTemplateState::AuthoredNames(static_cast<DataTemplate&>(object))
+                        : nullptr,
+                    {
+                        edges.Data(),
+                        edges.Size()},
+                    {
+                        bindings.Data(),
+                        bindings.Size()},
+                    *self->runtime,
+                    *self->properties,
+                    container->program);
+            if (!bytecoded) {
+                return bytecoded.GetStatus();
+            }
 
             if (isDataTemplateFamily) {
                 auto authoredTriggers =

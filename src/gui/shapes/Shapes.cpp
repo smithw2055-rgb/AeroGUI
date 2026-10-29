@@ -272,47 +272,6 @@ ImageBrushGeometry FitImageBrush(
 
 } // namespace
 
-Base::Ref<Brush> Shape::GetFill() const noexcept {
-    return GetValue(FillProperty);
-}
-
-Base::Ref<Brush> Shape::GetStroke() const noexcept {
-    return GetValue(StrokeProperty);
-}
-
-double Shape::GetStrokeThickness() const noexcept {
-    return GetValue(StrokeThicknessProperty);
-}
-
-Stretch Shape::GetStretch() const noexcept {
-    return GetValue(StretchProperty);
-}
-
-void Shape::SetFill(
-    Base::Ref<Brush> value) noexcept {
-    SetValue(FillProperty, std::move(value));
-}
-
-void Shape::SetStroke(
-    Base::Ref<Brush> value) noexcept {
-    SetValue(StrokeProperty, std::move(value));
-}
-
-Base::Ref<Media::Pen> Shape::GetPen() const noexcept {
-    return GetValue(PenProperty);
-}
-
-void Shape::SetPen(Base::Ref<Media::Pen> value) noexcept {
-    SetValue(PenProperty, std::move(value));
-}
-
-void Shape::SetStrokeThickness(double value) noexcept {
-    SetValue(StrokeThicknessProperty, value);
-}
-
-void Shape::SetStretch(Stretch value) noexcept {
-    SetValue(StretchProperty, value);
-}
 
 void Shape::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -329,21 +288,6 @@ void Shape::OnPropertyChanged(
     FrameworkElement::OnPropertyChanged(args);
 }
 
-double Rectangle::GetRadiusX() const noexcept {
-    return GetValue(RadiusXProperty);
-}
-
-double Rectangle::GetRadiusY() const noexcept {
-    return GetValue(RadiusYProperty);
-}
-
-void Rectangle::SetRadiusX(double value) noexcept {
-    SetValue(RadiusXProperty, value);
-}
-
-void Rectangle::SetRadiusY(double value) noexcept {
-    SetValue(RadiusYProperty, value);
-}
 
 Size Rectangle::MeasureOverride(
     Size) noexcept {
@@ -605,14 +549,6 @@ void FillPointFan(
 
 } // namespace
 
-double Line::GetX1() const noexcept { return GetValue(X1Property); }
-double Line::GetY1() const noexcept { return GetValue(Y1Property); }
-double Line::GetX2() const noexcept { return GetValue(X2Property); }
-double Line::GetY2() const noexcept { return GetValue(Y2Property); }
-void Line::SetX1(double value) noexcept { SetValue(X1Property, value); }
-void Line::SetY1(double value) noexcept { SetValue(Y1Property, value); }
-void Line::SetX2(double value) noexcept { SetValue(X2Property, value); }
-void Line::SetY2(double value) noexcept { SetValue(Y2Property, value); }
 
 Size Line::MeasureOverride(Size) noexcept {
     const double stroke = std::max(0.0, GetStrokeThickness());
@@ -631,12 +567,6 @@ void Line::OnRender(::Aero::Media::DrawingContext& context) noexcept {
         GetStrokeThickness());
 }
 
-FillRule Polygon::GetFillRule() const noexcept {
-    return GetValue(FillRuleProperty);
-}
-void Polygon::SetFillRule(FillRule value) noexcept {
-    SetValue(FillRuleProperty, value);
-}
 Span<const Point> Polygon::GetPoints() const noexcept {
     return points_.AsSpan();
 }

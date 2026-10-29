@@ -22,48 +22,11 @@
 
 #include <new>
 #include "gui/core/Describe.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
 #include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Animation/MediaActions.hpp>
-#include <Aero/Media/Animation/StoryboardActions.hpp>
-#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
 #include <Aero/Animatable.hpp>
 #include <cctype>
 #include <cmath>
@@ -345,22 +308,6 @@ void Setter::ReleaseAuthored() noexcept {
     propertyName_.Clear();
     targetName_.Clear();
     authoredValue_ = PropertyValue{};
-}
-
-StringView Setter::GetPropertyName() const noexcept {
-    return propertyName_.View();
-}
-
-StringView Setter::GetTargetName() const noexcept {
-    return targetName_.View();
-}
-
-const PropertyValue& Setter::GetAuthoredValue() const noexcept {
-    return authoredValue_;
-}
-
-bool Setter::GetIsAuthored() const noexcept {
-    return !propertyName_.Empty() && !authoredValue_.IsUnset();
 }
 
 void Setter::SetPropertyName(

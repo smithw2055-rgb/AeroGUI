@@ -47,7 +47,7 @@ public:
     ~Setter() override = default;
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
-    const PropertyValue& GetValue() const noexcept { return value_; }
+    const PropertyValue& GetValue() const noexcept { return !value_.IsUnset() ? value_ : authoredValue_; }
     void SetProperty(DependencyPropertyHandle value) noexcept {
         if (!value.IsValid()) return;
         property_ = value;
@@ -73,10 +73,10 @@ public:
     }
     void SetPropertyName(StringView value) noexcept;
     void SetTargetName(StringView value) noexcept;
-    StringView GetPropertyName() const noexcept;
-    StringView GetTargetName() const noexcept;
-    const PropertyValue& GetAuthoredValue() const noexcept;
-    bool GetIsAuthored() const noexcept;
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    StringView GetTargetName() const noexcept { return targetName_.View(); }
+    const PropertyValue& GetAuthoredValue() const noexcept { return !authoredValue_.IsUnset() ? authoredValue_ : value_; }
+    bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && (!authoredValue_.IsUnset() || !value_.IsUnset()); }
     void ReleaseAuthored() noexcept;
 
 private:
@@ -143,29 +143,28 @@ private:
     Base::Vector<Ref<Setter>> authoredSetters_;
 };
 
-struct AuthoredTriggerData {
-    AuthoredTriggerData() noexcept {}
-    String propertyName;
-    String sourceName;
-    PropertyValue authoredValue;
-};
-
 class AERO_GUI_API Condition : public Base::Object {
     AERO_DECLARE_TYPE(Condition, Base::Object)
 
 public:
     Condition() noexcept = default;
-    ~Condition() override;
+    ~Condition() override = default;
 
     TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
     void SetBinding(Ref<Data::Binding> value) noexcept { binding_ = std::move(value); }
-    StringView GetPropertyName() const noexcept;
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     void SetPropertyName(StringView value) noexcept;
-    StringView GetSourceName() const noexcept;
+    StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
-    const PropertyValue& GetAuthoredValue() const noexcept;
-    void ReleaseAuthored() noexcept;
+    const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
+    const PropertyValue& GetValue() const noexcept { return authoredValue_; }
+    void SetValue(const PropertyValue& value) noexcept { authoredValue_ = value; }
+    void ReleaseAuthored() noexcept {
+        propertyName_.Clear();
+        sourceName_.Clear();
+        authoredValue_ = {};
+    }
 
 private:
     friend class Style;
@@ -174,11 +173,10 @@ private:
     friend class Controls::TemplateEngine;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
 
-    using AuthoredData = AuthoredTriggerData;
-    AuthoredData* EnsureAuthored() noexcept;
-
     Ref<Data::Binding> binding_;
-    AuthoredData* authored_ = nullptr;
+    String propertyName_;
+    String sourceName_;
+    PropertyValue authoredValue_;
 };
 
 class Style;
@@ -188,20 +186,27 @@ class AERO_GUI_API Trigger : public SetterTriggerBase {
 
 public:
     explicit Trigger(TypeId runtimeType = StaticTypeId()) noexcept : SetterTriggerBase(runtimeType) {}
-    ~Trigger() override;
+    ~Trigger() override = default;
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
-    const PropertyValue& GetValue() const noexcept { return value_; }
+    const PropertyValue& GetValue() const noexcept { return !value_.IsUnset() ? value_ : authoredValue_; }
     void SetProperty(DependencyPropertyHandle value) noexcept;
     void SetValue(const PropertyValue& value) noexcept;
     void AddSetter(const Setter& setter) noexcept;
     void SetPropertyName(StringView value) noexcept;
-    StringView GetSourceName() const noexcept;
+    StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
-    StringView GetPropertyName() const noexcept;
-    const PropertyValue& GetAuthoredValue() const noexcept;
-    bool GetIsAuthored() const noexcept;
-    void ReleaseAuthored() noexcept;
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
+    const PropertyValue& GetAuthoredValue() const noexcept { return !authoredValue_.IsUnset() ? authoredValue_ : value_; }
+    bool GetIsAuthored() const noexcept {
+        return (!propertyName_.Empty() || property_.IsValid()) &&
+               (!authoredValue_.IsUnset() || !value_.IsUnset());
+    }
+    void ReleaseAuthored() noexcept {
+        propertyName_.Clear();
+        sourceName_.Clear();
+        authoredValue_ = {};
+    }
 
 private:
     friend class Style;
@@ -210,12 +215,11 @@ private:
     friend class Controls::TemplateEngine;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
 
-    using AuthoredData = AuthoredTriggerData;
-    AuthoredData* EnsureAuthored() noexcept;
-
     DependencyPropertyHandle property_;
     PropertyValue value_;
-    AuthoredData* authored_ = nullptr;
+    String propertyName_;
+    String sourceName_;
+    PropertyValue authoredValue_;
 };
 
 class AERO_GUI_API DataTrigger : public SetterTriggerBase {
@@ -223,18 +227,24 @@ class AERO_GUI_API DataTrigger : public SetterTriggerBase {
 
 public:
     DataTrigger() noexcept : SetterTriggerBase(StaticTypeId()) { static_cast<void>(comparison_.Assign("Equal")); }
-    ~DataTrigger() override;
+    ~DataTrigger() override = default;
 
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
     void SetBinding(Ref<Data::Binding> value) noexcept { binding_ = std::move(value); }
-    StringView GetPropertyName() const noexcept;
+    StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     void SetPropertyName(StringView value) noexcept;
-    StringView GetSourceName() const noexcept;
+    StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
-    const PropertyValue& GetAuthoredValue() const noexcept;
+    const PropertyValue& GetAuthoredValue() const noexcept { return authoredValue_; }
+    const PropertyValue& GetValue() const noexcept { return authoredValue_; }
+    void SetValue(const PropertyValue& value) noexcept { authoredValue_ = value; }
     StringView GetComparison() const noexcept { return comparison_.View(); }
     void SetComparison(StringView value) noexcept { (void)comparison_.Assign(value); }
-    void ReleaseAuthored() noexcept;
+    void ReleaseAuthored() noexcept {
+        propertyName_.Clear();
+        sourceName_.Clear();
+        authoredValue_ = {};
+    }
 
 private:
     friend class Style;
@@ -243,12 +253,11 @@ private:
     friend class Controls::TemplateEngine;
     void SetAuthoredValue(const PropertyValue& value) noexcept;
 
-    using AuthoredData = AuthoredTriggerData;
-    AuthoredData* EnsureAuthored() noexcept;
-
     Ref<Data::Binding> binding_;
     String comparison_;
-    AuthoredData* authored_ = nullptr;
+    String propertyName_;
+    String sourceName_;
+    PropertyValue authoredValue_;
 };
 
 class AERO_GUI_API MultiTrigger : public SetterTriggerBase {

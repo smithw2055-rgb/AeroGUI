@@ -242,18 +242,6 @@ Base::Transform3 MatrixTransform3D::GetTransform3D() const noexcept {
     return GetMatrix();
 }
 
-double TranslateTransform::GetX() const noexcept {
-    return GetValue(XProperty);
-}
-double TranslateTransform::GetY() const noexcept {
-    return GetValue(YProperty);
-}
-void TranslateTransform::SetX(double value) noexcept {
-    SetValue(XProperty, value);
-}
-void TranslateTransform::SetY(double value) noexcept {
-    SetValue(YProperty, value);
-}
 Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.dx = GetX();
@@ -261,30 +249,6 @@ Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
     return value;
 }
 
-double ScaleTransform::GetScaleX() const noexcept {
-    return GetValue(ScaleXProperty);
-}
-double ScaleTransform::GetScaleY() const noexcept {
-    return GetValue(ScaleYProperty);
-}
-double ScaleTransform::GetCenterX() const noexcept {
-    return GetValue(CenterXProperty);
-}
-double ScaleTransform::GetCenterY() const noexcept {
-    return GetValue(CenterYProperty);
-}
-void ScaleTransform::SetScaleX(double value) noexcept {
-    SetValue(ScaleXProperty, value);
-}
-void ScaleTransform::SetScaleY(double value) noexcept {
-    SetValue(ScaleYProperty, value);
-}
-void ScaleTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void ScaleTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.m11 = GetScaleX();
@@ -292,24 +256,6 @@ Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double RotateTransform::GetAngle() const noexcept {
-    return GetValue(AngleProperty);
-}
-double RotateTransform::GetCenterX() const noexcept {
-    return GetValue(CenterXProperty);
-}
-double RotateTransform::GetCenterY() const noexcept {
-    return GetValue(CenterYProperty);
-}
-void RotateTransform::SetAngle(double value) noexcept {
-    SetValue(AngleProperty, value);
-}
-void RotateTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void RotateTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D RotateTransform::GetMatrix() const noexcept {
     const double radians = GetAngle() * Pi / 180.0;
     const double cosine = std::cos(radians);
@@ -322,30 +268,6 @@ Base::Transform2D RotateTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double SkewTransform::GetAngleX() const noexcept {
-    return GetValue(AngleXProperty);
-}
-double SkewTransform::GetAngleY() const noexcept {
-    return GetValue(AngleYProperty);
-}
-double SkewTransform::GetCenterX() const noexcept {
-    return GetValue(CenterXProperty);
-}
-double SkewTransform::GetCenterY() const noexcept {
-    return GetValue(CenterYProperty);
-}
-void SkewTransform::SetAngleX(double value) noexcept {
-    SetValue(AngleXProperty, value);
-}
-void SkewTransform::SetAngleY(double value) noexcept {
-    SetValue(AngleYProperty, value);
-}
-void SkewTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void SkewTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.m21 = std::tan(GetAngleX() * Pi / 180.0);

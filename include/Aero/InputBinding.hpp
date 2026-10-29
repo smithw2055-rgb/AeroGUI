@@ -27,27 +27,25 @@ class AERO_GUI_API KeyBinding : public InputBinding {
 
 public:
     KeyBinding() noexcept : InputBinding(StaticTypeId()) {}
-    ~KeyBinding() override;
+    ~KeyBinding() override = default;
 
-    StringView GetCommandName() const noexcept;
-    StringView GetKeyName() const noexcept;
-    StringView GetModifiersName() const noexcept;
+    StringView GetCommandName() const noexcept { return commandName_.View(); }
+    StringView GetKeyName() const noexcept { return keyName_.View(); }
+    StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
     void SetCommandName(StringView value) noexcept;
     void SetKeyName(StringView value) noexcept;
     void SetModifiersName(StringView value) noexcept;
     bool Finalize() noexcept override;
-    void ReleaseAuthored() noexcept;
+    void ReleaseAuthored() noexcept {
+        commandName_.Clear();
+        keyName_.Clear();
+        modifiersName_.Clear();
+    }
 
 private:
-    struct AuthoredData {
-        AuthoredData() noexcept {}
-        String commandName;
-        String keyName;
-        String modifiersName;
-    };
-    AuthoredData* EnsureAuthored() noexcept;
-
-    AuthoredData* authored_ = nullptr;
+    String commandName_;
+    String keyName_;
+    String modifiersName_;
     bool finalized_ = false;
 };
 
@@ -56,29 +54,25 @@ class AERO_GUI_API MouseBinding : public InputBinding {
 
 public:
     MouseBinding() noexcept : InputBinding(StaticTypeId()) {}
-    ~MouseBinding() override;
+    ~MouseBinding() override = default;
 
     MouseButton GetMouseButton() const noexcept { return button_; }
     void SetMouseButton(MouseButton value) noexcept { button_ = value; }
     PointerAction GetAction() const noexcept { return action_; }
     void SetAction(PointerAction value) noexcept { action_ = value; }
-    StringView GetCommandName() const noexcept;
+    StringView GetCommandName() const noexcept { return commandName_.View(); }
     void SetCommandName(StringView value) noexcept;
 
     bool Matches(const PointerInput& input) const noexcept;
     bool Finalize() noexcept override;
-    void ReleaseAuthored() noexcept;
+    void ReleaseAuthored() noexcept {
+        commandName_.Clear();
+    }
 
 private:
-    struct AuthoredData {
-        AuthoredData() noexcept {}
-        String commandName;
-    };
-    AuthoredData* EnsureAuthored() noexcept;
-
     MouseButton button_ = MouseButton::Left;
     PointerAction action_ = PointerAction::Down;
-    AuthoredData* authored_ = nullptr;
+    String commandName_;
     bool finalized_ = false;
 };
 

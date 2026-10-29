@@ -144,6 +144,7 @@ private:
     QueueLink* linkFree_ = nullptr;
     std::uint32_t queueCount_ = 0U;
     Base::HashMap<DependencyObject*, DependencyObject*> parents_;
+    Base::HashMap<DependencyObject*, Base::Vector<DependencyObject*>> childrenByParent_;
     PropertyProviderOriginAllocator providerOrigins_;
     bool initialized_ = false;
     bool flushing_ = false;

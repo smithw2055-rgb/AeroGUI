@@ -46,19 +46,11 @@ class AERO_GUI_API PerspectiveTransform3D : public Transform3D {
 public:
     PerspectiveTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    double GetDepth() const noexcept { return GetValue(DepthProperty); }
-    double GetOffsetX() const noexcept { return GetValue(OffsetXProperty); }
-    double GetOffsetY() const noexcept { return GetValue(OffsetYProperty); }
-
-    void SetDepth(double value) noexcept { SetValue(DepthProperty, value); }
-    void SetOffsetX(double value) noexcept { SetValue(OffsetXProperty, value); }
-    void SetOffsetY(double value) noexcept { SetValue(OffsetYProperty, value); }
-
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, Depth);
-    AERO_DEPENDENCY_PROPERTY(double, OffsetX);
-    AERO_DEPENDENCY_PROPERTY(double, OffsetY);
+    AERO_DEPENDENCY_PROPERTY2(double, Depth);
+    AERO_DEPENDENCY_PROPERTY2(double, OffsetX);
+    AERO_DEPENDENCY_PROPERTY2(double, OffsetY);
 };
 
 /// Arbitrary 4×3 affine 3D transform. MatrixProperty is fully registered in Meta
@@ -69,12 +61,9 @@ class AERO_GUI_API MatrixTransform3D : public Transform3D {
 public:
     MatrixTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    Base::Transform3 GetMatrix() const noexcept { return GetValue(MatrixProperty); }
-    void SetMatrix(Base::Transform3 value) noexcept { SetValue(MatrixProperty, value); }
-
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(Base::Transform3, Matrix);
+    AERO_DEPENDENCY_PROPERTY2(Base::Transform3, Matrix);
 };
 
 /// Convenience 3D transform: Center / Scale / Rotate / Translate.
@@ -86,46 +75,20 @@ class AERO_GUI_API CompositeTransform3D : public Transform3D {
 public:
     CompositeTransform3D() noexcept : Transform3D(StaticTypeId()) {}
 
-    double GetCenterX() const noexcept { return GetValue(CenterXProperty); }
-    double GetCenterY() const noexcept { return GetValue(CenterYProperty); }
-    double GetCenterZ() const noexcept { return GetValue(CenterZProperty); }
-    double GetRotationX() const noexcept { return GetValue(RotationXProperty); }
-    double GetRotationY() const noexcept { return GetValue(RotationYProperty); }
-    double GetRotationZ() const noexcept { return GetValue(RotationZProperty); }
-    double GetScaleX() const noexcept { return GetValue(ScaleXProperty); }
-    double GetScaleY() const noexcept { return GetValue(ScaleYProperty); }
-    double GetScaleZ() const noexcept { return GetValue(ScaleZProperty); }
-    double GetTranslateX() const noexcept { return GetValue(TranslateXProperty); }
-    double GetTranslateY() const noexcept { return GetValue(TranslateYProperty); }
-    double GetTranslateZ() const noexcept { return GetValue(TranslateZProperty); }
-
-    void SetCenterX(double value) noexcept { SetValue(CenterXProperty, value); }
-    void SetCenterY(double value) noexcept { SetValue(CenterYProperty, value); }
-    void SetCenterZ(double value) noexcept { SetValue(CenterZProperty, value); }
-    void SetRotationX(double value) noexcept { SetValue(RotationXProperty, value); }
-    void SetRotationY(double value) noexcept { SetValue(RotationYProperty, value); }
-    void SetRotationZ(double value) noexcept { SetValue(RotationZProperty, value); }
-    void SetScaleX(double value) noexcept { SetValue(ScaleXProperty, value); }
-    void SetScaleY(double value) noexcept { SetValue(ScaleYProperty, value); }
-    void SetScaleZ(double value) noexcept { SetValue(ScaleZProperty, value); }
-    void SetTranslateX(double value) noexcept { SetValue(TranslateXProperty, value); }
-    void SetTranslateY(double value) noexcept { SetValue(TranslateYProperty, value); }
-    void SetTranslateZ(double value) noexcept { SetValue(TranslateZProperty, value); }
-
     [[nodiscard]] Base::Transform3 GetTransform3D() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, CenterX);
-    AERO_DEPENDENCY_PROPERTY(double, CenterY);
-    AERO_DEPENDENCY_PROPERTY(double, CenterZ);
-    AERO_DEPENDENCY_PROPERTY(double, RotationX);
-    AERO_DEPENDENCY_PROPERTY(double, RotationY);
-    AERO_DEPENDENCY_PROPERTY(double, RotationZ);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleX);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleY);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleZ);
-    AERO_DEPENDENCY_PROPERTY(double, TranslateX);
-    AERO_DEPENDENCY_PROPERTY(double, TranslateY);
-    AERO_DEPENDENCY_PROPERTY(double, TranslateZ);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterZ);
+    AERO_DEPENDENCY_PROPERTY2(double, RotationX);
+    AERO_DEPENDENCY_PROPERTY2(double, RotationY);
+    AERO_DEPENDENCY_PROPERTY2(double, RotationZ);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleZ);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateX);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateY);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateZ);
 };
 
 } // namespace Aero::Media

@@ -1801,7 +1801,7 @@ aero_require_text(
     "MatrixTransform3D must inherit Transform3D")
 aero_require_text(
     "include/Aero/Media/Transform3D.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Base::Transform3, Matrix)"
+    "AERO_DEPENDENCY_PROPERTY2(Base::Transform3, Matrix)"
     "MatrixTransform3D.Matrix must be a fully declared DP")
 aero_require_text(
     "include/Aero/UIElement.hpp"
@@ -2258,7 +2258,7 @@ aero_require_text(
     "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
 aero_require_text(
     "include/Aero/Shapes.hpp"
-    "AERO_DEPENDENCY_PROPERTY(FillRule, FillRule)"
+    "AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule)"
     "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
 aero_require_text(
     "include/Aero/Media/Geometries.hpp"

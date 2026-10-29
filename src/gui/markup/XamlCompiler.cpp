@@ -11,6 +11,7 @@
 #include "gui/core/PropertyStore.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/data/BindingEngine.hpp"
+#include "gui/data/BindingCommon.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
@@ -49,9 +50,6 @@
 #include <Aero/Value.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-#if AERO_WITH_EXPAT
-#include <expat.h>
-#endif
 
 #include <algorithm>
 #include <cctype>
@@ -1774,623 +1772,6 @@ Base::Status NodeReader::Failure(
 
 } // namespace Aero::Markup
 
-#if AERO_WITH_EXPAT
-// ===== ExpatXmlTokenizer =====
-
-// Optional Expat tokenizer backend.
-
-
-
-namespace Aero::Markup {
-namespace {
-
-constexpr Base::StringView ExpatMessageMalformed(
-    "Expat rejected malformed XML");
-constexpr Base::StringView MessageUnsupported(
-    "DTD and external entities are disabled");
-constexpr Base::StringView MessageLimit(
-    "XML input exceeds configured tokenizer limits");
-
-} // namespace
-
-ExpatXmlTokenizer::ExpatXmlTokenizer(
-    XmlTokenizerLimits limits) noexcept
-    : limits_(limits) {}
-
-ExpatXmlTokenizer::~ExpatXmlTokenizer() noexcept {
-    if (parser_ != nullptr) {
-        XML_ParserFree(
-            static_cast<XML_Parser>(parser_));
-        parser_ = nullptr;
-    }
-}
-
-::Aero::Diagnostics::SourcePosition
-ExpatXmlTokenizer::Position() const noexcept {
-    if (parser_ == nullptr) return {};
-    XML_Parser parser =
-        static_cast<XML_Parser>(parser_);
-    const XML_Size line =
-        XML_GetCurrentLineNumber(parser);
-    const XML_Size column =
-        XML_GetCurrentColumnNumber(parser);
-    const XML_Index offset =
-        XML_GetCurrentByteIndex(parser);
-    return {
-        static_cast<std::uint32_t>(line),
-        static_cast<std::uint32_t>(column + 1U),
-        offset >= 0
-            ? static_cast<std::uint64_t>(offset)
-            : 0U};
-}
-
-void ExpatXmlTokenizer::Stop(
-    Base::Status status,
-    ::Aero::Diagnostics::DiagnosticCode diagnosticCode,
-    Base::StringView message) noexcept {
-    if (!failure_.IsOk()) return;
-    failure_ = status;
-    if (diagnostics_ != nullptr) {
-        Base::Result<::Aero::Diagnostics::Diagnostic> diagnostic =
-            ::Aero::Diagnostics::Diagnostic::Create(
-                diagnosticCode,
-                ::Aero::Diagnostics::DiagnosticSeverity::Error,
-                message,
-                {Position(), Position()});
-        if (diagnostic) {
-            diagnostics_->Report(
-                std::move(diagnostic).Value());
-        }
-    }
-    if (parser_ != nullptr) {
-        XML_StopParser(
-            static_cast<XML_Parser>(parser_),
-            XML_FALSE);
-    }
-}
-
-Base::Result<void> ExpatXmlTokenizer::PushToken(
-    XmlToken&& token,
-    std::uint32_t depth) noexcept {
-    tokens_.PushBack(std::move(token));
-    tokenDepths_.PushBack(depth);
-    return {};
-}
-
-void ExpatXmlTokenizer::HandleStart(
-    const char* name,
-    const char** attributes) noexcept {
-    if (!failure_.IsOk()) return;
-    const std::uint32_t nameBytes =
-        static_cast<std::uint32_t>(
-            std::strlen(name));
-    if (nameBytes == 0U ||
-        nameBytes > limits_.maxNameBytes ||
-        parseDepth_ >= limits_.maxDepth) {
-        Stop(
-            Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                MessageLimit.Data()),
-            parseDepth_ >= limits_.maxDepth
-                ? XmlDiagnosticCodes::DepthLimitExceeded
-                : XmlDiagnosticCodes::NameLimitExceeded,
-            MessageLimit);
-        return;
-    }
-
-    std::uint32_t attributeCount = 0U;
-    while (attributes != nullptr &&
-           attributes[attributeCount * 2U] != nullptr) {
-        ++attributeCount;
-    }
-    if (attributeCount >
-        limits_.maxAttributesPerElement) {
-        Stop(
-            Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                MessageLimit.Data()),
-            XmlDiagnosticCodes::AttributeLimitExceeded,
-            MessageLimit);
-        return;
-    }
-
-    XmlToken token;
-    token.kind_ = XmlTokenKind::StartElement;
-    const ::Aero::Diagnostics::SourcePosition begin = Position();
-    token.source_ = {begin, begin};
-    token.nameSource_ = {begin, begin};
-    Base::Result<void> assigned =
-        token.name_.Assign(
-            Base::StringView(name, nameBytes));
-    if (!assigned) {
-        Stop(
-            assigned.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-        return;
-    }
-    token.attributes_.Reserve(
-        attributeCount);
-    for (std::uint32_t index = 0U;
-         index < attributeCount; ++index) {
-        const char* attributeName =
-            attributes[index * 2U];
-        const char* attributeValue =
-            attributes[index * 2U + 1U];
-        const std::uint32_t attributeNameBytes =
-            static_cast<std::uint32_t>(
-                std::strlen(attributeName));
-        const std::uint32_t valueBytes =
-            static_cast<std::uint32_t>(
-                std::strlen(attributeValue));
-        if (attributeNameBytes == 0U ||
-            attributeNameBytes >
-                limits_.maxNameBytes ||
-            valueBytes > limits_.maxTextBytes) {
-            Stop(
-                Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    MessageLimit.Data()),
-                attributeNameBytes >
-                    limits_.maxNameBytes
-                    ? XmlDiagnosticCodes::NameLimitExceeded
-                    : XmlDiagnosticCodes::TextLimitExceeded,
-                MessageLimit);
-            return;
-        }
-        XmlAttribute attribute;
-        assigned = attribute.name_.Assign(
-            Base::StringView(
-                attributeName,
-                attributeNameBytes));
-        if (assigned) {
-            assigned = attribute.value_.Assign(
-                Base::StringView(
-                    attributeValue,
-                    valueBytes));
-        }
-        if (assigned) {
-            attribute.source_ = {begin, begin};
-            attribute.nameSource_ = {begin, begin};
-            attribute.valueSource_ = {begin, begin};
-            token.attributes_.PushBack(
-                std::move(attribute));
-        } else {
-            Stop(
-                assigned.GetStatus(),
-                XmlDiagnosticCodes::MalformedMarkup,
-                ExpatMessageMalformed);
-            return;
-        }
-    }
-    ++parseDepth_;
-    Base::Result<void> pushed =
-        PushToken(
-            std::move(token), parseDepth_);
-    if (!pushed) {
-        Stop(
-            pushed.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-    }
-}
-
-void ExpatXmlTokenizer::HandleEnd(
-    const char* name) noexcept {
-    if (!failure_.IsOk()) return;
-    if (parseDepth_ == 0U) {
-        Stop(
-            Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                ExpatMessageMalformed.Data()),
-            XmlDiagnosticCodes::MismatchedEndElement,
-            ExpatMessageMalformed);
-        return;
-    }
-    XmlToken token;
-    token.kind_ = XmlTokenKind::EndElement;
-    const ::Aero::Diagnostics::SourcePosition begin = Position();
-    token.source_ = {begin, begin};
-    token.nameSource_ = {begin, begin};
-    Base::Result<void> assigned =
-        token.name_.Assign(
-            Base::StringView(
-                name,
-                static_cast<std::uint32_t>(
-                    std::strlen(name))));
-    if (!assigned) {
-        Stop(
-            assigned.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-        return;
-    }
-    --parseDepth_;
-    Base::Result<void> pushed =
-        PushToken(
-            std::move(token), parseDepth_);
-    if (!pushed) {
-        Stop(
-            pushed.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-    }
-}
-
-void ExpatXmlTokenizer::HandleText(
-    const char* text,
-    int length) noexcept {
-    if (!failure_.IsOk() || length <= 0) return;
-    const std::uint32_t size =
-        static_cast<std::uint32_t>(length);
-    if (size > limits_.maxTextBytes) {
-        Stop(
-            Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                MessageLimit.Data()),
-            XmlDiagnosticCodes::TextLimitExceeded,
-            MessageLimit);
-        return;
-    }
-    if (!tokens_.Empty() &&
-        tokens_.Back().kind_ ==
-            XmlTokenKind::Text &&
-        tokenDepths_.Back() == parseDepth_) {
-        if (tokens_.Back().text_.SizeBytes() >
-            limits_.maxTextBytes - size) {
-            Stop(
-                Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    MessageLimit.Data()),
-                XmlDiagnosticCodes::TextLimitExceeded,
-                MessageLimit);
-            return;
-        }
-        Base::Result<void> appended =
-            tokens_.Back().text_.Append(
-                Base::StringView(text, size));
-        if (!appended) {
-            Stop(
-                appended.GetStatus(),
-                XmlDiagnosticCodes::MalformedMarkup,
-                ExpatMessageMalformed);
-        }
-        return;
-    }
-    XmlToken token;
-    token.kind_ = XmlTokenKind::Text;
-    const ::Aero::Diagnostics::SourcePosition begin = Position();
-    token.source_ = {begin, begin};
-    Base::Result<void> assigned =
-        token.text_.Assign(
-            Base::StringView(text, size));
-    if (!assigned) {
-        Stop(
-            assigned.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-        return;
-    }
-    Base::Result<void> pushed =
-        PushToken(
-            std::move(token), parseDepth_);
-    if (!pushed) {
-        Stop(
-            pushed.GetStatus(),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-    }
-}
-
-void ExpatXmlTokenizer::RejectDeclaration() noexcept {
-    Stop(
-        Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            MessageUnsupported.Data()),
-        XmlDiagnosticCodes::UnsupportedDeclaration,
-        MessageUnsupported);
-}
-
-int ExpatXmlTokenizer::RejectExternalEntity() noexcept {
-    RejectDeclaration();
-    return XML_STATUS_ERROR;
-}
-
-Base::Result<void> ExpatXmlTokenizer::InitializeParser(
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    diagnostics_ = diagnostics;
-    XML_Parser parser = XML_ParserCreate(nullptr);
-    if (parser == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Expat parser allocation failed");
-    }
-    parser_ = parser;
-    XML_SetUserData(parser, this);
-    XML_SetElementHandler(
-        parser,
-        [](void* user, const XML_Char* name,
-           const XML_Char** attributes) {
-            static_cast<ExpatXmlTokenizer*>(user)->
-                HandleStart(name, attributes);
-        },
-        [](void* user, const XML_Char* name) {
-            static_cast<ExpatXmlTokenizer*>(user)->
-                HandleEnd(name);
-        });
-    XML_SetCharacterDataHandler(
-        parser,
-        [](void* user, const XML_Char* text,
-           int length) {
-            static_cast<ExpatXmlTokenizer*>(user)->
-                HandleText(text, length);
-        });
-    XML_SetStartDoctypeDeclHandler(
-        parser,
-        [](void* user, const XML_Char*,
-           const XML_Char*, const XML_Char*, int) {
-            static_cast<ExpatXmlTokenizer*>(user)->
-                RejectDeclaration();
-        });
-    XML_SetExternalEntityRefHandler(
-        parser,
-        [](XML_Parser parserValue,
-           const XML_Char*, const XML_Char*,
-           const XML_Char*, const XML_Char*) -> int {
-            void* user = XML_GetUserData(parserValue);
-            return static_cast<ExpatXmlTokenizer*>(user)->
-                RejectExternalEntity();
-        });
-    XML_SetParamEntityParsing(
-        parser,
-        XML_PARAM_ENTITY_PARSING_NEVER);
-    return {};
-}
-
-Base::Result<void> ExpatXmlTokenizer::Reset(
-    Base::StringView utf8,
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (parser_ != nullptr) {
-        XML_ParserFree(
-            static_cast<XML_Parser>(parser_));
-        parser_ = nullptr;
-    }
-    tokens_.Clear();
-    tokenDepths_.Clear();
-    diagnostics_ = diagnostics;
-    failure_ = {};
-    readIndex_ = 0U;
-    parseDepth_ = 0U;
-    depth_ = 0U;
-    stream_ = nullptr;
-    streamBytes_ = 0U;
-    streamEof_ = false;
-    streamMode_ = false;
-    initialized_ = false;
-
-    if (limits_.maxInputBytes == 0U ||
-        limits_.maxDepth == 0U ||
-        limits_.maxAttributesPerElement == 0U ||
-        limits_.maxNameBytes == 0U ||
-        limits_.maxTextBytes == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Expat tokenizer limits must be positive");
-    }
-    if (utf8.SizeBytes() > limits_.maxInputBytes ||
-        utf8.SizeBytes() >
-            static_cast<std::uint32_t>(INT_MAX)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "XML input exceeds configured tokenizer limits");
-    }
-
-    Base::Result<void> parserInitialized =
-        InitializeParser(diagnostics);
-    if (!parserInitialized) return parserInitialized.GetStatus();
-
-    const enum XML_Status parsed = XML_Parse(
-        static_cast<XML_Parser>(parser_),
-        utf8.Data(),
-        static_cast<int>(utf8.SizeBytes()),
-        XML_TRUE);
-    if (!failure_.IsOk()) {
-        return failure_;
-    }
-    if (parsed != XML_STATUS_OK ||
-        parseDepth_ != 0U) {
-        Stop(
-            Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                ExpatMessageMalformed.Data()),
-            XmlDiagnosticCodes::MalformedMarkup,
-            ExpatMessageMalformed);
-        return failure_;
-    }
-    XmlToken end;
-    end.kind_ = XmlTokenKind::EndOfDocument;
-    const ::Aero::Diagnostics::SourcePosition position = Position();
-    end.source_ = {position, position};
-    Base::Result<void> stored =
-        PushToken(std::move(end), 0U);
-    if (!stored) return stored.GetStatus();
-    initialized_ = true;
-    return {};
-}
-
-Base::Result<void> ExpatXmlTokenizer::Reset(
-    Base::Stream& stream,
-    Diagnostics::IDiagnosticSink* diagnostics) noexcept {
-    if (parser_ != nullptr) {
-        XML_ParserFree(
-            static_cast<XML_Parser>(parser_));
-        parser_ = nullptr;
-    }
-    tokens_.Clear();
-    tokenDepths_.Clear();
-    diagnostics_ = diagnostics;
-    failure_ = {};
-    readIndex_ = 0U;
-    parseDepth_ = 0U;
-    depth_ = 0U;
-    stream_ = &stream;
-    streamBytes_ = 0U;
-    streamEof_ = false;
-    streamMode_ = true;
-    initialized_ = false;
-
-    if (limits_.maxInputBytes == 0U ||
-        limits_.maxDepth == 0U ||
-        limits_.maxAttributesPerElement == 0U ||
-        limits_.maxNameBytes == 0U ||
-        limits_.maxTextBytes == 0U) {
-        stream_ = nullptr;
-        streamMode_ = false;
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Expat tokenizer limits must be positive");
-    }
-    Base::Result<void> parserInitialized =
-        InitializeParser(diagnostics);
-    if (!parserInitialized) {
-        stream_ = nullptr;
-        streamMode_ = false;
-        return parserInitialized.GetStatus();
-    }
-    initialized_ = true;
-    return {};
-}
-
-Base::Result<XmlTokenKind> ExpatXmlTokenizer::ReadStream(
-    XmlToken& token) noexcept {
-    for (;;) {
-        if (readIndex_ < tokens_.Size()) {
-            // Expat may split one XML character-data section at an input
-            // buffer boundary. Keep the trailing text token until the next
-            // parse step establishes a real structural boundary so both
-            // direct and compiled XAML observe one logical value.
-            const bool awaitTextBoundary =
-                !streamEof_ &&
-                readIndex_ + 1U == tokens_.Size() &&
-                tokens_[readIndex_].kind_ == XmlTokenKind::Text;
-            if (!awaitTextBoundary) {
-                token = std::move(tokens_[readIndex_]);
-                depth_ = tokenDepths_[readIndex_];
-                ++readIndex_;
-                if (readIndex_ == tokens_.Size()) {
-                    tokens_.Clear();
-                    tokenDepths_.Clear();
-                    readIndex_ = 0U;
-                }
-                return token.kind_;
-            }
-        }
-        if (streamEof_) {
-            token.Clear();
-            token.kind_ = XmlTokenKind::EndOfDocument;
-            depth_ = 0U;
-            return token.kind_;
-        }
-        if (stream_ == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Expat stream is not initialized");
-        }
-
-        std::uint8_t buffer[4096];
-        Base::Result<std::uint32_t> read =
-            stream_->Read(Base::Span<uint8_t>(
-                buffer, static_cast<std::uint32_t>(sizeof(buffer))));
-        if (!read) {
-            Stop(
-                read.GetStatus(),
-                XmlDiagnosticCodes::MalformedMarkup,
-                ExpatMessageMalformed);
-            return read.GetStatus();
-        }
-        const std::uint32_t count = read.Value();
-        if (count > limits_.maxInputBytes ||
-            streamBytes_ >
-                limits_.maxInputBytes - count) {
-            Stop(
-                Base::Status::Failure(
-                    Base::ErrorCode::OutOfRange,
-                    MessageLimit.Data()),
-                XmlDiagnosticCodes::InputLimitExceeded,
-                MessageLimit);
-            return failure_;
-        }
-        streamBytes_ += count;
-        if (count == 0U) {
-            const enum XML_Status parsed = XML_Parse(
-                static_cast<XML_Parser>(parser_),
-                nullptr,
-                0,
-                XML_TRUE);
-            streamEof_ = true;
-            if (!failure_.IsOk()) return failure_;
-            if (parsed != XML_STATUS_OK || parseDepth_ != 0U) {
-                Stop(
-                    Base::Status::Failure(
-                        Base::ErrorCode::ValidationFailed,
-                        ExpatMessageMalformed.Data()),
-                    XmlDiagnosticCodes::MalformedMarkup,
-                    ExpatMessageMalformed);
-                return failure_;
-            }
-            XmlToken end;
-            end.kind_ = XmlTokenKind::EndOfDocument;
-            const ::Aero::Diagnostics::SourcePosition position = Position();
-            end.source_ = {position, position};
-            Base::Result<void> stored =
-                PushToken(std::move(end), 0U);
-            if (!stored) return stored.GetStatus();
-            continue;
-        }
-        const enum XML_Status parsed = XML_Parse(
-            static_cast<XML_Parser>(parser_),
-            reinterpret_cast<const char*>(buffer),
-            static_cast<int>(count),
-            XML_FALSE);
-        if (!failure_.IsOk()) return failure_;
-        if (parsed != XML_STATUS_OK) {
-            Stop(
-                Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    ExpatMessageMalformed.Data()),
-                XmlDiagnosticCodes::MalformedMarkup,
-                ExpatMessageMalformed);
-            return failure_;
-        }
-    }
-}
-
-Base::Result<XmlTokenKind> ExpatXmlTokenizer::Read(
-    XmlToken& token) noexcept {
-    if (!initialized_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Expat tokenizer is not initialized");
-    }
-    if (streamMode_) {
-        token.Clear();
-        return ReadStream(token);
-    }
-    if (readIndex_ >= tokens_.Size()) {
-        token.Clear();
-        token.kind_ = XmlTokenKind::EndOfDocument;
-        depth_ = 0U;
-        return token.kind_;
-    }
-    token = std::move(tokens_[readIndex_]);
-    depth_ = tokenDepths_[readIndex_];
-    ++readIndex_;
-    return token.kind_;
-}
-
-} // namespace Aero::Markup
-
-#endif
 
 // ============================================================================
 // SECTION: XamlCompiledSchema / Manifest / Validation
@@ -5043,40 +4424,7 @@ Visual* WalkTemplateAncestor(
     Base::StringView ancestorType,
     std::uint32_t level,
     const Meta::TypeRegistry& types) noexcept {
-    if (start == nullptr || level == 0U) return nullptr;
-    Base::StringView ancestorName = ancestorType;
-    for (std::uint32_t index = 0U; index < ancestorName.SizeBytes(); ++index) {
-        if (ancestorName[index] == ':') {
-            ancestorName = ancestorName.Substr(
-                index + 1U, ancestorName.SizeBytes() - index - 1U);
-            break;
-        }
-    }
-    std::uint32_t matched = 0U;
-    Visual* current = start->GetVisualParent();
-    if (current == nullptr) current = TryCast<Visual>(start->GetLogicalParent());
-    if (current == nullptr) {
-        if (auto* fe = TryCast<FrameworkElement>(start)) {
-            current = TryCast<Visual>(fe->GetTemplatedParent());
-        }
-    }
-    while (current != nullptr) {
-        const TypeInfo* type = types.FindType(current->RuntimeType());
-        if ((ancestorName.Empty() ||
-             (type != nullptr && type->Name() == ancestorName)) &&
-            ++matched == level) {
-            return current;
-        }
-        Visual* next = current->GetVisualParent();
-        if (next == nullptr) next = TryCast<Visual>(current->GetLogicalParent());
-        if (next == nullptr) {
-            if (auto* fe = TryCast<FrameworkElement>(current)) {
-                next = TryCast<Visual>(fe->GetTemplatedParent());
-            }
-        }
-        current = next;
-    }
-    return nullptr;
+    return ::Aero::Data::FindTemplateAncestor(start, ancestorType, level, types);
 }
 
 Base::Object* ResolveTemplateBindingAncestor(
@@ -5190,39 +4538,54 @@ bool IsGradientStopObject(
 }
 
 
-Base::Result<CompiledTemplateBlueprint>
-CompileBlueprint(
+Base::Status MissingTemplateProperty(
+    const char* roleName,
+    Base::StringView propertyName,
+    TypeId targetType,
+    const TypeRegistry& types) noexcept;
+
+struct PrototypeNodeRecord {
+    Meta::TypeId type = Meta::InvalidTypeId;
+    Base::String name;
+    std::uint32_t parent = UINT32_MAX;
+    Meta::MemberId contentMember = Meta::InvalidMemberId;
+    Base::Vector<TemplatePrototypeProperty> properties;
+    Base::Vector<::Aero::GridLength> gridColumns;
+    Base::Vector<::Aero::GridLength> gridRows;
+    Base::String streamGeometryData;
+    Base::Vector<TemplatePrototypeGradientStop> gradientStops;
+    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors;
+    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
+};
+
+static Base::Result<void>
+CompileTemplateToBytecode(
     const Base::Ref<Base::Object>& visualTree,
     const NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Base::Span<const TemplateMetadataBindingPlan>
-        metadataBindings,
-    Base::Span<const TemplateDynamicResourcePlan>
-        dynamicResources,
+    Base::Span<const TemplateMetadataBindingPlan> metadataBindings,
+    Base::Span<const TemplateDynamicResourcePlan> dynamicResources,
     Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
+    DependencyPropertyRegistry& properties,
+    XamlBytecodeProgram& outProgram,
+    Meta::TypeId controlTargetType = Meta::InvalidTypeId,
+    Base::Vector<Controls::TemplateBindingPlan>* outContentSourceBindings = nullptr) noexcept {
     if (!visualTree) {
-        return InvalidTemplateCompiler(
-            "Template requires a VisualTree");
+        return InvalidTemplateCompiler("Template requires a VisualTree");
     }
 
-    CompiledTemplateBlueprint blueprint;
-    blueprint.runtime = &runtime;
-    blueprint.properties = &properties;
+    Base::Vector<PrototypeNodeRecord> nodes;
+    Base::Vector<TemplatePrototypeBinding> blueprintBindings;
+    std::uint32_t contentPresenterSlot = UINT32_MAX;
 
     Base::Vector<PendingPrototypeNode> pending;
     Base::Result<void> appended{};
     pending.PushBack({
-            visualTree,
-            UINT32_MAX,
-            InvalidMemberId});
+        visualTree,
+        UINT32_MAX,
+        InvalidMemberId});
 
-    // Templated-parent bindings may target Freezables nested in a visual
-    // property (for example a GradientStop.Color binding). Visuals and
-    // TransformGroup children are discovered from content edges so authored
-    // order is preserved; pre-inserting RotateTransform made clock hands
-    // compile as parentless nodes and drop out of TransformGroup.Children.
     auto preInsertNamedTarget = [&](Base::StringView targetName, const char* targetTypeDesc) -> Base::Result<void> {
         if (targetName.Empty() || names == nullptr) return {};
         Base::Object* target = names->Find(targetName);
@@ -5257,34 +4620,27 @@ CompileBlueprint(
         if (!res) return res.GetStatus();
     }
 
-    for (std::uint32_t index = 0U;
-         index < pending.Size(); ++index) {
-        const PendingPrototypeNode& source =
-            pending[index];
+    for (std::uint32_t index = 0U; index < pending.Size(); ++index) {
+        const PendingPrototypeNode& source = pending[index];
         Base::Object* object = source.object.Get();
         if (object == nullptr ||
             !runtime.Types().IsDerivedFrom(
                 object->RuntimeType(),
                 DependencyObject::StaticTypeId())) {
-            return InvalidTemplateCompiler(
-                "Template graph contains a non-dependency object");
+            return InvalidTemplateCompiler("Template graph contains a non-dependency object");
         }
         const bool visual = runtime.Types().IsDerivedFrom(
             object->RuntimeType(), Visual::StaticTypeId());
         if (index == 0U && !visual) {
-            return InvalidTemplateCompiler(
-                "Template VisualTree root must be a Visual object");
+            return InvalidTemplateCompiler("Template VisualTree root must be a Visual object");
         }
 
-        TemplatePrototypeNode node;
+        PrototypeNodeRecord node;
         node.type = object->RuntimeType();
         node.parent = source.parent;
         node.contentMember = source.contentMember;
-        const Base::StringView name = names != nullptr
-            ? names->NameOf(*object)
-            : Base::StringView{};
-        Base::Result<void> named =
-            node.name.Assign(name);
+        const Base::StringView name = names != nullptr ? names->NameOf(*object) : Base::StringView{};
+        Base::Result<void> named = node.name.Assign(name);
         if (!named) return named.GetStatus();
 
         if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
@@ -5296,22 +4652,14 @@ CompileBlueprint(
             }
         }
 
-        auto& dependencyObject =
-            static_cast<DependencyObject&>(*object);
+        auto& dependencyObject = static_cast<DependencyObject&>(*object);
         const PropertyStore* store = DependencyObjectAccess::Store(dependencyObject);
         if (store != nullptr) {
             for (const auto& entry : store->entries) {
-                if (!entry.Value().HasLocal()) {
-                    continue;
-                }
-                const DependencyProperty* property =
-                    properties.Find(DependencyPropertyHandle{entry.Key()});
-                if (property == nullptr || property->MetadataFor(node.type) == nullptr) {
-                    continue;
-                }
-                Base::Result<Value> local =
-                    dependencyObject.ReadLocalValue(
-                        property->Handle());
+                if (!entry.Value().HasLocal()) continue;
+                const DependencyProperty* property = properties.Find(DependencyPropertyHandle{entry.Key()});
+                if (property == nullptr || property->MetadataFor(node.type) == nullptr) continue;
+                Base::Result<Value> local = dependencyObject.ReadLocalValue(property->Handle());
                 if (!local) return local.GetStatus();
                 if (local.Value().IsUnset()) continue;
                 TemplatePrototypeProperty prototypeProperty;
@@ -5325,19 +4673,16 @@ CompileBlueprint(
                         DependencyObject::StaticTypeId())) {
                     prototypeProperty.objectNode = FindPrototypeObject(
                         pending, local.Value().AsObject().Get());
-                    const bool hasEdges = HasContentEdges(
-                        edges, local.Value().AsObject().Get());
+                    const bool hasEdges = HasContentEdges(edges, local.Value().AsObject().Get());
                     const bool isFreezable = runtime.Types().IsDerivedFrom(
                         local.Value().AsObject()->RuntimeType(),
                         Freezable::StaticTypeId());
                     const bool requiresClone =
                         prototypeProperty.objectNode != UINT32_MAX ||
-                        RequiresPrototypeObject(
-                            bindings, local.Value().AsObject().Get()) ||
+                        RequiresPrototypeObject(bindings, local.Value().AsObject().Get()) ||
                         hasEdges ||
                         isFreezable;
-                    if (requiresClone &&
-                        prototypeProperty.objectNode == UINT32_MAX) {
+                    if (requiresClone && prototypeProperty.objectNode == UINT32_MAX) {
                         prototypeProperty.objectNode = pending.Size();
                         pending.PushBack({
                             local.Value().AsObject(),
@@ -5345,152 +4690,96 @@ CompileBlueprint(
                             InvalidMemberId});
                     }
                 }
-                node.properties.PushBack(
-                    std::move(prototypeProperty));
+                node.properties.PushBack(std::move(prototypeProperty));
             }
         }
 
-        if (runtime.Types().IsDerivedFrom(
-                node.type,
-                Grid::StaticTypeId())) {
-            const auto& grid =
-                static_cast<const Grid&>(*object);
-            node.gridColumns.Assign(
-                grid.GetColumnDefinitions());
-            node.gridRows.Assign(
-                grid.GetRowDefinitions());
+        if (runtime.Types().IsDerivedFrom(node.type, Grid::StaticTypeId())) {
+            const auto& grid = static_cast<const Grid&>(*object);
+            node.gridColumns.Assign(grid.GetColumnDefinitions());
+            node.gridRows.Assign(grid.GetRowDefinitions());
         }
 
-        if (runtime.Types().IsDerivedFrom(
-                node.type,
-                StreamGeometry::StaticTypeId())) {
-            const auto& geom =
-                static_cast<const StreamGeometry&>(*object);
-            appended = node.streamGeometryData.Assign(
-                geom.GetData());
-            if (!appended) {
-                return appended.GetStatus();
-            }
+        if (runtime.Types().IsDerivedFrom(node.type, StreamGeometry::StaticTypeId())) {
+            const auto& geom = static_cast<const StreamGeometry&>(*object);
+            appended = node.streamGeometryData.Assign(geom.GetData());
+            if (!appended) return appended.GetStatus();
         }
 
-        if (runtime.Types().IsDerivedFrom(
-                node.type,
-                GradientBrush::StaticTypeId())) {
-            const auto& gradient =
-                static_cast<const GradientBrush&>(*object);
+        if (runtime.Types().IsDerivedFrom(node.type, GradientBrush::StaticTypeId())) {
+            const auto& gradient = static_cast<const GradientBrush&>(*object);
             for (const Base::Ref<GradientStop>& stop : gradient.GetGradientStops()) {
                 if (!stop) continue;
                 TemplatePrototypeGradientStop record;
                 record.offset = stop->GetOffset();
                 record.color = stop->GetColor();
                 if (names != nullptr) {
-                    appended = record.name.Assign(
-                        names->NameOf(*stop));
+                    appended = record.name.Assign(names->NameOf(*stop));
                     if (!appended) return appended.GetStatus();
                 }
-                node.gradientStops.PushBack(
-                    std::move(record));
+                node.gradientStops.PushBack(std::move(record));
             }
         }
 
         const bool contentPresenterCandidate =
-            runtime.Types().IsDerivedFrom(
-                node.type,
-                ContentPresenter::StaticTypeId()) ||
-            runtime.Types().IsDerivedFrom(
-                node.type,
-                ScrollContentPresenter::StaticTypeId());
+            runtime.Types().IsDerivedFrom(node.type, ContentPresenter::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(node.type, ScrollContentPresenter::StaticTypeId());
         if (contentPresenterCandidate) {
-            constexpr Base::StringView ScrollPresenterPart(
-                "PART_ScrollContentPresenter");
+            constexpr Base::StringView ScrollPresenterPart("PART_ScrollContentPresenter");
             constexpr Base::StringView HeaderSource("Header");
             Base::StringView contentSource;
-            for (const TemplatePrototypeProperty& property :
-                 node.properties) {
-                if (property.property ==
-                        ContentPresenter::ContentSourceProperty.Handle() &&
+            for (const TemplatePrototypeProperty& property : node.properties) {
+                if (property.property == ContentPresenter::ContentSourceProperty.Handle() &&
                     property.value.Kind() == ValueKind::String) {
                     contentSource = property.value.AsString();
                     break;
                 }
             }
             const bool headerPresenter = contentSource == HeaderSource;
-            const bool explicitScrollPresenter =
-                node.name.View() == ScrollPresenterPart;
-            const bool exactScrollPresenter =
-                node.type == ScrollContentPresenter::StaticTypeId();
-            // ContentSource=Header presenters display Header, not Content.
-            // Projecting Content onto them is wrong and can cycle when the
-            // only available "content" is the template root itself.
-            if (!headerPresenter ||
-                explicitScrollPresenter ||
-                exactScrollPresenter) {
-                bool replace = blueprint.contentPresenter == UINT32_MAX;
-                if (!replace &&
-                    blueprint.contentPresenter < blueprint.nodes.Size()) {
-                    const TemplatePrototypeNode& selected =
-                        blueprint.nodes[blueprint.contentPresenter];
-                    const bool selectedExplicit =
-                        selected.name.View() == ScrollPresenterPart;
-                    const bool selectedExact =
-                        selected.type == ScrollContentPresenter::StaticTypeId();
+            const bool explicitScrollPresenter = node.name.View() == ScrollPresenterPart;
+            const bool exactScrollPresenter = node.type == ScrollContentPresenter::StaticTypeId();
+            if (!headerPresenter || explicitScrollPresenter || exactScrollPresenter) {
+                bool replace = contentPresenterSlot == UINT32_MAX;
+                if (!replace && contentPresenterSlot < nodes.Size()) {
+                    const PrototypeNodeRecord& selected = nodes[contentPresenterSlot];
+                    const bool selectedExplicit = selected.name.View() == ScrollPresenterPart;
+                    const bool selectedExact = selected.type == ScrollContentPresenter::StaticTypeId();
                     replace = explicitScrollPresenter ||
-                        (!selectedExplicit && exactScrollPresenter &&
-                         !selectedExact);
+                        (!selectedExplicit && exactScrollPresenter && !selectedExact);
                 }
                 if (replace) {
-                    blueprint.contentPresenter = index;
+                    contentPresenterSlot = index;
                 }
             }
         }
 
-        blueprint.nodes.PushBack(
-            std::move(node));
+        nodes.PushBack(std::move(node));
 
-        for (const DeferredContentEdge& edge :
-             edges) {
+        for (const DeferredContentEdge& edge : edges) {
             if (edge.parent != object) continue;
             if (!edge.child) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate visual content contains a null child");
+                return InvalidTemplateCompiler("ControlTemplate visual content contains a null child");
             }
-            if (IsGradientStopObject(runtime, *edge.child)) {
-                // GradientStops are cloned from the authored brush collection
-                // so TemplatedParent Color bindings target the instance that
-                // actually lives in the applied LinearGradientBrush.
-                continue;
-            }
-            const std::uint32_t existing =
-                FindPrototypeObject(pending, edge.child.Get());
+            if (IsGradientStopObject(runtime, *edge.child)) continue;
+            const std::uint32_t existing = FindPrototypeObject(pending, edge.child.Get());
             if (existing != UINT32_MAX) {
                 if (existing == index) {
-                    return InvalidTemplateCompiler(
-                        "ControlTemplate visual content contains a cycle");
+                    return InvalidTemplateCompiler("ControlTemplate visual content contains a cycle");
                 }
                 PendingPrototypeNode& existingNode = pending[existing];
                 if (existingNode.parent == UINT32_MAX) {
-                    // A dependency object can first enter the prototype graph
-                    // because a Binding or object-valued property references
-                    // it, and later appear on its actual visual-content edge.
-                    // Retain one clone and attach that clone at the authored
-                    // location instead of treating the two discovery paths as
-                    // duplicate visual content.
                     existingNode.parent = index;
                     existingNode.contentMember = edge.member;
-                    if (existing < blueprint.nodes.Size()) {
-                        blueprint.nodes[existing].parent = index;
-                        blueprint.nodes[existing].contentMember = edge.member;
+                    if (existing < nodes.Size()) {
+                        nodes[existing].parent = index;
+                        nodes[existing].contentMember = edge.member;
                     }
                     continue;
                 }
-                if (existingNode.parent == index &&
-                    existingNode.contentMember == edge.member) {
-                    // Structural and content facets can report the same edge.
-                    // It is one authored child, not two template instances.
+                if (existingNode.parent == index && existingNode.contentMember == edge.member) {
                     continue;
                 }
-                return InvalidTemplateCompiler(
-                    "ControlTemplate visual content contains a duplicate child");
+                return InvalidTemplateCompiler("ControlTemplate visual content contains a duplicate child");
             }
             pending.PushBack({
                 edge.child,
@@ -5498,57 +4787,28 @@ CompileBlueprint(
                 edge.member});
         }
 
-        // String inlines (Hyperlink "Show XAML", inter-Run spaces) live on
-        // TextBlock/Span owned collections and may not have DeferredContentEdge
-        // records. Clone them so ControlTemplate instances keep the text.
-        if (runtime.Types().IsDerivedFrom(
-                object->RuntimeType(),
-                TextBlock::StaticTypeId()) ||
-            runtime.Types().IsDerivedFrom(
-                object->RuntimeType(),
-                Documents::Span::StaticTypeId())) {
-            const Meta::PropertyInfo* inlinesProperty =
-                runtime.Types().FindProperty(
-                    object->RuntimeType(),
-                    Base::StringView("Inlines"),
-                    true);
-            const MemberId inlinesMember =
-                inlinesProperty != nullptr
-                ? inlinesProperty->Id()
-                : InvalidMemberId;
-            const std::uint32_t inlineCount =
-                runtime.Types().IsDerivedFrom(
-                    object->RuntimeType(),
-                    TextBlock::StaticTypeId())
+        if (runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId()) ||
+            runtime.Types().IsDerivedFrom(object->RuntimeType(), Documents::Span::StaticTypeId())) {
+            const Meta::PropertyInfo* inlinesProperty = runtime.Types().FindProperty(
+                object->RuntimeType(), Base::StringView("Inlines"), true);
+            const MemberId inlinesMember = inlinesProperty != nullptr ? inlinesProperty->Id() : InvalidMemberId;
+            const std::uint32_t inlineCount = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId())
                 ? static_cast<TextBlock&>(*object).GetInlineCount()
                 : static_cast<Documents::Span&>(*object).GetInlines().GetCount();
-            for (std::uint32_t inlineIndex = 0U;
-                 inlineIndex < inlineCount;
-                 ++inlineIndex) {
-                Inline* inlineValue = nullptr;
-                if (runtime.Types().IsDerivedFrom(
-                        object->RuntimeType(),
-                        TextBlock::StaticTypeId())) {
-                    inlineValue = static_cast<TextBlock&>(*object)
-                        .GetInlines().GetItem(inlineIndex);
-                } else {
-                    inlineValue = static_cast<Documents::Span&>(*object)
-                        .GetInlines().GetItem(inlineIndex);
-                }
-                if (inlineValue == nullptr) {
-                    continue;
-                }
-                const std::uint32_t existing =
-                    FindPrototypeObject(pending, inlineValue);
+            for (std::uint32_t inlineIndex = 0U; inlineIndex < inlineCount; ++inlineIndex) {
+                Inline* inlineValue = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId())
+                    ? static_cast<TextBlock&>(*object).GetInlines().GetItem(inlineIndex)
+                    : static_cast<Documents::Span&>(*object).GetInlines().GetItem(inlineIndex);
+                if (inlineValue == nullptr) continue;
+                const std::uint32_t existing = FindPrototypeObject(pending, inlineValue);
                 if (existing != UINT32_MAX) {
                     PendingPrototypeNode& existingNode = pending[existing];
                     if (existingNode.parent == UINT32_MAX) {
                         existingNode.parent = index;
                         existingNode.contentMember = inlinesMember;
-                        if (existing < blueprint.nodes.Size()) {
-                            blueprint.nodes[existing].parent = index;
-                            blueprint.nodes[existing].contentMember =
-                                inlinesMember;
+                        if (existing < nodes.Size()) {
+                            nodes[existing].parent = index;
+                            nodes[existing].contentMember = inlinesMember;
                         }
                     }
                     continue;
@@ -5561,18 +4821,14 @@ CompileBlueprint(
         }
     }
 
-    // Generated names from EnsureAuthoredName live on the template NameScope.
-    // Unnamed TemplatedParent Binding targets must carry that name onto the
-    // prototype node so apply-time FindTarget can find the part. WPF binds the
-    // unnamed child itself, not the templated parent.
     auto assignGeneratedTargetName = [&](Base::StringView targetName) -> Base::Result<void> {
         if (targetName.Empty() || names == nullptr) return {};
         Base::Object* target = names->Find(targetName);
         if (target == nullptr) return {};
         const std::uint32_t targetIndex = FindPrototypeObject(pending, target);
-        if (targetIndex == UINT32_MAX || targetIndex >= blueprint.nodes.Size()) return {};
-        if (!blueprint.nodes[targetIndex].name.Empty()) return {};
-        return blueprint.nodes[targetIndex].name.Assign(targetName);
+        if (targetIndex == UINT32_MAX || targetIndex >= nodes.Size()) return {};
+        if (!nodes[targetIndex].name.Empty()) return {};
+        return nodes[targetIndex].name.Assign(targetName);
     };
 
     for (const TemplateMetadataBindingPlan& binding : metadataBindings) {
@@ -5584,71 +4840,251 @@ CompileBlueprint(
         if (!named) return named.GetStatus();
     }
 
-    for (const DeferredBindingEdge& source :
-         bindings) {
-        const std::uint32_t target =
-            FindPrototypeObject(
-                pending, source.target);
+    for (const DeferredBindingEdge& source : bindings) {
+        const std::uint32_t target = FindPrototypeObject(pending, source.target);
         Base::Object* resolvedSource = source.source;
-        if (resolvedSource == nullptr &&
-            !source.sourceName.Empty() && names != nullptr) {
+        if (resolvedSource == nullptr && !source.sourceName.Empty() && names != nullptr) {
             resolvedSource = names->Find(source.sourceName.View());
         }
-        const std::uint32_t bindingSource =
-            resolvedSource != nullptr
+        const std::uint32_t bindingSource = resolvedSource != nullptr
             ? FindPrototypeObject(pending, resolvedSource)
             : UINT32_MAX;
-        const bool externalElementName =
-            resolvedSource == nullptr &&
-            !source.sourceName.Empty();
-        if (target == UINT32_MAX ||
-            (source.source != nullptr && bindingSource == UINT32_MAX) ||
-            source.metadata == nullptr) {
-            return InvalidTemplateCompiler(
-                "Deferred template Binding target or source is outside its VisualTree");
+        const bool externalElementName = resolvedSource == nullptr && !source.sourceName.Empty();
+        if (target == UINT32_MAX || (source.source != nullptr && bindingSource == UINT32_MAX) || source.metadata == nullptr) {
+            return InvalidTemplateCompiler("Deferred template Binding target or source is outside its VisualTree");
         }
         TemplatePrototypeBinding binding;
         binding.target = target;
         binding.source = bindingSource;
         binding.metadata = source.metadata;
-        binding.targetProperty =
-            source.targetProperty;
-        binding.dataContextProperty =
-            source.dataContextProperty;
-        binding.bindsToSource =
-            source.bindsToSource;
+        binding.targetProperty = source.targetProperty;
+        binding.dataContextProperty = source.dataContextProperty;
+        binding.bindsToSource = source.bindsToSource;
         binding.mode = source.mode;
-        binding.updateSourceTrigger =
-            source.updateSourceTrigger;
+        binding.updateSourceTrigger = source.updateSourceTrigger;
         binding.converter = source.converter;
         binding.converterParameter = source.converterParameter;
         if (externalElementName) {
-            Base::Result<void> sourceName =
-                binding.sourceName.Assign(
-                    source.sourceName.View());
+            Base::Result<void> sourceName = binding.sourceName.Assign(source.sourceName.View());
             if (!sourceName) return sourceName.GetStatus();
         }
-        Base::Result<void> assigned =
-            binding.relativeAncestorType.Assign(
-            source.relativeAncestorType.View());
+        Base::Result<void> assigned = binding.relativeAncestorType.Assign(source.relativeAncestorType.View());
         if (!assigned) return assigned.GetStatus();
-        binding.relativeAncestorLevel =
-            source.relativeAncestorLevel;
-        assigned = binding.path.Assign(
-                source.path.View());
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
-        assigned = binding.stringFormat.Assign(
-            source.stringFormat.View());
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
-        blueprint.bindings.PushBack(
-            std::move(binding));
+        binding.relativeAncestorLevel = source.relativeAncestorLevel;
+        assigned = binding.path.Assign(source.path.View());
+        if (!assigned) return assigned.GetStatus();
+        assigned = binding.stringFormat.Assign(source.stringFormat.View());
+        if (!assigned) return assigned.GetStatus();
+        blueprintBindings.PushBack(std::move(binding));
     }
 
-    return blueprint;
+    // Process ContentPresenter bindings for ControlTemplates if requested
+    if (outContentSourceBindings != nullptr && controlTargetType != Meta::InvalidTypeId) {
+        for (std::uint32_t nodeIndex = 0U; nodeIndex < nodes.Size(); ++nodeIndex) {
+            PrototypeNodeRecord& node = nodes[nodeIndex];
+            if (!runtime.Types().IsDerivedFrom(node.type, ContentPresenter::StaticTypeId())) {
+                continue;
+            }
+            const DependencyProperty* contentSourceProperty =
+                properties.Find(ContentPresenter::ContentSourceProperty.Handle());
+            const DependencyProperty* contentProperty =
+                properties.Find(ContentPresenter::ContentProperty.Handle());
+            const DependencyProperty* contentTemplateProperty =
+                properties.Find(ContentPresenter::ContentTemplateProperty.Handle());
+            if (contentSourceProperty == nullptr || contentProperty == nullptr) {
+                return InvalidTemplateCompiler("ContentPresenter content properties were not registered");
+            }
+            Base::StringView contentSource;
+            bool hasContentProperty = false;
+            bool hasContentTemplateProperty = false;
+            for (const TemplatePrototypeProperty& property : node.properties) {
+                if (property.property == contentSourceProperty->Handle() &&
+                    property.value.Kind() == ValueKind::String) {
+                    contentSource = property.value.AsString();
+                }
+                if (property.property == contentProperty->Handle()) {
+                    hasContentProperty = true;
+                }
+                if (contentTemplateProperty != nullptr &&
+                    property.property == contentTemplateProperty->Handle()) {
+                    hasContentTemplateProperty = true;
+                }
+            }
+            if (hasContentProperty) {
+                continue;
+            }
+            const bool defaultedContent = contentSource.Empty();
+            if (defaultedContent) {
+                contentSource = Base::StringView("Content");
+            }
+            if (node.name.Empty()) {
+                char generatedName[48];
+                const int written = std::snprintf(
+                    generatedName, sizeof(generatedName),
+                    "__ContentSource%u", nodeIndex);
+                if (written <= 0 || static_cast<std::size_t>(written) >= sizeof(generatedName)) {
+                    return InvalidTemplateCompiler("ContentPresenter generated template name is invalid");
+                }
+                Base::Result<void> named = node.name.Assign(
+                    Base::StringView(generatedName, static_cast<std::uint32_t>(written)));
+                if (!named) return named.GetStatus();
+            }
+            const DependencyProperty* source = properties.Find(controlTargetType, contentSource);
+            if (source == nullptr) {
+                if (defaultedContent) continue;
+                return MissingTemplateProperty(
+                    "ContentSource property", contentSource, controlTargetType, runtime.Types());
+            }
+            TemplateBindingPlan binding;
+            Base::Result<void> assigned = binding.targetName.Assign(node.name.View());
+            if (!assigned) return assigned.GetStatus();
+            binding.sourceProperty = source->Handle();
+            binding.targetProperty = contentProperty->Handle();
+            outContentSourceBindings->PushBack(std::move(binding));
+
+            if (!hasContentTemplateProperty && contentTemplateProperty != nullptr) {
+                char templatePropName[64];
+                std::snprintf(templatePropName, sizeof(templatePropName), "%.*sTemplate",
+                    static_cast<int>(contentSource.SizeBytes()), contentSource.Data());
+                const DependencyProperty* sourceTemplate = properties.Find(
+                    controlTargetType, Base::StringView(templatePropName));
+                if (sourceTemplate == nullptr && contentSource == Base::StringView("SelectedContent")) {
+                    sourceTemplate = properties.Find(controlTargetType, Base::StringView("ContentTemplate"));
+                }
+                if (sourceTemplate != nullptr) {
+                    TemplateBindingPlan tplBinding;
+                    if (tplBinding.targetName.Assign(node.name.View())) {
+                        tplBinding.sourceProperty = sourceTemplate->Handle();
+                        tplBinding.targetProperty = contentTemplateProperty->Handle();
+                        outContentSourceBindings->PushBack(std::move(tplBinding));
+                    }
+                }
+            }
+        }
+    }
+
+    // Direct single-pass bytecode generation
+    outProgram.Clear();
+    outProgram.slotCount = nodes.Size();
+    if (nodes.Empty()) {
+        return {};
+    }
+
+    XamlBytecodeBuilder builder;
+    builder.SetSlotCount(nodes.Size());
+
+    // 1. Create all objects
+    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
+        builder.EmitCreateObject(slot, nodes[slot].type);
+    }
+
+    // 2. Set properties, grids, geometries, stops, behaviors/triggers
+    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
+        const PrototypeNodeRecord& node = nodes[slot];
+        for (const TemplatePrototypeProperty& prop : node.properties) {
+            if (prop.objectNode != UINT32_MAX) {
+                builder.EmitSetPropertyObject(
+                    slot, prop.property, prop.value.Type(), static_cast<std::uint16_t>(prop.objectNode));
+            } else {
+                builder.EmitSetPropertyValue(slot, prop.property, prop.value);
+            }
+        }
+        if (!node.gridColumns.Empty() || !node.gridRows.Empty()) {
+            builder.EmitSetGridDefinitions(
+                slot, node.gridColumns.AsSpan(), node.gridRows.AsSpan());
+        }
+        if (!node.streamGeometryData.Empty()) {
+            const Meta::MemberId dataMember = Meta::MakeMemberId(
+                Media::StreamGeometry::StaticTypeId(),
+                Meta::MemberKind::Property,
+                "Data");
+            builder.EmitSetPropertyValue(
+                slot,
+                Meta::DependencyPropertyHandle{dataMember},
+                Meta::Value(node.streamGeometryData.View()));
+        }
+        if (!node.gradientStops.Empty()) {
+            builder.EmitSetGradientStops(slot, node.gradientStops.AsSpan());
+        }
+        if (!node.authoredBehaviors.Empty() || !node.authoredTriggers.Empty()) {
+            builder.EmitAttachBehaviorsAndTriggers(
+                slot, node.authoredBehaviors.AsSpan(), node.authoredTriggers.AsSpan());
+        }
+    }
+
+    // 3. Set parent-child structural/content edges
+    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
+        const PrototypeNodeRecord& node = nodes[slot];
+        if (node.parent == UINT32_MAX) continue;
+        const PropertyInfo* structuralProperty = runtime.Types().FindProperty(node.contentMember);
+        const bool propertyEdge = structuralProperty != nullptr &&
+            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
+             static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
+            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
+             static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
+            runtime.CanWriteProperty(node.contentMember);
+        const Meta::TypeId valueType = structuralProperty != nullptr
+            ? structuralProperty->ValueType()
+            : Meta::InvalidTypeId;
+        builder.EmitSetPropertyContent(
+            static_cast<std::uint16_t>(node.parent),
+            node.contentMember,
+            slot,
+            valueType,
+            propertyEdge);
+    }
+
+    // 4. Register visual tree structure and named parts
+    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
+        const PrototypeNodeRecord& node = nodes[slot];
+        const bool isVisual = runtime.Types().IsDerivedFrom(node.type, Visual::StaticTypeId());
+        if (!isVisual) {
+            if (!node.name.Empty()) {
+                builder.EmitAddObjectPart(slot, node.name.View());
+            }
+            continue;
+        }
+        if (node.parent == UINT32_MAX) {
+            builder.EmitSetRootVisual(slot, node.name.View());
+        } else {
+            builder.EmitAddVisualChild(
+                static_cast<std::uint16_t>(node.parent), slot, node.name.View());
+        }
+    }
+
+    // 5. Presenters
+    if (contentPresenterSlot != UINT32_MAX) {
+        builder.EmitProjectContent(static_cast<std::uint16_t>(contentPresenterSlot));
+    }
+    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
+        const PrototypeNodeRecord& node = nodes[slot];
+        if (runtime.Types().IsDerivedFrom(node.type, Aero::Controls::ContentPresenter::StaticTypeId())) {
+            builder.EmitPopulateContentPresenter(slot);
+        } else if (runtime.Types().IsDerivedFrom(node.type, Aero::Controls::ItemsPresenter::StaticTypeId())) {
+            builder.EmitPopulateItemsPresenter(slot);
+        }
+    }
+
+    // 6. Terminate & Finish
+    builder.EmitEnd();
+    builder.Finish(outProgram);
+
+    outProgram.blueprintBindings = std::move(blueprintBindings);
+    outProgram.contentPresenterSlot = contentPresenterSlot;
+    outProgram.runtime = &runtime;
+    outProgram.properties = &properties;
+    outProgram.slotNames.Clear();
+    outProgram.slotTypes.Clear();
+    outProgram.slotNames.Reserve(nodes.Size());
+    outProgram.slotTypes.Reserve(nodes.Size());
+    for (const auto& node : nodes) {
+        Base::String nameCopy;
+        static_cast<void>(nameCopy.Assign(node.name.View()));
+        outProgram.slotNames.PushBack(std::move(nameCopy));
+        outProgram.slotTypes.PushBack(node.type);
+    }
+
+    return {};
 }
 
 
@@ -6172,175 +5608,47 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
 
 Base::Result<CompiledTemplateDefinition>
 CompileControlTemplateDefinition(
-    ControlTemplate& controlTemplate,
+    Controls::ControlTemplate& controlTemplate,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    Base::Result<CompiledTemplateBlueprint> blueprint =
-        CompileBlueprint(
-        FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
-        &FrameworkTemplateState::AuthoredNames(controlTemplate),
-        edges,
-        bindings,
-        FrameworkTemplateState::MetadataBindings(
-            controlTemplate),
-        FrameworkTemplateState::DynamicResources(
-            controlTemplate),
-        runtime,
-        properties);
-    if (!blueprint) {
-        return blueprint.GetStatus();
-    }
-
-    CompiledTemplateDefinition definition;
-    definition.targetType =
-        controlTemplate.GetTargetType();
-
-    for (std::uint32_t nodeIndex = 0U;
-         nodeIndex < blueprint.Value().nodes.Size(); ++nodeIndex) {
-        TemplatePrototypeNode& node =
-            blueprint.Value().nodes[nodeIndex];
-        if (!runtime.Types().IsDerivedFrom(
-                node.type,
-                ContentPresenter::StaticTypeId())) {
-            continue;
-        }
-        const DependencyProperty* contentSourceProperty =
-            properties.Find(
-                ContentPresenter::
-                    ContentSourceProperty.Handle());
-        const DependencyProperty* contentProperty =
-            properties.Find(
-                ContentPresenter::
-                    ContentProperty.Handle());
-        const DependencyProperty* contentTemplateProperty =
-            properties.Find(
-                ContentPresenter::
-                    ContentTemplateProperty.Handle());
-        if (contentSourceProperty == nullptr ||
-            contentProperty == nullptr) {
-            return InvalidTemplateCompiler(
-                "ContentPresenter content properties were not registered");
-        }
-        Base::StringView contentSource;
-        bool hasContentProperty = false;
-        bool hasContentTemplateProperty = false;
-        for (const TemplatePrototypeProperty& property :
-             node.properties) {
-            if (property.property ==
-                    contentSourceProperty->Handle() &&
-                property.value.Kind() ==
-                    ValueKind::String) {
-                contentSource =
-                    property.value.AsString();
-            }
-            if (property.property ==
-                    contentProperty->Handle()) {
-                hasContentProperty = true;
-            }
-            if (contentTemplateProperty != nullptr &&
-                property.property == contentTemplateProperty->Handle()) {
-                hasContentTemplateProperty = true;
-            }
-        }
-        // Explicit Content= (including Content="{TemplateBinding Content}")
-        // already wires the presenter. Do not add a second binding.
-        if (hasContentProperty) {
-            continue;
-        }
-        const bool defaultedContent = contentSource.Empty();
-        if (defaultedContent) {
-            // WPF ContentPresenter.ContentSource defaults to "Content".
-            // Unnamed presenters in ListBoxItem/Button templates rely on that
-            // implicit TemplateBinding to show DisplayMemberPath text.
-            contentSource = Base::StringView("Content");
-        }
-        if (node.name.Empty()) {
-            char generatedName[48];
-            const int written = std::snprintf(
-                generatedName, sizeof(generatedName),
-                "__ContentSource%u", nodeIndex);
-            if (written <= 0 || static_cast<std::size_t>(written) >=
-                                    sizeof(generatedName)) {
-                return InvalidTemplateCompiler(
-                    "ContentPresenter generated template name is invalid");
-            }
-            Base::Result<void> named = node.name.Assign(
-                Base::StringView(
-                    generatedName,
-                    static_cast<std::uint32_t>(written)));
-            if (!named) return named.GetStatus();
-        }
-        const DependencyProperty* source =
-            properties.Find(
-                controlTemplate.GetTargetType(),
-                contentSource);
-        if (source == nullptr) {
-            if (defaultedContent) {
-                continue;
-            }
-            return MissingTemplateProperty(
-                "ContentSource property",
-                contentSource,
-                controlTemplate.GetTargetType(),
-                runtime.Types());
-        }
-        TemplateBindingPlan binding;
-        Base::Result<void> assigned =
-            binding.targetName.Assign(
-                node.name.View());
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
-        binding.sourceProperty =
-            source->Handle();
-        binding.targetProperty =
-            contentProperty->Handle();
-        definition.contentSourceBindings.
-            PushBack(std::move(binding));
-
-        if (!hasContentTemplateProperty && contentTemplateProperty != nullptr) {
-            char templatePropName[64];
-            std::snprintf(templatePropName, sizeof(templatePropName), "%.*sTemplate",
-                static_cast<int>(contentSource.SizeBytes()), contentSource.Data());
-            const DependencyProperty* sourceTemplate = properties.Find(
-                controlTemplate.GetTargetType(), Base::StringView(templatePropName));
-            if (sourceTemplate == nullptr && contentSource == Base::StringView("SelectedContent")) {
-                sourceTemplate = properties.Find(controlTemplate.GetTargetType(), Base::StringView("ContentTemplate"));
-            }
-            if (sourceTemplate != nullptr) {
-                TemplateBindingPlan tplBinding;
-                if (tplBinding.targetName.Assign(node.name.View())) {
-                    tplBinding.sourceProperty = sourceTemplate->Handle();
-                    tplBinding.targetProperty = contentTemplateProperty->Handle();
-                    definition.contentSourceBindings.PushBack(std::move(tplBinding));
-                }
-            }
-        }
-    }
-
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties) noexcept {
     auto container = Base::MakeRef<XamlBytecodeContainer>();
     if (!container) {
         return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
     }
-    Base::Result<void> bytecoded = CompileBlueprintToBytecode(
-        blueprint.Value(), container->program);
-    if (!bytecoded) return bytecoded.GetStatus();
 
-    Base::Result<Base::Vector<VisualStateGroupPlan>>
-        groups = CompileVisualStates(
-            controlTemplate,
-            container->program,
-            runtime,
-            properties);
+    CompiledTemplateDefinition definition;
+    definition.targetType = controlTemplate.GetTargetType();
+
+    Base::Result<void> bytecoded = CompileTemplateToBytecode(
+        FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
+        &FrameworkTemplateState::AuthoredNames(controlTemplate),
+        edges,
+        bindings,
+        FrameworkTemplateState::MetadataBindings(controlTemplate),
+        FrameworkTemplateState::DynamicResources(controlTemplate),
+        runtime,
+        properties,
+        container->program,
+        controlTemplate.GetTargetType(),
+        &definition.contentSourceBindings);
+    if (!bytecoded) {
+        return bytecoded.GetStatus();
+    }
+
+    Base::Result<Base::Vector<VisualStateGroupPlan>> groups = CompileVisualStates(
+        controlTemplate,
+        container->program,
+        runtime,
+        properties);
     if (!groups) return groups.GetStatus();
-    Base::Result<Base::Vector<TemplatePropertyTrigger>>
-        triggers = CompilePropertyTriggers(
-            controlTemplate,
-            container->program,
-            runtime,
-            properties);
+
+    Base::Result<Base::Vector<TemplatePropertyTrigger>> triggers = CompilePropertyTriggers(
+        controlTemplate,
+        container->program,
+        runtime,
+        properties);
     if (!triggers) return triggers.GetStatus();
 
     for (const Base::Ref<Base::Object>& authored :
@@ -6349,22 +5657,18 @@ CompileControlTemplateDefinition(
         if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
             authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
             (authored->RuntimeType() == Trigger::StaticTypeId() &&
-             (!static_cast<const Trigger&>(*authored).
-                    GetEnterActions().Empty() ||
-              !static_cast<const Trigger&>(*authored).
-                    GetExitActions().Empty()))) {
+             (!static_cast<const Trigger&>(*authored).GetEnterActions().Empty() ||
+              !static_cast<const Trigger&>(*authored).GetExitActions().Empty()))) {
             Base::Ref<TriggerBase> retained =
                 Base::Ref<TriggerBase>::TryFromBorrowed(
                     static_cast<TriggerBase&>(*authored));
             if (!retained) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate instance trigger cannot be retained");
+                return InvalidTemplateCompiler("ControlTemplate instance trigger cannot be retained");
             }
             Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
                 std::move(retained), container->program, runtime, properties);
             if (!plan) return plan.GetStatus();
-            container->program.controlTemplateDataTriggers.PushBack(
-                std::move(plan).Value());
+            container->program.controlTemplateDataTriggers.PushBack(std::move(plan).Value());
         } else if (runtime.Types().IsDerivedFrom(
                        authored->RuntimeType(),
                        EventTrigger::StaticTypeId())) {
@@ -6372,20 +5676,16 @@ CompileControlTemplateDefinition(
                 Base::Ref<EventTrigger>::TryFromBorrowed(
                     static_cast<EventTrigger&>(*authored));
             if (!retained) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate EventTrigger cannot be retained");
+                return InvalidTemplateCompiler("ControlTemplate EventTrigger cannot be retained");
             }
-            container->program.controlTemplateEventTriggers.PushBack(
-                    std::move(retained));
+            container->program.controlTemplateEventTriggers.PushBack(std::move(retained));
         }
     }
 
     definition.program = &container->program;
     definition.programOwner = std::move(container);
-    definition.propertyTriggers =
-        std::move(triggers).Value();
-    definition.visualStateGroups =
-        std::move(groups).Value();
+    definition.propertyTriggers = std::move(triggers).Value();
+    definition.visualStateGroups = std::move(groups).Value();
     return definition;
 }
 
@@ -6454,15 +5754,16 @@ CompileInheritedControlTemplate(
     return {};
 }
 
-Base::Result<CompiledTemplateBlueprint>
-CompileDeferredTemplateBlueprint(
+Base::Result<void>
+CompileDeferredTemplateToBytecode(
     const Base::Ref<Base::Object>& visualTree,
     const NameScope* names,
     Base::Span<const DeferredContentEdge> edges,
     Base::Span<const DeferredBindingEdge> bindings,
     Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    return CompileBlueprint(
+    DependencyPropertyRegistry& properties,
+    XamlBytecodeProgram& outProgram) noexcept {
+    return CompileTemplateToBytecode(
         visualTree,
         names,
         edges,
@@ -6470,10 +5771,9 @@ CompileDeferredTemplateBlueprint(
         {},
         {},
         runtime,
-        properties);
+        properties,
+        outProgram);
 }
-
-
 
 static Base::Result<void> AttachCompiledTemplateBindings(
     const XamlBytecodeProgram& program,

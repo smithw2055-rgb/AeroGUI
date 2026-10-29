@@ -31,6 +31,12 @@ using Aero::Meta::BindingPathCompileError;
 using PropertyValue = ::Aero::PropertyValue;
 using DependencyProperty = ::Aero::Meta::DependencyProperty;
 
+Media::Visual* FindTemplateAncestor(
+    Media::Visual* start,
+    Base::StringView ancestorType,
+    std::uint32_t level,
+    const Meta::TypeRegistry& types) noexcept;
+
 Base::Result<Base::Object*> ResolveCodeBindingSource(
     const Binding& binding,
     DependencyObject& target,

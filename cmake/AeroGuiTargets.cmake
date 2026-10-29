@@ -2,41 +2,6 @@
 # AeroGui; offline tools link the product targets instead of recompiling object
 # wrappers.
 
-set(_aero_vendored_expat_target "")
-set(_aero_expat_target "")
-if(AERO_WITH_EXPAT)
-    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
-        get_filename_component(_aero_sibling_third_party
-            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party" ABSOLUTE)
-        if(EXISTS "${_aero_sibling_third_party}/expat/expat/CMakeLists.txt")
-            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
-        endif()
-    endif()
-    set(_aero_expat_source "${AERO_THIRD_PARTY_ROOT}/expat/expat")
-    if(EXISTS "${_aero_expat_source}/CMakeLists.txt")
-        set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-        set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_aero_expat_source}"
-            "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat" EXCLUDE_FROM_ALL)
-        set_target_properties(expat PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set(_aero_expat_target expat::expat)
-        set(_aero_vendored_expat_target expat)
-    else()
-        find_package(EXPAT QUIET)
-        if(TARGET EXPAT::EXPAT)
-            set(_aero_expat_target EXPAT::EXPAT)
-        else()
-            message(FATAL_ERROR
-                "AERO_WITH_EXPAT requires Expat or ${_aero_expat_source}")
-        endif()
-    endif()
-endif()
-
 set(_aero_gui_core_sources
     src/gui/core/Freezable.cpp
     src/gui/core/Animatable.cpp
@@ -252,23 +217,11 @@ target_include_directories(AeroGui
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroGui PUBLIC Aero::Base Threads::Threads)
-if(AERO_WITH_EXPAT)
-    if(_aero_vendored_expat_target)
-        target_link_libraries(AeroGui PRIVATE
-            $<BUILD_INTERFACE:${_aero_expat_target}>
-            $<INSTALL_INTERFACE:Aero::_PrivateExpat>)
-    else()
-        target_link_libraries(AeroGui PRIVATE
-            $<BUILD_INTERFACE:${_aero_expat_target}>
-            $<INSTALL_INTERFACE:EXPAT::EXPAT>)
-    endif()
-endif()
 target_compile_definitions(AeroGui PRIVATE
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_GUI_EXPORTS>
     AERO_UI_RESOURCE_MODEL=2
     AERO_CONTROLS_TEMPLATE_ABI=10
-    AERO_MARKUP_UI_RESOURCES=1
-    AERO_WITH_EXPAT=$<BOOL:${AERO_WITH_EXPAT}>)
+    AERO_MARKUP_UI_RESOURCES=1)
 target_compile_features(AeroGui PUBLIC cxx_std_17)
 set_target_properties(AeroGui PROPERTIES
     CXX_STANDARD 17

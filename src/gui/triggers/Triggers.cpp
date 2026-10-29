@@ -94,104 +94,18 @@ void Trigger::AddSetter(
     AddAuthoredSetter(std::move(s));
 }
 
-namespace {
-
-inline AuthoredTriggerData* EnsureAuthoredData(AuthoredTriggerData*& authored) noexcept {
-    if (authored == nullptr) {
-        authored = new (std::nothrow) AuthoredTriggerData();
-    }
-    return authored;
-}
-
-inline void ReleaseAuthoredData(AuthoredTriggerData*& authored) noexcept {
-    delete authored;
-    authored = nullptr;
-}
-
-inline StringView GetAuthoredPropertyName(const AuthoredTriggerData* authored) noexcept {
-    return authored != nullptr ? authored->propertyName.View() : StringView{};
-}
-
-inline StringView GetAuthoredSourceName(const AuthoredTriggerData* authored) noexcept {
-    return authored != nullptr ? authored->sourceName.View() : StringView{};
-}
-
-inline const PropertyValue& GetAuthoredPropertyValue(const AuthoredTriggerData* authored) noexcept {
-    static const PropertyValue emptyValue{};
-    return authored != nullptr ? authored->authoredValue : emptyValue;
-}
-
-inline void SetAuthoredPropertyName(AuthoredTriggerData*& authored, StringView value, bool trim = false) noexcept {
+void Trigger::SetPropertyName(Base::StringView value) noexcept {
     if (value.Empty()) return;
-    AuthoredTriggerData* data = EnsureAuthoredData(authored);
-    if (data == nullptr) return;
-    Base::String candidate;
-    if (trim) {
-        if (!candidate.Assign(::Aero::Base::ValueConversion::Trim(value))) return;
-    } else {
-        if (!candidate.Assign(value)) return;
-    }
-    data->propertyName = std::move(candidate);
+    static_cast<void>(propertyName_.Assign(value));
 }
 
-inline void SetAuthoredSourceName(AuthoredTriggerData*& authored, StringView value) noexcept {
-    AuthoredTriggerData* data = EnsureAuthoredData(authored);
-    if (data == nullptr) return;
-    Base::String candidate;
-    if (!candidate.Assign(::Aero::Base::ValueConversion::Trim(value))) return;
-    data->sourceName = std::move(candidate);
+void Trigger::SetSourceName(Base::StringView value) noexcept {
+    static_cast<void>(sourceName_.Assign(::Aero::Base::ValueConversion::Trim(value)));
 }
 
-inline void SetAuthoredPropertyValue(AuthoredTriggerData*& authored, const PropertyValue& value) noexcept {
+void Trigger::SetAuthoredValue(const PropertyValue& value) noexcept {
     if (value.IsUnset()) return;
-    AuthoredTriggerData* data = EnsureAuthoredData(authored);
-    if (data == nullptr) return;
-    data->authoredValue = value;
-}
-
-} // namespace
-
-Trigger::~Trigger() {
-    ReleaseAuthored();
-}
-
-Trigger::AuthoredData* Trigger::EnsureAuthored() noexcept {
-    return EnsureAuthoredData(authored_);
-}
-
-void Trigger::ReleaseAuthored() noexcept {
-    ReleaseAuthoredData(authored_);
-}
-
-StringView Trigger::GetPropertyName() const noexcept {
-    return GetAuthoredPropertyName(authored_);
-}
-
-StringView Trigger::GetSourceName() const noexcept {
-    return GetAuthoredSourceName(authored_);
-}
-
-const PropertyValue& Trigger::GetAuthoredValue() const noexcept {
-    return GetAuthoredPropertyValue(authored_);
-}
-
-bool Trigger::GetIsAuthored() const noexcept {
-    return authored_ != nullptr && !authored_->propertyName.Empty() && !authored_->authoredValue.IsUnset();
-}
-
-void Trigger::SetPropertyName(
-    Base::StringView value) noexcept {
-    SetAuthoredPropertyName(authored_, value);
-}
-
-void Trigger::SetSourceName(
-    Base::StringView value) noexcept {
-    SetAuthoredSourceName(authored_, value);
-}
-
-void Trigger::SetAuthoredValue(
-    const PropertyValue& value) noexcept {
-    SetAuthoredPropertyValue(authored_, value);
+    authoredValue_ = value;
 }
 
 // ===== SetterTriggerBase =====
@@ -204,40 +118,18 @@ void SetterTriggerBase::AddAuthoredSetter(
 
 // ===== DataTrigger =====
 
-DataTrigger::~DataTrigger() {
-    ReleaseAuthored();
-}
-
-DataTrigger::AuthoredData* DataTrigger::EnsureAuthored() noexcept {
-    return EnsureAuthoredData(authored_);
-}
-
-void DataTrigger::ReleaseAuthored() noexcept {
-    ReleaseAuthoredData(authored_);
-}
-
-StringView DataTrigger::GetPropertyName() const noexcept {
-    return GetAuthoredPropertyName(authored_);
-}
-
-StringView DataTrigger::GetSourceName() const noexcept {
-    return GetAuthoredSourceName(authored_);
-}
-
-const PropertyValue& DataTrigger::GetAuthoredValue() const noexcept {
-    return GetAuthoredPropertyValue(authored_);
-}
-
 void DataTrigger::SetPropertyName(StringView value) noexcept {
-    SetAuthoredPropertyName(authored_, value);
+    if (value.Empty()) return;
+    static_cast<void>(propertyName_.Assign(value));
 }
 
 void DataTrigger::SetSourceName(StringView value) noexcept {
-    SetAuthoredSourceName(authored_, value);
+    static_cast<void>(sourceName_.Assign(::Aero::Base::ValueConversion::Trim(value)));
 }
 
 void DataTrigger::SetAuthoredValue(const PropertyValue& value) noexcept {
-    SetAuthoredPropertyValue(authored_, value);
+    if (value.IsUnset()) return;
+    authoredValue_ = value;
 }
 
 // ===== MultiTrigger =====
@@ -259,42 +151,18 @@ void MultiDataTrigger::AddCondition(
 
 // ===== Condition =====
 
-Condition::~Condition() {
-    ReleaseAuthored();
-}
-
-Condition::AuthoredData* Condition::EnsureAuthored() noexcept {
-    return EnsureAuthoredData(authored_);
-}
-
-void Condition::ReleaseAuthored() noexcept {
-    ReleaseAuthoredData(authored_);
-}
-
-StringView Condition::GetPropertyName() const noexcept {
-    return GetAuthoredPropertyName(authored_);
-}
-
-StringView Condition::GetSourceName() const noexcept {
-    return GetAuthoredSourceName(authored_);
-}
-
-const PropertyValue& Condition::GetAuthoredValue() const noexcept {
-    return GetAuthoredPropertyValue(authored_);
-}
-
 void Condition::SetAuthoredValue(const PropertyValue& value) noexcept {
-    SetAuthoredPropertyValue(authored_, value);
+    if (value.IsUnset()) return;
+    authoredValue_ = value;
 }
 
-void Condition::SetPropertyName(
-    Base::StringView value) noexcept {
-    SetAuthoredPropertyName(authored_, value, true);
+void Condition::SetPropertyName(Base::StringView value) noexcept {
+    if (value.Empty()) return;
+    static_cast<void>(propertyName_.Assign(::Aero::Base::ValueConversion::Trim(value)));
 }
 
-void Condition::SetSourceName(
-    Base::StringView value) noexcept {
-    SetAuthoredSourceName(authored_, value);
+void Condition::SetSourceName(Base::StringView value) noexcept {
+    static_cast<void>(sourceName_.Assign(::Aero::Base::ValueConversion::Trim(value)));
 }
 
 } // namespace Aero

@@ -28,11 +28,6 @@ if(NOT AERO_BUILD_SHARED)
     set_target_properties(harfbuzz PROPERTIES
         EXPORT_NAME _PrivateHarfBuzz)
     list(APPEND _aero_sdk_targets freetype harfbuzz)
-    if(_aero_vendored_expat_target)
-        set_target_properties(${_aero_vendored_expat_target} PROPERTIES
-            EXPORT_NAME _PrivateExpat)
-        list(APPEND _aero_sdk_targets ${_aero_vendored_expat_target})
-    endif()
 endif()
 
 install(TARGETS ${_aero_sdk_targets}
@@ -95,9 +90,6 @@ if(NOT _aero_schema_manifest STREQUAL "")
 endif()
 
 set(AERO_PACKAGE_WITH_EXPAT OFF)
-if(AERO_WITH_EXPAT AND NOT _aero_vendored_expat_target)
-    set(AERO_PACKAGE_WITH_EXPAT ON)
-endif()
 set(AERO_PACKAGE_WITH_GLX ${AERO_ENABLE_GLX_SURFACE})
 configure_package_config_file(
     cmake/AeroConfig.cmake.in

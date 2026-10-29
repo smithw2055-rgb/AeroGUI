@@ -75,8 +75,6 @@ option(AERO_WITH_FREETYPE
     "Build the built-in FreeType text provider adapter" ON)
 option(AERO_WITH_HARFBUZZ
     "Build the built-in HarfBuzz text shaping adapter" ON)
-option(AERO_WITH_EXPAT
-    "Build the recommended Expat XML tokenizer adapter" ON)
 option(AERO_WITH_MINIAUDIO
     "Build the built-in miniAudio playback provider" ON)
 option(AERO_ENABLE_D3D11_BACKEND

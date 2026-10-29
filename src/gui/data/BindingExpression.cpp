@@ -156,6 +156,47 @@ Base::Status BindingOpsUnsupported(const char* message) noexcept {
 
 } // namespace
 
+Media::Visual* FindTemplateAncestor(
+    Media::Visual* start,
+    Base::StringView ancestorType,
+    std::uint32_t level,
+    const Meta::TypeRegistry& types) noexcept {
+    if (start == nullptr || level == 0U) return nullptr;
+    Base::StringView ancestorName = ancestorType;
+    for (std::uint32_t index = 0U; index < ancestorName.SizeBytes(); ++index) {
+        if (ancestorName[index] == ':') {
+            ancestorName = ancestorName.Substr(
+                index + 1U, ancestorName.SizeBytes() - index - 1U);
+            break;
+        }
+    }
+    std::uint32_t matched = 0U;
+    Media::Visual* current = start->GetVisualParent();
+    if (current == nullptr) current = ::Aero::TryCast<Media::Visual>(start->GetLogicalParent());
+    if (current == nullptr) {
+        if (auto* fe = ::Aero::TryCast<FrameworkElement>(start)) {
+            current = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
+        }
+    }
+    while (current != nullptr) {
+        const Meta::TypeInfo* type = types.FindType(current->RuntimeType());
+        if ((ancestorName.Empty() ||
+             (type != nullptr && type->Name() == ancestorName)) &&
+            ++matched == level) {
+            return current;
+        }
+        Media::Visual* next = current->GetVisualParent();
+        if (next == nullptr) next = ::Aero::TryCast<Media::Visual>(current->GetLogicalParent());
+        if (next == nullptr) {
+            if (auto* fe = ::Aero::TryCast<FrameworkElement>(current)) {
+                next = ::Aero::TryCast<Media::Visual>(fe->GetTemplatedParent());
+            }
+        }
+        current = next;
+    }
+    return nullptr;
+}
+
 Base::Result<Base::Object*> ResolveCodeBindingSource(
     const Binding& binding,
     DependencyObject& target,

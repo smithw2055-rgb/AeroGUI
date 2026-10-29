@@ -6085,11 +6085,7 @@ Base::Result<LoaderResult> Loader::LoaderState::Operation::ParseStreamCore(
         return validOptions.GetStatus();
     }
 
-#if AERO_WITH_EXPAT
-    ExpatXmlTokenizer tokenizer(options.limits.xml);
-#else
     Utf8XmlTokenizer tokenizer(options.limits.xml);
-#endif
     Base::Result<void> reset =
         tokenizer.Reset(stream, diagnostics_);
     if (!reset) return reset.GetStatus();

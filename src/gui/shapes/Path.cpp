@@ -324,25 +324,6 @@ Path::~Path() {
     ReleaseMesh();
 }
 
-Base::Ref<Geometry> Path::GetData() const noexcept {
-    return GetValue(DataProperty);
-}
-
-FillRule Path::GetFillRule() const noexcept {
-    return GetValue(FillRuleProperty);
-}
-
-PenLineJoin Path::GetStrokeLineJoin() const noexcept {
-    return GetValue(StrokeLineJoinProperty);
-}
-
-PenLineCap Path::GetStrokeStartLineCap() const noexcept {
-    return GetValue(StrokeStartLineCapProperty);
-}
-
-PenLineCap Path::GetStrokeEndLineCap() const noexcept {
-    return GetValue(StrokeEndLineCapProperty);
-}
 
 double Path::GetTrimStart() const noexcept {
     return GetValue(TrimStartProperty);
@@ -352,31 +333,6 @@ double Path::GetTrimEnd() const noexcept {
     return GetValue(TrimEndProperty);
 }
 
-void Path::SetData(
-    Base::Ref<Geometry> value) noexcept {
-    SetValue(
-        DataProperty,
-        std::move(value));
-}
-
-void Path::SetFillRule(FillRule value) noexcept {
-    SetValue(FillRuleProperty, value);
-}
-
-void Path::SetStrokeLineJoin(
-    PenLineJoin value) noexcept {
-    SetValue(StrokeLineJoinProperty, value);
-}
-
-void Path::SetStrokeStartLineCap(
-    PenLineCap value) noexcept {
-    SetValue(StrokeStartLineCapProperty, value);
-}
-
-void Path::SetStrokeEndLineCap(
-    PenLineCap value) noexcept {
-    SetValue(StrokeEndLineCapProperty, value);
-}
 
 void Path::SetTrimStart(
     double value) noexcept {
@@ -392,25 +348,11 @@ Base::StringView Path::GetStrokeDashArray() const noexcept {
     return GetValue(StrokeDashArrayProperty);
 }
 
-double Path::GetStrokeDashOffset() const noexcept {
-    return GetValue(StrokeDashOffsetProperty);
-}
-
-Base::Ref<Media::DashStyle> Path::GetDashStyle() const noexcept {
-    return GetValue(DashStyleProperty);
-}
 
 void Path::SetStrokeDashArray(Base::StringView value) noexcept {
     SetValue(StrokeDashArrayProperty, value);
 }
 
-void Path::SetStrokeDashOffset(double value) noexcept {
-    SetValue(StrokeDashOffsetProperty, value);
-}
-
-void Path::SetDashStyle(Base::Ref<Media::DashStyle> value) noexcept {
-    SetValue(DashStyleProperty, std::move(value));
-}
 
 void Path::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {

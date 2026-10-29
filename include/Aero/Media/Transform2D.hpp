@@ -40,14 +40,10 @@ class AERO_GUI_API TranslateTransform : public Transform {
 public:
     TranslateTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetX() const noexcept;
-    void SetX(double value) noexcept;
-    double GetY() const noexcept;
-    void SetY(double value) noexcept;
     Base::Transform2D GetMatrix() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, X);
-    AERO_DEPENDENCY_PROPERTY(double, Y);
+    AERO_DEPENDENCY_PROPERTY2(double, X);
+    AERO_DEPENDENCY_PROPERTY2(double, Y);
 };
 
 class AERO_GUI_API ScaleTransform : public Transform {
@@ -56,20 +52,12 @@ class AERO_GUI_API ScaleTransform : public Transform {
 public:
     ScaleTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetScaleX() const noexcept;
-    void SetScaleX(double value) noexcept;
-    double GetScaleY() const noexcept;
-    void SetScaleY(double value) noexcept;
-    double GetCenterX() const noexcept;
-    void SetCenterX(double value) noexcept;
-    double GetCenterY() const noexcept;
-    void SetCenterY(double value) noexcept;
     Base::Transform2D GetMatrix() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, ScaleX);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleY);
-    AERO_DEPENDENCY_PROPERTY(double, CenterX);
-    AERO_DEPENDENCY_PROPERTY(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
 };
 
 class AERO_GUI_API RotateTransform : public Transform {
@@ -78,17 +66,11 @@ class AERO_GUI_API RotateTransform : public Transform {
 public:
     RotateTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetAngle() const noexcept;
-    void SetAngle(double value) noexcept;
-    double GetCenterX() const noexcept;
-    void SetCenterX(double value) noexcept;
-    double GetCenterY() const noexcept;
-    void SetCenterY(double value) noexcept;
     Base::Transform2D GetMatrix() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, Angle);
-    AERO_DEPENDENCY_PROPERTY(double, CenterX);
-    AERO_DEPENDENCY_PROPERTY(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, Angle);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
 };
 
 class AERO_GUI_API SkewTransform : public Transform {
@@ -97,20 +79,12 @@ class AERO_GUI_API SkewTransform : public Transform {
 public:
     SkewTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetAngleX() const noexcept;
-    void SetAngleX(double value) noexcept;
-    double GetAngleY() const noexcept;
-    void SetAngleY(double value) noexcept;
-    double GetCenterX() const noexcept;
-    void SetCenterX(double value) noexcept;
-    double GetCenterY() const noexcept;
-    void SetCenterY(double value) noexcept;
     Base::Transform2D GetMatrix() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, AngleX);
-    AERO_DEPENDENCY_PROPERTY(double, AngleY);
-    AERO_DEPENDENCY_PROPERTY(double, CenterX);
-    AERO_DEPENDENCY_PROPERTY(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, AngleX);
+    AERO_DEPENDENCY_PROPERTY2(double, AngleY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
 };
 
 class AERO_GUI_API MatrixTransform : public Transform {
@@ -134,37 +108,17 @@ class AERO_GUI_API CompositeTransform : public Transform {
 public:
     CompositeTransform() noexcept : Transform(StaticTypeId()) {}
 
-    double GetCenterX() const noexcept { return GetValue(CenterXProperty); }
-    double GetCenterY() const noexcept { return GetValue(CenterYProperty); }
-    double GetScaleX() const noexcept { return GetValue(ScaleXProperty); }
-    double GetScaleY() const noexcept { return GetValue(ScaleYProperty); }
-    double GetSkewX() const noexcept { return GetValue(SkewXProperty); }
-    double GetSkewY() const noexcept { return GetValue(SkewYProperty); }
-    double GetRotation() const noexcept { return GetValue(RotationProperty); }
-    double GetTranslateX() const noexcept { return GetValue(TranslateXProperty); }
-    double GetTranslateY() const noexcept { return GetValue(TranslateYProperty); }
-
-    void SetCenterX(double value) noexcept { SetValue(CenterXProperty, value); }
-    void SetCenterY(double value) noexcept { SetValue(CenterYProperty, value); }
-    void SetScaleX(double value) noexcept { SetValue(ScaleXProperty, value); }
-    void SetScaleY(double value) noexcept { SetValue(ScaleYProperty, value); }
-    void SetSkewX(double value) noexcept { SetValue(SkewXProperty, value); }
-    void SetSkewY(double value) noexcept { SetValue(SkewYProperty, value); }
-    void SetRotation(double value) noexcept { SetValue(RotationProperty, value); }
-    void SetTranslateX(double value) noexcept { SetValue(TranslateXProperty, value); }
-    void SetTranslateY(double value) noexcept { SetValue(TranslateYProperty, value); }
-
     Base::Transform2D GetMatrix() const noexcept override;
 
-    AERO_DEPENDENCY_PROPERTY(double, CenterX);
-    AERO_DEPENDENCY_PROPERTY(double, CenterY);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleX);
-    AERO_DEPENDENCY_PROPERTY(double, ScaleY);
-    AERO_DEPENDENCY_PROPERTY(double, SkewX);
-    AERO_DEPENDENCY_PROPERTY(double, SkewY);
-    AERO_DEPENDENCY_PROPERTY(double, Rotation);
-    AERO_DEPENDENCY_PROPERTY(double, TranslateX);
-    AERO_DEPENDENCY_PROPERTY(double, TranslateY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY2(double, SkewX);
+    AERO_DEPENDENCY_PROPERTY2(double, SkewY);
+    AERO_DEPENDENCY_PROPERTY2(double, Rotation);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateX);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateY);
 };
 
 class AERO_GUI_API TransformGroup : public Transform {

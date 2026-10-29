@@ -142,6 +142,95 @@ Base::Result<Meta::Value> ConvertConstantBindingValueImpl(
         "Binding constant cannot be converted to the target property");
 }
 
+template<typename OnPositional, typename OnKeyValue>
+Base::Result<void> ParseMarkupExtensionTokens(
+    Base::StringView arguments,
+    Base::StringView extensionName,
+    OnPositional&& onPositional,
+    OnKeyValue&& onKeyValue) noexcept {
+    std::uint32_t begin = 0U;
+    while (begin < arguments.SizeBytes()) {
+        std::uint32_t end = begin;
+        std::uint32_t depth = 0U;
+        char quote = '\0';
+        while (end < arguments.SizeBytes()) {
+            const char character = arguments[end];
+            if (quote != '\0') {
+                if (character == quote) quote = '\0';
+            } else if (character == '\'' || character == '"') {
+                quote = character;
+            } else if (character == '{') {
+                ++depth;
+            } else if (character == '}') {
+                if (depth == 0U) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::ValidationFailed,
+                        extensionName == "Binding"
+                            ? "Binding contains an unmatched closing brace"
+                            : "Markup extension contains an unmatched closing brace");
+                }
+                --depth;
+            } else if (character == ',' && depth == 0U) {
+                break;
+            }
+            ++end;
+        }
+        if (depth != 0U || quote != '\0') {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                extensionName == "Binding"
+                    ? "Binding contains an incomplete nested markup extension"
+                    : "Markup extension contains an incomplete nested markup extension");
+        }
+        const Base::StringView item = TrimAscii(arguments.Substr(begin, end - begin));
+        if (item.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                extensionName == "Binding"
+                    ? "Binding argument is empty"
+                    : "Markup extension argument is empty");
+        }
+        const std::uint32_t equals = [&item]() noexcept {
+            std::uint32_t d = 0U;
+            char q = '\0';
+            for (std::uint32_t index = 0U; index < item.SizeBytes(); ++index) {
+                const char character = item[index];
+                if (q != '\0') {
+                    if (character == q) q = '\0';
+                } else if (character == '\'' || character == '"') {
+                    q = character;
+                } else if (character == '{') {
+                    ++d;
+                } else if (character == '}') {
+                    if (d > 0U) --d;
+                } else if (character == '=' && d == 0U) {
+                    return index;
+                }
+            }
+            return item.SizeBytes();
+        }();
+        if (equals == item.SizeBytes()) {
+            Base::Result<void> res = onPositional(item);
+            if (!res) return res.GetStatus();
+        } else {
+            const Base::StringView key = TrimAscii(item.Substr(0U, equals));
+            const Base::StringView value = TrimAscii(item.Substr(
+                equals + 1U, item.SizeBytes() - equals - 1U));
+            if (value.Empty()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    extensionName == "Binding"
+                        ? "Binding argument value is empty"
+                        : "Markup extension argument value is empty");
+            }
+            Base::Result<void> res = onKeyValue(key, value);
+            if (!res) return res.GetStatus();
+        }
+        begin = end + 1U;
+    }
+    return {};
+}
+
 Base::Result<void> ParseArguments(
     Base::StringView arguments,
     Base::StringView& elementName,
@@ -169,80 +258,17 @@ Base::Result<void> ParseArguments(
     mode = Data::BindingMode::Default;
     updateSourceTrigger = Meta::UpdateSourceTrigger::Default;
 
-    std::uint32_t begin = 0U;
-    while (begin < arguments.SizeBytes()) {
-        std::uint32_t end = begin;
-        std::uint32_t depth = 0U;
-        char quote = '\0';
-        while (end < arguments.SizeBytes()) {
-            const char character = arguments[end];
-            if (quote != '\0') {
-                if (character == quote) quote = '\0';
-            } else if (character == '\'' || character == '"') {
-                quote = character;
-            } else if (character == '{') {
-                ++depth;
-            } else if (character == '}') {
-                if (depth == 0U) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::ValidationFailed,
-                        "Binding contains an unmatched closing brace");
-                }
-                --depth;
-            } else if (character == ',' && depth == 0U) {
-                break;
-            }
-            ++end;
-        }
-        if (depth != 0U || quote != '\0') {
+    auto onPositional = [&](Base::StringView item) -> Base::Result<void> {
+        if (!path.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "Binding contains an incomplete nested markup extension");
+                "Binding positional Path is specified more than once");
         }
-        const Base::StringView item = TrimAscii(arguments.Substr(begin, end - begin));
-        const std::uint32_t equals = [&item]() noexcept {
-            std::uint32_t depth = 0U;
-            char quote = '\0';
-            for (std::uint32_t index = 0U; index < item.SizeBytes(); ++index) {
-                const char character = item[index];
-                if (quote != '\0') {
-                    if (character == quote) quote = '\0';
-                } else if (character == '\'' || character == '"') {
-                    quote = character;
-                } else if (character == '{') {
-                    ++depth;
-                } else if (character == '}') {
-                    if (depth > 0U) --depth;
-                } else if (character == '=' && depth == 0U) {
-                    return index;
-                }
-            }
-            return item.SizeBytes();
-        }();
-        if (item.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Binding argument is empty");
-        }
-        if (equals == item.SizeBytes()) {
-            if (!path.Empty()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "Binding positional Path is specified more than once");
-            }
-            path = item;
-            begin = end + 1U;
-            continue;
-        }
-        const Base::StringView key = TrimAscii(item.Substr(0U, equals));
-        const Base::StringView value = TrimAscii(item.Substr(
-            equals + 1U,
-            item.SizeBytes() - equals - 1U));
-        if (value.Empty()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Binding argument value is empty");
-        }
+        path = item;
+        return {};
+    };
+
+    auto onKeyValue = [&](Base::StringView key, Base::StringView value) -> Base::Result<void> {
         if (key == ElementNameKey) {
             if (!elementName.Empty()) {
                 return Base::Status::Failure(
@@ -550,8 +576,11 @@ Base::Result<void> ParseArguments(
                 Base::ErrorCode::Unsupported,
                 "Binding argument is not supported");
         }
-        begin = end + 1U;
-    }
+        return {};
+    };
+
+    Base::Result<void> parsed = ParseMarkupExtensionTokens(arguments, "Binding", onPositional, onKeyValue);
+    if (!parsed) return parsed.GetStatus();
     // An empty Binding is WPF's canonical "bind to the current source
     // object" spelling. With no explicit source that means the inherited
     // DataContext object; with ElementName/Source/RelativeSource it means the
