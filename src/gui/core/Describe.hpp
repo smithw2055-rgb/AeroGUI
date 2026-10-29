@@ -51,3 +51,10 @@ struct DescribeHook {
 #define AERO_DESCRIBE(Type) \
     void Type::DescribeMetadata( \
         ::Aero::Meta::Registration& context) noexcept
+
+
+#define AERO_DESCRIBE_DEFAULT(Type) \
+    AERO_DESCRIBE(Type) { \
+        ::Aero::Meta::TypeBuilder<Type> type(context); \
+        type.Factory(); \
+    }

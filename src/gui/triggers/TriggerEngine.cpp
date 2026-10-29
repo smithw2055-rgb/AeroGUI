@@ -411,34 +411,12 @@ void TriggerEngine::EvaluateTriggers(
         if (!getActive(index)) continue;
         const TriggerPlan& trigger =
             triggers[index];
-        for (const StyleTriggerSetter& setter :
-             trigger.setters) {
-            Base::StringView dynamicKey;
-            PropertyValue setterValue = setter.value;
-            if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
-                FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(&object);
-                ResourceValue lookedUp{};
-                if (element != nullptr) {
-                    Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
-                    if (res) lookedUp = res.Value();
-                }
-                if (!lookedUp.IsUnset()) {
-                    const DependencyProperty* prop =
-                        DependencyObjectAccess::PropertyRegistry(object).Find(setter.property);
-                    if (prop != nullptr) {
-                        Base::Result<PropertyValue> converted =
-                            Markup::ConvertDynamicResourceValue(lookedUp, *prop);
-                        if (converted) {
-                            setterValue = std::move(converted).Value();
-                        }
-                    }
-                }
-            } else if (IsDeferredBindingSetterValue(setter.value)) {
+        for (const StyleTriggerSetter& setter : trigger.setters) {
+            PropertyValue setterValue;
+            if (!ResolveTriggerSetterValue(object, setter.property, setter.value, setterValue)) {
                 continue;
             }
-            (void)values_.SetTriggerValue(
-                object, setter.property,
-                setterValue);
+            (void)values_.SetTriggerValue(object, setter.property, setterValue);
         }
     }
     (void)values_.Flush();
@@ -496,10 +474,7 @@ void TriggerEngine::ClearTriggerSetters(
         for (std::uint32_t setterIndex = 0U;
              setterIndex < trigger.setters.Size();
              ++setterIndex) {
-            Base::StringView dynamicKey;
-            if (IsDeferredBindingSetterValue(
-                    trigger.setters[setterIndex].value) &&
-                !IsDynamicResourceSetterValue(trigger.setters[setterIndex].value, dynamicKey)) {
+            if (!ShouldApplyOrClearTriggerSetter(trigger.setters[setterIndex].value)) {
                 continue;
             }
             const DependencyPropertyHandle property =

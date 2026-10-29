@@ -2,6 +2,11 @@
 #include <Aero/Media/Animation/MediaActions.hpp>
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 #include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/Interactivity/TriggerAction.hpp>
@@ -15,47 +20,7 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include <Aero/Interactivity/Conditions.hpp>
-#include <Aero/Interactivity/Behavior.hpp>
-#include <Aero/Interactivity/BlendBehaviors.hpp>
-#include <Aero/Interactivity/Interaction.hpp>
-#include <Aero/Interactivity/InteractionTriggers.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/Triggers.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Events.hpp>
-#include <Aero/Media/Animation/TimerTrigger.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Images.hpp>
-#include <Aero/Media/MediaElement.hpp>
-#include <Aero/Media/Transform2D.hpp>
-#include <Aero/Media/Transform3D.hpp>
-#include <Aero/Media/Geometries.hpp>
-#include <Aero/Media/Pen.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/FrameworkElement.hpp>
-#include <Aero/Collections.hpp>
-#include <Aero/Input.hpp>
-#include <Aero/ICommand.hpp>
-#include <Aero/RoutedCommand.hpp>
-#include <Aero/InputBinding.hpp>
-#include <Aero/EventSetter.hpp>
-#include <Aero/KeyboardNavigation.hpp>
-#include <Aero/CommandBinding.hpp>
-#include <Aero/ApplicationCommands.hpp>
-#include <Aero/InputGesture.hpp>
-#include <Aero/Data/Binding.hpp>
-#include <Aero/Data/MultiBinding.hpp>
-#include <Aero/Data/BooleanToVisibilityConverter.hpp>
-#include <Aero/Data/IMultiValueConverter.hpp>
-#include <Aero/Data/IValueConverter.hpp>
-#include <Aero/DataObject.hpp>
-#include <Aero/DragDrop.hpp>
-#include <Aero/Input/Cursor.hpp>
-#include <Aero/Input/Mouse.hpp>
-#include <Aero/Input/Keyboard.hpp>
+
 #include <Aero/Animatable.hpp>
 #include <cctype>
 #include <utility>
@@ -406,6 +371,86 @@ void EasingFunctionBase::SetSpringiness(double value) noexcept {
         value, "ElasticEase Springiness must be nonnegative");
     if (!valid) return;
     SetValue(SpringinessProperty, value);
+}
+
+namespace {
+
+inline double EaseOutBounce(double value) noexcept {
+    constexpr double n1 = 7.5625;
+    constexpr double d1 = 2.75;
+    if (value < 1.0 / d1) {
+        return n1 * value * value;
+    }
+    if (value < 2.0 / d1) {
+        value -= 1.5 / d1;
+        return n1 * value * value + 0.75;
+    }
+    if (value < 2.5 / d1) {
+        value -= 2.25 / d1;
+        return n1 * value * value + 0.9375;
+    }
+    value -= 2.625 / d1;
+    return n1 * value * value + 0.984375;
+}
+
+} // namespace
+
+double EasingFunctionBase::Ease(double progress) const noexcept {
+    constexpr double Pi = 3.1415926535897932384626433832795;
+    const double value = progress < 0.0 ? 0.0 : (progress > 1.0 ? 1.0 : progress);
+    const auto easeIn = [this, Pi](double input) noexcept {
+        switch (kind_) {
+        case Kind::Linear:
+            return input;
+        case Kind::Sine:
+            return 1.0 - std::cos(input * Pi * 0.5);
+        case Kind::Quadratic:
+            return input * input;
+        case Kind::Cubic:
+            return input * input * input;
+        case Kind::Quartic:
+            return input * input * input * input;
+        case Kind::Quintic:
+            return input * input * input * input * input;
+        case Kind::Circle:
+            return 1.0 - std::sqrt(std::max(0.0, 1.0 - input * input));
+        case Kind::Power:
+            return std::pow(input, std::max(0.0, GetPower()));
+        case Kind::Exponential: {
+            const double exponent = std::max(0.0, GetExponent());
+            return input <= 0.0
+                ? 0.0
+                : (std::exp(exponent * input) - 1.0) / std::max(1.0e-9, std::exp(exponent) - 1.0);
+        }
+        case Kind::Back: {
+            const double amplitude = std::max(0.0, GetAmplitude());
+            return input * input * ((amplitude + 1.0) * input - amplitude);
+        }
+        case Kind::Bounce:
+            return 1.0 - EaseOutBounce(1.0 - input);
+        case Kind::Elastic: {
+            if (input <= 0.0 || input >= 1.0) return input;
+            const double oscillations = std::max(1.0, GetOscillations());
+            const double springiness = std::max(0.0, GetSpringiness());
+            const double envelope = springiness == 0.0
+                ? input
+                : (std::exp(springiness * input) - 1.0) / (std::exp(springiness) - 1.0);
+            return envelope * std::sin((input * oscillations - 0.25) * 2.0 * Pi);
+        }
+        }
+        return input;
+    };
+    switch (GetEasingMode()) {
+    case EasingMode::EaseIn:
+        return easeIn(value);
+    case EasingMode::EaseOut:
+        return 1.0 - easeIn(1.0 - value);
+    case EasingMode::EaseInOut:
+        return value < 0.5
+            ? easeIn(value * 2.0) * 0.5
+            : 1.0 - easeIn((1.0 - value) * 2.0) * 0.5;
+    }
+    return value;
 }
 
 void KeyFrameBase::SetKeyTime(KeyTime value) noexcept {

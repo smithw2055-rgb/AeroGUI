@@ -20,6 +20,8 @@
 #include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
+
 namespace Aero {
 
 using namespace Aero::Meta;
@@ -27,6 +29,24 @@ using namespace Aero::Threading;
 using namespace Aero::Media::Animation::Model;
 using namespace Aero::Media;
 using namespace Aero::Media::Animation::EngineSupport;
+
+namespace {
+
+inline Base::Ref<Media::Animation::EasingFunctionBase> MakeEasingFunction(const ::Aero::Media::Animation::Model::EasingFunction& easing) noexcept {
+    if (easing.kind == ::Aero::Media::Animation::Model::EasingFunctionKind::Linear) return {};
+    auto kind = static_cast<Media::Animation::EasingFunctionBase::Kind>(static_cast<std::uint8_t>(easing.kind));
+    auto ease = Base::MakeRef<Media::Animation::EasingFunctionBase>(
+        Media::Animation::EasingFunctionBase::StaticTypeId(), kind);
+    ease->SetEasingMode(easing.mode);
+    ease->SetPower(easing.power);
+    ease->SetExponent(easing.exponent);
+    ease->SetAmplitude(easing.amplitude);
+    ease->SetOscillations(easing.oscillations);
+    ease->SetSpringiness(easing.springiness);
+    return ease;
+}
+
+} // namespace
 
 AnimationEngine::AnimationEngine(
     ::Aero::Threading::Dispatcher& dispatcher,
@@ -124,585 +144,189 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
     const DoubleAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.from) ||
-        !std::isfinite(animation.to) ||
-        !std::isfinite(animation.accelerationRatio) ||
-        !std::isfinite(animation.decelerationRatio) ||
-        animation.accelerationRatio < 0.0 ||
-        animation.decelerationRatio < 0.0 ||
-        animation.accelerationRatio + animation.decelerationRatio > 1.0) {
-        return InvalidAnimation(
-            "DoubleAnimation has invalid target, timing, or values");
+    auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    authored->SetAccelerationRatio(animation.accelerationRatio);
+    authored->SetDecelerationRatio(animation.decelerationRatio);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.accelerationRatio = animation.accelerationRatio;
-    track.decelerationRatio = animation.decelerationRatio;
-    track.kind = Track::Kind::Double;
-    track.from = animation.from;
-    track.to = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
     const CustomDoubleAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() ||
-        !animation.animation ||
-        !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.defaultOriginValue) ||
-        !std::isfinite(animation.defaultDestinationValue)) {
-        return InvalidAnimation(
-            "Custom DoubleAnimation has invalid target, timing, or values");
+    if (!animation.animation) {
+        return InvalidAnimation("Custom DoubleAnimation has null animation");
     }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::CustomDouble;
-    track.baseValue = animation.defaultOriginValue;
-    track.defaultDestinationValue =
-        animation.defaultDestinationValue;
-    track.customDouble = animation.animation;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const RectAnimation& animation) noexcept {
-    Base::Result<void> access =
-        dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !Base::IsFiniteRect(animation.from) ||
-        !Base::IsFiniteRect(animation.to)) {
-        return InvalidAnimation(
-            "RectAnimation has invalid target, timing, or values");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Rect;
-    track.fromRect = animation.from;
-    track.toRect = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const ThicknessAnimation& animation) noexcept {
-    Base::Result<void> access =
-        dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    const auto finite = [](Base::Thickness value) noexcept {
-        return std::isfinite(value.left) &&
-            std::isfinite(value.top) &&
-            std::isfinite(value.right) &&
-            std::isfinite(value.bottom);
-    };
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !finite(animation.from) ||
-        !finite(animation.to)) {
-        return InvalidAnimation(
-            "ThicknessAnimation has invalid target, timing, or values");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Thickness;
-    track.fromThickness = animation.from;
-    track.toThickness = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const IntegerAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing)) {
-        return InvalidAnimation(
-            "Integer animation has invalid target or timing");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Integer;
-    track.fromInteger = animation.from;
-    track.toInteger = animation.to;
-    track.integerWidth = animation.width;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const SizeAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    const auto finite = [](Base::Size value) noexcept {
-        return std::isfinite(value.width) && std::isfinite(value.height);
-    };
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !finite(animation.from) ||
-        !finite(animation.to)) {
-        return InvalidAnimation(
-            "SizeAnimation has invalid target, timing, or values");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Size;
-    track.fromSize = animation.from;
-    track.toSize = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const MatrixAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !Base::IsFiniteTransform(animation.from) ||
-        !Base::IsFiniteTransform(animation.to)) {
-        return InvalidAnimation(
-            "MatrixAnimation has invalid target, timing, or values");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Matrix;
-    track.fromMatrix = animation.from;
-    track.toMatrix = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const PointAnimation& animation) noexcept {
-    Base::Result<void> access =
-        dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    const auto finite = [](Base::Point value) noexcept {
-        return std::isfinite(value.x) &&
-            std::isfinite(value.y);
-    };
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !finite(animation.from) ||
-        !finite(animation.to)) {
-        return InvalidAnimation(
-            "PointAnimation has invalid target, timing, or values");
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Point;
-    track.fromPoint = animation.from;
-    track.toPoint = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *animation.animation, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
     const ColorAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !Base::IsFiniteColor(animation.from) ||
-        !Base::IsFiniteColor(animation.to)) {
-        return InvalidAnimation(
-            "ColorAnimation has invalid target, timing, or values");
+    auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.easing = animation.easing;
-    track.kind = Track::Kind::Color;
-    track.fromColor = animation.from;
-    track.toColor = animation.to;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const DoubleKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.baseValue) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Double key-frame animation is incomplete");
+    const PointAnimation& animation) noexcept {
+    auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const DoubleKeyFrame& frame = animation.keyFrames[index];
-        if (!std::isfinite(frame.value) ||
-            (index != 0U &&
-             frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Double key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.doubleFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::DoubleKeyFrames;
-    track.baseValue = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const ColorKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        !Base::IsFiniteColor(animation.baseValue) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Color key-frame animation is incomplete");
+    const RectAnimation& animation) noexcept {
+    auto authored = Base::MakeRef<Media::Animation::RectAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const ColorKeyFrame& frame =
-            animation.keyFrames[index];
-        if (!Base::IsFiniteColor(frame.value) ||
-            (index != 0U &&
-             frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Color key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.colorFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::ColorKeyFrames;
-    track.fromColor = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const PointKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.baseValue.x) ||
-        !std::isfinite(animation.baseValue.y) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Point key-frame animation is incomplete");
+    const ThicknessAnimation& animation) noexcept {
+    auto authored = Base::MakeRef<Media::Animation::ThicknessAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const PointKeyFrame& frame = animation.keyFrames[index];
-        if (!std::isfinite(frame.value.x) ||
-            !std::isfinite(frame.value.y) ||
-            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Point key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.pointFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::PointKeyFrames;
-    track.fromPoint = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const ThicknessKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.baseValue.left) ||
-        !std::isfinite(animation.baseValue.top) ||
-        !std::isfinite(animation.baseValue.right) ||
-        !std::isfinite(animation.baseValue.bottom) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Thickness key-frame animation is incomplete");
+    const IntegerAnimation& animation) noexcept {
+    switch (animation.width) {
+    case IntegerAnimationWidth::Int16: {
+        auto authored = Base::MakeRef<Media::Animation::Int16Animation>();
+        authored->SetFrom(static_cast<std::int16_t>(animation.from));
+        authored->SetTo(static_cast<std::int16_t>(animation.to));
+        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
+        return BeginTimeline(target, property, *authored, animation.timing);
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const ThicknessKeyFrame& frame = animation.keyFrames[index];
-        if (!std::isfinite(frame.value.left) ||
-            !std::isfinite(frame.value.top) ||
-            !std::isfinite(frame.value.right) ||
-            !std::isfinite(frame.value.bottom) ||
-            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Thickness key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
+    case IntegerAnimationWidth::Int64: {
+        auto authored = Base::MakeRef<Media::Animation::Int64Animation>();
+        authored->SetFrom(animation.from);
+        authored->SetTo(animation.to);
+        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
+        return BeginTimeline(target, property, *authored, animation.timing);
     }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.thicknessFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::ThicknessKeyFrames;
-    track.fromThickness = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    case IntegerAnimationWidth::Int32:
+    default: {
+        auto authored = Base::MakeRef<Media::Animation::Int32Animation>();
+        authored->SetFrom(static_cast<std::int32_t>(animation.from));
+        authored->SetTo(static_cast<std::int32_t>(animation.to));
+        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
+        return BeginTimeline(target, property, *authored, animation.timing);
+    }
+    }
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const IntegerKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() ||
-        !IsTimingValid(animation.timing) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Integer key-frame animation is incomplete");
+    const SizeAnimation& animation) noexcept {
+    auto authored = Base::MakeRef<Media::Animation::SizeAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const IntegerKeyFrame& frame = animation.keyFrames[index];
-        if (index != 0U && frame.keyTimeMicroseconds < lastKeyTime) {
-            return InvalidAnimation(
-                "Integer key frames must be ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.integerFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::IntegerKeyFrames;
-    track.fromInteger = animation.baseValue;
-    track.integerWidth = animation.width;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
     ::Aero::DependencyObject& target,
     Meta::DependencyPropertyHandle property,
-    const SizeKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !std::isfinite(animation.baseValue.width) ||
-        !std::isfinite(animation.baseValue.height) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Size key-frame animation is incomplete");
+    const MatrixAnimation& animation) noexcept {
+    auto authored = Base::MakeRef<Media::Animation::MatrixAnimation>();
+    authored->SetFrom(animation.from);
+    authored->SetTo(animation.to);
+    if (auto ease = MakeEasingFunction(animation.easing)) {
+        authored->SetEasingFunction(std::move(ease));
     }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const SizeKeyFrame& frame = animation.keyFrames[index];
-        if (!std::isfinite(frame.value.width) ||
-            !std::isfinite(frame.value.height) ||
-            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Size key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.sizeFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::SizeKeyFrames;
-    track.fromSize = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    return BeginTimeline(target, property, *authored, animation.timing);
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const MatrixKeyFrameAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        !Base::IsFiniteTransform(animation.baseValue) ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Matrix key-frame animation is incomplete");
-    }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const MatrixKeyFrame& frame = animation.keyFrames[index];
-        if (!Base::IsFiniteTransform(frame.value) ||
-            (index != 0U && frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Matrix key frames must be finite and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.matrixFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::MatrixKeyFrames;
-    track.fromMatrix = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const DoubleKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
 }
 
 Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const DiscreteAnimation& animation) noexcept {
-    Base::Result<void> access = dispatcher_->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!property.IsValid() || !IsTimingValid(animation.timing) ||
-        animation.baseValue.IsUnset() ||
-        animation.keyFrames.Empty()) {
-        return InvalidAnimation(
-            "Discrete animation is incomplete");
-    }
-    AnimationTime lastKeyTime = 0U;
-    for (std::uint32_t index = 0U;
-         index < animation.keyFrames.Size(); ++index) {
-        const DiscreteAnimationKeyFrame& frame =
-            animation.keyFrames[index];
-        if (frame.value.IsUnset() ||
-            (index != 0U &&
-             frame.keyTimeMicroseconds < lastKeyTime)) {
-            return InvalidAnimation(
-                "Discrete key frames must be set and ordered");
-        }
-        lastKeyTime = frame.keyTimeMicroseconds;
-    }
-    Base::Result<Track*> added = AddTrack(&target, property);
-    if (!added) return added.GetStatus();
-    Track& track = *added.Value();
-    track.discreteFrames.Append(animation.keyFrames);
-    track.handle = {nextHandle_++};
-    track.target = &target;
-    track.property = property;
-    track.timing = animation.timing;
-    track.kind = Track::Kind::Discrete;
-    track.discreteBaseValue = animation.baseValue;
-    track.startTimeMicroseconds = currentTimeMicroseconds_;
-    return track.handle;
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const ColorKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const PointKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const ThicknessKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const IntegerKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const SizeKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const MatrixKeyFrameAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
+}
+
+Base::Result<AnimationHandle> AnimationEngine::Begin(
+    ::Aero::DependencyObject&,
+    Meta::DependencyPropertyHandle,
+    const DiscreteAnimation&) noexcept {
+    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
 }
 
 AnimationEngine::Track* AnimationEngine::FindTrack(
@@ -785,26 +409,21 @@ void AnimationEngine::ClearTrackValue(
     // HoldEnd clocks leave the last keyframe on the animation layer. Removing
     // the clock must restore the pre-storyboard value (Menu3D CircledArrow
     // Fill.Opacity 0) even when that rest value is not a Local DP.
-    if (track.kind == Track::Kind::DoubleKeyFrames) {
+    if (track.timeline && track.timeline->IsKeyFrameAnimation() && !track.originValue.IsUnset()) {
         const Meta::DependencyProperty* prop =
             DependencyObjectAccess::PropertyRegistry(track.target).Find(track.property);
-        Base::Result<PropertyValue> rest =
-            (prop != nullptr && prop->ValueType() == Meta::TypeOf<Length>())
-                ? Meta::ValueCodec<Length>::Encode(Length::Pixels(track.baseValue))
-                : Meta::ValueCodec<double>::Encode(track.baseValue);
-        if (rest) {
-            static_cast<void>(values_->SetAnimationValue(
-                *track.target, track.property, rest.Value()));
-            track.valueApplied = true;
+        PropertyValue rest = track.originValue;
+        if (prop != nullptr && prop->ValueType() == Meta::TypeOf<Length>() &&
+            rest.Type() == Meta::TypeOf<double>()) {
+            if (auto num = Meta::ValueCodec<double>::Decode(rest)) {
+                if (auto len = Meta::ValueCodec<Length>::Encode(Length::Pixels(num.Value()))) {
+                    rest = std::move(len).Value();
+                }
+            }
         }
-    } else if (track.kind == Track::Kind::ColorKeyFrames) {
-        Base::Result<PropertyValue> rest =
-            Meta::ValueCodec<Base::Color>::Encode(track.fromColor);
-        if (rest) {
-            static_cast<void>(values_->SetAnimationValue(
-                *track.target, track.property, rest.Value()));
-            track.valueApplied = true;
-        }
+        static_cast<void>(values_->SetAnimationValue(
+            *track.target, track.property, rest));
+        track.valueApplied = true;
     }
 }
 
@@ -867,7 +486,6 @@ void AnimationEngine::RemoveAll() noexcept {
         static_cast<void>(values_->Flush());
     }
 }
-
 
 Base::Result<std::uint32_t> AnimationEngine::Tick(
     AnimationTime nowMicroseconds) noexcept {

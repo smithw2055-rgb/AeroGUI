@@ -48,33 +48,6 @@ Base::Status InvalidTemplate(const char* message) noexcept {
         types.IsDerivedFrom(derived, expectedBase);
 }
 
-bool IsDeferredBindingSetterValue(
-    const PropertyValue& value) noexcept {
-    if (value.IsDynamicResource()) {
-        return true;
-    }
-    if (value.Kind() != ValueKind::Object ||
-        value.IsNullObject()) {
-        return false;
-    }
-    if (value.Type() == Data::Binding::StaticTypeId()) {
-        return true;
-    }
-    return value.AsObject() &&
-        value.AsObject()->RuntimeType() ==
-            Data::Binding::StaticTypeId();
-}
-
-bool IsDynamicResourceSetterValue(
-    const PropertyValue& value,
-    Base::StringView& key) noexcept {
-    if (value.IsDynamicResource()) {
-        key = value.AsDynamicResourceKey();
-        return true;
-    }
-    return false;
-}
-
 } // namespace
 
 bool TemplateTriggerCondition::IsMet(
@@ -2296,9 +2269,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
          Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
-            Base::StringView dynamicKey;
-            if (IsDeferredBindingSetterValue(setter.value) &&
-                !IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
+            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
                 continue;
             }
             DependencyObject* target =
@@ -2337,47 +2308,14 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             }
         }
         if (!active) continue;
-        for (const TemplateTriggerSetter& setter :
-             trigger.setters) {
-            Base::StringView dynamicKey;
-            PropertyValue setterValue = setter.value;
-            if (IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
-                DependencyObject* target =
-                    FindTarget(instance, setter.targetName.View());
-                if (target == nullptr) continue;
-                FrameworkElement* element = ::Aero::TryCast<FrameworkElement>(target);
-                ResourceValue lookedUp{};
-                if (element != nullptr) {
-                    Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
-                    if (res) lookedUp = res.Value();
-                }
-                if (lookedUp.IsUnset() && instance.parent != nullptr) {
-                    Base::Result<ResourceValue> res = instance.parent->FindResource(dynamicKey);
-                    if (res) lookedUp = res.Value();
-                }
-                if (lookedUp.IsUnset() && resources_ != nullptr) {
-                    Base::Result<ResourceValue> res = resources_->Lookup(dynamicKey);
-                    if (res) lookedUp = res.Value();
-                }
-                if (!lookedUp.IsUnset()) {
-                    const DependencyProperty* prop =
-                        DependencyObjectAccess::PropertyRegistry(*target).Find(setter.property);
-                    if (prop != nullptr) {
-                        Base::Result<PropertyValue> converted =
-                            Markup::ConvertDynamicResourceValue(lookedUp, *prop);
-                        if (converted) {
-                            setterValue = std::move(converted).Value();
-                        }
-                    }
-                }
-            } else if (IsDeferredBindingSetterValue(setter.value)) {
+        for (const TemplateTriggerSetter& setter : trigger.setters) {
+            DependencyObject* target = FindTarget(instance, setter.targetName.View());
+            if (target == nullptr) continue;
+            PropertyValue setterValue;
+            if (!ResolveTriggerSetterValue(*target, setter.property, setter.value, setterValue, instance.parent, resources_)) {
                 continue;
             }
-            DependencyObject* target =
-                FindTarget(instance, setter.targetName.View());
-            Base::Result<void> applied =
-                values_->SetTriggerValue(
-                    *target, setter.property, setterValue);
+            Base::Result<void> applied = values_->SetTriggerValue(*target, setter.property, setterValue);
             if (!applied) return applied.GetStatus();
         }
     }
@@ -2403,9 +2341,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
          Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
-            Base::StringView dynamicKey;
-            if (IsDeferredBindingSetterValue(setter.value) &&
-                !IsDynamicResourceSetterValue(setter.value, dynamicKey)) {
+            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
                 continue;
             }
             DependencyObject* target =

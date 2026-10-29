@@ -153,25 +153,15 @@ Base::Result<void> PopulateEnumMetadata(
     Meta::Registration& context) noexcept {
     // 谁定义谁注册: family TUs own AERO_REGISTER_ENUM bodies; this only
     // orchestrates call order. App enums live in src/app/Metadata.cpp.
-    Base::Result<void> status;
-    status = PopulateInputEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateAnimationEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateInteractivityEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateElementEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateMediaEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateShapesEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateDataEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateTextEnums(context);
-    if (!status) return status.GetStatus();
-    status = PopulateControlsEnums(context);
-    if (!status) return status.GetStatus();
+    PopulateInputEnums(context);
+    PopulateAnimationEnums(context);
+    PopulateInteractivityEnums(context);
+    PopulateElementEnums(context);
+    PopulateMediaEnums(context);
+    PopulateShapesEnums(context);
+    PopulateDataEnums(context);
+    PopulateTextEnums(context);
+    PopulateControlsEnums(context);
     return {};
 }
 

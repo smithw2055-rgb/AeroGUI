@@ -341,6 +341,119 @@ double ColumnWidth(const GridViewColumn& column) noexcept {
     return width;
 }
 
+std::uint32_t PresenterVisualChildrenCount(
+    const FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells) noexcept {
+    std::uint32_t count = 0U;
+    for (const auto& owned : cells) {
+        if (!owned) continue;
+        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
+        if (visual != nullptr && visual->GetVisualParent() == &presenter) ++count;
+    }
+    return count;
+}
+
+::Aero::Media::Visual* PresenterVisualChild(
+    const FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells,
+    std::uint32_t index) noexcept {
+    for (const auto& owned : cells) {
+        if (!owned) continue;
+        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
+        if (visual == nullptr || visual->GetVisualParent() != &presenter) continue;
+        if (index == 0U) return visual;
+        --index;
+    }
+    return nullptr;
+}
+
+std::uint32_t PresenterLayoutChildrenCount(
+    const FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells) noexcept {
+    std::uint32_t count = 0U;
+    for (const auto& owned : cells) {
+        if (!owned) continue;
+        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
+        if (element != nullptr && element->GetVisualParent() == &presenter) ++count;
+    }
+    return count;
+}
+
+UIElement* PresenterLayoutChild(
+    const FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells,
+    std::uint32_t index) noexcept {
+    for (const auto& owned : cells) {
+        if (!owned) continue;
+        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
+        if (element == nullptr || element->GetVisualParent() != &presenter) continue;
+        if (index == 0U) return element;
+        --index;
+    }
+    return nullptr;
+}
+
+void PresenterClearCells(
+    FrameworkElement& presenter,
+    Base::Vector<Base::Ref<Base::Object>>& cells,
+    bool* dirtyFlag = nullptr) noexcept {
+    for (const auto& owned : cells) {
+        if (!owned) continue;
+        if (auto* element = ::Aero::TryCast<UIElement>(owned.Get())) {
+            DetachPresenterChild(presenter, *element);
+        }
+    }
+    cells.Clear();
+    if (dirtyFlag != nullptr) *dirtyFlag = true;
+}
+
+template <typename MeasureFn>
+Size PresenterMeasureCells(
+    FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells,
+    const Base::Ref<Base::Object>& columnsValue,
+    Size availableSize,
+    MeasureFn&& measureChild) noexcept {
+    double totalWidth = 0.0;
+    double maxHeight = 0.0;
+    const GridView* view = ResolvePresenterView(presenter, columnsValue);
+    Base::Span<const Base::Ref<GridViewColumn>> columns =
+        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
+    for (std::uint32_t i = 0U; i < cells.Size(); ++i) {
+        auto* element = ::Aero::TryCast<UIElement>(cells[i].Get());
+        if (element == nullptr) continue;
+        double width = 100.0;
+        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
+        measureChild(*element, Size{width, availableSize.height});
+        totalWidth += width;
+        const double h = element->GetDesiredSize().height;
+        if (h > maxHeight) maxHeight = h;
+    }
+    return Size{totalWidth, maxHeight};
+}
+
+template <typename ArrangeFn>
+Size PresenterArrangeCells(
+    FrameworkElement& presenter,
+    const Base::Vector<Base::Ref<Base::Object>>& cells,
+    const Base::Ref<Base::Object>& columnsValue,
+    Size finalSize,
+    ArrangeFn&& arrangeChild) noexcept {
+    const GridView* view = ResolvePresenterView(presenter, columnsValue);
+    Base::Span<const Base::Ref<GridViewColumn>> columns =
+        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
+    double x = 0.0;
+    for (std::uint32_t i = 0U; i < cells.Size(); ++i) {
+        auto* element = ::Aero::TryCast<UIElement>(cells[i].Get());
+        if (element == nullptr) continue;
+        double width = 100.0;
+        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
+        arrangeChild(*element, Rect{x, 0.0, width, finalSize.height});
+        x += width;
+    }
+    return finalSize;
+}
+
 } // namespace
 
 // ---- GridViewHeaderRowPresenter ----
@@ -350,45 +463,19 @@ GridViewHeaderRowPresenter::~GridViewHeaderRowPresenter() {
 }
 
 std::uint32_t GridViewHeaderRowPresenter::GetVisualChildrenCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
-        if (visual != nullptr && visual->GetVisualParent() == this) ++count;
-    }
-    return count;
+    return PresenterVisualChildrenCount(*this, ownedCells_);
 }
 
 ::Aero::Media::Visual* GridViewHeaderRowPresenter::GetVisualChild(std::uint32_t index) const noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
-        if (visual == nullptr || visual->GetVisualParent() != this) continue;
-        if (index == 0U) return visual;
-        --index;
-    }
-    return nullptr;
+    return PresenterVisualChild(*this, ownedCells_, index);
 }
 
 std::uint32_t GridViewHeaderRowPresenter::GetLayoutChildrenCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
-        if (element != nullptr && element->GetVisualParent() == this) ++count;
-    }
-    return count;
+    return PresenterLayoutChildrenCount(*this, ownedCells_);
 }
 
 UIElement* GridViewHeaderRowPresenter::GetLayoutChild(std::uint32_t index) const noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
-        if (element == nullptr || element->GetVisualParent() != this) continue;
-        if (index == 0U) return element;
-        --index;
-    }
-    return nullptr;
+    return PresenterLayoutChild(*this, ownedCells_, index);
 }
 
 void GridViewHeaderRowPresenter::OnPropertyChanged(
@@ -402,14 +489,7 @@ void GridViewHeaderRowPresenter::OnPropertyChanged(
 }
 
 void GridViewHeaderRowPresenter::ClearCells() noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        if (auto* element = ::Aero::TryCast<UIElement>(owned.Get())) {
-            DetachPresenterChild(*this, *element);
-        }
-    }
-    ownedCells_.Clear();
-    cellsDirty_ = true;
+    PresenterClearCells(*this, ownedCells_, &cellsDirty_);
 }
 
 void GridViewHeaderRowPresenter::RebuildIfNeeded() noexcept {
@@ -469,39 +549,16 @@ void GridViewHeaderRowPresenter::RebuildIfNeeded() noexcept {
 
 Size GridViewHeaderRowPresenter::MeasureOverride(Size availableSize) noexcept {
     RebuildIfNeeded();
-    double totalWidth = 0.0;
-    double maxHeight = 0.0;
-    const GridView* view = ResolvePresenterView(*this, GetValue(ColumnsProperty));
-    Base::Span<const Base::Ref<GridViewColumn>> columns =
-        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
-    for (std::uint32_t i = 0U; i < ownedCells_.Size(); ++i) {
-        auto* element = ::Aero::TryCast<UIElement>(ownedCells_[i].Get());
-        if (element == nullptr) continue;
-        double width = 100.0;
-        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
-        MeasureChild(*element, Size{width, availableSize.height});
-        totalWidth += width;
-        const double h = element->GetDesiredSize().height;
-        if (h > maxHeight) maxHeight = h;
-    }
-    return Size{totalWidth, maxHeight};
+    return PresenterMeasureCells(
+        *this, ownedCells_, GetValue(ColumnsProperty), availableSize,
+        [this](UIElement& child, Size s) { MeasureChild(child, s); });
 }
 
 Size GridViewHeaderRowPresenter::ArrangeOverride(Size finalSize) noexcept {
     RebuildIfNeeded();
-    const GridView* view = ResolvePresenterView(*this, GetValue(ColumnsProperty));
-    Base::Span<const Base::Ref<GridViewColumn>> columns =
-        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
-    double x = 0.0;
-    for (std::uint32_t i = 0U; i < ownedCells_.Size(); ++i) {
-        auto* element = ::Aero::TryCast<UIElement>(ownedCells_[i].Get());
-        if (element == nullptr) continue;
-        double width = 100.0;
-        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
-        ArrangeChild(*element, Rect{x, 0.0, width, finalSize.height});
-        x += width;
-    }
-    return finalSize;
+    return PresenterArrangeCells(
+        *this, ownedCells_, GetValue(ColumnsProperty), finalSize,
+        [this](UIElement& child, Rect r) { ArrangeChild(child, r); });
 }
 
 // ---- GridViewRowPresenter ----
@@ -511,45 +568,19 @@ GridViewRowPresenter::~GridViewRowPresenter() {
 }
 
 std::uint32_t GridViewRowPresenter::GetVisualChildrenCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
-        if (visual != nullptr && visual->GetVisualParent() == this) ++count;
-    }
-    return count;
+    return PresenterVisualChildrenCount(*this, ownedCells_);
 }
 
 ::Aero::Media::Visual* GridViewRowPresenter::GetVisualChild(std::uint32_t index) const noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(owned.Get());
-        if (visual == nullptr || visual->GetVisualParent() != this) continue;
-        if (index == 0U) return visual;
-        --index;
-    }
-    return nullptr;
+    return PresenterVisualChild(*this, ownedCells_, index);
 }
 
 std::uint32_t GridViewRowPresenter::GetLayoutChildrenCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
-        if (element != nullptr && element->GetVisualParent() == this) ++count;
-    }
-    return count;
+    return PresenterLayoutChildrenCount(*this, ownedCells_);
 }
 
 UIElement* GridViewRowPresenter::GetLayoutChild(std::uint32_t index) const noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        auto* element = ::Aero::TryCast<UIElement>(owned.Get());
-        if (element == nullptr || element->GetVisualParent() != this) continue;
-        if (index == 0U) return element;
-        --index;
-    }
-    return nullptr;
+    return PresenterLayoutChild(*this, ownedCells_, index);
 }
 
 void GridViewRowPresenter::OnPropertyChanged(
@@ -694,39 +725,16 @@ void GridViewRowPresenter::RebuildIfNeeded() noexcept {
 
 Size GridViewRowPresenter::MeasureOverride(Size availableSize) noexcept {
     RebuildIfNeeded();
-    double totalWidth = 0.0;
-    double maxHeight = 0.0;
-    const GridView* view = ResolvePresenterView(*this, GetValue(ColumnsProperty));
-    Base::Span<const Base::Ref<GridViewColumn>> columns =
-        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
-    for (std::uint32_t i = 0U; i < ownedCells_.Size(); ++i) {
-        auto* element = ::Aero::TryCast<UIElement>(ownedCells_[i].Get());
-        if (element == nullptr) continue;
-        double width = 100.0;
-        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
-        MeasureChild(*element, Size{width, availableSize.height});
-        totalWidth += width;
-        const double h = element->GetDesiredSize().height;
-        if (h > maxHeight) maxHeight = h;
-    }
-    return Size{totalWidth, maxHeight};
+    return PresenterMeasureCells(
+        *this, ownedCells_, GetValue(ColumnsProperty), availableSize,
+        [this](UIElement& child, Size s) { MeasureChild(child, s); });
 }
 
 Size GridViewRowPresenter::ArrangeOverride(Size finalSize) noexcept {
     RebuildIfNeeded();
-    const GridView* view = ResolvePresenterView(*this, GetValue(ColumnsProperty));
-    Base::Span<const Base::Ref<GridViewColumn>> columns =
-        view != nullptr ? view->GetColumns() : Base::Span<const Base::Ref<GridViewColumn>>{};
-    double x = 0.0;
-    for (std::uint32_t i = 0U; i < ownedCells_.Size(); ++i) {
-        auto* element = ::Aero::TryCast<UIElement>(ownedCells_[i].Get());
-        if (element == nullptr) continue;
-        double width = 100.0;
-        if (i < columns.Size() && columns[i]) width = ColumnWidth(*columns[i]);
-        ArrangeChild(*element, Rect{x, 0.0, width, finalSize.height});
-        x += width;
-    }
-    return finalSize;
+    return PresenterArrangeCells(
+        *this, ownedCells_, GetValue(ColumnsProperty), finalSize,
+        [this](UIElement& child, Rect r) { ArrangeChild(child, r); });
 }
 
 namespace {

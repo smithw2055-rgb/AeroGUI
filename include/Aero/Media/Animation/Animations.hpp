@@ -8,8 +8,11 @@
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Base/Geometry.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Animation/KeyFrames.hpp>
 #include <Aero/Media/Animation/EasingFunctions.hpp>
+#include <Aero/Value.hpp>
 
 #include <cmath>
 #include <type_traits>
@@ -21,9 +24,164 @@ namespace Aero::Media::Animation {
 class AERO_GUI_API AnimationTimeline : public Timeline {
     AERO_DECLARE_TYPE(AnimationTimeline, Timeline)
 
+public:
+    virtual Meta::PropertyValue GetCurrentPropertyValue(
+        const Meta::PropertyValue& defaultOriginValue,
+        const Meta::PropertyValue& defaultDestinationValue,
+        double progress,
+        AnimationTime sampleTime) const noexcept {
+        static_cast<void>(defaultOriginValue);
+        static_cast<void>(defaultDestinationValue);
+        static_cast<void>(progress);
+        static_cast<void>(sampleTime);
+        return {};
+    }
+
+    virtual bool IsKeyFrameAnimation() const noexcept { return false; }
+    virtual AnimationTime GetEffectiveDurationMicroseconds() const noexcept {
+        return GetDuration().HasTimeSpan() ? GetDuration().GetTimeSpan().Microseconds() : 0U;
+    }
+
 protected:
     explicit AnimationTimeline(Meta::TypeId runtimeType) noexcept : Timeline(runtimeType) {}
 };
+
+struct AnimationMath {
+    static constexpr double Pi = 3.1415926535897932384626433832795;
+
+    static inline double Clamp01(double value) noexcept {
+        return value < 0.0 ? 0.0 : (value > 1.0 ? 1.0 : value);
+    }
+
+    static inline double ApplyAccelerationDeceleration(
+        double progress, double acceleration, double deceleration) noexcept {
+        const double value = Clamp01(progress);
+        if (acceleration <= 0.0 && deceleration <= 0.0) {
+            return value;
+        }
+        const double maximumVelocity =
+            1.0 / (1.0 - (acceleration + deceleration) * 0.5);
+        if (acceleration > 0.0 && value < acceleration) {
+            return 0.5 * maximumVelocity * value * value / acceleration;
+        }
+        const double beforeDeceleration = 1.0 - deceleration;
+        const double accumulatedBeforeDeceleration =
+            maximumVelocity * (beforeDeceleration - acceleration * 0.5);
+        if (deceleration <= 0.0 || value <= beforeDeceleration) {
+            return accumulatedBeforeDeceleration +
+                maximumVelocity * (value - beforeDeceleration);
+        }
+        const double elapsed = value - beforeDeceleration;
+        return accumulatedBeforeDeceleration + maximumVelocity * elapsed -
+            0.5 * maximumVelocity * elapsed * elapsed / deceleration;
+    }
+
+    static inline double CubicBezierCoordinate(
+        double t, double first, double second) noexcept {
+        const double inverse = 1.0 - t;
+        return 3.0 * inverse * inverse * t * first +
+            3.0 * inverse * t * t * second + t * t * t;
+    }
+
+    static inline double CubicBezierDerivative(
+        double t, double first, double second) noexcept {
+        const double inverse = 1.0 - t;
+        return 3.0 * inverse * inverse * first +
+            6.0 * inverse * t * (second - first) +
+            3.0 * t * t * (1.0 - second);
+    }
+
+    static inline double EvaluateSpline(
+        double progress,
+        double cp1x, double cp1y,
+        double cp2x, double cp2y) noexcept {
+        const double target = Clamp01(progress);
+        double parameter = target;
+        for (std::uint32_t iteration = 0U; iteration < 8U; ++iteration) {
+            const double x = CubicBezierCoordinate(parameter, cp1x, cp2x);
+            const double derivative = CubicBezierDerivative(parameter, cp1x, cp2x);
+            if (std::abs(derivative) < 1.0e-7) break;
+            parameter = Clamp01(parameter - (x - target) / derivative);
+        }
+        double low = 0.0;
+        double high = 1.0;
+        for (std::uint32_t iteration = 0U; iteration < 12U; ++iteration) {
+            const double x = CubicBezierCoordinate(parameter, cp1x, cp2x);
+            if (x < target) low = parameter;
+            else high = parameter;
+            parameter = (low + high) * 0.5;
+        }
+        return Clamp01(CubicBezierCoordinate(parameter, cp1y, cp2y));
+    }
+};
+
+template<class T>
+inline constexpr bool IsInterpolatable =
+    std::is_same_v<T, double> ||
+    std::is_same_v<T, Base::Color> ||
+    std::is_same_v<T, Base::Point> ||
+    std::is_same_v<T, Base::Rect> ||
+    std::is_same_v<T, Base::Thickness> ||
+    std::is_same_v<T, std::int16_t> ||
+    std::is_same_v<T, std::int32_t> ||
+    std::is_same_v<T, std::int64_t> ||
+    std::is_same_v<T, Base::Size> ||
+    std::is_same_v<T, Base::Transform2D>;
+
+template<class T>
+inline T LerpAnimationValue(const T& from, const T& to, double progress) noexcept {
+    if constexpr (std::is_same_v<T, double>) {
+        return from + (to - from) * progress;
+    } else if constexpr (std::is_same_v<T, Base::Color>) {
+        const float t = static_cast<float>(progress);
+        return {
+            from.red + (to.red - from.red) * t,
+            from.green + (to.green - from.green) * t,
+            from.blue + (to.blue - from.blue) * t,
+            from.alpha + (to.alpha - from.alpha) * t
+        };
+    } else if constexpr (std::is_same_v<T, Base::Point>) {
+        return {
+            from.x + (to.x - from.x) * progress,
+            from.y + (to.y - from.y) * progress
+        };
+    } else if constexpr (std::is_same_v<T, Base::Rect>) {
+        return {
+            from.x + (to.x - from.x) * progress,
+            from.y + (to.y - from.y) * progress,
+            from.width + (to.width - from.width) * progress,
+            from.height + (to.height - from.height) * progress
+        };
+    } else if constexpr (std::is_same_v<T, Base::Thickness>) {
+        return {
+            from.left + (to.left - from.left) * progress,
+            from.top + (to.top - from.top) * progress,
+            from.right + (to.right - from.right) * progress,
+            from.bottom + (to.bottom - from.bottom) * progress
+        };
+    } else if constexpr (std::is_same_v<T, std::int16_t> || std::is_same_v<T, std::int32_t> || std::is_same_v<T, std::int64_t>) {
+        const double sampled = static_cast<double>(from) +
+            (static_cast<double>(to) - static_cast<double>(from)) * progress;
+        if (!std::isfinite(sampled)) return to;
+        return static_cast<T>(std::llround(sampled));
+    } else if constexpr (std::is_same_v<T, Base::Size>) {
+        return {
+            from.width + (to.width - from.width) * progress,
+            from.height + (to.height - from.height) * progress
+        };
+    } else if constexpr (std::is_same_v<T, Base::Transform2D>) {
+        Base::Transform2D sampled;
+        sampled.m11 = from.m11 + (to.m11 - from.m11) * progress;
+        sampled.m12 = from.m12 + (to.m12 - from.m12) * progress;
+        sampled.m21 = from.m21 + (to.m21 - from.m21) * progress;
+        sampled.m22 = from.m22 + (to.m22 - from.m22) * progress;
+        sampled.dx = from.dx + (to.dx - from.dx) * progress;
+        sampled.dy = from.dy + (to.dy - from.dy) * progress;
+        return sampled;
+    } else {
+        return progress >= 1.0 ? to : from;
+    }
+}
 
 template<class T> struct FromToName;
 
@@ -94,6 +252,36 @@ template<class T> inline bool AnimationValueAccepted(const T& value) noexcept {
     }
 }
 
+template<class T>
+inline Meta::PropertyValue EncodeAnimationValue(const T& value) noexcept {
+    if constexpr (std::is_same_v<T, Meta::PropertyValue>) {
+        return value;
+    } else {
+        using ResultType = decltype(Meta::ValueCodec<T>::Encode(value));
+        if constexpr (std::is_same_v<ResultType, Meta::PropertyValue>) {
+            return Meta::ValueCodec<T>::Encode(value);
+        } else {
+            auto encoded = Meta::ValueCodec<T>::Encode(value);
+            if (encoded) {
+                return *encoded;
+            }
+            return {};
+        }
+    }
+}
+
+template<class T>
+inline T DecodeAnimationValue(const Meta::PropertyValue& propValue, const T& defaultValue = T{}) noexcept {
+    if constexpr (std::is_same_v<T, Meta::PropertyValue>) {
+        return propValue.IsUnset() ? defaultValue : propValue;
+    } else {
+        if (auto decoded = Meta::ValueCodec<T>::Decode(propValue)) {
+            return *decoded;
+        }
+        return defaultValue;
+    }
+}
+
 // Color, Point, Rect and Thickness historically stored the value without
 // flipping the presence flag. ResolveFrom keeps that behavior.
 template<class T> inline constexpr bool AnimationRecordsPresence =
@@ -128,15 +316,24 @@ public:
         WritePostscript();
     }
     virtual T GetCurrentValue(T defaultOriginValue, T defaultDestinationValue, double progress) const noexcept {
-        if constexpr (std::is_same_v<T, double>) { const double from = ResolveFrom(defaultOriginValue);
-            const double to = ResolveTo(defaultDestinationValue);
-            return from + (to - from) * progress;
-        } else {
-            static_cast<void>(defaultOriginValue);
-            static_cast<void>(defaultDestinationValue);
-            static_cast<void>(progress);
-            return T{};
+        const T from = ResolveFrom(defaultOriginValue);
+        const T to = ResolveTo(defaultDestinationValue);
+        return LerpAnimationValue<T>(from, to, progress);
+    }
+
+    Meta::PropertyValue GetCurrentPropertyValue(
+        const Meta::PropertyValue& defaultOriginValue,
+        const Meta::PropertyValue& defaultDestinationValue,
+        double progress,
+        AnimationTime sampleTime) const noexcept override {
+        static_cast<void>(sampleTime);
+        const T origin = DecodeAnimationValue<T>(defaultOriginValue);
+        const T dest = DecodeAnimationValue<T>(defaultDestinationValue);
+        const T sampled = GetCurrentValue(origin, dest, progress);
+        if constexpr (std::is_same_v<T, double>) {
+            if (!std::isfinite(sampled)) return {};
         }
+        return EncodeAnimationValue<T>(sampled);
     }
 
 protected:
@@ -212,6 +409,25 @@ public:
         } else { static_cast<void>(value); }
     }
 
+    Meta::PropertyValue GetCurrentPropertyValue(
+        const Meta::PropertyValue& defaultOriginValue,
+        const Meta::PropertyValue& defaultDestinationValue,
+        double progress,
+        AnimationTime sampleTime) const noexcept override {
+        double effectiveProgress = progress;
+        if constexpr (std::is_same_v<T, double>) {
+            if (this->accelerationRatio_ > 0.0 || this->decelerationRatio_ > 0.0) {
+                effectiveProgress = AnimationMath::ApplyAccelerationDeceleration(
+                    effectiveProgress, this->accelerationRatio_, this->decelerationRatio_);
+            }
+        }
+        if (easing_) {
+            effectiveProgress = easing_->Ease(effectiveProgress);
+        }
+        return AnimationBase<T>::GetCurrentPropertyValue(
+            defaultOriginValue, defaultDestinationValue, effectiveProgress, sampleTime);
+    }
+
 protected:
     explicit Animation(Meta::TypeId runtimeType) noexcept : AnimationBase<T>(runtimeType) {}
     Base::Ref<Freezable> CreateInstanceCore() const override {
@@ -254,6 +470,126 @@ public:
         WritePostscript();
     }
     Span<const Ref<TKeyFrame>> GetKeyFrames() const noexcept { return {keyFrames_.Data(), keyFrames_.Size()}; }
+
+    bool IsKeyFrameAnimation() const noexcept override { return true; }
+
+    AnimationTime GetEffectiveDurationMicroseconds() const noexcept override {
+        AnimationTime duration = this->GetDuration().HasTimeSpan() ? this->GetDuration().GetTimeSpan().Microseconds() : 0U;
+        if (duration == 0U) {
+            for (const auto& kf : keyFrames_) {
+                if (kf && kf->GetKeyTime().IsTimeSpan()) {
+                    const auto us = kf->GetKeyTime().GetTimeSpan().Microseconds();
+                    if (us > duration) duration = us;
+                }
+            }
+        }
+        return duration;
+    }
+
+    Meta::PropertyValue GetCurrentPropertyValue(
+        const Meta::PropertyValue& defaultOriginValue,
+        const Meta::PropertyValue& defaultDestinationValue,
+        double progress,
+        AnimationTime sampleTime) const noexcept override {
+        static_cast<void>(defaultDestinationValue);
+        using ValueType = typename TKeyFrame::ValueType;
+        if (keyFrames_.Empty()) {
+            return defaultOriginValue;
+        }
+
+        AnimationTime duration = GetEffectiveDurationMicroseconds();
+        if (duration == 0U && progress > 0.0) {
+            duration = static_cast<AnimationTime>(std::llround(static_cast<double>(sampleTime) / progress));
+        }
+
+        const std::uint32_t count = static_cast<std::uint32_t>(keyFrames_.Size());
+        struct FrameEntry {
+            AnimationTime keyTime;
+            const TKeyFrame* frame;
+        };
+        FrameEntry stackBuf[16];
+        FrameEntry* entries = stackBuf;
+        Base::Vector<FrameEntry> heapBuf;
+        if (count > 16) {
+            heapBuf.Resize(count);
+            entries = heapBuf.Data();
+        }
+        std::uint32_t validCount = 0;
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            const auto& kfRef = keyFrames_[index];
+            if (!kfRef) continue;
+            entries[validCount++] = {
+                kfRef->GetKeyTime().ResolveMicroseconds(duration, index, count),
+                kfRef.Get()
+            };
+        }
+        for (std::uint32_t i = 1; i < validCount; ++i) {
+            FrameEntry cur = entries[i];
+            std::uint32_t j = i;
+            while (j > 0 && entries[j - 1].keyTime > cur.keyTime) {
+                entries[j] = entries[j - 1];
+                --j;
+            }
+            entries[j] = cur;
+        }
+
+        ValueType previous = DecodeAnimationValue<ValueType>(defaultOriginValue);
+        AnimationTime previousTime = 0U;
+        ValueType sampled = previous;
+        bool found = false;
+
+        for (std::uint32_t index = 0U; index < validCount; ++index) {
+            const FrameEntry& entry = entries[index];
+            const TKeyFrame& frame = *entry.frame;
+            const AnimationTime frameKeyTime = entry.keyTime;
+
+            if (sampleTime > frameKeyTime) {
+                previous = frame.GetValue();
+                previousTime = frameKeyTime;
+                sampled = frame.GetValue();
+                continue;
+            }
+
+            const AnimationTime segmentDuration = (frameKeyTime >= previousTime) ? (frameKeyTime - previousTime) : 0U;
+            const double raw = (segmentDuration == 0U)
+                ? 1.0
+                : static_cast<double>(sampleTime - previousTime) / static_cast<double>(segmentDuration);
+
+            double segmentProgress = 0.0;
+            switch (frame.GetInterpolation()) {
+            case KeyFrameBase::Interpolation::Discrete:
+                segmentProgress = (sampleTime >= frameKeyTime) ? 1.0 : 0.0;
+                break;
+            case KeyFrameBase::Interpolation::Easing: {
+                auto easing = frame.GetEasingFunction();
+                segmentProgress = easing ? easing->Ease(raw) : AnimationMath::Clamp01(raw);
+                break;
+            }
+            case KeyFrameBase::Interpolation::Spline:
+                segmentProgress = AnimationMath::EvaluateSpline(
+                    raw,
+                    frame.GetSplineControlPoint1X(),
+                    frame.GetSplineControlPoint1Y(),
+                    frame.GetSplineControlPoint2X(),
+                    frame.GetSplineControlPoint2Y());
+                break;
+            case KeyFrameBase::Interpolation::Linear:
+            default:
+                segmentProgress = AnimationMath::Clamp01(raw);
+                break;
+            }
+
+            sampled = LerpAnimationValue<ValueType>(previous, frame.GetValue(), segmentProgress);
+            found = true;
+            break;
+        }
+
+        if (!found && validCount > 0) {
+            sampled = entries[validCount - 1].frame->GetValue();
+        }
+
+        return EncodeAnimationValue<ValueType>(sampled);
+    }
 
 protected:
     explicit AnimationUsingKeyFrames(Meta::TypeId runtimeType) noexcept : AnimationTimeline(runtimeType) {}

@@ -872,45 +872,7 @@ bool EqualGridLength(const void* left, const void* right, void*) noexcept {
     return a.unit == b.unit && a.value == b.value;
 }
 
-void AddGridColumnDefinition(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    Base::Ref<ColumnDefinition> retained =
-        Base::Ref<ColumnDefinition>::TryFromBorrowed(
-            static_cast<ColumnDefinition&>(*value));
-    if (!retained) {
-        return;
-    }
-    (void)static_cast<Grid&>(owner)
-        .AddColumnDefinition(std::move(retained));
-}
 
-void ClearGridColumnDefinitions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<Grid&>(owner).ClearColumnDefinitionObjects();
-}
-
-void AddGridRowDefinition(
-    Base::Object& owner,
-    const Base::Ref<Base::Object>& value,
-    void*) noexcept {
-    Base::Ref<RowDefinition> retained =
-        Base::Ref<RowDefinition>::TryFromBorrowed(
-            static_cast<RowDefinition&>(*value));
-    if (!retained) {
-        return;
-    }
-    (void)static_cast<Grid&>(owner)
-        .AddRowDefinition(std::move(retained));
-}
-
-void ClearGridRowDefinitions(
-    Base::Object& owner,
-    void*) noexcept {
-    static_cast<Grid&>(owner).ClearRowDefinitionObjects();
-}
 
 } // namespace
 
@@ -936,8 +898,8 @@ AERO_DESCRIBE(Grid) {
         .Property(Grid::IsSharedSizeScopeProperty, false)
         .Property(Grid::ColumnDefinitionsTextProperty, Base::String{}, AffectsMeasure)
         .Property(Grid::RowDefinitionsTextProperty, Base::String{}, AffectsMeasure)
-        .Collection<ColumnDefinition>("ColumnDefinitions", &AddGridColumnDefinition, &ClearGridColumnDefinitions)
-        .Collection<RowDefinition>("RowDefinitions", &AddGridRowDefinition, &ClearGridRowDefinitions)
+        .Collection<ColumnDefinition, &Grid::AddColumnDefinition, &Grid::ClearColumnDefinitionObjects>("ColumnDefinitions")
+        .Collection<RowDefinition, &Grid::AddRowDefinition, &Grid::ClearRowDefinitionObjects>("RowDefinitions")
         .Property(Grid::RowProperty, std::uint32_t{0}, AffectsParentMeasure)
         .Property(Grid::ColumnProperty, std::uint32_t{0}, AffectsParentMeasure)
         .Property(Grid::RowSpanProperty, std::uint32_t{1}, AffectsParentMeasure, &Base::Validate::Positive<std::uint32_t>)

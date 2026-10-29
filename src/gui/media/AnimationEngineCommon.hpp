@@ -5,6 +5,7 @@
 #include "gui/media/AnimationEngine.hpp"
 #include "gui/media/AnimationModel.hpp"
 
+#include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
@@ -180,35 +181,7 @@ inline Base::Result<Meta::PropertyValue> EncodeIntegerWidth(
 namespace Aero {
 
 struct AnimationEngine::Track {
-    enum class Kind : std::uint8_t {
-        Double,
-        CustomDouble,
-        Color,
-        Point,
-        Rect,
-        Thickness,
-        DoubleKeyFrames,
-        ColorKeyFrames,
-        PointKeyFrames,
-        ThicknessKeyFrames,
-        Integer,
-        IntegerKeyFrames,
-        Size,
-        SizeKeyFrames,
-        Matrix,
-        MatrixKeyFrames,
-        Discrete
-    };
-
-    explicit Track(Base::IAllocator* allocator) noexcept
-        : doubleFrames(allocator),
-          colorFrames(allocator),
-          pointFrames(allocator),
-          thicknessFrames(allocator),
-          integerFrames(allocator),
-          sizeFrames(allocator),
-          matrixFrames(allocator),
-          discreteFrames(allocator) {}
+    explicit Track(Base::IAllocator* = nullptr) noexcept {}
 
     Track(Track&&) noexcept = default;
     Track& operator=(Track&&) noexcept = default;
@@ -219,50 +192,17 @@ struct AnimationEngine::Track {
     ::Aero::DependencyObject* target = nullptr;
     Meta::DependencyPropertyHandle property;
     TimelineTiming timing;
-    EasingFunction easing;
-    double accelerationRatio = 0.0;
-    double decelerationRatio = 0.0;
-    Kind kind = Kind::Double;
     AnimationState state = AnimationState::Active;
     AnimationTime startTimeMicroseconds = 0U;
     AnimationTime pauseTimeMicroseconds = 0U;
     AnimationTime seekOffsetMicroseconds = 0U;
     AnimationTime accumulatedPauseMicroseconds = 0U;
-    double from = 0.0;
-    double to = 0.0;
-    double baseValue = 0.0;
-    double defaultDestinationValue = 0.0;
-    Base::Ref<
-        ::Aero::Media::Animation::DoubleAnimationBase>
-        customDouble;
-    Base::Color fromColor;
-    Base::Color toColor;
-    Base::Point fromPoint;
-    Base::Point toPoint;
-    Base::Rect fromRect;
-    Base::Rect toRect;
-    Base::Thickness fromThickness;
-    Base::Thickness toThickness;
-    std::int64_t fromInteger = 0;
-    std::int64_t toInteger = 0;
-    IntegerAnimationWidth integerWidth = IntegerAnimationWidth::Int32;
-    Base::Size fromSize{};
-    Base::Size toSize{};
-    Base::Transform2D fromMatrix{};
-    Base::Transform2D toMatrix{};
-    Base::Vector<DoubleKeyFrame> doubleFrames;
-    Base::Vector<ColorKeyFrame> colorFrames;
-    Base::Vector<PointKeyFrame> pointFrames;
-    Base::Vector<ThicknessKeyFrame> thicknessFrames;
-    Base::Vector<IntegerKeyFrame> integerFrames;
-    Base::Vector<SizeKeyFrame> sizeFrames;
-    Base::Vector<MatrixKeyFrame> matrixFrames;
-    Base::Vector<DiscreteAnimationKeyFrame> discreteFrames;
-    Meta::PropertyValue discreteBaseValue;
+    Base::Ref<::Aero::Media::Animation::AnimationTimeline> timeline;
+    Meta::PropertyValue originValue;
+    Meta::PropertyValue destinationValue;
     bool valueApplied = false;
     bool completedCounted = false;
     bool pendingInitialSample = true;
 };
-
 
 } // namespace Aero

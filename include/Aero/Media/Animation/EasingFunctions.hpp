@@ -39,6 +39,8 @@ public:
 
     Kind GetKind() const noexcept { return kind_; }
 
+    double Ease(double progress) const noexcept;
+
     // XAML names (SineEase, CubicEase, ...) are metadata aliases. Each factory
     // constructs this class with that name's TypeId and the matching Kind.
     EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept : Freezable(runtimeType), kind_(kind) {}

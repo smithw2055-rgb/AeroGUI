@@ -8,11 +8,16 @@
 #include <Aero/Media/Animation/StoryboardActions.hpp>
 
 #include "gui/core/Describe.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
 #include "gui/data/BindingEngine.hpp"
+#include "gui/markup/XamlSchema.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
+#include <Aero/FrameworkElement.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <utility>
 
@@ -53,6 +58,50 @@ bool IsDynamicResourceSetterValue(
         return true;
     }
     return false;
+}
+
+bool ResolveTriggerSetterValue(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    const PropertyValue& rawValue,
+    PropertyValue& resolvedValue,
+    FrameworkElement* fallbackScope,
+    const ResourceDictionary* fallbackResources) noexcept {
+    Base::StringView dynamicKey;
+    if (IsDynamicResourceSetterValue(rawValue, dynamicKey)) {
+        resolvedValue = rawValue;
+        auto* element = ::Aero::TryCast<FrameworkElement>(&target);
+        ResourceValue lookedUp{};
+        if (element != nullptr) {
+            Base::Result<ResourceValue> res = element->FindResource(dynamicKey);
+            if (res) lookedUp = res.Value();
+        }
+        if (lookedUp.IsUnset() && fallbackScope != nullptr) {
+            Base::Result<ResourceValue> res = fallbackScope->FindResource(dynamicKey);
+            if (res) lookedUp = res.Value();
+        }
+        if (lookedUp.IsUnset() && fallbackResources != nullptr) {
+            Base::Result<ResourceValue> res = fallbackResources->Lookup(dynamicKey);
+            if (res) lookedUp = res.Value();
+        }
+        if (!lookedUp.IsUnset()) {
+            const DependencyProperty* prop =
+                DependencyObjectAccess::PropertyRegistry(target).Find(property);
+            if (prop != nullptr) {
+                Base::Result<PropertyValue> converted =
+                    Markup::ConvertDynamicResourceValue(lookedUp, *prop);
+                if (converted) {
+                    resolvedValue = std::move(converted).Value();
+                }
+            }
+        }
+        return true;
+    }
+    if (IsDeferredBindingSetterValue(rawValue)) {
+        return false;
+    }
+    resolvedValue = rawValue;
+    return true;
 }
 
 void TriggerBase::AddEnterAction(

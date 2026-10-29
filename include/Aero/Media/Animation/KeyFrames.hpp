@@ -65,6 +65,7 @@ private:
 
 template<typename T> class KeyFrame : public KeyFrameBase {
 public:
+    using ValueType = T;
     T GetValue() const noexcept { return value_; }
     void SetValue(T value) noexcept {
         if constexpr (std::is_same<T, double>::value) {

@@ -18,6 +18,8 @@
 namespace Aero {
 
 class DependencyObject;
+class FrameworkElement;
+class ResourceDictionary;
 class Style;
 
 namespace Meta {
@@ -56,6 +58,19 @@ bool IsDeferredBindingSetterValue(
 bool IsDynamicResourceSetterValue(
     const PropertyValue& value,
     Base::StringView& key) noexcept;
+
+inline bool ShouldApplyOrClearTriggerSetter(const PropertyValue& value) noexcept {
+    Base::StringView dynamicKey;
+    return !IsDeferredBindingSetterValue(value) || IsDynamicResourceSetterValue(value, dynamicKey);
+}
+
+bool ResolveTriggerSetterValue(
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    const PropertyValue& rawValue,
+    PropertyValue& resolvedValue,
+    FrameworkElement* fallbackScope = nullptr,
+    const ResourceDictionary* fallbackResources = nullptr) noexcept;
 
 struct StyleTriggerSetter {
     DependencyPropertyHandle property;

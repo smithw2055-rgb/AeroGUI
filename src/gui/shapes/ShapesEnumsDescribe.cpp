@@ -4,21 +4,11 @@
 
 namespace Aero {
 
-Base::Result<void> PopulateShapesEnums(
+void PopulateShapesEnums(
     Meta::Registration& context) noexcept {
     using namespace Shapes;
 
-    Base::Result<void> status;
-
-    AERO_REGISTER_ENUM(
-        FillRule,
-        "FillRule",
-        description
-            .Value("EvenOdd", FillRule::EvenOdd)
-            .Value("Nonzero", FillRule::Nonzero););
-
-#undef AERO_REGISTER_ENUM
-    return {};
+    AERO_AUTO_REGISTER_ENUM(FillRule);
 }
 
 } // namespace Aero

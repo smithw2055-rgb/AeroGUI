@@ -574,17 +574,8 @@ AERO_DESCRIBE(RadioButton) {
 }
 
 
-AERO_DESCRIBE(Button) {
-    using namespace Aero::Meta;
-    Register<Button>(context)
-        .Factory();
-}
-
-AERO_DESCRIBE(CheckBox) {
-    using namespace Aero::Meta;
-    Register<CheckBox>(context)
-        .Factory();
-}
+AERO_DESCRIBE_DEFAULT(Button)
+AERO_DESCRIBE_DEFAULT(CheckBox)
 
 } // namespace Aero::Controls
 

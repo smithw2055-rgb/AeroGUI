@@ -22,6 +22,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
+
 namespace Aero {
 
 using namespace Aero::Meta;
@@ -98,99 +99,6 @@ double AnimationEngine::Ease(
             : 1.0 - easeIn((1.0 - value) * 2.0) * 0.5;
     }
     return value;
-}
-
-template<class TFrame>
-double SegmentProgress(
-    const TFrame& frame,
-    AnimationTime sampleTime,
-    AnimationTime previousTime) noexcept {
-    const AnimationTime segmentDuration =
-        frame.keyTimeMicroseconds >= previousTime
-        ? frame.keyTimeMicroseconds - previousTime
-        : 0U;
-    const double raw = segmentDuration == 0U
-        ? 1.0
-        : static_cast<double>(sampleTime - previousTime) /
-            static_cast<double>(segmentDuration);
-    switch (frame.interpolation) {
-    case DoubleKeyFrameInterpolation::Discrete:
-        return sampleTime >= frame.keyTimeMicroseconds ? 1.0 : 0.0;
-    case DoubleKeyFrameInterpolation::Easing:
-        return AnimationEngine::Ease(raw, frame.easing);
-    case DoubleKeyFrameInterpolation::Spline:
-        return EvaluateSpline(raw, frame);
-    case DoubleKeyFrameInterpolation::Linear:
-        return Clamp01(raw);
-    }
-    return Clamp01(raw);
-}
-
-inline Base::Color LerpColor(Base::Color from, Base::Color to, double amount) noexcept {
-    const float t = static_cast<float>(amount);
-    return {
-        from.red + (to.red - from.red) * t,
-        from.green + (to.green - from.green) * t,
-        from.blue + (to.blue - from.blue) * t,
-        from.alpha + (to.alpha - from.alpha) * t};
-}
-
-inline Base::Point LerpPoint(Base::Point from, Base::Point to, double amount) noexcept {
-    return {
-        from.x + (to.x - from.x) * amount,
-        from.y + (to.y - from.y) * amount};
-}
-
-inline Base::Rect LerpRect(Base::Rect from, Base::Rect to, double amount) noexcept {
-    return {
-        from.x + (to.x - from.x) * amount,
-        from.y + (to.y - from.y) * amount,
-        from.width + (to.width - from.width) * amount,
-        from.height + (to.height - from.height) * amount};
-}
-
-inline Base::Thickness LerpThickness(
-    Base::Thickness from, Base::Thickness to, double amount) noexcept {
-    return {
-        from.left + (to.left - from.left) * amount,
-        from.top + (to.top - from.top) * amount,
-        from.right + (to.right - from.right) * amount,
-        from.bottom + (to.bottom - from.bottom) * amount};
-}
-
-inline Base::Size LerpSize(Base::Size from, Base::Size to, double amount) noexcept {
-    return {
-        from.width + (to.width - from.width) * amount,
-        from.height + (to.height - from.height) * amount};
-}
-
-template<class T, class TFrame, class Lerp>
-T SampleKeyFrames(
-    const Base::Vector<TFrame>& frames,
-    T base,
-    AnimationTime sampleTime,
-    Lerp lerp) noexcept {
-    T previous = base;
-    AnimationTime previousTime = 0U;
-    T sampled = previous;
-    bool found = false;
-    for (std::uint32_t index = 0U; index < frames.Size(); ++index) {
-        const TFrame& frame = frames[index];
-        if (sampleTime > frame.keyTimeMicroseconds) {
-            previous = frame.value;
-            previousTime = frame.keyTimeMicroseconds;
-            sampled = frame.value;
-            continue;
-        }
-        sampled = lerp(
-            previous,
-            frame.value,
-            SegmentProgress(frame, sampleTime, previousTime));
-        found = true;
-        break;
-    }
-    if (!found && !frames.Empty()) sampled = frames.Back().value;
-    return sampled;
 }
 
 bool AnimationEngine::ApplyTrack(
@@ -273,149 +181,10 @@ bool AnimationEngine::ApplyTrack(
         sampleTime = 0U;
     }
 
-    Meta::PropertyValue value;
-    if (track.kind == Track::Kind::Double) {
-        const double eased = Ease(
-            ApplyAccelerationDeceleration(
-                progress,
-                track.accelerationRatio,
-                track.decelerationRatio),
-            track.easing);
-        value = Meta::ValueCodec<double>::Encode(
-            track.from + (track.to - track.from) * eased);
-    } else if (track.kind == Track::Kind::CustomDouble) {
-        if (!track.customDouble) {
-            return false;
-        }
-        const double sampled =
-            track.customDouble->GetCurrentValue(
-                track.baseValue,
-                track.defaultDestinationValue,
-                progress);
-        if (!std::isfinite(sampled)) {
-            return false;
-        }
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<double>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Color) {
-        const Base::Color color = LerpColor(
-            track.fromColor, track.toColor, Ease(progress, track.easing));
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Color>::Encode(color);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Point) {
-        const Base::Point point = LerpPoint(
-            track.fromPoint, track.toPoint, Ease(progress, track.easing));
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Point>::Encode(
-                point);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Rect) {
-        const Base::Rect rect = LerpRect(
-            track.fromRect, track.toRect, Ease(progress, track.easing));
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Rect>::Encode(
-                rect);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind ==
-        Track::Kind::Thickness) {
-        const Base::Thickness thickness = LerpThickness(
-            track.fromThickness, track.toThickness, Ease(progress, track.easing));
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Thickness>::
-                Encode(thickness);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Integer) {
-        const double eased = Ease(progress, track.easing);
-        Base::Result<Meta::PropertyValue> encoded = EncodeIntegerWidth(
-            LerpInteger(track.fromInteger, track.toInteger, eased),
-            track.integerWidth);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Size) {
-        const Base::Size size = LerpSize(
-            track.fromSize, track.toSize, Ease(progress, track.easing));
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Size>::Encode(size);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::Matrix) {
-        const double eased = Ease(progress, track.easing);
-        const Base::Transform2D matrix = LerpMatrix(
-            track.fromMatrix, track.toMatrix, eased);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Transform2D>::Encode(matrix);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::DoubleKeyFrames) {
-        const double sampledValue = SampleKeyFrames<double>(
-            track.doubleFrames,
-            track.baseValue,
-            sampleTime,
-            [](double from, double to, double amount) noexcept {
-                return from + (to - from) * amount;
-            });
-        value = Meta::ValueCodec<double>::Encode(sampledValue);
-    } else if (track.kind == Track::Kind::ColorKeyFrames) {
-        const Base::Color sampled = SampleKeyFrames<Base::Color>(
-            track.colorFrames, track.fromColor, sampleTime,
-            LerpColor);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Color>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::PointKeyFrames) {
-        const Base::Point sampled = SampleKeyFrames<Base::Point>(
-            track.pointFrames, track.fromPoint, sampleTime,
-            LerpPoint);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Point>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::ThicknessKeyFrames) {
-        const Base::Thickness sampled = SampleKeyFrames<Base::Thickness>(
-            track.thicknessFrames, track.fromThickness, sampleTime,
-            LerpThickness);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Thickness>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::IntegerKeyFrames) {
-        const std::int64_t sampled = SampleKeyFrames<std::int64_t>(
-            track.integerFrames, track.fromInteger, sampleTime, LerpInteger);
-        Base::Result<Meta::PropertyValue> encoded =
-            EncodeIntegerWidth(sampled, track.integerWidth);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::SizeKeyFrames) {
-        const Base::Size sampled = SampleKeyFrames<Base::Size>(
-            track.sizeFrames, track.fromSize, sampleTime,
-            LerpSize);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Size>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-    } else if (track.kind == Track::Kind::MatrixKeyFrames) {
-        const Base::Transform2D sampled = SampleKeyFrames<Base::Transform2D>(
-            track.matrixFrames, track.fromMatrix, sampleTime, LerpMatrix);
-        Base::Result<Meta::PropertyValue> encoded =
-            Meta::ValueCodec<Base::Transform2D>::Encode(sampled);
-        if (!encoded) return false;
-        value = std::move(encoded).Value();
-        } else {
-        value = track.discreteBaseValue;
-        for (const DiscreteAnimationKeyFrame& frame :
-             track.discreteFrames) {
-            if (sampleTime < frame.keyTimeMicroseconds) break;
-            value = frame.value;
-        }
-    }
+    if (!track.timeline) return false;
+    Meta::PropertyValue value = track.timeline->GetCurrentPropertyValue(
+        track.originValue, track.destinationValue, progress, sampleTime);
+    if (value.IsUnset()) return false;
 
     const Meta::DependencyProperty* targetProperty =
         DependencyObjectAccess::PropertyRegistry(track.target).Find(
@@ -429,7 +198,7 @@ bool AnimationEngine::ApplyTrack(
                 value);
         if (!color) return false;
         Base::Ref<Brush> brush =
-            MakeSolidColorBrush(color.Value());
+            MakeSolidColorBrush(*color);
         if (!brush) return false;
         value = Meta::PropertyValue::FromObject(
             Brush::StaticTypeId(),
@@ -445,43 +214,43 @@ bool AnimationEngine::ApplyTrack(
         if (!numeric) return false;
         Base::Result<Meta::PropertyValue> length =
             Meta::ValueCodec<Length>::Encode(
-                Length::Pixels(numeric.Value()));
+                Length::Pixels(*numeric));
         if (!length) return false;
-        value = std::move(length).Value();
+        value = std::move(*length);
     }
     if (UIElement* element = TryCast<UIElement>(track.target)) {
         if (track.property == UIElement::OpacityProperty.Handle()) {
             Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) element->SetAnimatedOpacity(decoded.Value());
+            if (decoded) element->SetAnimatedOpacity(*decoded);
         } else if (track.property == UIElement::VisibilityProperty.Handle()) {
             Base::Result<Visibility> decoded =
                 Meta::ValueCodec<Visibility>::Decode(value);
-            if (decoded) element->SetAnimatedVisibility(decoded.Value());
+            if (decoded) element->SetAnimatedVisibility(*decoded);
         }
     }
     if (FrameworkElement* framework = TryCast<FrameworkElement>(track.target)) {
         if (track.property == FrameworkElement::WidthProperty.Handle()) {
             Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
-            if (decoded) framework->SetAnimatedWidth(decoded.Value());
+            if (decoded) framework->SetAnimatedWidth(*decoded);
         } else if (track.property == FrameworkElement::HeightProperty.Handle()) {
             Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
-            if (decoded) framework->SetAnimatedHeight(decoded.Value());
+            if (decoded) framework->SetAnimatedHeight(*decoded);
         } else if (track.property == FrameworkElement::MinWidthProperty.Handle()) {
             Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMinWidth(decoded.Value());
+            if (decoded) framework->SetAnimatedMinWidth(*decoded);
         } else if (track.property == FrameworkElement::MinHeightProperty.Handle()) {
             Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMinHeight(decoded.Value());
+            if (decoded) framework->SetAnimatedMinHeight(*decoded);
         } else if (track.property == FrameworkElement::MaxWidthProperty.Handle()) {
             Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMaxWidth(decoded.Value());
+            if (decoded) framework->SetAnimatedMaxWidth(*decoded);
         } else if (track.property == FrameworkElement::MaxHeightProperty.Handle()) {
             Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMaxHeight(decoded.Value());
+            if (decoded) framework->SetAnimatedMaxHeight(*decoded);
         } else if (track.property == FrameworkElement::MarginProperty.Handle()) {
             Base::Result<Thickness> decoded =
                 Meta::ValueCodec<Thickness>::Decode(value);
-            if (decoded) framework->SetAnimatedMargin(decoded.Value());
+            if (decoded) framework->SetAnimatedMargin(*decoded);
         }
     }
     Base::Result<void> applied = values_->SetAnimationValue(

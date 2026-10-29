@@ -396,6 +396,17 @@ public:
         return Property(property, metadata);
     }
 
+    template<class TPropertyRef>
+    TypeBuilder& Property(const TPropertyRef& property,
+        FrameworkPropertyMetadataOptions options) noexcept {
+        using TVal = typename TPropertyRef::ValueType;
+        if constexpr (std::is_same_v<TVal, Value>) {
+            return Property(property, Value::NullObject(TypeOf<Object>()), options);
+        } else {
+            return Property(property, TVal{}, options);
+        }
+    }
+
     template< class TValue, auto Getter, auto Setter>
     TypeBuilder& Property(StringView name, PropertyFlags flags = PropertyFlags::None) noexcept {
         static_assert(std::is_invocable_v< decltype(Getter), const T&>,
@@ -612,6 +623,34 @@ public:
             static_cast<void>((static_cast<T&>(owner).*ClearMethod)());
         };
         return Content(name, TypeOf<TItem>(), kind, write, clear, contentFlags, nullptr);
+    }
+
+    template<class TItem, auto SetMethod>
+    TypeBuilder& Content(StringView name,
+        ContentFlags contentFlags = ContentFlags::None) noexcept {
+        ContentWriteCallback write = [](Object& owner, const Ref<Object>& value, void*) noexcept {
+            if (!value) return;
+            auto& host = static_cast<T&>(owner);
+            if constexpr (std::is_invocable_v<decltype(SetMethod), T&, Ref<Object>>) {
+                static_cast<void>((host.*SetMethod)(value));
+            } else if constexpr (std::is_invocable_v<decltype(SetMethod), T&, Ref<TItem>>) {
+                Ref<TItem> retained = Ref<TItem>::TryFromBorrowed(static_cast<TItem&>(*value));
+                if (retained) {
+                    static_cast<void>((host.*SetMethod)(std::move(retained)));
+                }
+            } else if constexpr (std::is_invocable_v<decltype(SetMethod), T&, TItem*>) {
+                static_cast<void>((host.*SetMethod)(static_cast<TItem*>(value.Get())));
+            }
+        };
+        ContentClearCallback clear = [](Object& owner, void*) noexcept {
+            auto& host = static_cast<T&>(owner);
+            if constexpr (std::is_invocable_v<decltype(SetMethod), T&, std::nullptr_t>) {
+                static_cast<void>((host.*SetMethod)(nullptr));
+            } else if constexpr (std::is_invocable_v<decltype(SetMethod), T&, Ref<TItem>>) {
+                static_cast<void>((host.*SetMethod)(Ref<TItem>{}));
+            }
+        };
+        return Content(name, TypeOf<TItem>(), ContentKind::Single, write, clear, contentFlags, nullptr);
     }
 
     template<class TOwner, class TValue> TypeBuilder& AddOwner(const DependencyPropertyRef<TOwner, TValue>& property,
