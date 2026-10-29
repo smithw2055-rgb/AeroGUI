@@ -162,9 +162,6 @@ Base::Ref<RoutedCommand> RoutedCommand::ResolveAuthored(
                 return entry.command;
             }
         }
-        for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
-            if (entry.memberName.View() == member) return entry.command;
-        }
     }
     for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
         if (entry.memberName.View() == member) return entry.command;

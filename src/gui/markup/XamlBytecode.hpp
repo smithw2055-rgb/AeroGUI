@@ -525,7 +525,8 @@ public:
     XamlBytecodeBuilder() noexcept {
         // Index 0 in string pool is empty string
         stringPool_.PushBack(Base::String{});
-        static_cast<void>(stringMap_.Insert(Base::String{}, 0U));
+        const Base::HashCode h = Base::DefaultHash<Base::StringView>{}(Base::StringView{});
+        static_cast<void>(stringHashIndex_.Insert(h, 0U));
     }
 
     void SetSlotCount(std::uint32_t count) noexcept {
@@ -552,14 +553,20 @@ public:
 
     std::uint32_t AddString(Base::StringView str) noexcept {
         if (str.Empty()) return 0U;
-        Base::String s;
-        static_cast<void>(s.Assign(str));
-        if (const std::uint32_t* found = stringMap_.Find(s)) {
-            return *found;
+        const Base::HashCode h = Base::DefaultHash<Base::StringView>{}(str);
+        if (const std::uint32_t* found = stringHashIndex_.Find(h)) {
+            if (*found < stringPool_.Size() && stringPool_[*found].View() == str) {
+                return *found;
+            }
+            for (std::uint32_t i = 1U; i < stringPool_.Size(); ++i) {
+                if (stringPool_[i].View() == str) return i;
+            }
         }
         const std::uint32_t newIndex = stringPool_.Size();
-        stringPool_.PushBack(s);
-        static_cast<void>(stringMap_.Insert(std::move(s), newIndex));
+        Base::String s;
+        static_cast<void>(s.Assign(str));
+        stringPool_.PushBack(std::move(s));
+        static_cast<void>(stringHashIndex_.Insert(h, newIndex));
         return newIndex;
     }
 
@@ -805,7 +812,7 @@ private:
     Base::Vector<::Aero::GridLength> gridLengths_;
     Base::Vector<TemplatePrototypeGradientStop> gradientStops_;
     Base::Vector<Base::Ref<Base::Object>> objectRefs_;
-    Base::HashMap<Base::String, std::uint32_t> stringMap_;
+    Base::HashMap<Base::HashCode, std::uint32_t> stringHashIndex_;
 };
 
 class XamlBytecodeContainer : public Base::Object {
@@ -865,6 +872,35 @@ public:
         XamlDocumentExecutionResult& outResult) noexcept;
 };
 
+struct PendingDeferredExtension {
+    ProvidedValue value;
+    PendingDeferredExtension() noexcept = default;
+    explicit PendingDeferredExtension(const ProvidedValue& v) noexcept : value(v) {}
+    ~PendingDeferredExtension() noexcept {
+        if (value.cleanup != nullptr && value.rollbackContext != nullptr) {
+            value.cleanup(value.rollbackContext);
+            value.rollbackContext = nullptr;
+        }
+    }
+    PendingDeferredExtension(PendingDeferredExtension&& other) noexcept : value(other.value) {
+        other.value.cleanup = nullptr;
+        other.value.rollbackContext = nullptr;
+    }
+    PendingDeferredExtension& operator=(PendingDeferredExtension&& other) noexcept {
+        if (this != &other) {
+            if (value.cleanup != nullptr && value.rollbackContext != nullptr) {
+                value.cleanup(value.rollbackContext);
+            }
+            value = other.value;
+            other.value.cleanup = nullptr;
+            other.value.rollbackContext = nullptr;
+        }
+        return *this;
+    }
+    PendingDeferredExtension(const PendingDeferredExtension&) = delete;
+    PendingDeferredExtension& operator=(const PendingDeferredExtension&) = delete;
+};
+
 inline Base::Result<void> XamlVM::Execute(
     const XamlBytecodeProgram& program,
     const XamlVMContext& context,
@@ -881,6 +917,8 @@ inline Base::Result<void> XamlVM::Execute(
             "XAML object count exceeds configured limits");
     }
     outObjects.Resize(program.slotCount);
+
+    Base::Vector<PendingDeferredExtension> deferredExtensions;
 
     Base::Vector<Media::Visual*> localVisuals;
     Base::Vector<Media::Visual*>* visuals = outVisuals;
@@ -1447,9 +1485,7 @@ inline Base::Result<void> XamlVM::Execute(
                     static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, provided.Value().value));
                 }
             } else if (provided.Value().kind == ProvidedValueKind::Deferred) {
-                if (provided.Value().commit != nullptr) {
-                    static_cast<void>(provided.Value().commit(provided.Value().rollbackContext));
-                }
+                deferredExtensions.PushBack(PendingDeferredExtension(provided.Value()));
             } else if (provided.Value().kind == ProvidedValueKind::Expression) {
                 if (services.effectiveValues != nullptr && provided.Value().expression.IsValid()) {
                     if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
@@ -1461,13 +1497,50 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::End:
+        case XamlOpCode::End: {
+            for (PendingDeferredExtension& item : deferredExtensions) {
+                if (item.value.bind != nullptr) {
+                    EffectServices effectServices;
+                    effectServices.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
+                    effectServices.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
+                    effectServices.fallbackResources = context.documentResources != nullptr ? context.documentResources : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
+                    Base::Result<void> bound = item.value.bind(item.value.rollbackContext, effectServices);
+                    if (!bound) return bound.GetStatus();
+                }
+                if (item.value.prepare != nullptr && context.documentNames != nullptr) {
+                    Base::Result<void> prepared = item.value.prepare(item.value.rollbackContext, *context.documentNames);
+                    if (!prepared) return prepared.GetStatus();
+                }
+                if (item.value.commit != nullptr) {
+                    Base::Result<std::uint64_t> committed = item.value.commit(item.value.rollbackContext);
+                    if (!committed) return committed.GetStatus();
+                }
+            }
             return {};
+        }
 
         default:
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "Unknown XamlOpCode encountered during VM execution");
+        }
+    }
+    for (PendingDeferredExtension& item : deferredExtensions) {
+        if (item.value.bind != nullptr) {
+            EffectServices effectServices;
+            effectServices.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
+            effectServices.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
+            effectServices.fallbackResources = context.documentResources != nullptr ? context.documentResources : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
+            Base::Result<void> bound = item.value.bind(item.value.rollbackContext, effectServices);
+            if (!bound) return bound.GetStatus();
+        }
+        if (item.value.prepare != nullptr && context.documentNames != nullptr) {
+            Base::Result<void> prepared = item.value.prepare(item.value.rollbackContext, *context.documentNames);
+            if (!prepared) return prepared.GetStatus();
+        }
+        if (item.value.commit != nullptr) {
+            Base::Result<std::uint64_t> committed = item.value.commit(item.value.rollbackContext);
+            if (!committed) return committed.GetStatus();
         }
     }
     return {};

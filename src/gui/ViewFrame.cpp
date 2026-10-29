@@ -704,12 +704,12 @@ Base::Result<void> ViewFrame::VisitAndAttach(
 namespace {
 
 inline void AddFrameCallbacks(
-    ViewFrameResult& result,
+    std::uint32_t& callbackCount,
     std::uint32_t count) noexcept {
-    if (result.callbackCount > UINT32_MAX - count) {
-        result.callbackCount = UINT32_MAX;
+    if (callbackCount > UINT32_MAX - count) {
+        callbackCount = UINT32_MAX;
     } else {
-        result.callbackCount += count;
+        callbackCount += count;
     }
 }
 
@@ -827,13 +827,13 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     //   -> Layout (layout LayoutHook)
     //   -> RenderCommit (renderer RenderCommitHook)
     // BeginFrame/Input/EndFrame had no registered hooks (P1.3) and are gone.
-    ViewFrameResult result;
+    std::uint32_t callbackCount = 0U;
 
     // ---- PropertyChanges ----
     if (state.Values() != nullptr) {
         Base::Result<std::uint32_t> flushed = state.Values()->Flush();
         if (!flushed) return flushed.GetStatus();
-        AddFrameCallbacks(result, flushed.Value());
+        AddFrameCallbacks(callbackCount, flushed.Value());
     }
 
     // ---- DataBind (single canonical call, merges the two discrete stages) ----
@@ -875,7 +875,7 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
             Base::Result<std::uint32_t> completed =
                 state.Storyboards()->ProcessStoryboardCompletions();
             if (!completed) return completed.GetStatus();
-            AddFrameCallbacks(result, completed.Value());
+            AddFrameCallbacks(callbackCount, completed.Value());
         }
         if (state.Animations()->Diagnostics().appliedValueCount != 0U) {
             if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
@@ -893,17 +893,17 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         if (state.Tree() != nullptr) {
             const std::uint32_t lifecycleCount =
                 state.Tree()->FlushLifecycle();
-            AddFrameCallbacks(result, lifecycleCount);
+            AddFrameCallbacks(callbackCount, lifecycleCount);
         }
         const std::uint32_t focused = state.Focus() != nullptr
             ? state.Focus()->ProcessPendingFocus()
             : 0U;
-        AddFrameCallbacks(result, focused);
+        AddFrameCallbacks(callbackCount, focused);
         if (state.Animations() != nullptr) {
             Base::Result<std::uint32_t> initialValues =
                 state.Animations()->ApplyPendingInitialValues();
             if (!initialValues) return initialValues.GetStatus();
-            AddFrameCallbacks(result, initialValues.Value());
+            AddFrameCallbacks(callbackCount, initialValues.Value());
         }
     }
 
@@ -970,35 +970,8 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
     if (state.Text() != nullptr) {
         state.Text()->CollectGarbage();
     }
-    result.frameNumber = ++state.frameNumber;
-    const Aero::LayoutDiagnostics layoutDiagnostics =
-        state.Layout()->Diagnostics();
-    result.layout.passVersion = layoutDiagnostics.passVersion;
-    result.layout.measuredCount = layoutDiagnostics.measuredCount;
-    result.layout.arrangedCount = layoutDiagnostics.arrangedCount;
-    result.layout.pendingMeasureCount = layoutDiagnostics.pendingMeasureCount;
-    result.layout.pendingArrangeCount = layoutDiagnostics.pendingArrangeCount;
-    const ::Aero::Render::RenderDiagnostics render =
-        state.RenderTree()->Diagnostics();
-    result.render.snapshotVersion = render.commitVersion;
-    result.render.nodeCount = render.nodeCount;
-    result.render.commandCount = render.commandCount;
-    result.render.glyphCommandCount = render.glyphCommandCount;
-    result.render.dirtyCount = render.dirtyCount;
-    result.render.snapshotHash = render.frameHash;
-    if (state.device) {
-        const Diagnostics::RenderFrameStatistics deviceStatistics =
-            Diagnostics::GetLastRenderFrameStatistics(*state.device);
-        result.render.drawPacketCount = deviceStatistics.drawPacketCount;
-        result.render.batchCount = deviceStatistics.batchCount;
-        result.render.drawCallCount = deviceStatistics.drawCallCount;
-        result.render.mergedPacketCount = deviceStatistics.mergedPacketCount;
-        result.render.barrierCount = deviceStatistics.barrierCount;
-        result.render.instanceCount = deviceStatistics.instanceCount;
-        result.render.stateBindingCount = deviceStatistics.stateBindingCount;
-        result.render.batchingEnabled = deviceStatistics.batchingEnabled;
-    }
-    return result.callbackCount;
+    ++state.frameNumber;
+    return callbackCount;
 }
 
 

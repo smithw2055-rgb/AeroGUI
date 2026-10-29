@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Aero/Base/HashMap.hpp>
+
 namespace Aero {
 
 class UIElement;
@@ -68,7 +70,7 @@ private:
     };
 
     void* eventState_ = nullptr;
-    Base::Vector<ClassHandlerRecord> classHandlers_;
+    Base::HashMap<RoutedEventId, Base::Vector<ClassHandlerRecord>> classHandlersByEvent_;
     std::uint64_t nextClassSequence_ = 1U;
     std::uint32_t raiseDepth_ = 0U;
 
@@ -105,7 +107,14 @@ Base::Result<void> EventRouter::RegisterClassHandler(
     value.handler = Aero::RoutedHandlerStorage(handler);
     value.handledEventsToo = handledEventsToo;
     value.sequence = nextClassSequence_++;
-    classHandlers_.PushBack(std::move(value));
+    Base::Vector<ClassHandlerRecord>* handlers = classHandlersByEvent_.Find(event.value);
+    if (handlers != nullptr) {
+        handlers->PushBack(std::move(value));
+    } else {
+        Base::Vector<ClassHandlerRecord> list;
+        list.PushBack(std::move(value));
+        classHandlersByEvent_.Set(event.value, std::move(list));
+    }
     return {};
 }
 

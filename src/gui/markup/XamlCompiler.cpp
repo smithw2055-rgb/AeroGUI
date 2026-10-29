@@ -1340,7 +1340,7 @@ Base::Result<void> NodeReader::QueueStartElement(
                 continue;
             }
 
-            Base::Result<void> memberResult = QueueMemberNodes(attribute);
+            Base::Result<void> memberResult = QueueMemberNodes(attribute, attributeName);
             if (!memberResult) {
                 return memberResult.GetStatus();
             }
@@ -1459,17 +1459,8 @@ Base::Result<void> NodeReader::QueueObjectNode(
 }
 
 Base::Result<void> NodeReader::QueueMemberNodes(
-    const XmlAttribute& attribute) noexcept {
-    QualifiedName memberName;
-    Base::Result<void> resolveResult = ResolveQualifiedName(
-        attribute.Name(),
-        false,
-        attribute.NameSource(),
-        memberName);
-    if (!resolveResult) {
-        return resolveResult.GetStatus();
-    }
-
+    const XmlAttribute& attribute,
+    const QualifiedName& memberName) noexcept {
     Node start;
     start.kind_ = NodeKind::StartMember;
     start.source_ = attribute.NameSource();
@@ -1707,13 +1698,16 @@ bool NodeReader::IsIgnorableNamespace(
 
 bool NodeReader::IsMarkupCompatibilityIgnorable(
     const XmlAttribute& attribute) const noexcept {
-    QualifiedName name;
-    Base::Result<void> resolved = const_cast<NodeReader*>(this)
-        ->ResolveQualifiedName(
-            attribute.Name(), false, attribute.NameSource(), name);
-    return resolved &&
-        name.NamespaceUri() == MarkupCompatibilityNamespaceUri &&
-        name.LocalName() == Base::StringView("Ignorable");
+    const Base::StringView raw = attribute.Name();
+    const void* colonPtr = raw.Data() != nullptr ? std::memchr(raw.Data(), ':', raw.SizeBytes()) : nullptr;
+    if (colonPtr == nullptr) return false;
+    const auto colon = static_cast<std::uint32_t>(static_cast<const char*>(colonPtr) - raw.Data());
+    if (raw.Substr(colon + 1U, raw.SizeBytes() - colon - 1U) != Base::StringView("Ignorable")) {
+        return false;
+    }
+    bool found = false;
+    const Base::StringView uri = LookupNamespace(raw.Substr(0U, colon), found);
+    return found && uri == MarkupCompatibilityNamespaceUri;
 }
 
 void NodeReader::PopBindings(std::uint32_t bindingStart) noexcept {
@@ -4787,18 +4781,18 @@ CompileTemplateToBytecode(
                 edge.member});
         }
 
-        if (runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId()) ||
-            runtime.Types().IsDerivedFrom(object->RuntimeType(), Documents::Span::StaticTypeId())) {
+        const bool isTextBlock = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId());
+        const bool isSpan = !isTextBlock && runtime.Types().IsDerivedFrom(object->RuntimeType(), Documents::Span::StaticTypeId());
+        if (isTextBlock || isSpan) {
             const Meta::PropertyInfo* inlinesProperty = runtime.Types().FindProperty(
                 object->RuntimeType(), Base::StringView("Inlines"), true);
             const MemberId inlinesMember = inlinesProperty != nullptr ? inlinesProperty->Id() : InvalidMemberId;
-            const std::uint32_t inlineCount = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId())
-                ? static_cast<TextBlock&>(*object).GetInlineCount()
-                : static_cast<Documents::Span&>(*object).GetInlines().GetCount();
+            Documents::InlineCollection inlines = isTextBlock
+                ? static_cast<TextBlock&>(*object).GetInlines()
+                : static_cast<Documents::Span&>(*object).GetInlines();
+            const std::uint32_t inlineCount = inlines.GetCount();
             for (std::uint32_t inlineIndex = 0U; inlineIndex < inlineCount; ++inlineIndex) {
-                Inline* inlineValue = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId())
-                    ? static_cast<TextBlock&>(*object).GetInlines().GetItem(inlineIndex)
-                    : static_cast<Documents::Span&>(*object).GetInlines().GetItem(inlineIndex);
+                Inline* inlineValue = inlines.GetItem(inlineIndex);
                 if (inlineValue == nullptr) continue;
                 const std::uint32_t existing = FindPrototypeObject(pending, inlineValue);
                 if (existing != UINT32_MAX) {

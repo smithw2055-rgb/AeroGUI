@@ -1366,6 +1366,8 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     continue;
                 }
                 if (bindings_[index].descriptor.mode == BindingMode::OneTime && bindings_[index].applied) {
+                    bindings_[index].sourceDirty = false;
+                    bindings_[index].targetDirty = false;
                     continue;
                 }
                 const bool metadataPath =
@@ -1421,18 +1423,29 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     continue;
                 }
 
-                const bool sourceChanged = !bindings_[index].applied ||
+                const BindingMode mode = bindings_[index].descriptor.mode;
+                const bool canReadSource = (mode != BindingMode::OneWayToSource);
+                const bool canWriteSource = (mode != BindingMode::OneWay && mode != BindingMode::OneTime);
+                const bool sourceChanged = canReadSource && (!bindings_[index].applied ||
                     bindings_[index].sourceDirty ||
                     usedFallback ||
                     (pollMetadata &&
-                     source.Value() != bindings_[index].lastSourceValue);
-                const bool targetChanged =
-                    bindings_[index].descriptor.updateSourceTrigger ==
+                     source.Value() != bindings_[index].lastSourceValue));
+                const bool targetChanged = canWriteSource &&
+                    ((bindings_[index].descriptor.updateSourceTrigger ==
                             UpdateSourceTrigger::Explicit ||
                         bindings_[index].descriptor.updateSourceTrigger ==
-                            UpdateSourceTrigger::LostFocus
+                            UpdateSourceTrigger::LostFocus)
                     ? bindings_[index].forceSourceUpdate
-                    : (!bindings_[index].applied || bindings_[index].targetDirty);
+                    : (!bindings_[index].applied || bindings_[index].targetDirty));
+                if (!canReadSource) {
+                    bindings_[index].sourceDirty = false;
+                }
+                if (!canWriteSource &&
+                    bindings_[index].descriptor.updateSourceTrigger != UpdateSourceTrigger::LostFocus &&
+                    bindings_[index].descriptor.updateSourceTrigger != UpdateSourceTrigger::Explicit) {
+                    bindings_[index].targetDirty = false;
+                }
                 if (!sourceChanged && !targetChanged) {
                     bindings_[index].sourceDirty = false;
                     if (bindings_[index].descriptor.updateSourceTrigger !=
@@ -1508,7 +1521,12 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     continue;
                 }
                 if (!applied && (sourceChanged || targetChanged)) {
-                    bindings_[index].sourceDirty = true;
+                    if (canReadSource && sourceChanged) {
+                        bindings_[index].sourceDirty = true;
+                    }
+                    if (canWriteSource && targetChanged) {
+                        bindings_[index].targetDirty = true;
+                    }
                     continue;
                 }
                 bindings_[index].lastSourceValue = source.Value();
@@ -1544,7 +1562,9 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         if (pollMetadata) {
             ++pollCount;
         }
-        if (!bindings_[index].applied || bindings_[index].sourceDirty || bindings_[index].targetDirty) {
+        const bool isOneTimeApplied =
+            bindings_[index].descriptor.mode == BindingMode::OneTime && bindings_[index].applied;
+        if (!isOneTimeApplied && (!bindings_[index].applied || bindings_[index].sourceDirty || bindings_[index].targetDirty)) {
             anyDirty = true;
         }
     }

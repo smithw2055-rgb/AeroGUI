@@ -1129,7 +1129,8 @@ private:
         const QualifiedName& name,
         ::Aero::Diagnostics::SourceSpan source) noexcept;
     Base::Result<void> QueueMemberNodes(
-        const XmlAttribute& attribute) noexcept;
+        const XmlAttribute& attribute,
+        const QualifiedName& memberName) noexcept;
     Base::Result<void> AppendPending(
         Node&& node) noexcept;
 

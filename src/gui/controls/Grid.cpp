@@ -233,8 +233,7 @@ void Grid::OnPropertyChanged(
     Panel::OnPropertyChanged(args);
 }
 
-Size Grid::MeasureOverride(
-    Size availableSize) noexcept {
+void Grid::SyncDefinitionVectors() noexcept {
     if (!columnDefinitionObjects_.Empty()) {
         columns_.Clear();
         for (const auto& colDef : columnDefinitionObjects_) {
@@ -247,6 +246,11 @@ Size Grid::MeasureOverride(
             if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
         }
     }
+}
+
+Size Grid::MeasureOverride(
+    Size availableSize) noexcept {
+    SyncDefinitionVectors();
 
     const std::uint32_t columns = GetColumnCount();
     const std::uint32_t rows = GetRowCount();
@@ -657,36 +661,29 @@ Size Grid::MeasureOverride(
     return Size{totalDesiredWidth, totalDesiredHeight};
 }
 Size Grid::ArrangeOverride(Size finalSize) noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        columns_.Clear();
-        for (const auto& colDef : columnDefinitionObjects_) {
-            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
-        }
-    }
-    if (!rowDefinitionObjects_.Empty()) {
-        rows_.Clear();
-        for (const auto& rowDef : rowDefinitionObjects_) {
-            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
-        }
-    }
+    SyncDefinitionVectors();
 
-    Base::Vector<float> maxCols;
-    maxCols.Reserve(GetColumnCount());
-    for (std::uint32_t i = 0U; i < GetColumnCount(); ++i) maxCols.PushBack(MaxWidthAt(i));
-    Base::Vector<float> maxRows;
-    maxRows.Reserve(GetRowCount());
-    for (std::uint32_t i = 0U; i < GetRowCount(); ++i) maxRows.PushBack(MaxHeightAt(i));
+    const std::uint32_t colCount = GetColumnCount();
+    const std::uint32_t rowCount = GetRowCount();
 
-    Base::Vector<float> columns;
-    Base::Vector<float> rows;
+    maxColumns_.Clear();
+    maxColumns_.Reserve(colCount);
+    for (std::uint32_t i = 0U; i < colCount; ++i) maxColumns_.PushBack(MaxWidthAt(i));
+
+    maxRows_.Clear();
+    maxRows_.Reserve(rowCount);
+    for (std::uint32_t i = 0U; i < rowCount; ++i) maxRows_.PushBack(MaxHeightAt(i));
+
+    arrangedColumns_.Clear();
+    arrangedRows_.Clear();
     if (!ResolveTracks(
             {columns_.Data(), columns_.Size()},
             {desiredColumns_.Data(), desiredColumns_.Size()},
-            finalSize.width, columns, maxCols.AsSpan()) ||
+            finalSize.width, arrangedColumns_, maxColumns_.AsSpan()) ||
         !ResolveTracks(
             {rows_.Data(), rows_.Size()},
             {desiredRows_.Data(), desiredRows_.Size()},
-            finalSize.height, rows, maxRows.AsSpan())) {
+            finalSize.height, arrangedRows_, maxRows_.AsSpan())) {
         return finalSize;
     }
 
@@ -697,12 +694,12 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
             CoerceGridSpan(
                 GetChildRow(*child),
                 GetChildRowSpan(*child),
-                rows.Size());
+                arrangedRows_.Size());
         const EffectiveGridSpan columnPlacement =
             CoerceGridSpan(
                 GetChildColumn(*child),
                 GetChildColumnSpan(*child),
-                columns.Size());
+                arrangedColumns_.Size());
         const std::uint32_t row =
             rowPlacement.index;
         const std::uint32_t column =
@@ -713,17 +710,17 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
             columnPlacement.span;
         float x = 0.0f;
         float y = 0.0f;
-        for (std::uint32_t index = 0U; index < column; ++index) x += columns[index];
-        for (std::uint32_t index = 0U; index < row; ++index) y += rows[index];
+        for (std::uint32_t index = 0U; index < column; ++index) x += arrangedColumns_[index];
+        for (std::uint32_t index = 0U; index < row; ++index) y += arrangedRows_[index];
         float width = 0.0f;
         float height = 0.0f;
         for (std::uint32_t offset = 0U;
              offset < columnSpan; ++offset) {
-            width += columns[column + offset];
+            width += arrangedColumns_[column + offset];
         }
         for (std::uint32_t offset = 0U;
              offset < rowSpan; ++offset) {
-            height += rows[row + offset];
+            height += arrangedRows_[row + offset];
         }
         if (isRtl) {
             x = finalSize.width - x - width;

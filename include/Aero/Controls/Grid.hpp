@@ -109,12 +109,18 @@ private:
     std::uint32_t GetChildRowSpan(const UIElement& child) const noexcept;
     std::uint32_t GetChildColumnSpan(const UIElement& child) const noexcept;
 
+    void SyncDefinitionVectors() noexcept;
+
     Base::Vector<GridLength> columns_;
     Base::Vector<GridLength> rows_;
     Base::Vector<Ref<ColumnDefinition>> columnDefinitionObjects_;
     Base::Vector<Ref<RowDefinition>> rowDefinitionObjects_;
     Base::Vector<float> desiredColumns_;
     Base::Vector<float> desiredRows_;
+    Base::Vector<float> maxColumns_;
+    Base::Vector<float> maxRows_;
+    Base::Vector<float> arrangedColumns_;
+    Base::Vector<float> arrangedRows_;
 };
 
 } // namespace Aero::Controls

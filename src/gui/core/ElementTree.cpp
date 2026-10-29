@@ -1729,7 +1729,7 @@ using namespace Aero;
 EventRouter::EventRouter(
     void* eventState) noexcept
     : eventState_(eventState),
-      classHandlers_() {}
+      classHandlersByEvent_() {}
 
 EventRouter::~EventRouter() noexcept {
     CleanupClassHandlers();
@@ -1760,12 +1760,14 @@ void EventRouter::InvokeNode(
     DependencyObject& node,
     RoutedEventArgs& args) noexcept {
     RoutedEventTable& catalog = Events(eventState_);
-    for (const ClassHandlerRecord& record : classHandlers_) {
-        if (record.event == args.GetRoutedEvent() &&
-            catalog.Types().IsDerivedFrom(
-                node.RuntimeType(), record.classType) &&
-            (!args.GetHandled() || record.handledEventsToo)) {
-            record.handler.Invoke(&node, args);
+    if (const Base::Vector<ClassHandlerRecord>* handlers =
+            classHandlersByEvent_.Find(args.GetRoutedEvent().value)) {
+        for (const ClassHandlerRecord& record : *handlers) {
+            if (catalog.Types().IsDerivedFrom(
+                    node.RuntimeType(), record.classType) &&
+                (!args.GetHandled() || record.handledEventsToo)) {
+                record.handler.Invoke(&node, args);
+            }
         }
     }
 
@@ -1825,7 +1827,7 @@ Base::Result<void> EventRouter::RaiseEvent(
 }
 
 void EventRouter::CleanupClassHandlers() noexcept {
-    classHandlers_.Clear();
+    classHandlersByEvent_.Clear();
 }
 
 } // namespace Aero

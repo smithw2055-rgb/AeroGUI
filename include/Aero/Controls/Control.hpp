@@ -318,6 +318,7 @@ protected:
     virtual void OnHeaderTemplateChanged(const Ref<DataTemplate>& oldTemplate, const Ref<DataTemplate>& newTemplate);
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnApplyTemplate() noexcept override;
+    void RefreshHeaderPresenter() noexcept;
 };
 
 // ---------------- UserControl & Label & GroupBox ----------------

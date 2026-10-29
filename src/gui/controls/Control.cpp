@@ -700,25 +700,10 @@ void ContentPresenter::SetOwnedContent(
     if (!contentObject || contentObject.Get() != &content) {
         return;
     }
-    if (!CheckAccess() || !ValidateContent(&content)) return;
-    if (content_ != nullptr && content_ != &content && content_->GetVisualParent() == this) {
-        if (ElementTree* tree = VisualTree(this)) {
-            DetachVisualAttachment(tree, this, content_);
-        } else {
-            RemoveVisualChild(content_);
-        }
+    SetContent(&content);
+    if (content_ == &content) {
+        ownedContent_ = contentObject;
     }
-    content_ = &content;
-    ownedContent_ = contentObject;
-    if (content.GetVisualParent() != this || !content.GetIsLayoutAttached()) {
-        if (ElementTree* tree = VisualTree(this)) {
-            static_cast<void>(tree->AttachVisualChild(*this, content));
-            AttachOwnedContentSubtree(*tree, content);
-        } else if (content.GetVisualParent() == nullptr) {
-            AddVisualChild(&content);
-        }
-    }
-    InvalidateMeasure();
 }
 
 bool ContentPresenter::ValidateContent(UIElement* content) const noexcept {
@@ -754,7 +739,7 @@ HeaderedContentControl::HeaderedContentControl(TypeId runtimeType) noexcept
 
 HeaderedContentControl::~HeaderedContentControl() = default;
 
-void HeaderedContentControl::OnHeaderChanged(const Value&, const Value&) {
+void HeaderedContentControl::RefreshHeaderPresenter() noexcept {
     DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
     if (part == nullptr) {
         part = GetTemplateChild(Base::StringView("PART_Header"));
@@ -764,16 +749,14 @@ void HeaderedContentControl::OnHeaderChanged(const Value&, const Value&) {
     }
 }
 
+void HeaderedContentControl::OnHeaderChanged(const Value&, const Value&) {
+    RefreshHeaderPresenter();
+}
+
 void HeaderedContentControl::OnHeaderTemplateChanged(
     const Ref<DataTemplate>&,
     const Ref<DataTemplate>&) {
-    DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
-    if (part == nullptr) {
-        part = GetTemplateChild(Base::StringView("PART_Header"));
-    }
-    if (auto* presenter = TryCast<ContentPresenter>(part)) {
-        presenter->RefreshContentSource();
-    }
+    RefreshHeaderPresenter();
 }
 
 void HeaderedContentControl::OnPropertyChanged(
@@ -821,13 +804,7 @@ void HeaderedContentControl::SetHeaderTemplate(Base::Ref<DataTemplate> value) no
 
 void HeaderedContentControl::OnApplyTemplate() noexcept {
     ContentControl::OnApplyTemplate();
-    DependencyObject* part = GetTemplateChild(Base::StringView("HeaderHost"));
-    if (part == nullptr) {
-        part = GetTemplateChild(Base::StringView("PART_Header"));
-    }
-    if (auto* presenter = TryCast<ContentPresenter>(part)) {
-        presenter->RefreshContentSource();
-    }
+    RefreshHeaderPresenter();
 }
 
 // ============================================================================
