@@ -80,6 +80,13 @@ Base::Result<FT_UInt> ToPixelSize(float pixelSize) noexcept {
 
 } // namespace
 
+HarfBuzzAdapter::~HarfBuzzAdapter() {
+    if (buffer_ != nullptr) {
+        hb_buffer_destroy(static_cast<hb_buffer_t*>(buffer_));
+        buffer_ = nullptr;
+    }
+}
+
 bool HarfBuzzAdapter::Supports(
     FontProviderIdentity provider) const noexcept {
     return fonts_ != nullptr &&
@@ -128,12 +135,18 @@ Base::Result<void> HarfBuzzAdapter::Shape(
             Base::ErrorCode::OutOfMemory,
             "HarfBuzz font creation failed");
     }
-    hb_buffer_t* buffer = hb_buffer_create();
+    hb_buffer_t* buffer = static_cast<hb_buffer_t*>(buffer_);
     if (buffer == nullptr) {
-        hb_font_destroy(font);
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "HarfBuzz buffer creation failed");
+        buffer = hb_buffer_create();
+        if (buffer == nullptr) {
+            hb_font_destroy(font);
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "HarfBuzz buffer creation failed");
+        }
+        buffer_ = buffer;
+    } else {
+        hb_buffer_clear_contents(buffer);
     }
 
     hb_buffer_add_utf8(
@@ -166,13 +179,7 @@ Base::Result<void> HarfBuzzAdapter::Shape(
         hb_buffer_get_direction(buffer));
     output.script = FromHarfBuzzScript(
         hb_buffer_get_script(buffer));
-    Base::Result<void> reserve =
-        output.glyphs.Reserve(count);
-    if (!reserve) {
-        hb_buffer_destroy(buffer);
-        hb_font_destroy(font);
-        return reserve.GetStatus();
-    }
+    output.glyphs.Reserve(count);
     for (unsigned int index = 0U; index < count; ++index) {
         ShapedGlyph glyph;
         glyph.glyph = infos[index].codepoint;
@@ -180,15 +187,8 @@ Base::Result<void> HarfBuzzAdapter::Shape(
         glyph.advanceX = From26Dot6(positions[index].x_advance);
         glyph.offsetX = From26Dot6(positions[index].x_offset);
         glyph.offsetY = From26Dot6(positions[index].y_offset);
-        Base::Result<void> appended =
-            output.glyphs.PushBack(glyph);
-        if (!appended) {
-            hb_buffer_destroy(buffer);
-            hb_font_destroy(font);
-            return appended.GetStatus();
-        }
+        output.glyphs.PushBack(glyph);
     }
-    hb_buffer_destroy(buffer);
     hb_font_destroy(font);
     return {};
 }

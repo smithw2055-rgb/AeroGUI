@@ -1,17 +1,23 @@
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/data/BindingPath.hpp"
+#include "gui/core/Describe.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "render/DisplayList.hpp"
 #include <Aero/Controls.hpp>
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
 #include <Aero/Controls/TreeView.hpp>
 #include <Aero/Shapes.hpp>
-#include <Aero/Media/Transforms.hpp>
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
 #include "gui/media/BrushRendering.hpp"
-#include "gui/media/MediaState.hpp"
 #include <Aero/Documents.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Base/String.hpp>
+#include "gui/core/ValueConversion.hpp"
+#include "ControlPropertyValidators.hpp"
 
 #include "TextBlockLayout.hpp"
 
@@ -24,6 +30,7 @@
 
 
 #include "RichText.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
 namespace {
@@ -79,39 +86,39 @@ Base::StringView RichTextFormatAttribute(
     return {};
 }
 
-Base::Result<void> AppendRichTextValue(
+bool AppendRichTextValue(
     Base::String& output,
     const Meta::Value& value,
     Base::StringView format) noexcept {
-    char raw[128]{};
-    bool numeric = false;
+    if (value.Kind() == Meta::ValueKind::String || value.Kind() == Meta::ValueKind::Boolean) {
+        Base::String text;
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
+        if (!formatted) return false;
+        return static_cast<bool>(output.Append(text.View()));
+    }
     double number = 0.0;
     switch (value.Kind()) {
-    case Meta::ValueKind::String:
-        return output.Append(value.AsString());
-    case Meta::ValueKind::Boolean:
-        return output.Append(value.AsBoolean()
-            ? Base::StringView("True")
-            : Base::StringView("False"));
     case Meta::ValueKind::SignedInteger:
-        numeric = true;
         number = static_cast<double>(value.AsSignedInteger());
         break;
     case Meta::ValueKind::UnsignedInteger:
-        numeric = true;
         number = static_cast<double>(value.AsUnsignedInteger());
         break;
     case Meta::ValueKind::Double:
-        numeric = true;
         number = value.AsDouble();
         break;
     default:
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "RichText binding value has no text conversion");
+        return false;
     }
 
-    if (!numeric) return {};
+    if (format.Empty()) {
+        Base::String text;
+        Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, value);
+        if (!formatted) return false;
+        return static_cast<bool>(output.Append(text.View()));
+    }
+
+    char raw[128]{};
     std::uint32_t precision = 15U;
     Base::StringView prefix;
     Base::StringView suffix;
@@ -141,26 +148,24 @@ Base::Result<void> AppendRichTextValue(
         raw, sizeof(raw), "%.*f",
         static_cast<int>(precision), number);
     if (length <= 0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "RichText numeric binding formatting failed");
+        return false;
     }
-    Base::Result<void> appended = output.Append(prefix);
+    bool appended = static_cast<bool>(output.Append(prefix));
     if (appended) {
-        appended = output.Append(Base::StringView(
+        appended = static_cast<bool>(output.Append(Base::StringView(
             raw, static_cast<std::uint32_t>(
-                std::min<int>(length, sizeof(raw) - 1U))));
+                std::min<int>(length, sizeof(raw) - 1U)))));
     }
-    if (appended) appended = output.Append(suffix);
+    if (appended) appended = static_cast<bool>(output.Append(suffix));
     return appended;
 }
 
-Base::Result<bool> AppendRichTextBinding(
+bool AppendRichTextBinding(
     DependencyObject& object,
     Base::StringView path,
     Base::StringView format,
     Base::String& output) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(),
             FrameworkElement::StaticTypeId())) {
         return false;
@@ -182,11 +187,7 @@ Base::Result<bool> AppendRichTextBinding(
     Base::Result<Meta::Value> resolved =
         compiled.Value().Get(runtime, source);
     if (!resolved) return false;
-    Base::Result<void> appended = AppendRichTextValue(
-        output, resolved.Value(), format);
-    return appended
-        ? Base::Result<bool>(true)
-        : Base::Result<bool>(appended.GetStatus());
+    return AppendRichTextValue(output, resolved.Value(), format);
 }
 
 struct RichTextParseState {
@@ -212,15 +213,14 @@ bool SameRichTextState(
 } // namespace
 
 void ApplyRichText(DependencyObject& object) noexcept {
-    if (!object.PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
             object.RuntimeType(),
             Controls::TextBlock::StaticTypeId())) return;
-    const Base::StringView source = object.GetValueOr(
-        RichText::TextProperty, Base::StringView{});
+    const Base::StringView source = object.GetValue(RichText::TextProperty);
     Base::String plain;
     Base::Vector<RichTextParseState> states;
     Base::Vector<Controls::TextBlock::RichTextStyleRange> ranges;
-    if (!states.PushBack({})) return;
+    states.PushBack({});
 
     const auto recordRange = [&ranges, &states](
         std::uint32_t start,
@@ -246,7 +246,8 @@ void ApplyRichText(DependencyObject& object) noexcept {
         range.hasForeground = state.hasForeground;
         range.bold = state.bold;
         range.italic = state.italic;
-        return static_cast<bool>(ranges.PushBack(range));
+        ranges.PushBack(range);
+        return true;
     };
     const auto appendText = [&plain, &recordRange](
         Base::StringView value) noexcept -> bool {
@@ -282,10 +283,9 @@ void ApplyRichText(DependencyObject& object) noexcept {
                 const Base::StringView path = source.Substr(
                     tagEnd + 1U, close - tagEnd - 1U);
                 const std::uint32_t rangeStart = plain.SizeBytes();
-                Base::Result<bool> bound = AppendRichTextBinding(
+                const bool bound = AppendRichTextBinding(
                     object, path, RichTextFormatAttribute(tag), plain);
-                if (!bound) return;
-                if (!bound.Value() && !plain.Append(path)) return;
+                if (!bound && !plain.Append(path)) return;
                 if (!recordRange(rangeStart, plain.SizeBytes())) return;
                 index = close + closeToken.SizeBytes();
                 continue;
@@ -333,35 +333,25 @@ void ApplyRichText(DependencyObject& object) noexcept {
                 }
                 stateTag = true;
             }
-            if (stateTag && !states.PushBack(nextState)) return;
+            if (stateTag) states.PushBack(nextState);
         }
         index = tagEnd + 1U;
     }
     auto& text = static_cast<Controls::TextBlock&>(object);
     const Base::StringView trimmed = TrimRichTextToken(source);
-    bool hasSize = false;
     if (StartsWithRichTextToken(trimmed, Base::StringView("[size="))) {
         const std::uint32_t sizeEnd = FindRichTextToken(
             trimmed, Base::StringView("]"), 6U);
         if (sizeEnd != UINT32_MAX) {
             const Base::StringView sizeStr = trimmed.Substr(6U, sizeEnd - 6U);
-            double fontSize = 0.0;
-            for (std::uint32_t i = 0U; i < sizeStr.SizeBytes(); ++i) {
-                const char c = sizeStr[i];
-                if (c >= '0' && c <= '9') {
-                    fontSize = fontSize * 10.0 + (c - '0');
-                }
-            }
-            if (fontSize > 0.0) {
-                hasSize = true;
+            const auto parsed = ::Aero::Base::ValueConversion::ParseDouble(sizeStr);
+            if (parsed && parsed.Value() > 0.0) {
+                const double fontSize = parsed.Value();
                 if (text.GetFontSize() != fontSize) {
                     text.SetFontSize(fontSize);
                 }
             }
         }
-    }
-    if (!hasSize) {
-        text.ClearValue(Controls::TextBlock::FontSizeProperty);
     }
     const bool isEnclosedBold = (StartsWithRichTextToken(trimmed, Base::StringView("[b]")) &&
         trimmed.SizeBytes() >= 7U &&
@@ -373,8 +363,6 @@ void ApplyRichText(DependencyObject& object) noexcept {
         if (text.GetFontWeight() != FontWeight::Bold) {
             text.SetFontWeight(FontWeight::Bold);
         }
-    } else {
-        text.ClearValue(Controls::TextBlock::FontWeightProperty);
     }
     if (text.GetText() != plain.View()) {
         text.SetText(plain.View());
@@ -387,4 +375,6 @@ void RichText::OnTextChanged(
     const DependencyPropertyChangedEventArgs&) noexcept {
     ApplyRichText(object);
 }
+
 } // namespace Aero
+

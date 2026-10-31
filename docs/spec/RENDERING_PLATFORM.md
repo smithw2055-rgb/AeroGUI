@@ -139,7 +139,7 @@ Context/device loss 后：
 渲染统计不属于默认 RenderDevice authoring API。需要时显式包含：
 
 ```cpp
-#include <Aero/Diagnostics/Rendering.hpp>
+#include <Aero/Diagnostics.hpp>
 ```
 
 并调用：

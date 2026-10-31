@@ -43,6 +43,55 @@
         "CMAKE_BUILD_TYPE": "Release",
         "AERO_BUILD_SHARED": "ON"
       }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "C++17 Linux Debug (WSL)",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "AERO_ENABLE_D3D11_BACKEND": "OFF",
+        "AERO_ENABLE_WGL_SURFACE": "OFF",
+        "AERO_ENABLE_GLX_SURFACE": "OFF"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "C++17 Linux Release (WSL)",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AERO_ENABLE_D3D11_BACKEND": "OFF",
+        "AERO_ENABLE_WGL_SURFACE": "OFF",
+        "AERO_ENABLE_GLX_SURFACE": "OFF"
+      }
+    },
+    {
+      "name": "linux-gui",
+      "displayName": "C++17 Linux GUI Debug (WSL + GLX samples)",
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "AERO_BUILD_SAMPLES": "ON",
+        "AERO_ENABLE_GLX_SURFACE": "ON",
+        "AERO_ENABLE_D3D11_BACKEND": "OFF",
+        "AERO_ENABLE_WGL_SURFACE": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -57,6 +106,18 @@
     {
       "name": "release-shared",
       "configurePreset": "release-shared"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-gui",
+      "configurePreset": "linux-gui"
     }
   ]
 }

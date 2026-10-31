@@ -2,75 +2,36 @@
 # AeroGui; offline tools link the product targets instead of recompiling object
 # wrappers.
 
-set(_aero_vendored_expat_target "")
-set(_aero_expat_target "")
-if(AERO_WITH_EXPAT)
-    if(AERO_THIRD_PARTY_ROOT STREQUAL "")
-        get_filename_component(_aero_sibling_third_party
-            "${CMAKE_CURRENT_SOURCE_DIR}/../AeroGUI/third_party" ABSOLUTE)
-        if(EXISTS "${_aero_sibling_third_party}/expat/expat/CMakeLists.txt")
-            set(AERO_THIRD_PARTY_ROOT "${_aero_sibling_third_party}")
-        endif()
-    endif()
-    set(_aero_expat_source "${AERO_THIRD_PARTY_ROOT}/expat/expat")
-    if(EXISTS "${_aero_expat_source}/CMakeLists.txt")
-        set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
-        set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-        set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-        add_subdirectory("${_aero_expat_source}"
-            "${CMAKE_CURRENT_BINARY_DIR}/third_party/expat" EXCLUDE_FROM_ALL)
-        set_target_properties(expat PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set(_aero_expat_target expat::expat)
-        set(_aero_vendored_expat_target expat)
-    else()
-        find_package(EXPAT QUIET)
-        if(TARGET EXPAT::EXPAT)
-            set(_aero_expat_target EXPAT::EXPAT)
-        else()
-            message(FATAL_ERROR
-                "AERO_WITH_EXPAT requires Expat or ${_aero_expat_source}")
-        endif()
-    endif()
-endif()
-
 set(_aero_gui_core_sources
     src/gui/core/Freezable.cpp
+    src/gui/core/Animatable.cpp
     src/gui/core/Dispatcher.cpp
     src/gui/core/RoutedEvents.cpp
     src/gui/core/ObjectFactory.cpp
     src/gui/core/ContentElement.cpp
     src/gui/core/ElementTree.cpp
-    src/gui/core/Invariants.cpp
-    src/gui/core/PropertySystem.cpp
+    src/gui/core/LayoutEngine.cpp
+    src/gui/core/EffectiveValueEngine.cpp
+    src/gui/core/TryCast.cpp
     src/gui/core/Visual.cpp
     src/gui/core/UIElement.cpp
     src/gui/core/FrameworkElement.cpp
     src/gui/core/FrameworkContentElement.cpp
-    src/gui/core/DependencyObject.cpp)
-
-set(_aero_gui_meta_sources
-    src/gui/meta/Metadata.cpp
-    src/gui/meta/EnumMetadata.cpp
-    src/gui/meta/BuiltinMetadata.cpp
-    src/gui/meta/Value.cpp
-    src/gui/meta/Animation.inl
-    src/gui/meta/Elements.inl
-    src/gui/meta/Input.inl
-    src/gui/meta/Media.inl
-    src/gui/meta/Resources.inl
-    src/gui/meta/Styling.inl
-    src/gui/meta/Support.inl
-    src/gui/meta/Module.cpp
-    src/gui/meta/BuiltinModules.cpp)
+    src/gui/core/DependencyObject.cpp
+    src/gui/core/Metadata.cpp
+    src/gui/core/PropertyPath.cpp
+    src/gui/core/ValueConversion.cpp
+    src/gui/core/ValueTable.cpp
+    src/gui/core/Module.cpp
+    src/gui/core/ElementEnumsDescribe.cpp)
 
 set(_aero_gui_data_sources
     src/gui/data/BindingPath.cpp
-    src/gui/data/Binding.cpp
-    src/gui/data/BindingObjects.cpp)
+    src/gui/data/BindingEngine.cpp
+    src/gui/data/BindingExpression.cpp
+    src/gui/data/NotifyPropertyChanged.cpp
+    src/gui/data/CollectionView.cpp
+    src/gui/data/DataEnumsDescribe.cpp)
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp
@@ -79,64 +40,74 @@ set(_aero_gui_styles_sources
 set(_aero_gui_input_sources
     src/gui/input/Commands.cpp
     src/gui/input/Input.cpp
-    src/gui/input/Clipboard.cpp)
+    src/gui/input/Cursor.cpp
+    src/gui/input/Mouse.cpp
+    src/gui/input/Keyboard.cpp
+    src/gui/input/DataObject.cpp
+    src/gui/input/DragDrop.cpp
+    src/gui/input/Clipboard.cpp
+    src/gui/input/OverlayHost.cpp
+    src/gui/input/FocusHost.cpp
+    src/gui/input/InputEnumsDescribe.cpp)
 
 set(_aero_gui_triggers_sources
-    src/gui/interactivity/Interactivity.cpp)
+    src/gui/triggers/Triggers.cpp
+    src/gui/triggers/TriggerEngine.cpp
+    src/gui/triggers/VisualStateManager.cpp)
+
+set(_aero_gui_interactivity_sources
+    src/gui/interactivity/Interactivity.cpp
+    src/gui/interactivity/InteractivityEngine.cpp
+    src/gui/interactivity/BlendBehaviors.cpp
+    src/gui/interactivity/InteractivityEnumsDescribe.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
+    src/gui/media/AnimationEngine.Apply.cpp
+    src/gui/media/AnimationEngine.Timeline.cpp
     src/gui/media/Animation.cpp
     src/gui/media/Brushes.cpp
     src/gui/media/Effects.cpp
     src/gui/media/Geometry.cpp
+    src/gui/media/GeometryFlatten.cpp
+    src/gui/media/StreamGeometry.cpp
+    src/gui/media/StrokeTessellate.cpp
+    src/gui/media/Pen.cpp
     src/gui/media/ImageCache.cpp
     src/gui/media/Images.cpp
     src/gui/media/MediaElement.cpp
     src/gui/media/StbImageImplementation.cpp
-    src/gui/media/Transforms.cpp)
+    src/gui/media/Transforms.cpp
+    src/gui/media/AnimationPathResolver.cpp
+    src/gui/media/StoryboardHost.cpp
+    src/gui/media/StoryboardClock.cpp
+    src/gui/media/StoryboardActions.cpp
+    src/gui/media/AnimationEnumsDescribe.cpp
+    src/gui/media/MediaEnumsDescribe.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
-    src/gui/controls/Bars.cpp
-    src/gui/interactivity/BlendBehaviors.cpp
-    src/gui/triggers/BaseTrigger.cpp
-    src/gui/triggers/Trigger.cpp
-    src/gui/triggers/DataTrigger.cpp
-    src/gui/triggers/Condition.cpp
-    src/gui/triggers/MultiTrigger.cpp
-    src/gui/triggers/MultiDataTrigger.cpp
-    src/gui/triggers/TriggerEngine.cpp
     src/gui/controls/Buttons.cpp
-    src/gui/controls/ContentControls.cpp
-    src/gui/controls/ControlBehavior.cpp
-    src/gui/controls/Controls.cpp
-    src/gui/controls/Layout.cpp
-    src/gui/controls/Documents.cpp
+    src/gui/controls/Control.cpp
+    src/gui/controls/Decorators.cpp
     src/gui/controls/Panels.cpp
-    src/gui/controls/Images.cpp
+    src/gui/controls/Grid.cpp
     src/gui/controls/Items.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
-    src/gui/controls/ControlsMetadata.cpp
-    src/gui/controls/Path.cpp
     src/gui/controls/Scroll.cpp
-    src/gui/controls/Selection.cpp
-    src/gui/controls/Shapes.cpp
+    src/gui/controls/Selectors.cpp
+    src/gui/controls/Popup.cpp
     src/gui/controls/TextBox.cpp
-    src/gui/controls/Trees.cpp
-    src/gui/controls/Virtualization.cpp
-    src/gui/controls/VisualStates.cpp)
+    src/gui/controls/TextBlock.cpp
+    src/gui/controls/TreeView.cpp
+    src/gui/controls/VirtualizingPanels.cpp
+    src/gui/controls/ControlsEnumsDescribe.cpp)
 
 set(_aero_gui_markup_sources
-    src/gui/markup/XamlParser.cpp
-    src/gui/markup/XamlSchemaContext.cpp
-    src/gui/markup/XamlObjectWriter.cpp
-    src/gui/markup/TemplateProgram.cpp
-    src/gui/markup/XamlLoader.cpp
-    src/gui/markup/GuiSchema.cpp
-    src/gui/markup/ReloadCoordinator.cpp
-    src/gui/markup/XamlProvider.cpp
+    src/gui/markup/XamlMarkupExtensions.cpp
+    src/gui/markup/XamlCompiler.cpp
+    src/gui/markup/XamlSchema.cpp
     src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources
@@ -146,9 +117,9 @@ set(_aero_gui_text_sources
     src/gui/text/TextLayout.cpp
     src/gui/text/TextPipeline.cpp
     src/gui/text/TextTypes.cpp
-    src/gui/text/UnicodeAnalysis.cpp
     src/gui/text/freetype/FreeTypeAdapter.cpp
-    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp)
+    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp
+    src/gui/text/TextEnumsDescribe.cpp)
 
 set(_aero_gui_diagnostics_sources
     src/gui/diagnostics/Diagnostics.cpp
@@ -158,30 +129,56 @@ set(_aero_gui_diagnostics_sources
 set(_aero_gui_templates_sources
     src/gui/templates/Templates.cpp)
 
+set(_aero_gui_documents_sources
+    src/gui/documents/Documents.cpp
+    src/gui/documents/Adorners.cpp)
+
+set(_aero_gui_shapes_sources
+    src/gui/shapes/Path.cpp
+    src/gui/shapes/Shapes.cpp
+    src/gui/shapes/ShapesEnumsDescribe.cpp)
+
 set(_aero_gui_render_contract_sources
-    src/render/DrawingContext.cpp
+    src/gui/media/DrawingContext.cpp
     src/render/RenderTree.cpp
     src/render/RenderDevice.cpp
-    src/render/RenderTarget.cpp
     src/render/FrameEncoder.cpp
     src/render/TextRenderer.cpp)
 
 set(_aero_gui_composition_sources
+    src/gui/BuiltinModules.cpp
     src/gui/Gui.cpp
     src/gui/View.cpp
+    src/gui/ViewFrame.cpp
+    src/gui/ViewInput.cpp
+    src/gui/ViewFrameRender.cpp
+    src/gui/ViewRenderer.cpp
+    src/gui/ViewDocuments.cpp)
+
+set(_aero_gui_inlines
+    src/gui/media/FlattenSinks.inl)
+
+set(_aero_gui_internal_headers
+    src/gui/data/BindingCommon.hpp
+    src/gui/data/BindingPath.hpp
+    src/gui/core/EnumRegistration.hpp
+    src/gui/controls/ControlPropertyValidators.hpp
+    src/gui/markup/XamlBytecode.hpp
+    src/gui/markup/XamlSchema.hpp
+    src/gui/media/AnimationEngineCommon.hpp
     src/gui/ViewRenderer.hpp
-    src/gui/ViewRendererResources.cpp
-    src/gui/ViewRendererResources.hpp
-    src/gui/ViewState.hpp)
+    src/gui/ViewFrame.hpp)
 
 set(_aero_gui_sources
     ${_aero_gui_core_sources}
-    ${_aero_gui_meta_sources}
     ${_aero_gui_data_sources}
     ${_aero_gui_styles_sources}
     ${_aero_gui_input_sources}
     ${_aero_gui_triggers_sources}
+    ${_aero_gui_interactivity_sources}
     ${_aero_gui_controls_sources}
+    ${_aero_gui_documents_sources}
+    ${_aero_gui_shapes_sources}
     ${_aero_gui_templates_sources}
     ${_aero_gui_markup_sources}
     ${_aero_gui_media_sources}
@@ -190,33 +187,41 @@ set(_aero_gui_sources
     ${_aero_gui_render_contract_sources}
     ${_aero_gui_composition_sources})
 
-add_library(AeroGui ${AERO_LIBRARY_TYPE} ${_aero_gui_sources})
+# IDE-only virtual folders (filesystem stays flat per repo policy:
+# no subdirectories under src/gui/controls, no host/ dir).
+source_group("gui\\host" FILES ${_aero_gui_composition_sources})
+source_group("gui\\controls\\text" REGULAR_EXPRESSION
+    "src/gui/controls/(TextBox.*|TextBlockLayout|PasswordBox|RichText).*")
+source_group("gui\\controls\\scroll" REGULAR_EXPRESSION
+    "src/gui/controls/(Scroll.*).*")
+source_group("gui\\controls\\items" REGULAR_EXPRESSION
+    "src/gui/controls/(Items.*|ItemContainerGenerator|ListView|Selection|Selector|ComboBox|Trees|Virtualization).*")
+source_group("gui\\controls\\chrome" REGULAR_EXPRESSION
+    "src/gui/controls/(Bars|Buttons|Menus|ContentControl.*|ContentPresenter|Popup|TabControl|Controls.*|Images|VisualStateManager).*")
+source_group("gui\\inlines" FILES ${_aero_gui_inlines})
+source_group("gui\\headers" FILES ${_aero_gui_internal_headers})
+
+add_library(AeroGui ${AERO_LIBRARY_TYPE}
+    ${_aero_gui_sources}
+    ${_aero_gui_inlines}
+    ${_aero_gui_internal_headers})
 add_library(Aero::Gui ALIAS AeroGui)
 target_include_directories(AeroGui
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        # Meta.hpp pulls TypeBuilder authoring detail from src/gui/core.
+        # BUILD uses src/; INSTALL uses the aero-meta-authoring prefix only.
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:include>
+        $<INSTALL_INTERFACE:include/aero-meta-authoring>
     PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(AeroGui PUBLIC Aero::Base Threads::Threads)
-if(AERO_WITH_EXPAT)
-    if(_aero_vendored_expat_target)
-        target_link_libraries(AeroGui PRIVATE
-            $<BUILD_INTERFACE:${_aero_expat_target}>
-            $<INSTALL_INTERFACE:Aero::_PrivateExpat>)
-    else()
-        target_link_libraries(AeroGui PRIVATE
-            $<BUILD_INTERFACE:${_aero_expat_target}>
-            $<INSTALL_INTERFACE:EXPAT::EXPAT>)
-    endif()
-endif()
 target_compile_definitions(AeroGui PRIVATE
-    AERO_GUI_IMPLEMENTATION=1
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_GUI_EXPORTS>
     AERO_UI_RESOURCE_MODEL=2
     AERO_CONTROLS_TEMPLATE_ABI=10
-    AERO_MARKUP_UI_RESOURCES=1
-    AERO_WITH_EXPAT=$<BOOL:${AERO_WITH_EXPAT}>)
+    AERO_MARKUP_UI_RESOURCES=1)
 target_compile_features(AeroGui PUBLIC cxx_std_17)
 set_target_properties(AeroGui PROPERTIES
     CXX_STANDARD 17
@@ -254,12 +259,14 @@ aero_apply_compiler_options(AeroMetaHeaderConsumer)
 
 unset(_aero_gui_sources)
 unset(_aero_gui_core_sources)
-unset(_aero_gui_meta_sources)
 unset(_aero_gui_data_sources)
 unset(_aero_gui_styles_sources)
 unset(_aero_gui_input_sources)
 unset(_aero_gui_triggers_sources)
+unset(_aero_gui_interactivity_sources)
 unset(_aero_gui_controls_sources)
+unset(_aero_gui_documents_sources)
+unset(_aero_gui_shapes_sources)
 unset(_aero_gui_templates_sources)
 unset(_aero_gui_markup_sources)
 unset(_aero_gui_media_sources)
@@ -267,6 +274,8 @@ unset(_aero_gui_text_sources)
 unset(_aero_gui_diagnostics_sources)
 unset(_aero_gui_render_contract_sources)
 unset(_aero_gui_composition_sources)
+unset(_aero_gui_inlines)
+unset(_aero_gui_internal_headers)
 
 function(aero_complete_gui_target)
 # View/Gui composition is folded directly into AeroGui as a source group.
@@ -353,11 +362,12 @@ unset(_aero_theme_embed_result)
 # Private retained renderer and backend-neutral render-device machinery remain
 # part of the explicit render-contract and composition lists above.
 
+# Shared GPU StateCache (header-only) under src/render/common/ is included by
+# both AeroRenderOpenGL33 and AeroRenderD3D11 via PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src.
 # OpenGL 3.3 is a separately linkable backend product. AeroGui contains no GL
 # implementation or factory symbols.
 add_library(AeroRenderOpenGL33 ${AERO_LIBRARY_TYPE}
     src/render/opengl33/OpenGL33RenderDevice.cpp
-            src/render/opengl33/OpenGL33Factories.cpp
     src/render/opengl33/OpenGL33RenderContext.cpp)
 add_library(Aero::RenderOpenGL33 ALIAS AeroRenderOpenGL33)
 target_include_directories(AeroRenderOpenGL33
@@ -369,7 +379,6 @@ target_include_directories(AeroRenderOpenGL33
         "${CMAKE_CURRENT_BINARY_DIR}/generated")
 target_link_libraries(AeroRenderOpenGL33 PUBLIC Aero::Render)
 target_compile_definitions(AeroRenderOpenGL33 PRIVATE
-    AERO_GUI_IMPLEMENTATION=1
     $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_OPENGL33_EXPORTS>)
 target_compile_features(AeroRenderOpenGL33 PUBLIC cxx_std_17)
 set_target_properties(AeroRenderOpenGL33 PROPERTIES
@@ -389,11 +398,11 @@ aero_verify_windows_exports(
 
 if(AERO_ENABLE_WGL_SURFACE)
     target_sources(AeroRenderOpenGL33 PRIVATE
-        src/render/platform/win32/OpenGLWindow.cpp)
+        src/render/opengl33/OpenGLWindowWin32.cpp)
 endif()
 if(AERO_ENABLE_GLX_SURFACE)
     target_sources(AeroRenderOpenGL33 PRIVATE
-        src/render/platform/x11/OpenGLWindow.cpp)
+        src/render/opengl33/OpenGLWindowX11.cpp)
 endif()
 
 if(AERO_ENABLE_WGL_SURFACE)
@@ -496,27 +505,148 @@ if(AERO_ENABLE_D3D11_BACKEND)
 
     set(_aero_d3d11_shader_root
         "${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11/shaders")
-    aero_compile_d3d11_shader_pair(
-        RenderFrameSolid "${_aero_d3d11_shader_root}/RenderFrameSolid.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFramePattern "${_aero_d3d11_shader_root}/RenderFramePattern.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameSDF "${_aero_d3d11_shader_root}/RenderFrameSDF.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameBlur "${_aero_d3d11_shader_root}/RenderFrameBlur.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameShadow "${_aero_d3d11_shader_root}/RenderFrameShadow.hlsl" FALSE)
-    aero_compile_d3d11_shader_pair(
-        RenderFrameMask "${_aero_d3d11_shader_root}/RenderFrameMask.hlsl" FALSE)
+
+    function(aero_compile_d3d11_vs stem)
+        set(output
+            "${_aero_d3d11_shader_directory}/AeroD3D11ShaderVS${stem}.hpp")
+        set(symbol "AeroD3D11ShaderVS${stem}")
+        set(defines)
+        foreach(d IN LISTS ARGN)
+            list(APPEND defines /D "${d}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${_aero_d3d11_shader_directory}"
+            COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                /T vs_4_0 /E vs_main
+                ${defines}
+                /Vn ${symbol}
+                /Fh "${output}"
+                "${_aero_d3d11_shader_root}/ShaderVS.hlsl"
+            DEPENDS "${_aero_d3d11_shader_root}/ShaderVS.hlsl"
+            VERBATIM)
+        set_property(GLOBAL APPEND PROPERTY
+            AERO_D3D11_SHADER_OUTPUTS "${output}")
+    endfunction()
+
+    aero_compile_d3d11_vs(Pos)
+    aero_compile_d3d11_vs(PosColor HAS_COLOR)
+    aero_compile_d3d11_vs(PosTex0 HAS_UV0)
+    aero_compile_d3d11_vs(PosColorCoverage HAS_COLOR HAS_COVERAGE)
+    aero_compile_d3d11_vs(PosTex0Coverage HAS_UV0 HAS_COVERAGE)
+    aero_compile_d3d11_vs(PosColorTex1_SDF HAS_COLOR HAS_UV1)
+    aero_compile_d3d11_vs(PosTex0Tex1 HAS_UV0 HAS_UV1)
+    aero_compile_d3d11_vs(PosColorTex0Tex1 HAS_COLOR HAS_UV0 HAS_UV1)
+
+    function(aero_compile_d3d11_ps stem)
+        set(output
+            "${_aero_d3d11_shader_directory}/AeroD3D11ShaderPS${stem}.hpp")
+        set(symbol "AeroD3D11ShaderPS${stem}")
+        set(defines)
+        foreach(d IN LISTS ARGN)
+            list(APPEND defines /D "${d}")
+        endforeach()
+        add_custom_command(
+            OUTPUT "${output}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${_aero_d3d11_shader_directory}"
+            COMMAND "${AERO_D3D11_FXC_EXECUTABLE}" /nologo /Ges /WX
+                /T ps_4_0 /E ps_main
+                ${defines}
+                /Vn ${symbol}
+                /Fh "${output}"
+                "${_aero_d3d11_shader_root}/ShaderPS.hlsl"
+            DEPENDS "${_aero_d3d11_shader_root}/ShaderPS.hlsl"
+            VERBATIM)
+        set_property(GLOBAL APPEND PROPERTY
+            AERO_D3D11_SHADER_OUTPUTS "${output}")
+    endfunction()
+
+    aero_compile_d3d11_ps(RGBA EFFECT_RGBA)
+    aero_compile_d3d11_ps(Clear EFFECT_CLEAR)
+
+    aero_compile_d3d11_ps(Path_Solid EFFECT_PATH PAINT_SOLID)
+    aero_compile_d3d11_ps(Path_Linear EFFECT_PATH PAINT_LINEAR)
+    aero_compile_d3d11_ps(Path_Radial EFFECT_PATH PAINT_RADIAL)
+    aero_compile_d3d11_ps(Path_Pattern EFFECT_PATH PAINT_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Clamp EFFECT_PATH PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Repeat EFFECT_PATH PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_MirrorU EFFECT_PATH PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_MirrorV EFFECT_PATH PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Path_Pattern_Mirror EFFECT_PATH PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Path_AA_Solid EFFECT_PATH_AA PAINT_SOLID)
+    aero_compile_d3d11_ps(Path_AA_Linear EFFECT_PATH_AA PAINT_LINEAR)
+    aero_compile_d3d11_ps(Path_AA_Radial EFFECT_PATH_AA PAINT_RADIAL)
+    aero_compile_d3d11_ps(Path_AA_Pattern EFFECT_PATH_AA PAINT_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Clamp EFFECT_PATH_AA PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Repeat EFFECT_PATH_AA PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_MirrorU EFFECT_PATH_AA PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_MirrorV EFFECT_PATH_AA PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Path_AA_Pattern_Mirror EFFECT_PATH_AA PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(SDF_Solid EFFECT_SDF PAINT_SOLID)
+    aero_compile_d3d11_ps(SDF_Linear EFFECT_SDF PAINT_LINEAR)
+    aero_compile_d3d11_ps(SDF_Radial EFFECT_SDF PAINT_RADIAL)
+    aero_compile_d3d11_ps(SDF_Pattern EFFECT_SDF PAINT_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Clamp EFFECT_SDF PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Repeat EFFECT_SDF PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_MirrorU EFFECT_SDF PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_MirrorV EFFECT_SDF PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(SDF_Pattern_Mirror EFFECT_SDF PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(SDF_LCD_Solid EFFECT_SDF_LCD PAINT_SOLID)
+    aero_compile_d3d11_ps(SDF_LCD_Linear EFFECT_SDF_LCD PAINT_LINEAR)
+    aero_compile_d3d11_ps(SDF_LCD_Radial EFFECT_SDF_LCD PAINT_RADIAL)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern EFFECT_SDF_LCD PAINT_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Clamp EFFECT_SDF_LCD PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Repeat EFFECT_SDF_LCD PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_MirrorU EFFECT_SDF_LCD PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_MirrorV EFFECT_SDF_LCD PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(SDF_LCD_Pattern_Mirror EFFECT_SDF_LCD PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Opacity_Solid EFFECT_OPACITY PAINT_SOLID)
+    aero_compile_d3d11_ps(Opacity_Linear EFFECT_OPACITY PAINT_LINEAR)
+    aero_compile_d3d11_ps(Opacity_Radial EFFECT_OPACITY PAINT_RADIAL)
+    aero_compile_d3d11_ps(Opacity_Pattern EFFECT_OPACITY PAINT_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Clamp EFFECT_OPACITY PAINT_PATTERN CLAMP_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Repeat EFFECT_OPACITY PAINT_PATTERN REPEAT_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_MirrorU EFFECT_OPACITY PAINT_PATTERN MIRRORU_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_MirrorV EFFECT_OPACITY PAINT_PATTERN MIRRORV_PATTERN)
+    aero_compile_d3d11_ps(Opacity_Pattern_Mirror EFFECT_OPACITY PAINT_PATTERN MIRROR_PATTERN)
+
+    aero_compile_d3d11_ps(Upsample EFFECT_UPSAMPLE)
+    aero_compile_d3d11_ps(Downsample EFFECT_DOWNSAMPLE)
+
+    aero_compile_d3d11_ps(Mask EFFECT_MASK)
+    aero_compile_d3d11_ps(Shadow EFFECT_SHADOW)
+    aero_compile_d3d11_ps(Blur EFFECT_BLUR)
     get_property(_aero_d3d11_shader_outputs GLOBAL PROPERTY
         AERO_D3D11_SHADER_OUTPUTS)
+
+    set(_aero_d3d11_aggregate_header
+        "${_aero_d3d11_shader_directory}/AeroD3D11Shaders.hpp")
+    set(_aero_d3d11_shader_manifest
+        "${_aero_d3d11_shader_directory}/shaders_manifest.txt")
+    file(MAKE_DIRECTORY "${_aero_d3d11_shader_directory}")
+    file(WRITE "${_aero_d3d11_shader_manifest}" "${_aero_d3d11_shader_outputs}")
+
+    add_custom_command(
+        OUTPUT "${_aero_d3d11_aggregate_header}"
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMANIFEST_FILE=${_aero_d3d11_shader_manifest}"
+            "-DOUTPUT_FILE=${_aero_d3d11_aggregate_header}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/AggregateD3D11Shaders.cmake"
+        DEPENDS ${_aero_d3d11_shader_outputs}
+        VERBATIM)
+
     add_custom_target(AeroD3D11RenderFrameShaders
-        DEPENDS ${_aero_d3d11_shader_outputs})
+        DEPENDS ${_aero_d3d11_shader_outputs} "${_aero_d3d11_aggregate_header}")
 
     add_library(AeroRenderD3D11 ${AERO_LIBRARY_TYPE}
         src/render/d3d11/D3D11RenderDevice.cpp
-                src/render/d3d11/D3D11Device.cpp
-                src/render/d3d11/D3D11RenderContext.cpp)
+        src/render/d3d11/D3D11RenderContext.cpp)
     add_library(Aero::RenderD3D11 ALIAS AeroRenderD3D11)
     add_dependencies(AeroRenderD3D11 AeroD3D11RenderFrameShaders)
     target_include_directories(AeroRenderD3D11
@@ -531,7 +661,6 @@ if(AERO_ENABLE_D3D11_BACKEND)
         PUBLIC Aero::Render
         PRIVATE d3d11 dxgi d3dcompiler)
     target_compile_definitions(AeroRenderD3D11 PRIVATE
-        AERO_GUI_IMPLEMENTATION=1
         $<$<BOOL:${AERO_BUILD_SHARED}>:AERO_RENDER_D3D11_EXPORTS>)
     target_compile_features(AeroRenderD3D11 PUBLIC cxx_std_17)
     set_target_properties(AeroRenderD3D11 PROPERTIES

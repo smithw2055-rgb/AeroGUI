@@ -1,14 +1,13 @@
 #include "../RenderContext.hpp"
-#include "../Presentation.hpp"
 
 #include <AeroRender/OpenGL33.hpp>
 
 #include "OpenGL33RenderDevice.hpp"
 
 #if defined(_WIN32)
-#include "render/platform/win32/OpenGLWindow.hpp"
+#include "OpenGLWindowWin32.hpp"
 #elif defined(__linux__) || defined(__unix__)
-#include "render/platform/x11/OpenGLWindow.hpp"
+#include "OpenGLWindowX11.hpp"
 #endif
 
 #include <new>
@@ -17,7 +16,7 @@
 namespace Aero::Render {
 namespace {
 
-Base::Status InvalidState(const char* message) noexcept {
+[[maybe_unused]] Base::Status InvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
@@ -28,10 +27,11 @@ Base::Status InvalidState(const char* message) noexcept {
 #if AERO_HAS_WGL_SURFACE || AERO_HAS_GLX_SURFACE
 
 #if defined(_WIN32)
-using PlatformOpenGLWindow = Win32::OpenGLWindow;
+using PlatformOpenGLContext = Win32::WglContext;
 #else
-using PlatformOpenGLWindow = X11::OpenGLWindow;
+using PlatformOpenGLContext = X11::GlxContext;
 #endif
+using PlatformOpenGLWindow = PlatformOpenGLContext;
 
 class OpenGLRenderContext final : public RenderContext {
 public:

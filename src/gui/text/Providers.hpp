@@ -32,7 +32,7 @@ public:
     virtual Base::Result<void> ResolveFace(
         const FontQuery& query,
         FontFace& output) noexcept = 0;
-    virtual Base::Result<bool> HasCodePoint(
+    virtual bool HasCodePoint(
         FontFaceHandle face,
         std::uint32_t codePoint) noexcept = 0;
     virtual void ReleaseFace(FontFaceHandle face) noexcept = 0;

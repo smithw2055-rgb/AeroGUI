@@ -2,19 +2,45 @@
 
 #include "DisplayList.hpp"
 #include "RenderResources.hpp"
+#include "render/FrameEncoder.hpp"
 #include "gui/controls/TextBlockLayout.hpp"
 #include <AeroRender/RenderDevice.hpp>
 #include <AeroRender/Texture.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace Aero::Text { class FontManager; }
+
+#include "gui/text/TextLayout.hpp"
 
 namespace Aero::Render {
 
 class UiFrameEncoder;
-struct TextRendererState;
+struct TextRendererState {
+    TextConfig config;
+    Text::GlyphAtlas atlas;
+    Base::Vector<Ref<Texture>> pageTextures;
+    Base::Vector<std::uint32_t> pageIds;
+    Base::Vector<RenderGlyphRunId> glyphRuns;
+    Text::TextLayout layout;
+    Base::Vector<RenderGlyphQuad> quads;
+    std::uint64_t nextRunId = 1U;
+    std::uint64_t useStamp = 1U;
+
+    explicit TextRendererState(
+        const TextConfig& cfg,
+        Base::IAllocator* allocator) noexcept
+        : config(cfg),
+          atlas(allocator),
+          pageTextures(allocator),
+          pageIds(allocator),
+          glyphRuns(allocator),
+          layout(allocator),
+          quads(allocator) {}
+};
+
 using TextConfig = Aero::Render::TextConfig;
 
 class TextRenderer : public ::Aero::Controls::TextBlockLayout {
@@ -38,15 +64,14 @@ public:
         ::Aero::Controls::TextLayoutResult& output) noexcept override;
     void ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept override;
 
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    std::uint32_t CollectGarbage() noexcept;
 
 private:
     Text::FontManager* fonts_ = nullptr;
     RenderDevice* device_ = nullptr;
     UiFrameEncoder* encoder_ = nullptr;
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
-    TextRendererState* state_ = nullptr;
+    std::optional<TextRendererState> state_;
 };
 
 } // namespace Aero::Render

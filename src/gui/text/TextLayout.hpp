@@ -80,13 +80,13 @@ public:
     }
     bool IsTrimmed() const noexcept { return trimmed_; }
 
-    Base::Result<void> AddRun(GlyphRun&& run) noexcept;
-    Base::Result<void> AddLine(const TextLine& line) noexcept;
-    Base::Result<void> SetSize(TextLayoutSize size) noexcept;
+    void AddRun(GlyphRun&& run) noexcept;
+    void AddLine(const TextLine& line) noexcept;
+    void SetSize(TextLayoutSize size) noexcept;
     Base::Result<void> ShapeAndMeasure(
         FontManager& fonts,
         const TextLayoutRequest& request) noexcept;
-    Base::Result<void> Arrange(float finalWidth) noexcept;
+    void Arrange(float finalWidth) noexcept;
     void Clear() noexcept;
 
 private:

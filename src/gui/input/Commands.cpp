@@ -1,12 +1,28 @@
-#include "gui/core/State.hpp" 
-#include "gui/input/InputState.hpp" 
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include "gui/input/InputManager.hpp" 
 #include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/ApplicationCommands.hpp>
 
 
 #include <cctype>
 #include <mutex>
+#include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include <cmath>
+#include <cstdlib>
+#include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Input {
 
@@ -43,41 +59,64 @@ std::mutex& StaticRoutedCommandMutex() noexcept {
     return mutex;
 }
 
+struct InternedCommandEntry {
+    Base::String name;
+    Base::Ref<RoutedCommand> command;
+};
+
+Base::Vector<InternedCommandEntry>& InternedCommands() noexcept {
+    static Base::Vector<InternedCommandEntry> commands;
+    return commands;
+}
+
+Base::StringView LastDottedSegment(Base::StringView value) noexcept {
+    std::uint32_t last = value.SizeBytes();
+    for (std::uint32_t index = 0U; index < value.SizeBytes(); ++index) {
+        if (value[index] == '.') last = index;
+    }
+    if (last == value.SizeBytes()) return value;
+    return value.Substr(last + 1U, value.SizeBytes() - last - 1U);
+}
+
+Base::StringView OwnerDottedSegment(Base::StringView value) noexcept {
+    std::uint32_t last = value.SizeBytes();
+    for (std::uint32_t index = 0U; index < value.SizeBytes(); ++index) {
+        if (value[index] == '.') last = index;
+    }
+    if (last == value.SizeBytes()) return {};
+    return value.Substr(0U, last);
+}
+
 } // namespace
 
-Base::Result<void> RoutedCommand::RegisterStatic(
+void RoutedCommand::RegisterStatic(
     Meta::TypeId ownerType,
     Base::StringView memberName) noexcept {
     if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Static routed command requires an owner type and member name");
+        return;
     }
     std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
     for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
         if (entry.ownerType == ownerType &&
             entry.memberName.View() == memberName) {
-            return {};
+            return;
         }
     }
-    Base::Result<Base::Ref<RoutedCommand>> created =
+    Base::Ref<RoutedCommand> created =
         Base::MakeRef<RoutedCommand>(memberName);
-    if (!created) return created.GetStatus();
+    if (!created) return;
     StaticRoutedCommandEntry entry;
     entry.ownerType = ownerType;
-    Base::Result<void> assigned = entry.memberName.Assign(memberName);
-    if (!assigned) return assigned.GetStatus();
-    entry.command = std::move(created).Value();
-    return StaticRoutedCommands().PushBack(std::move(entry));
+    if (!entry.memberName.Assign(memberName)) return;
+    entry.command = std::move(created);
+    StaticRoutedCommands().PushBack(std::move(entry));
 }
 
-Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
+Base::Ref<RoutedCommand> RoutedCommand::ResolveStatic(
     Meta::TypeId ownerType,
     Base::StringView memberName) noexcept {
     if (ownerType == Meta::InvalidTypeId || memberName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Static routed command requires an owner type and member name");
+        return {};
     }
     std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
     for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
@@ -86,9 +125,138 @@ Base::Result<Base::Ref<RoutedCommand>> RoutedCommand::ResolveStatic(
             return entry.command;
         }
     }
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        "Static routed command member is not registered");
+    return {};
+}
+
+Base::Ref<RoutedCommand> RoutedCommand::ResolveAuthored(
+    Base::StringView name) noexcept {
+    Base::StringView authored = name;
+    std::uint32_t begin = 0U;
+    std::uint32_t end = authored.SizeBytes();
+    while (begin < end &&
+           (authored[begin] == ' ' || authored[begin] == '\t' ||
+            authored[begin] == '\r' || authored[begin] == '\n')) {
+        ++begin;
+    }
+    while (end > begin &&
+           (authored[end - 1U] == ' ' || authored[end - 1U] == '\t' ||
+            authored[end - 1U] == '\r' || authored[end - 1U] == '\n')) {
+        --end;
+    }
+    authored = authored.Substr(begin, end - begin);
+    if (authored.Empty()) {
+        return {};
+    }
+    const Base::StringView owner = OwnerDottedSegment(authored);
+    const Base::StringView member = owner.Empty()
+        ? authored
+        : LastDottedSegment(authored);
+    const Base::StringView ownerTypeName = LastDottedSegment(owner);
+
+    std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
+    if (!owner.Empty()) {
+        for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
+            if (entry.memberName.View() != member) continue;
+            if (ownerTypeName == Base::StringView("ApplicationCommands") &&
+                entry.ownerType == ApplicationCommands::StaticTypeId()) {
+                return entry.command;
+            }
+        }
+    }
+    for (const StaticRoutedCommandEntry& entry : StaticRoutedCommands()) {
+        if (entry.memberName.View() == member) return entry.command;
+    }
+    for (const InternedCommandEntry& entry : InternedCommands()) {
+        if (entry.name.View() == member || entry.name.View() == authored) {
+            return entry.command;
+        }
+    }
+    Base::Ref<RoutedCommand> created =
+        Base::MakeRef<RoutedCommand>(member);
+    if (!created) return {};
+    InternedCommandEntry interned;
+    if (!interned.name.Assign(member)) return {};
+    interned.command = created;
+    InternedCommands().PushBack(std::move(interned));
+    return created;
+}
+
+void ApplicationCommands::RegisterDefaults() noexcept {
+    constexpr Base::StringView names[] = {
+        "Cut", "Copy", "Paste", "Undo", "Redo", "Delete", "Find", "Replace",
+        "SelectAll", "Help", "New", "Open", "Save", "SaveAs", "Print",
+        "PrintPreview", "Properties", "Close", "Stop", "ContextMenu",
+        "CorrectionList", "NotACommand"};
+    for (Base::StringView commandName : names) {
+        RoutedCommand::RegisterStatic(StaticTypeId(), commandName);
+    }
+}
+
+Base::Ref<RoutedCommand> ApplicationCommands::Cut() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Cut");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Copy() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Copy");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Paste() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Paste");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Undo() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Undo");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Redo() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Redo");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Delete() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Delete");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Find() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Find");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Replace() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Replace");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::SelectAll() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "SelectAll");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Help() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Help");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::New() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "New");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Open() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Open");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Save() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Save");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::SaveAs() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "SaveAs");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Print() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Print");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::PrintPreview() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "PrintPreview");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Properties() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Properties");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Close() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Close");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::Stop() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "Stop");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::ContextMenu() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "ContextMenu");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::CorrectionList() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "CorrectionList");
+}
+Base::Ref<RoutedCommand> ApplicationCommands::NotACommand() noexcept {
+    return RoutedCommand::ResolveStatic(StaticTypeId(), "NotACommand");
 }
 
 bool KeyGesture::Matches(const KeyboardInput& input) const noexcept {
@@ -111,39 +279,28 @@ RoutedCommand::RoutedCommand(Base::StringView name) noexcept
     }
 }
 
-Base::Result<void> RoutedCommand::AssignNameChecked(
-    Base::StringView name) noexcept {
-    return name_.Assign(name);
-}
-
 void RoutedCommand::SetName(Base::StringView name) noexcept {
-    static_cast<void>(AssignNameChecked(name));
-}
-
-Base::Result<void> RoutedCommand::AddInputGestureChecked(
-    Base::Ref<InputGesture> gesture) noexcept {
-    if (!gesture) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Input gesture must not be null");
-    }
-    return gestures_.PushBack(std::move(gesture));
+    static_cast<void>(name_.Assign(name));
 }
 
 void RoutedCommand::AddInputGesture(
     Base::Ref<InputGesture> gesture) noexcept {
-    Base::Result<void> added = AddInputGestureChecked(std::move(gesture));
-    if (!added) {
-        Base::ReportOutOfMemory(
-            sizeof(Base::Ref<InputGesture>),
-            alignof(Base::Ref<InputGesture>),
-            Base::MemoryTag::Container);
-    }
+    if (!gesture) return;
+    static_cast<void>(gestures_.PushBack(std::move(gesture)));
 }
 
 bool RoutedCommand::MatchesInput(
     const KeyboardInput& input) const noexcept {
     for (const Base::Ref<InputGesture>& gesture : gestures_) {
         if (gesture && gesture->Matches(input)) return true;
+    }
+    return false;
+}
+
+bool RoutedCommand::MatchesPointer(
+    const PointerInput& input) const noexcept {
+    for (const Base::Ref<InputGesture>& gesture : gestures_) {
+        if (gesture && gesture->MatchesPointer(input)) return true;
     }
     return false;
 }
@@ -208,12 +365,48 @@ Base::Result<std::uint32_t> ParseModifiersName(
 
 } // namespace
 
+void CommandBinding::SetCommandName(Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.Assign(TrimAscii(value))) return;
+    commandName_ = std::move(candidate);
+    command_.Reset();
+}
+
+void CommandBinding::SetExecutedName(Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.Assign(TrimAscii(value))) return;
+    executedName_ = std::move(candidate);
+}
+
+void CommandBinding::SetCanExecuteName(Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.Assign(TrimAscii(value))) return;
+    canExecuteName_ = std::move(candidate);
+}
+
+bool CommandBinding::Finalize() noexcept {
+    if (command_) {
+        ReleaseAuthored();
+        return true;
+    }
+    if (commandName_.Empty()) {
+        return false;
+    }
+    command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+    if (!command_) {
+        return false;
+    }
+    ReleaseAuthored();
+    return true;
+}
+
 void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
     commandName_ = std::move(candidate);
     command_.Reset();
+    finalized_ = false;
 }
 
 void KeyBinding::SetKeyName(
@@ -222,6 +415,7 @@ void KeyBinding::SetKeyName(
     if (!candidate.Assign(TrimAscii(value))) return;
     keyName_ = std::move(candidate);
     command_.Reset();
+    finalized_ = false;
 }
 
 void KeyBinding::SetModifiersName(
@@ -230,42 +424,86 @@ void KeyBinding::SetModifiersName(
     if (!candidate.Assign(TrimAscii(value))) return;
     modifiersName_ = std::move(candidate);
     command_.Reset();
+    finalized_ = false;
 }
 
-Base::Result<void> KeyBinding::Finalize() noexcept {
-    if (command_) return {};
-    if (commandName_.Empty() || keyName_.Empty()) {
-        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
-            "KeyBinding requires Command and Key");
+bool KeyBinding::Finalize() noexcept {
+    if (finalized_) return true;
+    if (commandName_.Empty() && keyName_.Empty() && !command_) {
+        return false;
     }
-    Base::Result<std::uint32_t> key = ParseKeyName(keyName_.View());
-    if (!key) return key.GetStatus();
-    Base::Result<std::uint32_t> modifiers = ParseModifiersName(
-        modifiersName_.View());
-    if (!modifiers) return modifiers.GetStatus();
-    Base::Result<Base::Ref<RoutedCommand>> command =
-        Base::MakeRef<RoutedCommand>(commandName_.View());
-    if (!command) return command.GetStatus();
-    Base::Result<Base::Ref<KeyGesture>> gesture =
-        Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
-    if (!gesture) return gesture.GetStatus();
-    Base::Result<void> added = command.Value()->AddInputGestureChecked(
-        Base::Ref<InputGesture>(std::move(gesture).Value()));
-    if (!added) return added.GetStatus();
-    command_ = std::move(command).Value();
-    return {};
+    if (!commandName_.Empty() || !keyName_.Empty()) {
+        if (commandName_.Empty() && !command_) {
+            return false;
+        }
+        if (keyName_.Empty()) {
+            return false;
+        }
+        if (!command_) {
+            command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+            if (!command_) {
+                return false;
+            }
+        }
+        Base::Result<std::uint32_t> key = ParseKeyName(keyName_.View());
+        if (!key) return false;
+        Base::Result<std::uint32_t> modifiers = ParseModifiersName(
+            modifiersName_.View());
+        if (!modifiers) return false;
+        Base::Ref<KeyGesture> gesture =
+            Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
+        if (!gesture) return false;
+        command_->AddInputGesture(
+            Base::Ref<InputGesture>(std::move(gesture)));
+    }
+    finalized_ = true;
+    ReleaseAuthored();
+    return true;
 }
 
-Base::Result<bool> RoutedCommand::CanExecute(
+void MouseBinding::SetCommandName(Base::StringView value) noexcept {
+    Base::String candidate;
+    if (!candidate.Assign(TrimAscii(value))) return;
+    commandName_ = std::move(candidate);
+    command_.Reset();
+    finalized_ = false;
+}
+
+bool MouseBinding::Matches(const PointerInput& input) const noexcept {
+    return input.changedButton == button_ && input.action == action_;
+}
+
+bool MouseBinding::Finalize() noexcept {
+    if (finalized_) return true;
+    if (command_) {
+        finalized_ = true;
+        ReleaseAuthored();
+        return true;
+    }
+    if (commandName_.Empty()) {
+        return false;
+    }
+    command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+    if (!command_) {
+        return false;
+    }
+    finalized_ = true;
+    ReleaseAuthored();
+    return true;
+}
+
+void RoutedUICommand::SetText(Base::StringView value) noexcept {
+    static_cast<void>(text_.Assign(value));
+}
+
+bool RoutedCommand::CanExecute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::Core::GetFacet<::Aero::InputRouter>(*target)
+        ? ElementTree::InputOf(*target)
         : nullptr;
     if (input == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "RoutedCommand requires a loaded command target");
+        return false;
     }
     return input->CanExecute(*this, parameter, *target);
 }
@@ -274,7 +512,7 @@ void RoutedCommand::Execute(
     const Meta::Value& parameter,
     UIElement* target) noexcept {
     Aero::InputRouter* input = target != nullptr
-        ? Aero::Core::GetFacet<::Aero::InputRouter>(*target)
+        ? ElementTree::InputOf(*target)
         : nullptr;
     if (input == nullptr) {
         return;
@@ -304,7 +542,7 @@ Base::Result<void> CommandState::VerifyTarget(
     }
     Base::Result<void> access = root->VerifyAccess();
     if (!access) return access.GetStatus();
-    if (!target.GetIsLoaded() || target.GetTree() != tree_) {
+    if (!target.GetIsLoaded() || VisualTree(target) != tree_) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Command target must be loaded in the command tree");
     }
@@ -343,9 +581,13 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
     const CommandBinding& binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
     if (!verified) return verified.GetStatus();
+    if (!const_cast<CommandBinding&>(binding).Finalize()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "CommandBinding requires Command");
+    }
     if (!binding.IsValid()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Command binding requires a command and at least one handler");
+            "Command binding requires a command");
     }
     Base::Result<VisualHandle> ownerHandle = tree_->GetHandle(owner);
     if (!ownerHandle) return ownerHandle.GetStatus();
@@ -356,25 +598,20 @@ Base::Result<CommandBindingHandle> CommandState::AddBinding(
     BindingRecord record;
     record.handle.value = nextBinding_++;
     record.owner = ownerHandle.Value();
-    record.binding = binding;
-    Base::Result<void> appended =
-        bindings_.PushBack(std::move(record));
-    if (!appended) return appended.GetStatus();
+    if (RoutedCommand* command = binding.GetCommand()) {
+        record.command = Base::Ref<RoutedCommand>::TryFromBorrowed(*command);
+    }
+    record.canExecute = binding.GetCanExecute();
+    record.executed = binding.GetExecuted();
+    bindings_.PushBack(std::move(record));
     return bindings_[bindings_.Size() - 1U].handle;
 }
 
-Base::Result<bool> CommandState::RemoveBinding(
+bool CommandState::RemoveBinding(
     CommandBindingHandle handle) noexcept {
     ::Aero::Media::Visual* root = tree_->Root();
-    if (root == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Command binding removal requires an ElementTree root");
-    }
-    Base::Result<void> access = root->VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (!handle.IsValid()) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
-            "Command binding handle is invalid");
+    if (root == nullptr || !root->CheckAccess() || !handle.IsValid()) {
+        return false;
     }
     for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
         if (bindings_[index].handle.value != handle.value) continue;
@@ -390,15 +627,17 @@ Base::Result<bool> CommandState::RemoveBinding(
 
 Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     UIElement& owner,
-    Base::Ref<KeyBinding> binding) noexcept {
+    Base::Ref<InputBinding> binding) noexcept {
     Base::Result<void> verified = VerifyTarget(owner);
     if (!verified) return verified.GetStatus();
     if (!binding) {
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "InputBinding cannot be null");
     }
-    Base::Result<void> finalized = binding->Finalize();
-    if (!finalized) return finalized.GetStatus();
+    if (!binding->Finalize()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed,
+            "InputBinding requires Command");
+    }
     if (!binding->GetCommand()) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "InputBinding command was not created");
@@ -413,12 +652,11 @@ Base::Result<InputBindingHandle> CommandState::AddInputBinding(
     record.handle.value = nextInputBinding_++;
     record.owner = ownerHandle.Value();
     record.binding = std::move(binding);
-    Base::Result<void> appended = inputBindings_.PushBack(std::move(record));
-    if (!appended) return appended.GetStatus();
+    inputBindings_.PushBack(std::move(record));
     return inputBindings_.Back().handle;
 }
 
-Base::Result<bool> CommandState::CanExecute(
+bool CommandState::CanExecute(
     ICommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
@@ -429,7 +667,7 @@ Base::Result<bool> CommandState::CanExecute(
     return command.CanExecute(parameter, &target);
 }
 
-Base::Result<bool> CommandState::Execute(
+bool CommandState::Execute(
     ICommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
@@ -437,21 +675,19 @@ Base::Result<bool> CommandState::Execute(
         return Execute(
             static_cast<RoutedCommand&>(command), parameter, target);
     }
-    Base::Result<bool> allowed = command.CanExecute(parameter, &target);
-    if (!allowed || !allowed.Value()) {
-        return allowed ? Base::Result<bool>(false)
-                       : Base::Result<bool>(allowed.GetStatus());
+    if (!command.CanExecute(parameter, &target)) {
+        return false;
     }
     command.Execute(parameter, &target);
     return true;
 }
 
-Base::Result<bool> CommandState::CanExecute(
+bool CommandState::CanExecute(
     RoutedCommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
     Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
+    if (!verified) return false;
     PruneStaleBindings();
 
     CanExecuteRoutedEventArgs args;
@@ -461,41 +697,41 @@ Base::Result<bool> CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle ownerHandle = ElementTree::HandleOf(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
-                    record.binding.GetCommand() != &command) {
+                    (record.command.Get() != &command &&
+                     (record.command.Get() == nullptr ||
+                      record.command->GetName() != command.GetName()))) {
                     continue;
                 }
-                const CanExecuteRoutedEventHandler& handler = record.binding.GetCanExecute();
+                const CanExecuteRoutedEventHandler& handler = record.canExecute;
                 if (!handler.Empty()) {
                     handler.Invoke(&element, args);
-                } else if (!record.binding.GetExecuted().Empty()) {
+                } else if (!record.executed.Empty()) {
                     args.SetCanExecute(true);
                 }
                 if (args.GetHandled() || !args.GetContinueRouting()) return false;
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return args.GetCanExecute();
 }
 
-Base::Result<bool> CommandState::Execute(
+bool CommandState::Execute(
     RoutedCommand& command,
     const Meta::Value& parameter,
     UIElement& target) noexcept {
     if (!target.GetIsEnabled()) return false;
-    Base::Result<bool> allowed = CanExecute(command, parameter, target);
-    if (!allowed || !allowed.Value()) {
-        return allowed ? Base::Result<bool>(false)
-                       : Base::Result<bool>(allowed.GetStatus());
+    if (!CanExecute(command, parameter, target)) {
+        return false;
     }
 
     PruneStaleBindings();
@@ -507,19 +743,21 @@ Base::Result<bool> CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(owner);
-            const VisualHandle ownerHandle = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle ownerHandle = ElementTree::HandleOf(element);
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
-                    record.binding.GetCommand() != &command) {
+                    (record.command.Get() != &command &&
+                     (record.command.Get() == nullptr ||
+                      record.command->GetName() != command.GetName()))) {
                     continue;
                 }
-                const ExecutedRoutedEventHandler& handler = record.binding.GetExecuted();
+                const ExecutedRoutedEventHandler& handler = record.executed;
                 if (!handler.Empty()) {
                     handler.Invoke(&element, args);
                     invoked = true;
@@ -528,29 +766,29 @@ Base::Result<bool> CommandState::Execute(
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
     return invoked;
 }
 
-Base::Result<bool> CommandState::ProcessInput(
+bool CommandState::ProcessInput(
     UIElement& target,
     const KeyboardInput& input) noexcept {
     if (input.action != KeyboardAction::Down || !target.GetIsEnabled()) return false;
     Base::Result<void> verified = VerifyTarget(target);
-    if (!verified) return verified.GetStatus();
+    if (!verified) return false;
 
     PruneStaleBindings();
     PruneStaleInputBindings();
-    Base::Result<bool> result(false);
+    bool result = false;
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!current.PropertyRegistry().Types().IsDerivedFrom(
+            if (!DependencyObjectAccess::PropertyRegistry((current)).Types().IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
             auto& element = static_cast<UIElement&>(current);
-            const VisualHandle owner = Aero::Core::VisualFacet::Handle(element);
+            const VisualHandle owner = ElementTree::HandleOf(element);
             for (const InputBindingRecord& record : inputBindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation ||
@@ -568,21 +806,62 @@ Base::Result<bool> CommandState::ProcessInput(
                     record.owner.generation != owner.generation) {
                     continue;
                 }
-                RoutedCommand* command = record.binding.GetCommand();
+                RoutedCommand* command = record.command.Get();
                 if (command == nullptr || !command->MatchesInput(input)) continue;
-                Base::Result<bool> allowed = CanExecute(*command, Meta::Value::Unset(), target);
-                if (!allowed) {
-                    result = allowed.GetStatus();
-                    return false;
-                }
-                if (allowed.Value()) {
+                if (CanExecute(*command, Meta::Value::Unset(), target)) {
                     result = Execute(*command, Meta::Value::Unset(), target);
                     return false;
                 }
             }
             return true;
         });
-    if (!routed) return routed.GetStatus();
+    if (!routed) return false;
+    return result;
+}
+
+bool CommandState::ProcessInput(
+    UIElement& target,
+    const PointerInput& input) noexcept {
+    if (!target.GetIsEnabled()) return false;
+    Base::Result<void> verified = VerifyTarget(target);
+    if (!verified) return false;
+
+    PruneStaleBindings();
+    PruneStaleInputBindings();
+    bool result = false;
+    Base::Result<void> routed = events_->VisitRoute(
+        target, RoutingStrategy::Bubble,
+        [&](DependencyObject& current) noexcept {
+            if (!DependencyObjectAccess::PropertyRegistry((current)).Types().IsDerivedFrom(
+                    current.RuntimeType(), UIElement::StaticTypeId())) {
+                return true;
+            }
+            auto& element = static_cast<UIElement&>(current);
+            const VisualHandle owner = ElementTree::HandleOf(element);
+            for (const InputBindingRecord& record : inputBindings_) {
+                if (record.owner.index != owner.index ||
+                    record.owner.generation != owner.generation ||
+                    !record.binding || !record.binding->GetCommand()) {
+                    continue;
+                }
+                bool matches = false;
+                if (MouseBinding* mouse =
+                        ::Aero::TryCast<MouseBinding>(record.binding.Get())) {
+                    matches = mouse->Matches(input);
+                } else {
+                    matches = record.binding->GetCommand()->MatchesPointer(input);
+                }
+                if (matches) {
+                    result = Execute(
+                        *record.binding->GetCommand(),
+                        Meta::Value::Unset(),
+                        target);
+                    return false;
+                }
+            }
+            return true;
+        });
+    if (!routed) return false;
     return result;
 }
 
@@ -601,3 +880,118 @@ void CommandState::InvalidateRequerySuggested() const noexcept {
 }
 
 } // namespace Aero
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Input;
+namespace {
+
+Base::Result<Value> ConvertRoutedCommandReference(
+    TypeId targetType,
+    Base::StringView text,
+    void*) noexcept {
+    const Base::StringView name =
+        ::Aero::Base::ValueConversion::Trim(text);
+    if ((targetType != ICommand::StaticTypeId() &&
+         targetType != RoutedCommand::StaticTypeId()) ||
+        name.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Command reference requires a non-empty routed command name");
+    }
+    Base::Ref<RoutedCommand> command =
+        RoutedCommand::ResolveAuthored(name);
+    if (!command) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Static routed command member is not registered");
+    }
+    return Value::FromObject(
+        targetType,
+        Base::Ref<Base::Object>(
+            std::move(command)));
+}
+} // namespace
+} // namespace Aero::MetadataSupport
+
+namespace Aero {
+
+AERO_DESCRIBE(CanExecuteRoutedEventArgs) {
+    using namespace Aero::Meta;
+    Register<CanExecuteRoutedEventArgs>(context);
+}
+
+AERO_DESCRIBE(ExecutedRoutedEventArgs) {
+    using namespace Aero::Meta;
+    Register<ExecutedRoutedEventArgs>(context);
+}
+
+} // namespace Aero
+
+namespace Aero::Input {
+
+AERO_DESCRIBE(ICommand) {
+    using namespace Aero::Meta;
+    Register<ICommand>(context, TypeFlags::Abstract)
+            .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
+}
+
+AERO_DESCRIBE(InputGesture) {
+    using namespace Aero::Meta;
+    Register<InputGesture>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(KeyGesture) {
+    using namespace Aero::Meta;
+    Register<KeyGesture>(context);
+}
+
+AERO_DESCRIBE(RoutedCommand) {
+    using namespace Aero::Meta;
+    Register<RoutedCommand>(context)
+            .TextConverter(&::Aero::MetadataSupport::ConvertRoutedCommandReference);
+}
+
+AERO_DESCRIBE(RoutedUICommand) {
+    using namespace Aero::Meta;
+    Register<RoutedUICommand>(context);
+}
+
+AERO_DESCRIBE(InputBinding) {
+    using namespace Aero::Meta;
+    Register<InputBinding>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(CommandBinding) {
+    using namespace Aero::Meta;
+    Register<CommandBinding>(context)
+            .Property("Command", &CommandBinding::GetCommandName, &CommandBinding::SetCommandName)
+            .Property("Executed", &CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName)
+            .Property("CanExecute", &CommandBinding::GetCanExecuteName, &CommandBinding::SetCanExecuteName)
+            .Factory();
+}
+
+AERO_DESCRIBE(ApplicationCommands) {
+    using namespace Aero::Meta;
+    Register<ApplicationCommands>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(KeyBinding) {
+    using namespace Aero::Meta;
+    Register<KeyBinding>(context)
+            .Property("Command", &KeyBinding::GetCommandName, &KeyBinding::SetCommandName)
+            .Property("Key", &KeyBinding::GetKeyName, &KeyBinding::SetKeyName)
+            .Property("Modifiers", &KeyBinding::GetModifiersName, &KeyBinding::SetModifiersName)
+            .Factory();
+}
+
+AERO_DESCRIBE(MouseBinding) {
+    using namespace Aero::Meta;
+    Register<MouseBinding>(context)
+            .Property("Command", &MouseBinding::GetCommandName, &MouseBinding::SetCommandName)
+            .Factory();
+}
+
+} // namespace Aero::Input
+

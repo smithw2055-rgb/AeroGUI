@@ -1,0 +1,18 @@
+# Aggregates precompiled D3D11 shader header files into a single header
+if(NOT DEFINED MANIFEST_FILE)
+    message(FATAL_ERROR "MANIFEST_FILE is required")
+endif()
+if(NOT DEFINED OUTPUT_FILE)
+    message(FATAL_ERROR "OUTPUT_FILE is required")
+endif()
+
+file(READ "${MANIFEST_FILE}" shader_files)
+file(WRITE "${OUTPUT_FILE}" "// Aggregated D3D11 precompiled shaders for AeroGUI\n#pragma once\n\n")
+foreach(shader_file IN LISTS shader_files)
+    if(EXISTS "${shader_file}")
+        file(READ "${shader_file}" shader_content)
+        file(APPEND "${OUTPUT_FILE}" "${shader_content}\n")
+    else()
+        message(FATAL_ERROR "Missing shader file: ${shader_file}")
+    endif()
+endforeach()

@@ -2,10 +2,10 @@
 #include <AeroApp/Application.hpp>
 
 #include <AeroApp/WindowInterop.hpp>
-#include "ApplicationState.hpp"
+#include "ApplicationHost.hpp"
 #include "DesktopHost.hpp"
 
-namespace Aero {
+namespace Aero::App {
 
 void Window::InitializeComponent() noexcept {
     componentRequested_ = true;
@@ -18,38 +18,71 @@ void Window::InitializeComponent(
     static_cast<void>(componentUri_.Assign(componentUri));
 }
 
-Base::Result<void> Window::Show() noexcept {
-    auto* state = static_cast<::Aero::App::WindowHostState*>(
-        hostState_);
-    if (state == nullptr) {
+void Window::Show() noexcept {
+    if (host_ == nullptr) {
         Application* application = Application::Current();
-        auto* applicationState = application != nullptr
-            ? static_cast<::Aero::App::ApplicationHostState*>(
-                  application->hostState_)
-            : nullptr;
-        if (applicationState == nullptr ||
-            applicationState->showWindow == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "Window.Show requires a running Application host");
+        if (application != nullptr && application->host_ != nullptr) {
+            application->host_->ShowWindow(*this);
         }
-        Base::Result<void> attached =
-            applicationState->showWindow(applicationState->context, *this);
-        if (!attached) return attached.GetStatus();
-        state = static_cast<::Aero::App::WindowHostState*>(
-            hostState_);
     }
-    if (state == nullptr || state->show == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Window is not attached to an application host");
+    if (host_ == nullptr) {
+        return;
     }
-    Base::Result<void> shown = state->show(state->context);
-    if (shown) {
-        NotifySourceInitialized();
-        NotifyActivated();
+    host_->Show();
+    NotifySourceInitialized();
+    NotifyActivated();
+}
+
+bool Window::ShowDialog() noexcept {
+    if (dialogActive_ || GetIsOpen()) {
+        return false;
     }
-    return shown;
+    dialogActive_ = true;
+    Show();
+    Application* application = Application::Current();
+    if (application == nullptr || application->host_ == nullptr) {
+        dialogActive_ = false;
+        return false;
+    }
+    const bool result = application->host_->RunDialog(*this);
+    dialogActive_ = false;
+    return result;
+}
+
+Nullable<bool> Window::GetDialogResult() const noexcept {
+    return GetValue(DialogResultProperty);
+}
+
+void Window::SetDialogResult(Nullable<bool> value) noexcept {
+    SetValue(DialogResultProperty, value);
+}
+
+Base::Ref<Window> Window::GetOwner() const noexcept {
+    return GetValue(OwnerProperty);
+}
+
+void Window::SetOwner(Window* owner) noexcept {
+    if (owner == nullptr || owner == this) {
+        SetValue(OwnerProperty, Base::Ref<Window>{});
+        return;
+    }
+    SetValue(OwnerProperty, Base::Ref<Window>::TryFromBorrowed(*owner));
+}
+
+void Window::SetOwner(Base::Ref<Window> owner) noexcept {
+    if (owner.Get() == this) owner.Reset();
+    SetValue(OwnerProperty, std::move(owner));
+}
+
+void Window::OnPropertyChanged(
+    const Meta::DependencyPropertyChangedEventArgs& args) noexcept {
+    Controls::ContentControl::OnPropertyChanged(args);
+    if (!dialogActive_ || closed_ ||
+        args.GetProperty() != DialogResultProperty.Handle()) {
+        return;
+    }
+    const Nullable<bool> result = GetDialogResult();
+    if (result.GetHasValue()) Close();
 }
 
 void Window::SetWindowState(WindowState value) noexcept {
@@ -62,32 +95,27 @@ void Window::SetWindowState(WindowState value) noexcept {
 }
 
 bool Window::GetIsOpen() const noexcept {
-    const auto* state =
-        static_cast<const ::Aero::App::WindowHostState*>(hostState_);
-    return state != nullptr && state->isOpen != nullptr && state->isOpen(state->context);
+    return host_ != nullptr && host_->IsOpen();
 }
 
-Base::Result<void> Window::Close() noexcept {
-    if (closed_) return {};
+void Window::Close() noexcept {
+    if (closed_) return;
     CancelEventArgs closing;
     OnClosing(closing);
-    if (closing.GetCancel()) return {};
-    auto* state = static_cast<::Aero::App::WindowHostState*>(
-        hostState_);
-    if (state != nullptr && state->close != nullptr) state->close(state->context);
+    if (closing.GetCancel()) return;
+    if (host_ != nullptr) host_->Close();
     NotifyClosed();
-    return {};
 }
 
-void Window::Attach(void* hostState) noexcept {
-    hostState_ = hostState;
+void Window::Attach(IWindowHost* host) noexcept {
+    host_ = host;
     sourceInitialized_ = false;
     contentRendered_ = false;
     closed_ = false;
 }
 
 void Window::Detach() noexcept {
-    hostState_ = nullptr;
+    host_ = nullptr;
 }
 
 void Window::NotifySourceInitialized() noexcept {
@@ -124,21 +152,20 @@ void Window::NotifyClosed() noexcept {
     OnClosed(args);
 }
 
-} // namespace Aero
-
-namespace Aero::App {
-
-Platform::NativeWindowHandle WindowInterop::NativeHandle(const ::Aero::Window& window) noexcept {
-    const auto* state =
-        static_cast<const ::Aero::App::WindowHostState*>(
-            window.hostState_);
-    return state != nullptr && state->nativeHandle != nullptr ? state->nativeHandle(state->context) : Platform::NativeWindowHandle{};
+bool Window::ComponentRequested() const noexcept {
+    return componentRequested_;
 }
 
-::Aero::View* WindowInterop::HostedView(::Aero::Window& window) noexcept {
-    auto* state = static_cast<::Aero::App::WindowHostState*>(
-        window.hostState_);
-    return state != nullptr && state->hostedView != nullptr ? state->hostedView(state->context) : nullptr;
+Base::StringView Window::ComponentUri() const noexcept {
+    return componentUri_.View();
+}
+
+Platform::NativeWindowHandle WindowInterop::NativeHandle(const Window& window) noexcept {
+    return window.host_ != nullptr ? window.host_->NativeHandle() : Platform::NativeWindowHandle{};
+}
+
+::Aero::View* WindowInterop::HostedView(Window& window) noexcept {
+    return window.host_ != nullptr ? window.host_->HostedView() : nullptr;
 }
 
 } // namespace Aero::App

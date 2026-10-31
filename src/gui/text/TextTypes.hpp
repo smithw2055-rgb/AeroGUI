@@ -54,9 +54,9 @@ public:
     FontStyle Style() const noexcept { return style_; }
     FontStretch Stretch() const noexcept { return stretch_; }
 
-    Base::Result<void> SetFamily(Base::StringView family) noexcept;
-    Base::Result<void> SetLanguage(Base::StringView language) noexcept;
-    Base::Result<void> SetWeight(std::uint16_t weight) noexcept;
+    void SetFamily(Base::StringView family) noexcept;
+    void SetLanguage(Base::StringView language) noexcept;
+    void SetWeight(std::uint16_t weight) noexcept;
     void SetStyle(FontStyle style) noexcept { style_ = style; }
     void SetStretch(FontStretch stretch) noexcept { stretch_ = stretch; }
 
@@ -191,6 +191,7 @@ struct GlyphBitmap  {
     std::uint32_t strideBytes = 0U;
     std::int32_t bearingX = 0;
     std::int32_t bearingY = 0;
+    float advanceX = 0.0F;
     Base::Vector<std::uint8_t> pixels;
 };
 

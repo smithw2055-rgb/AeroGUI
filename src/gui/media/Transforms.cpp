@@ -1,14 +1,67 @@
-#include <Aero/Media/Transforms.hpp>
-#include "gui/core/State.hpp" 
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
-
+#include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Transform3D.hpp>
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include <Aero/FrameworkElement.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+#include <Aero/Interactivity/Conditions.hpp>
+#include <Aero/Interactivity/Behavior.hpp>
+#include <Aero/Interactivity/BlendBehaviors.hpp>
+#include <Aero/Interactivity/Interaction.hpp>
+#include <Aero/Interactivity/InteractionTriggers.hpp>
+#include <Aero/Interactivity/TriggerAction.hpp>
+#include <Aero/Style.hpp>
+#include <Aero/Triggers.hpp>
+#include <Aero/Resources.hpp>
+#include <Aero/Events.hpp>
+#include <Aero/Media/Animation.hpp>
+#include <Aero/Media/Animation/MediaActions.hpp>
+#include <Aero/Media/Animation/StoryboardActions.hpp>
+#include <Aero/Media/Animation/StoryboardCompletedTrigger.hpp>
+#include <Aero/Media/Animation/TimerTrigger.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Effects.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/MediaElement.hpp>
+#include <Aero/Media/Geometries.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Layout.hpp>
+#include <Aero/Collections.hpp>
+#include <Aero/Input.hpp>
+#include <Aero/ICommand.hpp>
+#include <Aero/RoutedCommand.hpp>
+#include <Aero/InputBinding.hpp>
+#include <Aero/EventSetter.hpp>
+#include <Aero/KeyboardNavigation.hpp>
+#include <Aero/CommandBinding.hpp>
+#include <Aero/ApplicationCommands.hpp>
+#include <Aero/InputGesture.hpp>
+#include <Aero/Data/Binding.hpp>
+#include <Aero/Data/MultiBinding.hpp>
+#include <Aero/Data/BooleanToVisibilityConverter.hpp>
+#include <Aero/Data/IMultiValueConverter.hpp>
+#include <Aero/Data/IValueConverter.hpp>
+#include <Aero/DataObject.hpp>
+#include <Aero/DragDrop.hpp>
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero::Media {
 namespace {
@@ -33,7 +86,7 @@ bool ContainsTransform(
     const Transform& value,
     const Transform* sought) noexcept {
     if (&value == sought) return true;
-    if (!value.PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((value)).Types().IsDerivedFrom(
             value.RuntimeType(), TransformGroup::StaticTypeId())) {
         return false;
     }
@@ -50,9 +103,8 @@ bool ContainsTransform(
 
 namespace Aero::Media {
 
-std::uint64_t TransformRuntime::Revision(
-    const Transform& transform) noexcept {
-    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(transform);
+std::uint64_t Transform::GetRevision() const noexcept {
+    return (*this).Revision();
 }
 
 } // namespace Aero::Media
@@ -155,40 +207,41 @@ bool InvertTransform(
     return Base::IsFiniteTransform(inverse);
 }
 
-Base::Transform2D CompositeTransform3D::GetProjectedMatrix() const noexcept {
-    constexpr double Perspective = 1000.0;
-    const double radiansX = GetRotationX() * Pi / 180.0;
-    const double radiansY = GetRotationY() * Pi / 180.0;
-    const double radiansZ = GetRotationZ() * Pi / 180.0;
-    const double depth = std::max(-Perspective * 0.95,
-        std::min(Perspective * 0.95, GetTranslateZ() + GetCenterZ()));
-    const double perspective = Perspective / (Perspective - depth);
-    const double scaleX = GetScaleX() * std::cos(radiansY) * perspective;
-    const double scaleY = GetScaleY() * std::cos(radiansX) * perspective;
-    const double cosine = std::cos(radiansZ);
-    const double sine = std::sin(radiansZ);
-    Base::Transform2D matrix;
-    matrix.m11 = scaleX * cosine;
-    matrix.m12 = scaleX * sine;
-    matrix.m21 = -scaleY * sine;
-    matrix.m22 = scaleY * cosine;
-    matrix.dx = GetTranslateX();
-    matrix.dy = GetTranslateY();
-    return AroundCenter(matrix, GetCenterX(), GetCenterY());
+Base::Transform3 CompositeTransform3D::GetTransform3D() const noexcept {
+    constexpr double DegToRad = Pi / 180.0;
+    const double cx = GetCenterX();
+    const double cy = GetCenterY();
+    const double cz = GetCenterZ();
+    Base::Transform3 transform = Base::MakeTranslate3(-cx, -cy, -cz);
+    transform = Base::Compose(
+        transform,
+        Base::MakeScale3(GetScaleX(), GetScaleY(), GetScaleZ()));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationX(GetRotationX() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationY(GetRotationY() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeRotationZ(GetRotationZ() * DegToRad));
+    transform = Base::Compose(
+        transform,
+        Base::MakeTranslate3(
+            cx + GetTranslateX(),
+            cy + GetTranslateY(),
+            cz + GetTranslateZ()));
+    return transform;
 }
 
-double TranslateTransform::GetX() const noexcept {
-    return GetValueOr(XProperty, 0.0);
+Base::Transform3 PerspectiveTransform3D::GetTransform3D() const noexcept {
+    return Base::IdentityTransform3();
 }
-double TranslateTransform::GetY() const noexcept {
-    return GetValueOr(YProperty, 0.0);
+
+Base::Transform3 MatrixTransform3D::GetTransform3D() const noexcept {
+    return GetMatrix();
 }
-void TranslateTransform::SetX(double value) noexcept {
-    SetValue(XProperty, value);
-}
-void TranslateTransform::SetY(double value) noexcept {
-    SetValue(YProperty, value);
-}
+
 Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.dx = GetX();
@@ -196,30 +249,6 @@ Base::Transform2D TranslateTransform::GetMatrix() const noexcept {
     return value;
 }
 
-double ScaleTransform::GetScaleX() const noexcept {
-    return GetValueOr(ScaleXProperty, 1.0);
-}
-double ScaleTransform::GetScaleY() const noexcept {
-    return GetValueOr(ScaleYProperty, 1.0);
-}
-double ScaleTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
-}
-double ScaleTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
-}
-void ScaleTransform::SetScaleX(double value) noexcept {
-    SetValue(ScaleXProperty, value);
-}
-void ScaleTransform::SetScaleY(double value) noexcept {
-    SetValue(ScaleYProperty, value);
-}
-void ScaleTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void ScaleTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.m11 = GetScaleX();
@@ -227,24 +256,6 @@ Base::Transform2D ScaleTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double RotateTransform::GetAngle() const noexcept {
-    return GetValueOr(AngleProperty, 0.0);
-}
-double RotateTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
-}
-double RotateTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
-}
-void RotateTransform::SetAngle(double value) noexcept {
-    SetValue(AngleProperty, value);
-}
-void RotateTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void RotateTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D RotateTransform::GetMatrix() const noexcept {
     const double radians = GetAngle() * Pi / 180.0;
     const double cosine = std::cos(radians);
@@ -257,30 +268,6 @@ Base::Transform2D RotateTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
-double SkewTransform::GetAngleX() const noexcept {
-    return GetValueOr(AngleXProperty, 0.0);
-}
-double SkewTransform::GetAngleY() const noexcept {
-    return GetValueOr(AngleYProperty, 0.0);
-}
-double SkewTransform::GetCenterX() const noexcept {
-    return GetValueOr(CenterXProperty, 0.0);
-}
-double SkewTransform::GetCenterY() const noexcept {
-    return GetValueOr(CenterYProperty, 0.0);
-}
-void SkewTransform::SetAngleX(double value) noexcept {
-    SetValue(AngleXProperty, value);
-}
-void SkewTransform::SetAngleY(double value) noexcept {
-    SetValue(AngleYProperty, value);
-}
-void SkewTransform::SetCenterX(double value) noexcept {
-    SetValue(CenterXProperty, value);
-}
-void SkewTransform::SetCenterY(double value) noexcept {
-    SetValue(CenterYProperty, value);
-}
 Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     Base::Transform2D value;
     value.m21 = std::tan(GetAngleX() * Pi / 180.0);
@@ -288,49 +275,53 @@ Base::Transform2D SkewTransform::GetMatrix() const noexcept {
     return AroundCenter(value, GetCenterX(), GetCenterY());
 }
 
+Base::Transform2D CompositeTransform::GetMatrix() const noexcept {
+    Base::Transform2D scale;
+    scale.m11 = GetScaleX();
+    scale.m22 = GetScaleY();
+    Base::Transform2D skew;
+    skew.m21 = std::tan(GetSkewX() * Pi / 180.0);
+    skew.m12 = std::tan(GetSkewY() * Pi / 180.0);
+    const double radians = GetRotation() * Pi / 180.0;
+    const double cosine = std::cos(radians);
+    const double sine = std::sin(radians);
+    Base::Transform2D rotate;
+    rotate.m11 = cosine;
+    rotate.m12 = sine;
+    rotate.m21 = -sine;
+    rotate.m22 = cosine;
+    Base::Transform2D translate;
+    translate.dx = GetTranslateX();
+    translate.dy = GetTranslateY();
+    Base::Transform2D composed = ComposeTransforms(scale, skew);
+    composed = ComposeTransforms(composed, rotate);
+    composed = AroundCenter(composed, GetCenterX(), GetCenterY());
+    return ComposeTransforms(composed, translate);
+}
+
 Base::Transform2D MatrixTransform::GetMatrixValue() const noexcept {
-    return GetValueOr(MatrixProperty, Base::Transform2D{});
+    return GetValue(MatrixProperty);
 }
 void MatrixTransform::SetMatrixValue(
     Base::Transform2D value) noexcept {
     DependencyObject::SetValue(MatrixProperty, value);
 }
 
-Base::Result<void> TransformGroup::AddChild(
+void TransformGroup::AddChild(
     Base::Ref<Transform> value) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!value) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "TransformGroup child cannot be null");
-    }
-    if (ContainsTransform(*value, this)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::CycleDetected,
-            "TransformGroup cannot contain itself directly or indirectly");
-    }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
+    if (!value) { AERO_ASSERT(false); return; }
+    if (ContainsTransform(*value, this)) { AERO_ASSERT(false); return; }
     if (childChangedHandler_.Empty()) {
         childChangedHandler_ = FreezableChangedHandler(
             this, &TransformGroup::OnChildChanged);
     }
     Transform* retained = value.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(childChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(childChangedHandler_);
     }
-    Base::Result<void> added =
-        children_.PushBack(std::move(value));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(childChangedHandler_));
-        }
-        return added.GetStatus();
-    }
+    children_.Add(std::move(value));
     WritePostscript();
-    return {};
 }
 
 void TransformGroup::ClearChildren() noexcept {
@@ -364,10 +355,46 @@ bool TransformGroup::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!child->CanFreeze()) return false;
         } else {
-            static_cast<void>(child->Freeze());
+            child->Freeze();
         }
     }
     return Transform::FreezeCore(isChecking);
+}
+
+Base::Ref<Freezable> TransformGroup::CreateInstanceCore() const {
+    return Base::MakeRef<TransformGroup>();
+}
+
+void TransformGroup::CloneCore(const Freezable& source) {
+    Transform::CloneCore(source);
+    const auto* src = TryCast<TransformGroup>(&source);
+    if (src != nullptr) {
+        ClearChildren();
+        for (const Base::Ref<Transform>& child : src->GetChildren()) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->Clone();
+                if (cloned) {
+                    AddChild(Base::Ref<Transform>::FromBorrowed(*static_cast<Transform*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+void TransformGroup::CloneCurrentValueCore(const Freezable& source) {
+    Transform::CloneCurrentValueCore(source);
+    const auto* src = TryCast<TransformGroup>(&source);
+    if (src != nullptr) {
+        ClearChildren();
+        for (const Base::Ref<Transform>& child : src->GetChildren()) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->CloneCurrentValue();
+                if (cloned) {
+                    AddChild(Base::Ref<Transform>::FromBorrowed(*static_cast<Transform*>(cloned.Get())));
+                }
+            }
+        }
+    }
 }
 
 Base::Transform2D TransformGroup::GetMatrix() const noexcept {
@@ -381,3 +408,149 @@ Base::Transform2D TransformGroup::GetMatrix() const noexcept {
 }
 
 } // namespace Aero::Media
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Media;
+namespace {
+
+void AddTransformGroupChild(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value) return;
+    Base::Ref<Transform> retained =
+        Base::Ref<Transform>::TryFromBorrowed(
+            static_cast<Transform&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<void>(
+        static_cast<TransformGroup&>(owner)
+            .AddChild(std::move(retained)));
+}
+
+void ClearTransformGroupChildren(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<TransformGroup&>(owner).ClearChildren();
+    return;
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+namespace Aero::Media {
+
+AERO_DESCRIBE(Transform) {
+    using namespace Aero::Meta;
+    Register<Transform>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(TranslateTransform) {
+    using namespace Aero::Meta;
+    Register<TranslateTransform>(context)
+            .Property(TranslateTransform::XProperty, 0.0, AffectsRender)
+            .Property(TranslateTransform::YProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(ScaleTransform) {
+    using namespace Aero::Meta;
+    Register<ScaleTransform>(context)
+            .Property(ScaleTransform::ScaleXProperty, 1.0, AffectsRender)
+            .Property(ScaleTransform::ScaleYProperty, 1.0, AffectsRender)
+            .Property(ScaleTransform::CenterXProperty, 0.0, AffectsRender)
+            .Property(ScaleTransform::CenterYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(RotateTransform) {
+    using namespace Aero::Meta;
+    Register<RotateTransform>(context)
+            .Property(RotateTransform::AngleProperty, 0.0, AffectsRender)
+            .Property(RotateTransform::CenterXProperty, 0.0, AffectsRender)
+            .Property(RotateTransform::CenterYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(SkewTransform) {
+    using namespace Aero::Meta;
+    Register<SkewTransform>(context)
+            .Property(SkewTransform::AngleXProperty, 0.0, AffectsRender)
+            .Property(SkewTransform::AngleYProperty, 0.0, AffectsRender)
+            .Property(SkewTransform::CenterXProperty, 0.0, AffectsRender)
+            .Property(SkewTransform::CenterYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(MatrixTransform) {
+    using namespace Aero::Meta;
+    Register<MatrixTransform>(context)
+            .Property(MatrixTransform::MatrixProperty, Base::Transform2D{}, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(CompositeTransform) {
+    using namespace Aero::Meta;
+    Register<CompositeTransform>(context)
+            .Property(CompositeTransform::CenterXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::CenterYProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::ScaleXProperty, 1.0, AffectsRender)
+            .Property(CompositeTransform::ScaleYProperty, 1.0, AffectsRender)
+            .Property(CompositeTransform::SkewXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::SkewYProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::RotationProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::TranslateXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform::TranslateYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(TransformGroup) {
+    using namespace Aero::Meta;
+    Register<TransformGroup>(context)
+            .Content<Transform>("Children", ContentKind::Collection, &::Aero::MetadataSupport::AddTransformGroupChild, &::Aero::MetadataSupport::ClearTransformGroupChildren)
+            .Factory();
+}
+
+AERO_DESCRIBE(Transform3D) {
+    using namespace Aero::Meta;
+    Register<Transform3D>(context, TypeFlags::Abstract);
+}
+
+AERO_DESCRIBE(CompositeTransform3D) {
+    using namespace Aero::Meta;
+    Register<CompositeTransform3D>(context)
+            .Property(CompositeTransform3D::CenterXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::CenterYProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::CenterZProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::RotationXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::RotationYProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::RotationZProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::ScaleXProperty, 1.0, AffectsRender)
+            .Property(CompositeTransform3D::ScaleYProperty, 1.0, AffectsRender)
+            .Property(CompositeTransform3D::ScaleZProperty, 1.0, AffectsRender)
+            .Property(CompositeTransform3D::TranslateXProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::TranslateYProperty, 0.0, AffectsRender)
+            .Property(CompositeTransform3D::TranslateZProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(PerspectiveTransform3D) {
+    using namespace Aero::Meta;
+    Register<PerspectiveTransform3D>(context)
+            .Property(PerspectiveTransform3D::DepthProperty, Base::DefaultPerspectiveDepth, AffectsRender)
+            .Property(PerspectiveTransform3D::OffsetXProperty, 0.0, AffectsRender)
+            .Property(PerspectiveTransform3D::OffsetYProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(MatrixTransform3D) {
+    using namespace Aero::Meta;
+    Register<MatrixTransform3D>(context)
+            .Property(MatrixTransform3D::MatrixProperty, Base::IdentityTransform3(), AffectsRender)
+            .Factory();
+}
+
+} // namespace Aero::Media
+

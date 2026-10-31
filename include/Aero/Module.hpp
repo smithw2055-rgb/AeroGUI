@@ -1,24 +1,45 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/MetadataId.hpp>
+#include <Aero/Base/Object.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Markup/ResourceScope.hpp>
+#include <Aero/Value.hpp>
 #include <Aero/Version.hpp>
 
 #include <cstdint>
 
 namespace Aero {
 
+class ResourceDictionary;
+class ResourceKey;
+
+namespace Markup {
+
+using AddResourceCallback = Result<void> (*)(Base::Object& scopeOwner, const ResourceKey& key, const Meta::Value& value,
+    void* context) noexcept;
+
+using ResolveResourceScopeCallback = ResourceDictionary* (*)(Base::Object& scopeOwner, void* context) noexcept;
+
+struct ResourceScopeRegistration {
+    Meta::TypeId type = Meta::InvalidTypeId;
+    AddResourceCallback addResource = nullptr;
+    ResolveResourceScopeCallback resolve = nullptr;
+    void* context = nullptr;
+    bool inherited = true;
+    std::uint32_t abiVersion = XamlFacetAbiVersion;
+};
+
+} // namespace Markup
+
 namespace Meta { class Registration; }
 
 
-using ModuleRegisterCallback = Result<void> (*)(
-    Meta::Registration& registration) noexcept;
-using ModuleRegisterContextCallback = Result<void> (*)(
-    Meta::Registration& registration,
-    void* userContext) noexcept;
+using ModuleRegisterCallback = Result<void> (*)(Meta::Registration& registration) noexcept;
+using ModuleRegisterContextCallback = Result<void> (*)(Meta::Registration& registration, void* userContext) noexcept;
+
 struct ModuleDependency  {
     StringView name;
     std::uint32_t minimumSchemaVersion = 1U;
@@ -35,13 +56,24 @@ struct ModuleRegistration  {
     Span<const Markup::ResourceScopeRegistration> resourceScopes;
 };
 
-constexpr ModuleRegistration DefineModule(
-    StringView name,
-    ModuleRegisterCallback registerModule) noexcept {
+constexpr ModuleRegistration DefineModule(StringView name, ModuleRegisterCallback registerModule) noexcept {
     ModuleRegistration registration;
     registration.name = name;
     registration.registerModule = registerModule;
     return registration;
+}
+
+// One module declaration registers ordinary code-behind/custom-control types,
+// default factories, and optional DescribeComponent metadata. Applications no
+// longer author Registry or XAML facet callbacks for these types.
+// Defined here (rather than Meta.hpp) so all module composition lives in one
+// lightweight header; the component-type expansion is provided by Meta.
+namespace Meta {
+template<class... TComponents> Result<void> RegisterComponentTypes(Registration& registration) noexcept;
+} // namespace Meta
+
+template<class... TComponents> constexpr ModuleRegistration DefineComponentModule(StringView name) noexcept {
+    return DefineModule(name, &Meta::RegisterComponentTypes<TComponents...>);
 }
 
 } // namespace Aero

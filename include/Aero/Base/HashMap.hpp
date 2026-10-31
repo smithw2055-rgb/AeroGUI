@@ -3,7 +3,6 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Hash.hpp>
-#include <Aero/Base/Result.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -13,9 +12,7 @@
 
 namespace Aero::Base {
 
-template<class K, class V, class Hash = DefaultHash<K>,
-    class Equal = DefaultEqual<K>>
-class HashMap  {
+template<class K, class V, class Hash = DefaultHash<K>, class Equal = DefaultEqual<K>> class HashMap  {
 public:
     using KeyType = K;
     using MappedType = V;
@@ -30,9 +27,7 @@ public:
     private:
         friend class HashMap;
 
-        template<class KeyArg, class ValueArg>
-        Entry(HashCode hash, KeyArg&& key, ValueArg&& value)
-            : hash_(hash),
+        template<class KeyArg, class ValueArg> Entry(HashCode hash, KeyArg&& key, ValueArg&& value) : hash_(hash),
               key_(std::forward<KeyArg>(key)),
               value_(std::forward<ValueArg>(value)) {}
 
@@ -57,23 +52,16 @@ private:
         BucketState state = BucketState::Empty;
         alignas(Entry) unsigned char storage[sizeof(Entry)];
 
-        Entry* GetEntry() noexcept {
-            return std::launder(reinterpret_cast<Entry*>(storage));
-        }
+        Entry* GetEntry() noexcept { return std::launder(reinterpret_cast<Entry*>(storage)); }
 
-        const Entry* GetEntry() const noexcept {
-            return std::launder(reinterpret_cast<const Entry*>(storage));
-        }
+        const Entry* GetEntry() const noexcept { return std::launder(reinterpret_cast<const Entry*>(storage)); }
     };
 
 public:
-    template<bool IsConst>
-    class IteratorBase  {
+    template<bool IsConst> class IteratorBase  {
     private:
-        using MapType = typename std::conditional<IsConst,
-            const HashMap, HashMap>::type;
-        using EntryType = typename std::conditional<IsConst,
-            const Entry, Entry>::type;
+        using MapType = typename std::conditional<IsConst, const HashMap, HashMap>::type;
+        using EntryType = typename std::conditional<IsConst, const Entry, Entry>::type;
 
     public:
         IteratorBase() noexcept = default;
@@ -83,9 +71,7 @@ public:
             return *map_->buckets_[index_].GetEntry();
         }
 
-        EntryType* operator->() const noexcept {
-            return &(**this);
-        }
+        EntryType* operator->() const noexcept { return &(**this); }
 
         IteratorBase& operator++() noexcept {
             AERO_ASSERT(map_ != nullptr && index_ <= map_->capacity_);
@@ -100,23 +86,16 @@ public:
             return map_ == other.map_ && index_ == other.index_;
         }
 
-        bool operator!=(const IteratorBase& other) const noexcept {
-            return !(*this == other);
-        }
+        bool operator!=(const IteratorBase& other) const noexcept { return !(*this == other); }
 
     private:
         friend class HashMap;
 
-        IteratorBase(MapType* map, SizeType index) noexcept
-            : map_(map), index_(index) {
-            SkipEmpty();
-        }
+        IteratorBase(MapType* map, SizeType index) noexcept : map_(map), index_(index) { SkipEmpty(); }
 
         void SkipEmpty() noexcept {
             while (map_ != nullptr && index_ < map_->capacity_ &&
-                map_->buckets_[index_].state != BucketState::Occupied) {
-                ++index_;
-            }
+                map_->buckets_[index_].state != BucketState::Occupied) { ++index_; }
         }
 
         MapType* map_ = nullptr;
@@ -126,26 +105,19 @@ public:
     using Iterator = IteratorBase<false>;
     using ConstIterator = IteratorBase<true>;
 
-    explicit HashMap(
-        IAllocator* allocator = nullptr,
-        HashCode seed = 0U,
-        Hash hash = Hash{},
+    explicit HashMap(IAllocator* allocator = nullptr, HashCode seed = 0U, Hash hash = Hash{},
         Equal equal = Equal{}) noexcept
         : allocator_(allocator != nullptr ? allocator : &GetDefaultAllocator()),
           hash_(std::move(hash)),
           equal_(std::move(equal)),
           seed_(seed) {}
 
-    HashMap(const HashMap& other)
-        : allocator_(&other.Allocator()),
+    HashMap(const HashMap& other) : allocator_(&other.Allocator()),
           hash_(other.hash_),
           equal_(other.equal_),
-          seed_(other.seed_) {
-        CopyFromOrAbort(other);
-    }
+          seed_(other.seed_) { CopyFromOrAbort(other); }
 
-    HashMap(HashMap&& other) noexcept
-        : allocator_(other.allocator_),
+    HashMap(HashMap&& other) noexcept : allocator_(other.allocator_),
           buckets_(other.buckets_),
           size_(other.size_),
           used_(other.used_),
@@ -159,9 +131,7 @@ public:
         other.capacity_ = 0U;
     }
 
-    ~HashMap() {
-        DestroyAndReleaseBuckets();
-    }
+    ~HashMap() { DestroyAndReleaseBuckets(); }
 
     HashMap& operator=(const HashMap& other) {
         if (this != &other) {
@@ -189,24 +159,12 @@ public:
                 other.capacity_ = 0U;
             } else {
                 HashMap temporary(allocator_, other.seed_, other.hash_, other.equal_);
-                const Result<void> reserveResult = temporary.Reserve(other.size_);
-                if (!reserveResult) {
-                    ReportOutOfMemory(BucketBytesForCapacity(
-                        RequiredCapacityFor(other.size_)), alignof(Bucket),
-                        MemoryTag::Container);
-                }
+                temporary.Reserve(other.size_);
                 for (SizeType index = 0U; index < other.capacity_; ++index) {
                     Bucket& bucket = other.buckets_[index];
                     if (bucket.state == BucketState::Occupied) {
                         Entry* entry = bucket.GetEntry();
-                        const Result<InsertResult> insertResult = temporary.Insert(
-                            std::move_if_noexcept(entry->key_),
-                            std::move_if_noexcept(entry->value_));
-                        if (!insertResult) {
-                            ReportOutOfMemory(BucketBytesForCapacity(
-                                RequiredCapacityFor(other.size_)), alignof(Bucket),
-                                MemoryTag::Container);
-                        }
+                        temporary.Insert(std::move_if_noexcept(entry->key_), std::move_if_noexcept(entry->value_));
                     }
                 }
                 other.DestroyAndReleaseBuckets();
@@ -224,38 +182,27 @@ public:
 
     Iterator begin() noexcept { return Iterator(this, 0U); }
     Iterator end() noexcept { return Iterator(this, capacity_); }
-    ConstIterator begin() const noexcept {
-        return ConstIterator(this, 0U);
-    }
-    ConstIterator end() const noexcept {
-        return ConstIterator(this, capacity_);
-    }
+    ConstIterator begin() const noexcept { return ConstIterator(this, 0U); }
+    ConstIterator end() const noexcept { return ConstIterator(this, capacity_); }
 
     void Clear() noexcept {
-        if (buckets_ == nullptr) {
-            return;
-        }
+        if (buckets_ == nullptr) { return; }
         for (SizeType index = 0U; index < capacity_; ++index) {
             Bucket& bucket = buckets_[index];
-            if (bucket.state == BucketState::Occupied) {
-                bucket.GetEntry()->~Entry();
-            }
+            if (bucket.state == BucketState::Occupied) { bucket.GetEntry()->~Entry(); }
             bucket.state = BucketState::Empty;
         }
         size_ = 0U;
         used_ = 0U;
     }
 
-    Result<void> Reserve(SizeType expectedElements) noexcept {
+    void Reserve(SizeType expectedElements) noexcept {
         const SizeType requiredCapacity = RequiredCapacityFor(expectedElements);
         if (expectedElements > 0U && requiredCapacity == 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap requested size exceeds supported capacity");
+            ReportOutOfMemory(BucketBytesForCapacity(MaximumCapacity), alignof(Bucket), MemoryTag::Container);
         }
-        if (requiredCapacity <= capacity_) {
-            return {};
-        }
-        return Rehash(requiredCapacity);
+        if (requiredCapacity <= capacity_) { return; }
+        Rehash(requiredCapacity);
     }
 
     V* Find(const K& key) noexcept {
@@ -263,85 +210,57 @@ public:
         return entry != nullptr ? &entry->value_ : nullptr;
     }
 
-    const V* Find(const K& key) const noexcept {
-        const Entry* entry = FindEntry(key);
+    const V* Find(const K& key) const noexcept { const Entry* entry = FindEntry(key);
         return entry != nullptr ? &entry->value_ : nullptr;
     }
 
     Entry* FindEntry(const K& key) noexcept {
-        return const_cast<Entry*>(
-            static_cast<const HashMap*>(this)->FindEntry(key));
+        return const_cast<Entry*>(static_cast<const HashMap*>(this)->FindEntry(key));
     }
 
     const Entry* FindEntry(const K& key) const noexcept {
-        if (capacity_ == 0U) {
-            return nullptr;
-        }
-        const HashCode hash = ComputeHash(key);
+        if (capacity_ == 0U) { return nullptr; } const HashCode hash = ComputeHash(key);
         const ProbeResult probe = Probe(key, hash);
         return probe.found ? buckets_[probe.index].GetEntry() : nullptr;
     }
 
-    bool Contains(const K& key) const noexcept {
-        return FindEntry(key) != nullptr;
-    }
+    bool Contains(const K& key) const noexcept { return FindEntry(key) != nullptr; }
 
-    Result<InsertResult> Insert(
-        const K& key, const V& value) noexcept {
-        return InsertImpl(key, value);
-    }
+    InsertResult Insert(const K& key, const V& value) noexcept { return InsertImpl(key, value); }
 
-    Result<InsertResult> Insert(
-        K&& key, V&& value) noexcept {
-        return InsertImpl(std::move(key), std::move(value));
-    }
+    InsertResult Insert(K&& key, V&& value) noexcept { return InsertImpl(std::move(key), std::move(value)); }
 
-    Result<V*> Set(
-        const K& key, const V& value) noexcept {
+    V* Set(const K& key, const V& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = value;
             return &existing->value_;
         }
-        Result<InsertResult> inserted = Insert(key, value);
-        if (!inserted) {
-            return inserted.GetStatus();
-        }
-        return &inserted.Value().entry->value_;
+        InsertResult inserted = Insert(key, value);
+        return &inserted.entry->value_;
     }
 
-    Result<V*> Set(K&& key, V&& value) noexcept {
+    V* Set(K&& key, V&& value) noexcept {
         Entry* existing = FindEntry(key);
         if (existing != nullptr) {
             existing->value_ = std::move(value);
             return &existing->value_;
         }
-        Result<InsertResult> inserted = Insert(
-            std::move(key), std::move(value));
-        if (!inserted) {
-            return inserted.GetStatus();
-        }
-        return &inserted.Value().entry->value_;
+        InsertResult inserted = Insert(std::move(key), std::move(value));
+        return &inserted.entry->value_;
     }
 
     bool Erase(const K& key) noexcept {
-        if (capacity_ == 0U) {
-            return false;
-        }
-        const HashCode hash = ComputeHash(key);
+        if (capacity_ == 0U) { return false; } const HashCode hash = ComputeHash(key);
         const ProbeResult probe = Probe(key, hash);
-        if (!probe.found) {
-            return false;
-        }
+        if (!probe.found) { return false; }
 
         Bucket& bucket = buckets_[probe.index];
         bucket.GetEntry()->~Entry();
         bucket.state = BucketState::Tombstone;
         --size_;
         if (size_ == 0U) {
-            for (SizeType index = 0U; index < capacity_; ++index) {
-                buckets_[index].state = BucketState::Empty;
-            }
+            for (SizeType index = 0U; index < capacity_; ++index) { buckets_[index].state = BucketState::Empty; }
             used_ = 0U;
         }
         return true;
@@ -368,87 +287,63 @@ private:
     Equal equal_;
     HashCode seed_ = 0U;
 
-    HashCode ComputeHash(const K& key) const noexcept {
-        return MixHash64(hash_(key) ^ seed_);
-    }
+    HashCode ComputeHash(const K& key) const noexcept { return MixHash64(hash_(key) ^ seed_); }
 
-    template<class KeyArg, class ValueArg>
-    Result<InsertResult> InsertImpl(
-        KeyArg&& key, ValueArg&& value) noexcept {
+    template<class KeyArg, class ValueArg> InsertResult InsertImpl(KeyArg&& key, ValueArg&& value) noexcept {
         HashCode hash = ComputeHash(key);
-        if (capacity_ != 0U) {
-            const ProbeResult existing = Probe(key, hash);
-            if (existing.found) {
-                return InsertResult{buckets_[existing.index].GetEntry(), false};
-            }
+        if (capacity_ != 0U) { const ProbeResult existing = Probe(key, hash);
+            if (existing.found) { return InsertResult{buckets_[existing.index].GetEntry(), false}; }
         }
 
-        const Result<void> capacityResult = EnsureInsertCapacity();
-        if (!capacityResult) {
-            return capacityResult.GetStatus();
-        }
+        EnsureInsertCapacity();
 
         hash = ComputeHash(key);
         const ProbeResult target = Probe(key, hash);
         AERO_ASSERT(!target.found && target.index != InvalidIndex);
         Bucket& bucket = buckets_[target.index];
         const bool wasEmpty = bucket.state == BucketState::Empty;
-        Entry* entry = new (bucket.storage) Entry(
-            hash, std::forward<KeyArg>(key), std::forward<ValueArg>(value));
+        Entry* entry = new (bucket.storage) Entry(hash, std::forward<KeyArg>(key), std::forward<ValueArg>(value));
         bucket.state = BucketState::Occupied;
         ++size_;
-        if (wasEmpty) {
-            ++used_;
-        }
+        if (wasEmpty) { ++used_; }
         return InsertResult{entry, true};
     }
 
-    Result<void> EnsureInsertCapacity() noexcept {
+    void EnsureInsertCapacity() noexcept {
         if (capacity_ == 0U) {
-            return Rehash(MinimumCapacity);
+            Rehash(MinimumCapacity);
+            return;
         }
 
-        const std::uint64_t projectedUsed =
-            static_cast<std::uint64_t>(used_) + 1U;
-        if (projectedUsed * LoadDenominator <=
-            static_cast<std::uint64_t>(capacity_) * LoadNumerator) {
-            return {};
-        }
+        const std::uint64_t projectedUsed = static_cast<std::uint64_t>(used_) + 1U;
+        if (projectedUsed * LoadDenominator <= static_cast<std::uint64_t>(capacity_) * LoadNumerator) { return; }
 
         const SizeType tombstones = used_ - size_;
         if (tombstones > size_ / 2U) {
-            return Rehash(capacity_);
+            Rehash(capacity_);
+            return;
         }
 
         if (capacity_ >= MaximumCapacity) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap capacity limit reached");
+            ReportOutOfMemory(BucketBytesForCapacity(MaximumCapacity), alignof(Bucket), MemoryTag::Container);
         }
-        return Rehash(capacity_ * 2U);
+        Rehash(capacity_ * 2U);
     }
 
-    ProbeResult Probe(
-        const K& key, HashCode hash) const noexcept {
+    ProbeResult Probe(const K& key, HashCode hash) const noexcept {
         AERO_ASSERT(capacity_ != 0U && (capacity_ & (capacity_ - 1U)) == 0U);
         const SizeType mask = capacity_ - 1U;
         SizeType index = static_cast<SizeType>(hash) & mask;
         SizeType firstTombstone = InvalidIndex;
 
-        for (SizeType attempt = 0U; attempt < capacity_; ++attempt) {
-            const Bucket& bucket = buckets_[index];
+        for (SizeType attempt = 0U; attempt < capacity_; ++attempt) { const Bucket& bucket = buckets_[index];
             if (bucket.state == BucketState::Empty) {
-                return {false, firstTombstone != InvalidIndex
-                    ? firstTombstone : index};
+                return {false, firstTombstone != InvalidIndex ? firstTombstone : index};
             }
             if (bucket.state == BucketState::Tombstone) {
-                if (firstTombstone == InvalidIndex) {
-                    firstTombstone = index;
-                }
-            } else {
-                const Entry* entry = bucket.GetEntry();
-                if (entry->hash_ == hash && equal_(entry->key_, key)) {
-                    return {true, index};
-                }
+                if (firstTombstone == InvalidIndex) { firstTombstone = index; }
+            } else { const Entry* entry = bucket.GetEntry();
+                if (entry->hash_ == hash && equal_(entry->key_, key)) { return {true, index}; }
             }
             index = (index + 1U) & mask;
         }
@@ -456,33 +351,23 @@ private:
         return {false, firstTombstone};
     }
 
-    Result<void> Rehash(SizeType newCapacity) noexcept {
-        if (newCapacity < MinimumCapacity) {
-            newCapacity = MinimumCapacity;
-        }
-        if (newCapacity > MaximumCapacity ||
-            (newCapacity & (newCapacity - 1U)) != 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap capacity must be a supported power of two");
+    void Rehash(SizeType newCapacity) noexcept {
+        if (newCapacity < MinimumCapacity) { newCapacity = MinimumCapacity; }
+        if (newCapacity > MaximumCapacity || (newCapacity & (newCapacity - 1U)) != 0U) {
+            ReportOutOfMemory(BucketBytesForCapacity(newCapacity), alignof(Bucket), MemoryTag::Container);
         }
 
         const std::size_t bytes = BucketBytesForCapacity(newCapacity);
         if (bytes == 0U) {
-            return Status::Failure(ErrorCode::OutOfRange,
-                "HashMap bucket storage exceeds addressable memory");
+            ReportOutOfMemory(static_cast<std::size_t>(newCapacity) * sizeof(Bucket),
+                alignof(Bucket), MemoryTag::Container);
         }
 
-        void* memory = allocator_->Allocate(
-            {bytes, alignof(Bucket), MemoryTag::Container});
-        if (memory == nullptr) {
-            return Status::Failure(ErrorCode::OutOfMemory,
-                "HashMap bucket allocation failed");
-        }
+        void* memory = allocator_->Allocate({bytes, alignof(Bucket), MemoryTag::Container});
+        if (memory == nullptr) { ReportOutOfMemory(bytes, alignof(Bucket), MemoryTag::Container); }
 
         Bucket* replacement = static_cast<Bucket*>(memory);
-        for (SizeType index = 0U; index < newCapacity; ++index) {
-            new (replacement + index) Bucket();
-        }
+        for (SizeType index = 0U; index < newCapacity; ++index) { new (replacement + index) Bucket(); }
 
         Bucket* oldBuckets = buckets_;
         const SizeType oldCapacity = capacity_;
@@ -502,42 +387,30 @@ private:
         }
 
         if (oldBuckets != nullptr) {
-            allocator_->Deallocate(oldBuckets,
-                BucketBytesForCapacity(oldCapacity), alignof(Bucket),
+            allocator_->Deallocate(oldBuckets, BucketBytesForCapacity(oldCapacity), alignof(Bucket),
                 MemoryTag::Container);
         }
-        return {};
     }
 
-    void InsertTransferred(Entry& source) noexcept {
-        const ProbeResult target = Probe(source.key_, source.hash_);
+    void InsertTransferred(Entry& source) noexcept { const ProbeResult target = Probe(source.key_, source.hash_);
         AERO_ASSERT(!target.found && target.index != InvalidIndex);
         Bucket& bucket = buckets_[target.index];
         const bool wasEmpty = bucket.state == BucketState::Empty;
-        new (bucket.storage) Entry(source.hash_,
-            std::move_if_noexcept(source.key_),
+        new (bucket.storage) Entry(source.hash_, std::move_if_noexcept(source.key_),
             std::move_if_noexcept(source.value_));
         bucket.state = BucketState::Occupied;
         ++size_;
-        if (wasEmpty) {
-            ++used_;
-        }
+        if (wasEmpty) { ++used_; }
     }
 
     void DestroyAndReleaseBuckets() noexcept {
-        if (buckets_ == nullptr) {
-            return;
-        }
+        if (buckets_ == nullptr) { return; }
         for (SizeType index = 0U; index < capacity_; ++index) {
             Bucket& bucket = buckets_[index];
-            if (bucket.state == BucketState::Occupied) {
-                bucket.GetEntry()->~Entry();
-            }
+            if (bucket.state == BucketState::Occupied) { bucket.GetEntry()->~Entry(); }
             bucket.~Bucket();
         }
-        allocator_->Deallocate(buckets_,
-            BucketBytesForCapacity(capacity_), alignof(Bucket),
-            MemoryTag::Container);
+        allocator_->Deallocate(buckets_, BucketBytesForCapacity(capacity_), alignof(Bucket), MemoryTag::Container);
         buckets_ = nullptr;
         size_ = 0U;
         used_ = 0U;
@@ -545,21 +418,8 @@ private:
     }
 
     void CopyFromOrAbort(const HashMap& other) {
-        const Result<void> reserveResult = Reserve(other.size_);
-        if (!reserveResult) {
-            ReportOutOfMemory(BucketBytesForCapacity(
-                RequiredCapacityFor(other.size_)), alignof(Bucket),
-                MemoryTag::Container);
-        }
-        for (const Entry& entry : other) {
-            const Result<InsertResult> insertResult = Insert(
-                entry.key_, entry.value_);
-            if (!insertResult) {
-                ReportOutOfMemory(BucketBytesForCapacity(
-                    RequiredCapacityFor(other.size_)), alignof(Bucket),
-                    MemoryTag::Container);
-            }
-        }
+        Reserve(other.size_);
+        for (const Entry& entry : other) { Insert(entry.key_, entry.value_); }
     }
 
     void AdoptStorageFrom(HashMap& other) noexcept {
@@ -578,31 +438,20 @@ private:
         other.capacity_ = 0U;
     }
 
-    static SizeType RequiredCapacityFor(
-        SizeType expectedElements) noexcept {
-        if (expectedElements == 0U) {
-            return 0U;
-        }
+    static SizeType RequiredCapacityFor(SizeType expectedElements) noexcept {
+        if (expectedElements == 0U) { return 0U; }
         SizeType capacity = MinimumCapacity;
         while (static_cast<std::uint64_t>(expectedElements) * LoadDenominator >
             static_cast<std::uint64_t>(capacity) * LoadNumerator) {
-            if (capacity >= MaximumCapacity) {
-                return 0U;
-            }
+            if (capacity >= MaximumCapacity) { return 0U; }
             capacity *= 2U;
         }
         return capacity;
     }
 
-    static std::size_t BucketBytesForCapacity(
-        SizeType capacity) noexcept {
-        if (capacity == 0U) {
-            return 0U;
-        }
-        if (static_cast<std::uint64_t>(capacity) >
-            static_cast<std::uint64_t>(SIZE_MAX / sizeof(Bucket))) {
-            return 0U;
-        }
+    static std::size_t BucketBytesForCapacity(SizeType capacity) noexcept {
+        if (capacity == 0U) { return 0U; }
+        if (static_cast<std::uint64_t>(capacity) > static_cast<std::uint64_t>(SIZE_MAX / sizeof(Bucket))) { return 0U; }
         return static_cast<std::size_t>(capacity) * sizeof(Bucket);
     }
 };

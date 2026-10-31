@@ -28,11 +28,6 @@ if(NOT AERO_BUILD_SHARED)
     set_target_properties(harfbuzz PROPERTIES
         EXPORT_NAME _PrivateHarfBuzz)
     list(APPEND _aero_sdk_targets freetype harfbuzz)
-    if(_aero_vendored_expat_target)
-        set_target_properties(${_aero_vendored_expat_target} PROPERTIES
-            EXPORT_NAME _PrivateExpat)
-        list(APPEND _aero_sdk_targets ${_aero_vendored_expat_target})
-    endif()
 endif()
 
 install(TARGETS ${_aero_sdk_targets}
@@ -74,6 +69,14 @@ unset(_aero_public_header)
 unset(_aero_public_header_directory)
 unset(_aero_public_install_directory)
 
+# B4: Meta authoring detail (TypeBuilder session/helpers) — not under include/Aero,
+# so it stays off the AeroPublicHeaders whitelist while remaining usable via
+# <Aero/Meta.hpp> ("gui/core/..." through aero-meta-authoring include root).
+install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/core/TypeBuilderCore.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/gui/core/MetadataRegistrations.hpp"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/aero-meta-authoring/gui/core")
+
 install(FILES
     "${AERO_GENERATED_INCLUDE_DIR}/Aero/Version.hpp"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/Aero)
@@ -87,9 +90,6 @@ if(NOT _aero_schema_manifest STREQUAL "")
 endif()
 
 set(AERO_PACKAGE_WITH_EXPAT OFF)
-if(AERO_WITH_EXPAT AND NOT _aero_vendored_expat_target)
-    set(AERO_PACKAGE_WITH_EXPAT ON)
-endif()
 set(AERO_PACKAGE_WITH_GLX ${AERO_ENABLE_GLX_SURFACE})
 configure_package_config_file(
     cmake/AeroConfig.cmake.in

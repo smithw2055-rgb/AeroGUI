@@ -1,123 +1,49 @@
 #include <Aero/Media/Brushes.hpp>
 #include "BrushRendering.hpp"
-#include "gui/core/State.hpp" 
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
-#include "gui/media/MediaState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
+#include <Aero/TryCast.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include "gui/core/Describe.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/core/RenderStateCallbacks.hpp"
+#include "gui/core/ValueConversion.hpp"
+#include "gui/data/BindingEngine.hpp"
+
+#include <Aero/Input/Cursor.hpp>
+#include <Aero/Input/Mouse.hpp>
+#include <Aero/Input/Keyboard.hpp>
+#include <Aero/Animatable.hpp>
+#include <cctype>
+#include <cstdlib>
+#include <utility>
 
 namespace Aero::Media {
 
-double Brush::GetOpacity() const noexcept {
-    return GetValueOr(OpacityProperty, 1.0);
-}
 
-void Brush::SetOpacity(
-    double value) noexcept {
-    SetValue(OpacityProperty, value);
-}
-
-Color SolidColorBrush::GetColor() const noexcept {
-    return GetValueOr(ColorProperty, initialColor_);
-}
-
-void SolidColorBrush::SetColor(
-    Color value) noexcept {
-    SetValue(ColorProperty, value);
-}
-
-double GradientStop::GetOffset() const noexcept {
-    return GetValueOr(OffsetProperty, 0.0);
-}
-
-Color GradientStop::GetColor() const noexcept {
-    return GetValueOr(ColorProperty, Color{});
-}
-
-void GradientStop::SetOffset(
-    double value) noexcept {
-    SetValue(OffsetProperty, value);
-}
-
-void GradientStop::SetColor(
-    Color value) noexcept {
-    SetValue(ColorProperty, value);
-}
-
-Base::Result<void> GradientBrush::AddGradientStop(
+void GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!stop) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GradientStop cannot be null");
-    }
+    if (!WritePreamble()) { AERO_ASSERT(false); return; }
+    if (!stop) { AERO_ASSERT(false); return; }
     if (stopChangedHandler_.Empty()) {
         stopChangedHandler_ = FreezableChangedHandler(
             this, &GradientBrush::OnGradientStopChanged);
     }
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(stopChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
+        retained->AddChangedHandler(stopChangedHandler_);
     }
-    Base::Result<void> added =
-        stops_.PushBack(std::move(stop));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(stopChangedHandler_));
-        }
-        return added.GetStatus();
-    }
+    stops_.PushBack(std::move(stop));
     WritePostscript();
-    return {};
 }
 
-Base::Result<void> GradientStopCollection::Add(
-    Base::Ref<GradientStop> stop) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (!stop) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "GradientStopCollection item cannot be null");
-    }
-    if (stopChangedHandler_.Empty()) {
-        stopChangedHandler_ = FreezableChangedHandler(
-            this, &GradientStopCollection::OnStopChanged);
-    }
-    GradientStop* retained = stop.Get();
-    if (!retained->IsFrozen()) {
-        Base::Result<void> subscribed =
-            retained->AddChangedHandlerChecked(stopChangedHandler_);
-        if (!subscribed) return subscribed.GetStatus();
-    }
-    Base::Result<void> added =
-        stops_.PushBack(std::move(stop));
-    if (!added) {
-        if (!retained->IsFrozen()) {
-            static_cast<void>(
-                retained->RemoveChangedHandler(stopChangedHandler_));
-        }
-        return added.GetStatus();
-    }
-    if (!changed_.Empty()) {
-        changed_.Invoke({
-            Collections::ItemsChangeAction::Add,
-            UINT32_MAX,
-            stops_.Size() - 1U,
-            0U,
-            1U});
-    }
-    WritePostscript();
-    return {};
-}
 
 GradientBrush::~GradientBrush() {
     for (const Base::Ref<GradientStop>& stop : stops_) {
@@ -150,61 +76,50 @@ bool GradientBrush::FreezeCore(bool isChecking) noexcept {
         if (isChecking) {
             if (!stop->CanFreeze()) return false;
         } else {
-            static_cast<void>(stop->Freeze());
+            stop->Freeze();
         }
     }
     return Brush::FreezeCore(isChecking);
 }
 
-GradientStopCollection::~GradientStopCollection() {
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+void GradientBrush::CloneCore(const Freezable& source) {
+    Brush::CloneCore(source);
+    const auto* src = TryCast<GradientBrush>(&source);
+    if (src != nullptr) {
+        ClearGradientStops();
+        for (const Base::Ref<GradientStop>& stop : src->stops_) {
+            if (stop) {
+                Base::Ref<Freezable> cloned = stop->Clone();
+                if (cloned) {
+                    AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(*static_cast<GradientStop*>(cloned.Get())));
+                }
+            }
         }
     }
 }
 
-void GradientStopCollection::Clear() noexcept {
-    if (!WritePreamble() || stops_.Empty()) return;
-    const std::uint32_t count = stops_.Size();
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+void GradientBrush::CloneCurrentValueCore(const Freezable& source) {
+    Brush::CloneCurrentValueCore(source);
+    const auto* src = TryCast<GradientBrush>(&source);
+    if (src != nullptr) {
+        ClearGradientStops();
+        for (const Base::Ref<GradientStop>& stop : src->stops_) {
+            if (stop) {
+                Base::Ref<Freezable> cloned = stop->CloneCurrentValue();
+                if (cloned) {
+                    AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(*static_cast<GradientStop*>(cloned.Get())));
+                }
+            }
         }
     }
-    stops_.Clear();
-    if (!changed_.Empty()) {
-        changed_.Invoke({
-            Collections::ItemsChangeAction::Reset,
-            0U, 0U, count, 0U});
-    }
-    WritePostscript();
 }
 
-void GradientStopCollection::OnStopChanged(Freezable&) noexcept {
-    WritePostscript();
-}
-
-bool GradientStopCollection::FreezeCore(bool isChecking) noexcept {
-    for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (!stop) continue;
-        if (isChecking) {
-            if (!stop->CanFreeze()) return false;
-        } else {
-            static_cast<void>(stop->Freeze());
-        }
-    }
-    if (!isChecking) changed_.Reset();
-    return Freezable::FreezeCore(isChecking);
-}
 
 std::uint64_t Brush::GetRevision() const noexcept {
-    return ::Aero::Core::DependencyPropertyFacet::FreezableRevision(*this);
+    return (*this).Revision();
 }
 
-Base::Result<void> ImageBrush::SetRuntimeImage(
+void ImageBrush::SetRuntimeImage(
     std::uint64_t image, std::uint32_t width, std::uint32_t height) noexcept {
     const bool changed =
         renderImage_ != image || pixelWidth_ != width || pixelHeight_ != height;
@@ -212,194 +127,440 @@ Base::Result<void> ImageBrush::SetRuntimeImage(
     pixelWidth_ = width;
     pixelHeight_ = height;
     if (changed) WritePostscript();
-    return {};
 }
 
-BrushMappingMode GradientBrush::GetMappingMode() const noexcept {
-    return GetValueOr(
-        MappingModeProperty,
-        BrushMappingMode::RelativeToBoundingBox);
-}
 
-void GradientBrush::SetMappingMode(
-    BrushMappingMode value) noexcept {
-    SetValue(MappingModeProperty, value);
-}
-
-GradientSpreadMethod GradientBrush::GetSpreadMethod() const noexcept {
-    return GetValueOr(
-        SpreadMethodProperty,
-        GradientSpreadMethod::Pad);
-}
-
-void GradientBrush::SetSpreadMethod(
-    GradientSpreadMethod value) noexcept {
-    SetValue(SpreadMethodProperty, value);
-}
-
-Point LinearGradientBrush::GetStartPoint() const noexcept {
-    return GetValueOr(StartPointProperty, Point{0.0, 0.0});
-}
-
-Point LinearGradientBrush::GetEndPoint() const noexcept {
-    return GetValueOr(EndPointProperty, Point{1.0, 1.0});
-}
-
-void LinearGradientBrush::SetStartPoint(
-    Point value) noexcept {
-    SetValue(StartPointProperty, value);
-}
-
-void LinearGradientBrush::SetEndPoint(
-    Point value) noexcept {
-    SetValue(EndPointProperty, value);
-}
-
-Point RadialGradientBrush::GetCenter() const noexcept {
-    return GetValueOr(CenterProperty, Point{0.5, 0.5});
-}
-
-Point RadialGradientBrush::GetGradientOrigin() const noexcept {
-    return GetValueOr(
-        GradientOriginProperty, Point{0.5, 0.5});
-}
-
-double RadialGradientBrush::GetRadiusX() const noexcept {
-    return GetValueOr(RadiusXProperty, 0.5);
-}
-
-double RadialGradientBrush::GetRadiusY() const noexcept {
-    return GetValueOr(RadiusYProperty, 0.5);
-}
-
-void RadialGradientBrush::SetCenter(
-    Point value) noexcept {
-    SetValue(CenterProperty, value);
-}
-
-void RadialGradientBrush::SetGradientOrigin(
-    Point value) noexcept {
-    SetValue(GradientOriginProperty, value);
-}
-
-void RadialGradientBrush::SetRadiusX(
-    double value) noexcept {
-    SetValue(RadiusXProperty, value);
-}
-
-void RadialGradientBrush::SetRadiusY(
-    double value) noexcept {
-    SetValue(RadiusYProperty, value);
-}
-
-Base::Ref<ImageSource>
-ImageBrush::GetSource() const noexcept {
-    return GetValueOr(
-        ImageSourceProperty,
-        Base::Ref<ImageSource>{});
-}
-
-Stretch ImageBrush::GetStretch() const noexcept {
-    return GetValueOr(
-        StretchProperty, Stretch::Fill);
-}
-
-Rect ImageBrush::GetViewbox() const noexcept {
-    return GetValueOr(
-        ViewboxProperty,
-        Rect{0.0, 0.0, 1.0, 1.0});
-}
-
-Rect ImageBrush::GetViewport() const noexcept {
-    return GetValueOr(
-        ViewportProperty,
-        Rect{0.0, 0.0, 1.0, 1.0});
-}
-
-BrushMappingMode ImageBrush::GetViewboxUnits() const noexcept {
-    return GetValueOr(
-        ViewboxUnitsProperty,
-        BrushMappingMode::RelativeToBoundingBox);
-}
-
-BrushMappingMode ImageBrush::GetViewportUnits() const noexcept {
-    return GetValueOr(
-        ViewportUnitsProperty,
-        BrushMappingMode::RelativeToBoundingBox);
-}
-
-TileMode ImageBrush::GetTileMode() const noexcept {
-    return GetValueOr(
-        TileModeProperty, TileMode::None);
-}
-
-HorizontalAlignment ImageBrush::GetAlignmentX() const noexcept {
-    return GetValueOr(
-        AlignmentXProperty, HorizontalAlignment::Center);
-}
-
-VerticalAlignment ImageBrush::GetAlignmentY() const noexcept {
-    return GetValueOr(
-        AlignmentYProperty, VerticalAlignment::Center);
-}
-
-void ImageBrush::SetSource(
-    Base::Ref<ImageSource> value) noexcept {
-    SetValue(
-        ImageSourceProperty, std::move(value));
-}
-
-void ImageBrush::SetStretch(
-    Stretch value) noexcept {
-    SetValue(StretchProperty, value);
-}
-
-void ImageBrush::SetViewbox(
-    Rect value) noexcept {
-    SetValue(ViewboxProperty, value);
-}
-
-void ImageBrush::SetViewport(
-    Rect value) noexcept {
-    SetValue(ViewportProperty, value);
-}
-
-void ImageBrush::SetViewboxUnits(
-    BrushMappingMode value) noexcept {
-    SetValue(ViewboxUnitsProperty, value);
-}
-
-void ImageBrush::SetViewportUnits(
-    BrushMappingMode value) noexcept {
-    SetValue(ViewportUnitsProperty, value);
-}
-
-void ImageBrush::SetTileMode(
-    TileMode value) noexcept {
-    SetValue(TileModeProperty, value);
-}
-
-void ImageBrush::SetAlignmentX(
-    HorizontalAlignment value) noexcept {
-    SetValue(AlignmentXProperty, value);
-}
-
-void ImageBrush::SetAlignmentY(
-    VerticalAlignment value) noexcept {
-    SetValue(AlignmentYProperty, value);
-}
-
-Base::Result<Base::Ref<Brush>>
+Base::Ref<Brush>
 MakeSolidColorBrush(Color color) noexcept {
-    Base::Result<Base::Ref<SolidColorBrush>> made =
+    Base::Ref<SolidColorBrush> made =
         Base::MakeRef<SolidColorBrush>();
-    if (!made) return made.GetStatus();
-    made.Value()->SetColor(color);
-    return Base::Ref<Brush>(
-        std::move(made).Value());
+    if (made) {
+        made->SetColor(color);
+    }
+    return made;
 }
 
-Base::Result<void> PaintBrushRect(
+namespace {
+
+constexpr double kGeomEps = 1.0e-9;
+constexpr std::uint32_t kRoundedCornerSegments = 12U;
+constexpr std::uint32_t kRoundedContourPoints = kRoundedCornerSegments * 4U;
+
+bool InsideClipEdge(Point point, Point start, Point end) noexcept {
+    return (end.x - start.x) * (point.y - start.y) -
+               (end.y - start.y) * (point.x - start.x) >= -1.0e-9;
+}
+
+Point ClipEdgeIntersection(
+    Point from, Point to, Point edgeStart, Point edgeEnd) noexcept {
+    const double dx = to.x - from.x;
+    const double dy = to.y - from.y;
+    const double ex = edgeEnd.x - edgeStart.x;
+    const double ey = edgeEnd.y - edgeStart.y;
+    const double denom = dx * ey - dy * ex;
+    if (std::fabs(denom) < 1.0e-18) return to;
+    const double t =
+        ((edgeStart.x - from.x) * ey - (edgeStart.y - from.y) * ex) / denom;
+    return {from.x + t * dx, from.y + t * dy};
+}
+
+constexpr std::uint32_t kMaxRoundedContourPoints = 256U;
+
+void BuildRoundedRectContour(
+    Rect bounds,
+    double radius,
+    std::uint32_t cornerSegments,
+    Point* out) noexcept {
+    const double pi = 3.14159265358979323846;
+    const double centers[4][2] = {
+        {bounds.x + radius, bounds.y + radius},
+        {bounds.x + bounds.width - radius, bounds.y + radius},
+        {bounds.x + bounds.width - radius, bounds.y + bounds.height - radius},
+        {bounds.x + radius, bounds.y + bounds.height - radius}};
+    const double start[4] = {pi, pi * 1.5, 0.0, pi * 0.5};
+    std::uint32_t index = 0U;
+    const double segCount = static_cast<double>(cornerSegments);
+    for (int corner = 0; corner < 4; ++corner) {
+        for (std::uint32_t i = 0U; i < cornerSegments; ++i) {
+            const double angle = start[corner] +
+                pi * 0.5 * (static_cast<double>(i) / segCount);
+            out[index].x = centers[corner][0] + radius * std::cos(angle);
+            out[index].y = centers[corner][1] + radius * std::sin(angle);
+            ++index;
+        }
+    }
+}
+
+void BuildRoundedRectContour(
+    Rect bounds,
+    double radius,
+    Point* out) noexcept {
+    BuildRoundedRectContour(bounds, radius, kRoundedCornerSegments, out);
+}
+
+int ClipPolygonToConvex(
+    const Point* subject,
+    int subjectCount,
+    const Point* clip,
+    int clipCount,
+    Point* output) noexcept {
+    Point bufferA[64];
+    Point bufferB[64];
+    int count = std::min(subjectCount, 63);
+    for (int i = 0; i < count; ++i) bufferA[i] = subject[i];
+    Point* input = bufferA;
+    Point* next = bufferB;
+    for (int edge = 0; edge < clipCount && count > 0; ++edge) {
+        const Point start = clip[edge];
+        const Point end = clip[(edge + 1) % clipCount];
+        int outCount = 0;
+        Point previous = input[count - 1];
+        bool previousInside = InsideClipEdge(previous, start, end);
+        for (int i = 0; i < count && outCount < 63; ++i) {
+            const Point current = input[i];
+            const bool currentInside = InsideClipEdge(current, start, end);
+            if (currentInside) {
+                if (!previousInside) {
+                    next[outCount++] =
+                        ClipEdgeIntersection(previous, current, start, end);
+                    if (outCount >= 63) break;
+                }
+                next[outCount++] = current;
+            } else if (previousInside) {
+                next[outCount++] =
+                    ClipEdgeIntersection(previous, current, start, end);
+            }
+            previous = current;
+            previousInside = currentInside;
+        }
+        Point* swap = input;
+        input = next;
+        next = swap;
+        count = outCount;
+    }
+    for (int i = 0; i < count; ++i) output[i] = input[i];
+    return count;
+}
+
+int IntersectLineWithRect(
+    Rect bounds,
+    double nx,
+    double ny,
+    double d,
+    Point hits[2]) noexcept {
+    Point points[4];
+    int count = 0;
+    const auto consider = [&](double x, double y) noexcept {
+        if (x < bounds.x - 1.0e-6 ||
+            x > bounds.x + bounds.width + 1.0e-6 ||
+            y < bounds.y - 1.0e-6 ||
+            y > bounds.y + bounds.height + 1.0e-6) {
+            return;
+        }
+        x = std::clamp(x, static_cast<double>(bounds.x), static_cast<double>(bounds.x + bounds.width));
+        y = std::clamp(y, static_cast<double>(bounds.y), static_cast<double>(bounds.y + bounds.height));
+        for (int i = 0; i < count; ++i) {
+            if (std::hypot(points[i].x - x, points[i].y - y) < 1.0e-5) {
+                return;
+            }
+        }
+        if (count < 4) points[count++] = {x, y};
+    };
+    if (std::fabs(nx) > 1.0e-12) {
+        consider((d - ny * bounds.y) / nx, bounds.y);
+        consider(
+            (d - ny * (bounds.y + bounds.height)) / nx,
+            bounds.y + bounds.height);
+    }
+    if (std::fabs(ny) > 1.0e-12) {
+        consider(bounds.x, (d - nx * bounds.x) / ny);
+        consider(
+            bounds.x + bounds.width,
+            (d - nx * (bounds.x + bounds.width)) / ny);
+    }
+    if (count < 2) {
+        if (count == 1) hits[0] = points[0];
+        return count;
+    }
+    int first = 0;
+    int second = 1;
+    double best = -1.0;
+    for (int i = 0; i < count; ++i) {
+        for (int j = i + 1; j < count; ++j) {
+            const double dist = std::hypot(
+                points[i].x - points[j].x, points[i].y - points[j].y);
+            if (dist > best) {
+                best = dist;
+                first = i;
+                second = j;
+            }
+        }
+    }
+    hits[0] = points[first];
+    hits[1] = points[second];
+    return 2;
+}
+
+void AddUniquePoint(Point* points, int& count, Point point, int limit) noexcept {
+    for (int i = 0; i < count; ++i) {
+        if (std::hypot(points[i].x - point.x, points[i].y - point.y) < 1.0e-4) {
+            return;
+        }
+    }
+    if (count < limit) points[count++] = point;
+}
+
+int SortConvexCcw(Point* points, int count) noexcept {
+    if (count < 3) return count;
+    Point centroid{};
+    for (int i = 0; i < count; ++i) {
+        centroid.x += points[i].x;
+        centroid.y += points[i].y;
+    }
+    centroid.x /= static_cast<double>(count);
+    centroid.y /= static_cast<double>(count);
+    std::sort(
+        points,
+        points + count,
+        [centroid](Point left, Point right) noexcept {
+            return std::atan2(left.y - centroid.y, left.x - centroid.x) <
+                std::atan2(right.y - centroid.y, right.x - centroid.x);
+        });
+    return count;
+}
+
+int IntersectSlabWithRect(
+    Rect bounds,
+    Point start,
+    double axisX,
+    double axisY,
+    double axisLengthSquared,
+    double t0,
+    double t1,
+    Point* output) noexcept {
+    Point points[12];
+    int count = 0;
+    const Point corners[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}};
+    const auto tOf = [&](Point point) noexcept {
+        return ((point.x - start.x) * axisX + (point.y - start.y) * axisY) /
+            axisLengthSquared;
+    };
+    for (Point corner : corners) {
+        const double t = tOf(corner);
+        if (t + 1.0e-8 >= t0 && t - 1.0e-8 <= t1) {
+            AddUniquePoint(points, count, corner, 12);
+        }
+    }
+    const double startDot = start.x * axisX + start.y * axisY;
+    Point hits[2];
+    const int count0 = IntersectLineWithRect(
+        bounds, axisX, axisY, startDot + t0 * axisLengthSquared, hits);
+    for (int i = 0; i < count0; ++i) {
+        AddUniquePoint(points, count, hits[i], 12);
+    }
+    const int count1 = IntersectLineWithRect(
+        bounds, axisX, axisY, startDot + t1 * axisLengthSquared, hits);
+    for (int i = 0; i < count1; ++i) {
+        AddUniquePoint(points, count, hits[i], 12);
+    }
+    if (count < 3) return 0;
+    SortConvexCcw(points, count);
+    std::memcpy(
+        output,
+        points,
+        static_cast<std::size_t>(count) * sizeof(Point));
+    return count;
+}
+
+void FillSolidPolygon(
+    Render::DisplayListBuilder& builder,
+    const Point* points,
+    int count,
+    Color color) noexcept {
+    if (count < 3 || color.alpha <= 0.0F) return;
+    const Color colors[4] = {color, color, color, color};
+    for (int i = 1; i + 1 < count; ++i) {
+        const Point quad[4] = {
+            points[0], points[i], points[i + 1], points[i + 1]};
+        builder.FillGradientQuad(quad, colors);
+    }
+}
+
+constexpr std::uint8_t kGpuPaintLinear = 1U;
+constexpr std::uint8_t kGpuPaintRadial = 2U;
+
+struct GpuGradientPaint {
+    std::uint8_t kind = 0U;
+    float uniforms[8]{};
+    std::uintptr_t brush = 0U;
+    Point start{};
+    Point delta{};
+    double len2 = 1.0;
+    Point origin{};
+    double radiusX = 1.0;
+    double radiusY = 1.0;
+    Rect bounds{};
+    Base::Transform2D inverse{};
+    bool hasInverse = false;
+    std::uint8_t wrapMode = 0U;
+};
+
+Point GpuSamplePoint(const GpuGradientPaint& gpu, Point point) noexcept {
+    if (!gpu.hasInverse) return point;
+    const Point uv{
+        gpu.bounds.width > 1.0e-12
+            ? (point.x - gpu.bounds.x) / gpu.bounds.width : 0.5,
+        gpu.bounds.height > 1.0e-12
+            ? (point.y - gpu.bounds.y) / gpu.bounds.height : 0.5};
+    const Point mapped = TransformPoint(gpu.inverse, uv);
+    return {
+        gpu.bounds.x + mapped.x * gpu.bounds.width,
+        gpu.bounds.y + mapped.y * gpu.bounds.height};
+}
+
+Point GpuGradientUv(const GpuGradientPaint& gpu, Point point) noexcept {
+    const Point sample = GpuSamplePoint(gpu, point);
+    if (gpu.kind == kGpuPaintLinear) {
+        const double t =
+            ((sample.x - gpu.start.x) * gpu.delta.x +
+             (sample.y - gpu.start.y) * gpu.delta.y) /
+            gpu.len2;
+        return {t, 0.5};
+    }
+    return {
+        (sample.x - gpu.origin.x) / gpu.radiusX,
+        (sample.y - gpu.origin.y) / gpu.radiusY};
+}
+
+bool TryPrepareGpuGradient(
+    const Base::Ref<Brush>& brush,
+    Rect bounds,
+    bool isRtl,
+    GpuGradientPaint& gpu) noexcept {
+    gpu = {};
+    if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0) {
+        return false;
+    }
+    const auto* linear = ::Aero::TryCast<LinearGradientBrush>(brush.Get());
+    const auto* radial = ::Aero::TryCast<RadialGradientBrush>(brush.Get());
+    const GradientBrush* gradient = linear != nullptr
+        ? static_cast<const GradientBrush*>(linear)
+        : static_cast<const GradientBrush*>(radial);
+    if (gradient == nullptr) return false;
+    if (gradient->GetSpreadMethod() == GradientSpreadMethod::Repeat) {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Repeat);
+    } else if (gradient->GetSpreadMethod() == GradientSpreadMethod::Reflect) {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Mirror);
+    } else {
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::ClampToEdge);
+    }
+    gpu.bounds = bounds;
+    gpu.brush = reinterpret_cast<std::uintptr_t>(gradient);
+    const float opacity = static_cast<float>(
+        std::clamp(brush->GetOpacity(), 0.0, 1.0));
+    if (gradient->GetRelativeTransform()) {
+        gpu.hasInverse = InvertTransform(
+            gradient->GetRelativeTransform()->GetMatrix(), gpu.inverse);
+    }
+    if (linear != nullptr) {
+        Point start = linear->GetStartPoint();
+        Point end = linear->GetEndPoint();
+        if (isRtl && linear->GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            start.x = 1.0 - start.x;
+            end.x = 1.0 - end.x;
+        }
+        if (linear->GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            start = {
+                bounds.x + start.x * bounds.width,
+                bounds.y + start.y * bounds.height};
+            end = {
+                bounds.x + end.x * bounds.width,
+                bounds.y + end.y * bounds.height};
+        }
+        gpu.start = start;
+        gpu.delta = {end.x - start.x, end.y - start.y};
+        gpu.len2 = gpu.delta.x * gpu.delta.x + gpu.delta.y * gpu.delta.y;
+        if (gpu.len2 <= 1.0e-12) return false;
+        gpu.kind = kGpuPaintLinear;
+        gpu.uniforms[0] = opacity;
+        return true;
+    }
+
+    Point center = radial->GetCenter();
+    Point origin = radial->GetGradientOrigin();
+    if (isRtl && radial->GetMappingMode() ==
+        BrushMappingMode::RelativeToBoundingBox) {
+        center.x = 1.0 - center.x;
+        origin.x = 1.0 - origin.x;
+    }
+    double radiusX = std::max(std::fabs(radial->GetRadiusX()), 1.0e-6);
+    double radiusY = std::max(std::fabs(radial->GetRadiusY()), 1.0e-6);
+    if (radial->GetMappingMode() ==
+        BrushMappingMode::RelativeToBoundingBox) {
+        center = {
+            bounds.x + center.x * bounds.width,
+            bounds.y + center.y * bounds.height};
+        origin = {
+            bounds.x + origin.x * bounds.width,
+            bounds.y + origin.y * bounds.height};
+        radiusX *= bounds.width;
+        radiusY *= bounds.height;
+    }
+    if (radiusX <= 1.0e-6 || radiusY <= 1.0e-6) return false;
+    const Point c{
+        (center.x - origin.x) / radiusX,
+        (center.y - origin.y) / radiusY};
+    const double d = 1.0 - c.x * c.x - c.y * c.y;
+    if (d <= 1.0e-5 || !std::isfinite(d)) return false;
+    gpu.origin = origin;
+    gpu.radiusX = radiusX;
+    gpu.radiusY = radiusY;
+    gpu.kind = kGpuPaintRadial;
+    gpu.uniforms[0] = static_cast<float>(c.x / d);
+    gpu.uniforms[1] = static_cast<float>(c.y / d);
+    gpu.uniforms[2] = static_cast<float>(1.0 / d);
+    gpu.uniforms[3] = opacity;
+    gpu.uniforms[4] = static_cast<float>(c.y);
+    gpu.uniforms[5] = static_cast<float>(c.x);
+    gpu.uniforms[6] = 0.5F;
+    gpu.uniforms[7] = 0.0F;
+    return true;
+}
+
+void FillGpuPolygon(
+    Render::DisplayListBuilder& builder,
+    const GpuGradientPaint& gpu,
+    const Point* points,
+    int count) noexcept {
+    if (count < 3 || gpu.kind == 0U) return;
+    for (int i = 1; i + 1 < count; ++i) {
+        const Point quad[4] = {
+            points[0], points[i], points[i + 1], points[i + 1]};
+        const Point uvs[4] = {
+            GpuGradientUv(gpu, quad[0]),
+            GpuGradientUv(gpu, quad[1]),
+            GpuGradientUv(gpu, quad[2]),
+            GpuGradientUv(gpu, quad[3])};
+        builder.FillGradientQuad(
+            quad, uvs, gpu.kind, gpu.uniforms, gpu.brush, gpu.wrapMode);
+    }
+}
+
+} // namespace
+
+Color SampleBrushAt(
+    const Base::Ref<Brush>& brush,
+    Point point,
+    Rect bounds,
+    bool isRtl) noexcept;
+
+void PaintBrushRect(
     Render::DisplayListBuilder& builder,
     const Base::Ref<Brush>& brush,
     Rect bounds,
@@ -407,14 +568,14 @@ Base::Result<void> PaintBrushRect(
     bool isRtl) noexcept {
     if (!brush || bounds.width <= 0.0 ||
         bounds.height <= 0.0) {
-        return {};
+        return;
     }
     // Do not emit transparent gradient/image tessellation. Apart from being
     // unnecessary work, zero-alpha FillRect commands can overwrite earlier
     // layers on backends that use opaque UI batches. This is especially
     // visible for hover overlays authored with Brush.Opacity="0".
     if (brush->GetOpacity() <= 0.0) {
-        return {};
+        return;
     }
     if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
         const auto& imageBrush =
@@ -427,7 +588,7 @@ Base::Result<void> PaintBrushRect(
             imageBrush.GetPixelHeight();
         if (image == Render::InvalidRenderImageId ||
             pixelWidth == 0U || pixelHeight == 0U) {
-            return {};
+            return;
         }
         Rect source = imageBrush.GetViewbox();
         if (imageBrush.GetViewboxUnits() ==
@@ -437,11 +598,11 @@ Base::Result<void> PaintBrushRect(
             source.width /= static_cast<double>(pixelWidth);
             source.height /= static_cast<double>(pixelHeight);
         }
-        source.x = std::clamp(source.x, 0.0, 1.0);
-        source.y = std::clamp(source.y, 0.0, 1.0);
-        source.width = std::clamp(source.width, 0.0, 1.0 - source.x);
-        source.height = std::clamp(source.height, 0.0, 1.0 - source.y);
-        if (source.width <= 0.0 || source.height <= 0.0) return {};
+        source.x = std::clamp(source.x, 0.0f, 1.0f);
+        source.y = std::clamp(source.y, 0.0f, 1.0f);
+        source.width = std::clamp(source.width, 0.0f, 1.0f - source.x);
+        source.height = std::clamp(source.height, 0.0f, 1.0f - source.y);
+        if (source.width <= 0.0 || source.height <= 0.0) return;
         Rect viewport = imageBrush.GetViewport();
         if (imageBrush.GetViewportUnits() ==
             BrushMappingMode::RelativeToBoundingBox) {
@@ -458,6 +619,48 @@ Base::Result<void> PaintBrushRect(
             imageBrush.GetTileMode() == TileMode::None ||
             viewport.width <= 0.0 || viewport.height <= 0.0) {
             viewport = bounds;
+        }
+        const Stretch stretch = imageBrush.GetStretch();
+        if (imageBrush.GetTileMode() == TileMode::None &&
+            (stretch == Stretch::UniformToFill || stretch == Stretch::Uniform)) {
+            const double imgWidth = source.width * static_cast<double>(pixelWidth);
+            const double imgHeight = source.height * static_cast<double>(pixelHeight);
+            if (imgWidth > 0.0 && imgHeight > 0.0 && bounds.width > 0.0 && bounds.height > 0.0) {
+                const double scaleX = bounds.width / imgWidth;
+                const double scaleY = bounds.height / imgHeight;
+                if (stretch == Stretch::UniformToFill) {
+                    const double scale = std::max(scaleX, scaleY);
+                    const double drawnWidth = imgWidth * scale;
+                    const double drawnHeight = imgHeight * scale;
+                    const double cropX = 1.0 - bounds.width / drawnWidth;
+                    const double cropY = 1.0 - bounds.height / drawnHeight;
+                    const double alignX = imageBrush.GetAlignmentX() == HorizontalAlignment::Left
+                        ? 0.0
+                        : imageBrush.GetAlignmentX() == HorizontalAlignment::Right ? 1.0 : 0.5;
+                    const double alignY = imageBrush.GetAlignmentY() == VerticalAlignment::Top
+                        ? 0.0
+                        : imageBrush.GetAlignmentY() == VerticalAlignment::Bottom ? 1.0 : 0.5;
+                    source.x += source.width * cropX * alignX;
+                    source.y += source.height * cropY * alignY;
+                    source.width *= (1.0 - cropX);
+                    source.height *= (1.0 - cropY);
+                    viewport = bounds;
+                } else if (stretch == Stretch::Uniform) {
+                    const double scale = std::min(scaleX, scaleY);
+                    const double drawnWidth = imgWidth * scale;
+                    const double drawnHeight = imgHeight * scale;
+                    const double alignX = imageBrush.GetAlignmentX() == HorizontalAlignment::Left
+                        ? 0.0
+                        : imageBrush.GetAlignmentX() == HorizontalAlignment::Right ? 1.0 : 0.5;
+                    const double alignY = imageBrush.GetAlignmentY() == VerticalAlignment::Top
+                        ? 0.0
+                        : imageBrush.GetAlignmentY() == VerticalAlignment::Bottom ? 1.0 : 0.5;
+                    viewport.width = drawnWidth;
+                    viewport.height = drawnHeight;
+                    viewport.x = bounds.x + (bounds.width - drawnWidth) * alignX;
+                    viewport.y = bounds.y + (bounds.height - drawnHeight) * alignY;
+                }
+            }
         }
         const bool tiled = imageBrush.GetTileMode() != TileMode::None;
         const std::int32_t firstColumn = tiled
@@ -527,15 +730,35 @@ Base::Result<void> PaintBrushRect(
                     {1.0F, 1.0F, 1.0F,
                      static_cast<float>(imageBrush.GetOpacity())},
                     center, Base::Size{bounds.width, bounds.height});
-                Base::Result<void> drawn =
-                    builder.DrawImage(image, tile, uv, tint);
-                if (!drawn) return drawn.GetStatus();
+                builder.DrawImage(image, tile, uv, tint);
             }
         }
-        return {};
+        return;
     }
-    if (brush->RuntimeType() ==
-        LinearGradientBrush::StaticTypeId()) {
+    GpuGradientPaint gpuPaint;
+    if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
+        const double clipRadius = std::min(
+            std::max(0.0, cornerRadius),
+            std::min(bounds.width, bounds.height) * 0.5);
+        if (clipRadius > kGeomEps) {
+            Point contour[kRoundedContourPoints];
+            BuildRoundedRectContour(bounds, clipRadius, contour);
+            FillGpuPolygon(
+                builder,
+                gpuPaint,
+                contour,
+                static_cast<int>(kRoundedContourPoints));
+            return;
+        }
+        const Point quad[4] = {
+            {bounds.x, bounds.y},
+            {bounds.x + bounds.width, bounds.y},
+            {bounds.x + bounds.width, bounds.y + bounds.height},
+            {bounds.x, bounds.y + bounds.height}};
+        FillGpuPolygon(builder, gpuPaint, quad, 4);
+        return;
+    }
+    if (::Aero::TryCast<LinearGradientBrush>(brush.Get()) != nullptr) {
         const auto& gradient =
             *static_cast<LinearGradientBrush*>(
                 brush.Get());
@@ -572,27 +795,73 @@ Base::Result<void> PaintBrushRect(
             {bounds.x, bounds.y + bounds.height}
         };
 
-        // With a relative transform the geometry is warped, so fall back to
-        // the single-quad approximation. Without one, an axis-aligned axis
-        // can be split into exact per-stop Gouraud bands.
-        const bool axisAligned =
-            (std::fabs(axisX) < 1.0e-9 && std::fabs(axisY) > 1.0e-9) ||
-            (std::fabs(axisY) < 1.0e-9 && std::fabs(axisX) > 1.0e-9);
-        if (!hasInverse && axisAligned) {
-            const bool horizontal = std::fabs(axisY) < 1.0e-9;
-            const double axis = horizontal ? axisX : axisY;
-            const double t0 = horizontal ? bounds.x : bounds.y;
-            const double t1 = horizontal
-                ? bounds.x + bounds.width
-                : bounds.y + bounds.height;
-            const double tMin = std::min(
-                (t0 - (horizontal ? start.x : start.y)) / axis,
-                (t1 - (horizontal ? start.x : start.y)) / axis);
-            const double tMax = std::max(
-                (t0 - (horizontal ? start.x : start.y)) / axis,
-                (t1 - (horizontal ? start.x : start.y)) / axis);
+        double tMin = 0.0;
+        double tMax = 0.0;
+        for (int i = 0; i < 4; ++i) {
+            Point samplePoint = quadPoints[i];
+            if (hasInverse) {
+                samplePoint = TransformPoint(inverse, samplePoint);
+            }
+            const double position =
+                ((samplePoint.x - start.x) * axisX +
+                 (samplePoint.y - start.y) * axisY) /
+                axisLengthSquared;
+            if (i == 0) {
+                tMin = position;
+                tMax = position;
+            } else {
+                tMin = std::min(tMin, position);
+                tMax = std::max(tMax, position);
+            }
+        }
 
-            // Collect breakpoints where the color function may change slope.
+        const double clipRadius = std::min(
+            std::max(0.0, cornerRadius),
+            std::min(bounds.width, bounds.height) * 0.5);
+        Point clipContour[kRoundedContourPoints];
+        if (clipRadius > kGeomEps) {
+            BuildRoundedRectContour(bounds, clipRadius, clipContour);
+        }
+
+        const auto emitSolid = [&](const Point* points, int count, Color color)
+            noexcept -> void {
+            Point clipped[64];
+            const Point* emit = points;
+            int emitCount = count;
+            if (clipRadius > kGeomEps) {
+                emitCount = ClipPolygonToConvex(
+                    points, count, clipContour,
+                    static_cast<int>(kRoundedContourPoints), clipped);
+                emit = clipped;
+            }
+            FillSolidPolygon(builder, emit, emitCount, color);
+        };
+
+        const auto emitSampled = [&](const Point* points, int count)
+            noexcept -> void {
+            Point clipped[64];
+            const Point* emit = points;
+            int emitCount = count;
+            if (clipRadius > kGeomEps) {
+                emitCount = ClipPolygonToConvex(
+                    points, count, clipContour,
+                    static_cast<int>(kRoundedContourPoints), clipped);
+                emit = clipped;
+            }
+            if (emitCount < 3) return;
+            Color colors[4];
+            for (int i = 1; i + 1 < emitCount; ++i) {
+                const Point quad[4] = {
+                    emit[0], emit[i], emit[i + 1], emit[i + 1]};
+                colors[0] = SampleBrushAt(brush, quad[0], bounds, isRtl);
+                colors[1] = SampleBrushAt(brush, quad[1], bounds, isRtl);
+                colors[2] = SampleBrushAt(brush, quad[2], bounds, isRtl);
+                colors[3] = colors[2];
+                builder.FillGradientQuad(quad, colors);
+            }
+        };
+
+        if (!hasInverse) {
             Base::Vector<double> boundaries;
             const GradientSpreadMethod spread = gradient.GetSpreadMethod();
             const auto stops = gradient.GetGradientStops();
@@ -602,20 +871,22 @@ Base::Result<void> PaintBrushRect(
                 for (const Base::Ref<GradientStop>& stop : stops) {
                     if (!stop) continue;
                     if (spread == GradientSpreadMethod::Reflect) {
-                        boundaries.PushBack(static_cast<double>(period) +
-                            stop->GetOffset());
-                        boundaries.PushBack(static_cast<double>(period) +
-                            1.0 - stop->GetOffset());
+                        static_cast<void>(boundaries.PushBack(
+                            static_cast<double>(period) + stop->GetOffset()));
+                        static_cast<void>(boundaries.PushBack(
+                            static_cast<double>(period) + 1.0 -
+                            stop->GetOffset()));
                     } else if (spread == GradientSpreadMethod::Repeat) {
-                        boundaries.PushBack(static_cast<double>(period) +
-                            stop->GetOffset());
+                        static_cast<void>(boundaries.PushBack(
+                            static_cast<double>(period) + stop->GetOffset()));
                     } else {
-                        boundaries.PushBack(stop->GetOffset());
+                        static_cast<void>(boundaries.PushBack(
+                            stop->GetOffset()));
                     }
                 }
             }
-            boundaries.PushBack(tMin);
-            boundaries.PushBack(tMax);
+            static_cast<void>(boundaries.PushBack(tMin));
+            static_cast<void>(boundaries.PushBack(tMax));
             std::sort(
                 boundaries.Data(),
                 boundaries.Data() + static_cast<std::size_t>(boundaries.Size()));
@@ -627,74 +898,235 @@ Base::Result<void> PaintBrushRect(
                 });
             const std::size_t boundaryCount =
                 static_cast<std::size_t>(uniqueEnd - boundaries.Data());
-            const std::size_t bandLimit = 512U;
-            if (boundaryCount > 2U && boundaryCount <= bandLimit) {
+            if (boundaryCount > 1U && boundaryCount <= 512U) {
+                std::uint32_t paintedCount = 0U;
                 for (std::uint32_t i = 0U; i + 1U < boundaryCount; ++i) {
                     const double a = std::clamp(
                         boundaries[i], tMin, tMax);
                     const double b = std::clamp(
                         boundaries[i + 1U], tMin, tMax);
                     if (b - a < 1.0e-9) continue;
-                    const Color ca = ::Aero::Media::SampleBrush(brush, a);
-                    const Color cb = ::Aero::Media::SampleBrush(brush, b);
-                    const double pos0 = (horizontal ? start.x : start.y) + a * axis;
-                    const double pos1 = (horizontal ? start.x : start.y) + b * axis;
-                    Point bandPoints[4];
-                    if (horizontal) {
-                        bandPoints[0] = {pos0, bounds.y};
-                        bandPoints[1] = {pos1, bounds.y};
-                        bandPoints[2] = {pos1, bounds.y + bounds.height};
-                        bandPoints[3] = {pos0, bounds.y + bounds.height};
-                    } else {
-                        bandPoints[0] = {bounds.x, pos0};
-                        bandPoints[1] = {bounds.x + bounds.width, pos0};
-                        bandPoints[2] = {bounds.x + bounds.width, pos1};
-                        bandPoints[3] = {bounds.x, pos1};
-                    }
-                    Color bandColors[4];
-                    if (horizontal) {
-                        bandColors[0] = ca;
-                        bandColors[1] = cb;
-                        bandColors[2] = cb;
-                        bandColors[3] = ca;
-                    } else {
-                        bandColors[0] = ca;
-                        bandColors[1] = ca;
-                        bandColors[2] = cb;
-                        bandColors[3] = cb;
-                    }
-                    Base::Result<void> painted =
-                        builder.FillGradientQuad(
-                            bandPoints, bandColors);
-                    if (!painted) return painted.GetStatus();
+                    Point slab[12];
+                    const int slabCount = IntersectSlabWithRect(
+                        bounds, start, axisX, axisY, axisLengthSquared,
+                        a, b, slab);
+                    if (slabCount < 3) continue;
+                    const Color fill = ::Aero::Media::SampleBrush(
+                        brush, (a + b) * 0.5);
+                    emitSolid(slab, slabCount, fill);
+                    ++paintedCount;
                 }
-                return {};
+                if (paintedCount > 0U) return;
             }
         }
 
-        Color quadColors[4];
-        for (int i = 0; i < 4; ++i) {
-            Point samplePoint = quadPoints[i];
-            if (hasInverse) {
-                samplePoint = TransformPoint(inverse, samplePoint);
-            }
-            const double position =
-                ((samplePoint.x - start.x) * axisX +
-                 (samplePoint.y - start.y) * axisY) /
-                axisLengthSquared;
-            quadColors[i] = ::Aero::Media::SampleBrush(
-                brush, position, {},
-                {(quadPoints[i].x - bounds.x) / bounds.width,
-                 (quadPoints[i].y - bounds.y) / bounds.height},
-                Base::Size{bounds.width, bounds.height});
+        const GradientSpreadMethod spread = gradient.GetSpreadMethod();
+        const double tRange = tMax - tMin;
+        const bool needsGrid =
+            hasInverse ||
+            spread == GradientSpreadMethod::Repeat ||
+            spread == GradientSpreadMethod::Reflect ||
+            tRange > 1.25;
+        if (!needsGrid) {
+            emitSampled(quadPoints, 4);
+            return;
         }
-        return builder.FillGradientQuad(quadPoints, quadColors);
+        const int grid = std::clamp(
+            static_cast<int>(std::ceil(std::max(8.0, tRange * 8.0))),
+            8, 32);
+        for (int r = 0; r < grid; ++r) {
+            const double y0 = bounds.y + bounds.height *
+                (static_cast<double>(r) / grid);
+            const double y1 = bounds.y + bounds.height *
+                (static_cast<double>(r + 1) / grid);
+            for (int c = 0; c < grid; ++c) {
+                const double x0 = bounds.x + bounds.width *
+                    (static_cast<double>(c) / grid);
+                const double x1 = bounds.x + bounds.width *
+                    (static_cast<double>(c + 1) / grid);
+                const Point cell[4] = {
+                    {x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}};
+                emitSampled(cell, 4);
+            }
+        }
+        return;
     }
-    if (brush->RuntimeType() ==
-        RadialGradientBrush::StaticTypeId()) {
+    if (::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr) {
+        const double clipRadius = std::min(
+            std::max(0.0, cornerRadius),
+            std::min(bounds.width, bounds.height) * 0.5);
+        Point clipContour[kRoundedContourPoints];
+        if (clipRadius > kGeomEps) {
+            BuildRoundedRectContour(bounds, clipRadius, clipContour);
+        }
+        constexpr int gridCols = 16;
+        constexpr int gridRows = 16;
+        for (int r = 0; r < gridRows; ++r) {
+            const double y0 = bounds.y + bounds.height *
+                (static_cast<double>(r) / gridRows);
+            const double y1 = bounds.y + bounds.height *
+                (static_cast<double>(r + 1) / gridRows);
+            for (int c = 0; c < gridCols; ++c) {
+                const double x0 = bounds.x + bounds.width *
+                    (static_cast<double>(c) / gridCols);
+                const double x1 = bounds.x + bounds.width *
+                    (static_cast<double>(c + 1) / gridCols);
+                Point cell[4] = {
+                    {x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}};
+                const Point* emit = cell;
+                int emitCount = 4;
+                Point clipped[64];
+                if (clipRadius > kGeomEps) {
+                    emitCount = ClipPolygonToConvex(
+                        cell, 4, clipContour,
+                        static_cast<int>(kRoundedContourPoints), clipped);
+                    emit = clipped;
+                }
+                if (emitCount < 3) continue;
+                for (int i = 1; i + 1 < emitCount; ++i) {
+                    const Point quad[4] = {
+                        emit[0], emit[i], emit[i + 1], emit[i + 1]};
+                    const Color colors[4] = {
+                        SampleBrushAt(brush, quad[0], bounds, isRtl),
+                        SampleBrushAt(brush, quad[1], bounds, isRtl),
+                        SampleBrushAt(brush, quad[2], bounds, isRtl),
+                        SampleBrushAt(brush, quad[2], bounds, isRtl)};
+                    builder.FillGradientQuad(quad, colors);
+                }
+            }
+        }
+        return;
+    }
+    const Color color = ::Aero::Media::SampleBrush(brush);
+    if (color.alpha <= 0.0F) return;
+    const double effectiveRadius = std::min(
+        std::max(0.0, cornerRadius),
+        std::min(
+            bounds.width,
+            bounds.height) * 0.5);
+    if (effectiveRadius > 0.0) {
+        builder.FillRoundedRect(
+            bounds, color, effectiveRadius);
+    } else {
+        builder.FillRect(bounds, color);
+    }
+}
+
+void PaintBrushRoundedStroke(
+    Render::DisplayListBuilder& builder,
+    const Base::Ref<Brush>& brush,
+    Rect bounds,
+    double thickness,
+    double cornerRadius,
+    bool isRtl) noexcept {
+    if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0 ||
+        thickness <= 0.0 || brush->GetOpacity() <= 0.0) {
+        return;
+    }
+    const double half = thickness * 0.5;
+    const double maxRadius = std::min(bounds.width, bounds.height) * 0.5;
+    if (maxRadius <= kGeomEps) {
+        PaintBrushRect(builder, brush, bounds, cornerRadius, isRtl);
+        return;
+    }
+    const double radius = std::clamp(cornerRadius, 0.0, maxRadius);
+    GpuGradientPaint gpuPaint;
+    if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
+        const Rect outer{
+            bounds.x - half,
+            bounds.y - half,
+            bounds.width + thickness,
+            bounds.height + thickness};
+        const Rect inner{
+            bounds.x + half,
+            bounds.y + half,
+            std::max(0.0, bounds.width - thickness),
+            std::max(0.0, bounds.height - thickness)};
+        const double outerRadius = radius + half;
+        const double arcLength = outerRadius * 3.14159265358979323846 * 0.5;
+        const std::uint32_t cornerSegments = std::clamp(
+            static_cast<std::uint32_t>(std::ceil(arcLength / 4.0)), 10U, 64U);
+        const std::uint32_t contourCount = cornerSegments * 4U;
+        Point outerPts[kMaxRoundedContourPoints];
+        Point innerPts[kMaxRoundedContourPoints];
+        BuildRoundedRectContour(outer, outerRadius, cornerSegments, outerPts);
+        BuildRoundedRectContour(
+            inner, std::max(0.0, radius - half), cornerSegments, innerPts);
+        for (std::uint32_t i = 0U; i < contourCount; ++i) {
+            const std::uint32_t next = (i + 1U) % contourCount;
+            const Point quad[4] = {
+                outerPts[i], outerPts[next], innerPts[next], innerPts[i]};
+            const Point uvs[4] = {
+                GpuGradientUv(gpuPaint, quad[0]),
+                GpuGradientUv(gpuPaint, quad[1]),
+                GpuGradientUv(gpuPaint, quad[2]),
+                GpuGradientUv(gpuPaint, quad[3])};
+            builder.FillGradientQuad(
+                quad, uvs, gpuPaint.kind, gpuPaint.uniforms, gpuPaint.brush);
+        }
+        return;
+    }
+    const Color color = ::Aero::Media::SampleBrush(brush);
+    if (color.alpha <= 0.0F) return;
+    builder.StrokeRect(bounds, color, thickness, radius);
+}
+
+Color SampleBrushAt(
+    const Base::Ref<Brush>& brush,
+    Point point,
+    Rect bounds,
+    bool isRtl) noexcept {
+    if (!brush) return {};
+    const Point uv{
+        bounds.width > 1.0e-12
+            ? (point.x - bounds.x) / bounds.width : 0.5,
+        bounds.height > 1.0e-12
+            ? (point.y - bounds.y) / bounds.height : 0.5};
+    const Size size{bounds.width, bounds.height};
+    if (::Aero::TryCast<LinearGradientBrush>(brush.Get()) != nullptr) {
         const auto& gradient =
-            *static_cast<RadialGradientBrush*>(
-                brush.Get());
+            *static_cast<LinearGradientBrush*>(brush.Get());
+        Point start = gradient.GetStartPoint();
+        Point end = gradient.GetEndPoint();
+        if (isRtl && gradient.GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            start.x = 1.0 - start.x;
+            end.x = 1.0 - end.x;
+        }
+        if (gradient.GetMappingMode() ==
+            BrushMappingMode::RelativeToBoundingBox) {
+            start = {
+                bounds.x + start.x * bounds.width,
+                bounds.y + start.y * bounds.height};
+            end = {
+                bounds.x + end.x * bounds.width,
+                bounds.y + end.y * bounds.height};
+        }
+        Point samplePoint = point;
+        if (gradient.GetRelativeTransform()) {
+            Base::Transform2D inverse;
+            if (InvertTransform(
+                    gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
+                const Point mapped = TransformPoint(inverse, uv);
+                samplePoint = {
+                    bounds.x + mapped.x * bounds.width,
+                    bounds.y + mapped.y * bounds.height};
+            }
+        }
+        const double axisX = end.x - start.x;
+        const double axisY = end.y - start.y;
+        const double axisLengthSquared = std::max(
+            axisX * axisX + axisY * axisY, 1.0e-12);
+        const double position =
+            ((samplePoint.x - start.x) * axisX +
+             (samplePoint.y - start.y) * axisY) /
+            axisLengthSquared;
+        return ::Aero::Media::SampleBrush(
+            brush, position, {}, uv, size);
+    }
+    if (::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr) {
+        const auto& gradient =
+            *static_cast<RadialGradientBrush*>(brush.Get());
         Point center = gradient.GetCenter();
         Point origin = gradient.GetGradientOrigin();
         if (isRtl && gradient.GetMappingMode() ==
@@ -715,74 +1147,384 @@ Base::Result<void> PaintBrushRect(
             radiusX *= bounds.width;
             radiusY *= bounds.height;
         }
-
+        Point samplePoint = point;
+        if (gradient.GetRelativeTransform()) {
+            Base::Transform2D inverse;
+            if (InvertTransform(
+                    gradient.GetRelativeTransform()->GetMatrix(), inverse)) {
+                const Point mapped = TransformPoint(inverse, uv);
+                samplePoint = {
+                    bounds.x + mapped.x * bounds.width,
+                    bounds.y + mapped.y * bounds.height};
+            }
+        }
         const double fx = (origin.x - center.x) / radiusX;
         const double fy = (origin.y - center.y) / radiusY;
         const bool hasFocal = (fx * fx + fy * fy) > 1.0e-6;
-
-        auto sampleRadialAt = [&](double px, double py) noexcept -> Color {
-            const double u = (px - center.x) / radiusX;
-            const double v = (py - center.y) / radiusY;
-            double t = 0.0;
-            if (hasFocal) {
-                const double dx = u - fx;
-                const double dy = v - fy;
-                const double a = dx * dx + dy * dy;
-                const double b = 2.0 * (fx * dx + fy * dy);
-                const double c = fx * fx + fy * fy - 1.0;
-                const double disc = b * b - 4.0 * a * c;
-                if (disc >= 0.0 && a > 1.0e-9) {
-                    const double root = (-b + std::sqrt(disc)) / (2.0 * a);
-                    t = root > 0.0 ? 1.0 / root : 0.0;
-                } else {
-                    t = std::sqrt(u * u + v * v);
-                }
+        const double u = (samplePoint.x - center.x) / radiusX;
+        const double v = (samplePoint.y - center.y) / radiusY;
+        double t = 0.0;
+        if (hasFocal) {
+            const double dx = u - fx;
+            const double dy = v - fy;
+            const double a = dx * dx + dy * dy;
+            const double b = 2.0 * (fx * dx + fy * dy);
+            const double c = fx * fx + fy * fy - 1.0;
+            const double disc = b * b - 4.0 * a * c;
+            if (disc >= 0.0 && a > 1.0e-9) {
+                const double root = (-b + std::sqrt(disc)) / (2.0 * a);
+                t = root > 0.0 ? 1.0 / root : 0.0;
             } else {
                 t = std::sqrt(u * u + v * v);
             }
-            return ::Aero::Media::SampleBrush(
-                brush, t, {},
-                {(px - bounds.x) / bounds.width, (py - bounds.y) / bounds.height},
-                Base::Size{bounds.width, bounds.height});
-        };
-
-        constexpr int gridCols = 16;
-        constexpr int gridRows = 16;
-        for (int r = 0; r < gridRows; ++r) {
-            const double y0 = bounds.y + bounds.height * (static_cast<double>(r) / gridRows);
-            const double y1 = bounds.y + bounds.height * (static_cast<double>(r + 1) / gridRows);
-            for (int c = 0; c < gridCols; ++c) {
-                const double x0 = bounds.x + bounds.width * (static_cast<double>(c) / gridCols);
-                const double x1 = bounds.x + bounds.width * (static_cast<double>(c + 1) / gridCols);
-                const Point quadPoints[4] = {
-                    {x0, y0},
-                    {x1, y0},
-                    {x1, y1},
-                    {x0, y1}
-                };
-                const Color quadColors[4] = {
-                    sampleRadialAt(x0, y0),
-                    sampleRadialAt(x1, y0),
-                    sampleRadialAt(x1, y1),
-                    sampleRadialAt(x0, y1)
-                };
-                Base::Result<void> drawn = builder.FillGradientQuad(quadPoints, quadColors);
-                if (!drawn) return drawn.GetStatus();
-            }
+        } else {
+            t = std::sqrt(u * u + v * v);
         }
-        return {};
+        return ::Aero::Media::SampleBrush(brush, t, {}, uv, size);
     }
-    const Color color = ::Aero::Media::SampleBrush(brush);
-    if (color.alpha <= 0.0F) return {};
-    const double effectiveRadius = std::min(
-        std::max(0.0, cornerRadius),
-        std::min(
-            bounds.width,
-            bounds.height) * 0.5);
-    return effectiveRadius > 0.0
-        ? builder.FillRoundedRect(
-            bounds, color, effectiveRadius)
-        : builder.FillRect(bounds, color);
+    return ::Aero::Media::SampleBrush(brush, 0.5, {}, uv, size);
+}
+
+void PaintBrushGeometry(
+    Render::DisplayListBuilder& builder,
+    const Base::Ref<Brush>& brush,
+    Base::Span<const Point> vertices,
+    Base::Span<const std::uint32_t> indices,
+    Rect bounds,
+    bool isRtl,
+    Render::RenderMeshId mesh) noexcept {
+    if (!brush) {
+        return;
+    }
+    if (brush->GetOpacity() <= 0.0) return;
+    if (indices.Size() < 3U && mesh == Render::InvalidRenderMeshId) {
+        return;
+    }
+
+    if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
+        const auto* imageBrush = static_cast<const ImageBrush*>(brush.Get());
+        const Render::RenderImageId imageId = imageBrush->GetRenderImageId();
+        if (imageId != Render::InvalidRenderImageId && mesh != Render::InvalidRenderMeshId) {
+            Rect viewbox = imageBrush->GetViewbox();
+            if (imageBrush->GetViewboxUnits() == BrushMappingMode::Absolute) {
+                const double pw = static_cast<double>(imageBrush->GetPixelWidth());
+                const double ph = static_cast<double>(imageBrush->GetPixelHeight());
+                if (pw > 0.0 && ph > 0.0) {
+                    viewbox.x /= pw;
+                    viewbox.y /= ph;
+                    viewbox.width /= pw;
+                    viewbox.height /= ph;
+                }
+            }
+            viewbox.x = std::clamp(viewbox.x, 0.0f, 1.0f);
+            viewbox.y = std::clamp(viewbox.y, 0.0f, 1.0f);
+            viewbox.width = std::clamp(viewbox.width, 0.0f, 1.0f - viewbox.x);
+            viewbox.height = std::clamp(viewbox.height, 0.0f, 1.0f - viewbox.y);
+            const Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+            builder.DrawPatternMesh(
+                mesh,
+                imageId,
+                bounds,
+                viewbox,
+                tint,
+                static_cast<float>(imageBrush->GetOpacity()),
+                static_cast<std::uint8_t>(imageBrush->GetTileMode()));
+            return;
+        }
+    }
+    GpuGradientPaint gpuPaint;
+    if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
+        if (mesh != Render::InvalidRenderMeshId) {
+            builder.DrawMesh(
+                mesh,
+                gpuPaint.kind,
+                gpuPaint.uniforms,
+                gpuPaint.brush,
+                gpuPaint.bounds,
+                gpuPaint.kind == kGpuPaintLinear
+                    ? gpuPaint.start
+                    : gpuPaint.origin,
+                gpuPaint.delta,
+                Point{gpuPaint.radiusX, gpuPaint.radiusY},
+                gpuPaint.len2,
+                gpuPaint.hasInverse,
+                gpuPaint.inverse,
+                gpuPaint.wrapMode);
+            return;
+        }
+        for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
+            const std::uint32_t ia = indices[index];
+            const std::uint32_t ib = indices[index + 1U];
+            const std::uint32_t ic = indices[index + 2U];
+            if (ia >= vertices.Size() || ib >= vertices.Size() ||
+                ic >= vertices.Size()) {
+                continue;
+            }
+            const Point tri[3] = {
+                vertices[ia], vertices[ib], vertices[ic]};
+            FillGpuPolygon(builder, gpuPaint, tri, 3);
+        }
+        return;
+    }
+    const bool spatial = IsSpatialGradientBrush(brush.Get());
+    Color solid{};
+    if (!spatial) {
+        solid = ::Aero::Media::SampleBrush(brush);
+        if (solid.alpha <= 0.0F) return;
+    }
+    const auto emit = [&](Point pa, Point pb, Point pc)
+        noexcept -> void {
+        const Color ca =
+            spatial ? SampleBrushAt(brush, pa, bounds, isRtl) : solid;
+        const Color cb =
+            spatial ? SampleBrushAt(brush, pb, bounds, isRtl) : solid;
+        const Color cc =
+            spatial ? SampleBrushAt(brush, pc, bounds, isRtl) : solid;
+        if (ca.alpha <= 0.0F && cb.alpha <= 0.0F && cc.alpha <= 0.0F) {
+            return;
+        }
+        const Point quad[4] = {pa, pb, pc, pc};
+        const Color colors[4] = {ca, cb, cc, cc};
+        builder.FillGradientQuad(quad, colors);
+    };
+    const bool radial =
+        ::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr;
+    for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
+        const std::uint32_t ia = indices[index];
+        const std::uint32_t ib = indices[index + 1U];
+        const std::uint32_t ic = indices[index + 2U];
+        if (ia >= vertices.Size() || ib >= vertices.Size() ||
+            ic >= vertices.Size()) {
+            continue;
+        }
+        const Point a = vertices[ia];
+        const Point b = vertices[ib];
+        const Point c = vertices[ic];
+        // Scanline tessellation already emits thin bands. Recursive midpoint
+        // splits turn each band into 64 quads and freeze the first frame on
+        // vector-heavy scenes (TicTacToe hills/bushes). Radial still needs one
+        // interior sample so the highlight is not flattened to the outline.
+        if (radial) {
+            const Point mid{
+                (a.x + b.x + c.x) / 3.0,
+                (a.y + b.y + c.y) / 3.0};
+            emit(a, b, mid);
+            emit(b, c, mid);
+            emit(c, a, mid);
+            continue;
+        }
+        emit(a, b, c);
+    }
 }
 
 } // namespace Aero::Media
+
+// Metadata registration for the types implemented in this file.
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using namespace ::Aero::Media;
+namespace {
+
+void AddGradientStop(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            GradientStop::StaticTypeId()) {
+        return;
+    }
+    Base::Ref<GradientStop> retained =
+        Base::Ref<GradientStop>::FromBorrowed(
+            static_cast<GradientStop&>(*value));
+    if (!retained) {
+        return;
+    }
+    static_cast<GradientBrush&>(owner).AddGradientStop(
+        std::move(retained));
+}
+
+void ClearGradientStops(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GradientBrush&>(owner)
+        .ClearGradientStops();
+    return;
+}
+
+void AddGradientStopCollectionItem(
+    Base::Object& owner,
+    const Base::Ref<Base::Object>& value,
+    void*) noexcept {
+    if (!value || value->RuntimeType() !=
+            GradientStop::StaticTypeId()) {
+        return;
+    }
+    static_cast<GradientStopCollection&>(owner).Add(
+        Base::Ref<GradientStop>::FromBorrowed(
+            static_cast<GradientStop&>(*value)));
+}
+
+void ClearGradientStopCollectionItems(
+    Base::Object& owner,
+    void*) noexcept {
+    static_cast<GradientStopCollection&>(owner).Clear();
+    return;
+}
+
+Base::Result<Value> ConvertBrushText(
+    TypeId targetType,
+    Base::StringView text,
+    void* context) noexcept {
+    if (targetType != Brush::StaticTypeId() ||
+        context == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Brush text conversion received invalid metadata");
+    }
+    RegistrationValues values =
+        ::Aero::Meta::MakeRegistrationValues(context);
+    Base::Result<Value> converted =
+        values.TryConvertText(
+            Meta::TypeOf<Color>(), text);
+    if (!converted) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Brush text could not be converted to Color");
+    }
+    Base::Result<Color> color =
+        ValueCodec<Color>::Decode(
+            values, converted.Value());
+    if (!color) return color.GetStatus();
+    Base::Ref<SolidColorBrush> made =
+        Base::MakeRef<SolidColorBrush>();
+    if (!made) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Brush allocation failed");
+    }
+    made->SetColor(color.Value());
+    return Value::FromObject(
+        Brush::StaticTypeId(),
+        Base::Ref<Base::Object>(std::move(made)));
+}
+
+} // namespace
+} // namespace Aero::MetadataSupport
+
+namespace Aero::Media {
+
+AERO_DESCRIBE(Brush) {
+    using namespace Aero::Meta;
+    Register<Brush>(context, TypeFlags::Abstract)
+            .Property(Brush::OpacityProperty, 1.0, AffectsRender, &ValidateUnitDouble)
+            .Property(Brush::ShaderProperty, Base::Ref<Base::Object>{}, AffectsRender)
+            .Property(Brush::RelativeTransformProperty, Base::Ref<Transform>{}, AffectsRender)
+            .TextConverter(&::Aero::MetadataSupport::ConvertBrushText);
+}
+
+AERO_DESCRIBE(SolidColorBrush) {
+    using namespace Aero::Meta;
+    Register<SolidColorBrush>(context)
+            .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
+            .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
+            .Factory();
+}
+
+AERO_DESCRIBE(GradientStop) {
+    using namespace Aero::Meta;
+    Register<GradientStop>(context)
+            .Property(GradientStop::OffsetProperty, FrameworkPropertyMetadata(0.0).AffectsRender())
+            .Property(GradientStop::ColorProperty, FrameworkPropertyMetadata(Color{}).AffectsRender())
+            .Factory();
+}
+
+AERO_DESCRIBE(GradientStopCollection) {
+    using namespace Aero::Meta;
+    Register<GradientStopCollection>(context)
+            .Implements<Collections::IItemsSource>()
+            .Content<GradientStop>("Items", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStopCollectionItem, &::Aero::MetadataSupport::ClearGradientStopCollectionItems)
+            .Factory();
+}
+
+AERO_DESCRIBE(BrushShader) {
+    using namespace Aero::Meta;
+    Register<BrushShader>(context, TypeFlags::Abstract)
+            .Factory();
+}
+
+AERO_DESCRIBE(MonochromeShader) {
+    using namespace Aero::Meta;
+    Register<MonochromeShader>(context)
+            .Property<Color, &MonochromeShader::GetColor, &MonochromeShader::SetColor>("Color")
+            .Factory();
+}
+
+AERO_DESCRIBE(ConicGradientShader) {
+    using namespace Aero::Meta;
+    Register<ConicGradientShader>(context)
+            .Content<GradientStop>("GradientStops", ContentKind::Collection, [](Base::Object& owner, const Base::Ref<Base::Object>& value, void*) noexcept { static_cast<ConicGradientShader&>(owner).AddGradientStop(Base::Ref<GradientStop>::FromBorrowed(static_cast<GradientStop&>(*value))); }, [](Base::Object& owner, void*) noexcept { static_cast<ConicGradientShader&>(owner).ClearGradientStops(); })
+            .Factory();
+}
+
+AERO_DESCRIBE(WavesShader) {
+    using namespace Aero::Meta;
+    Register<WavesShader>(context)
+            .Property(WavesShader::TimeProperty, 0.0, AffectsRender)
+            .Factory();
+}
+
+AERO_DESCRIBE(GradientBrush) {
+    using namespace Aero::Meta;
+    Register<GradientBrush>(context, TypeFlags::Abstract)
+            .Property(GradientBrush::MappingModeProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(GradientBrush::SpreadMethodProperty, GradientSpreadMethod::Pad, AffectsRender)
+            .Content<GradientStop>("GradientStops", ContentKind::Collection, &::Aero::MetadataSupport::AddGradientStop, &::Aero::MetadataSupport::ClearGradientStops);
+}
+
+AERO_DESCRIBE(LinearGradientBrush) {
+    using namespace Aero::Meta;
+    Register<LinearGradientBrush>(context)
+            .Property(LinearGradientBrush::StartPointProperty, Point{0.0, 0.0})
+            .Property(LinearGradientBrush::EndPointProperty, Point{1.0, 1.0})
+            .Factory();
+}
+
+AERO_DESCRIBE(RadialGradientBrush) {
+    using namespace Aero::Meta;
+    Register<RadialGradientBrush>(context)
+            .Property(RadialGradientBrush::CenterProperty, Point{0.5, 0.5})
+            .Property(RadialGradientBrush::GradientOriginProperty, Point{0.5, 0.5})
+            .Property(RadialGradientBrush::RadiusXProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+            .Property(RadialGradientBrush::RadiusYProperty, 0.5, FrameworkPropertyMetadataOptions::None, &Base::Validate::Positive<double>)
+            .Factory();
+}
+
+AERO_DESCRIBE(TileBrush) {
+    using namespace Aero::Meta;
+    Register<TileBrush>(context, TypeFlags::Abstract)
+            .Property(TileBrush::StretchProperty, Stretch::Fill)
+            .Property(TileBrush::ViewboxProperty, Rect{0.0, 0.0, 1.0, 1.0})
+            .Property(TileBrush::ViewportProperty, Rect{0.0, 0.0, 1.0, 1.0})
+            .Property(TileBrush::ViewboxUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(TileBrush::ViewportUnitsProperty, BrushMappingMode::RelativeToBoundingBox)
+            .Property(TileBrush::TileModeProperty, TileMode::None)
+            .Property(TileBrush::AlignmentXProperty, HorizontalAlignment::Center)
+            .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
+}
+
+AERO_DESCRIBE(ImageBrush) {
+    using namespace Aero::Meta;
+    Register<ImageBrush>(context)
+            .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{})
+            .Factory();
+}
+
+AERO_DESCRIBE(VisualBrush) {
+    using namespace Aero::Meta;
+    Register<VisualBrush>(context)
+            .Property(VisualBrush::VisualProperty, Base::Ref<Base::Object>{})
+            .Factory();
+}
+
+} // namespace Aero::Media
+

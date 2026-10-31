@@ -4,19 +4,28 @@
 
 #include <AeroApp/Application.hpp>
 #include <AeroApp/Window.hpp>
-#include "ApplicationState.hpp"
+#include "ApplicationHost.hpp"
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Base/String.hpp>
+#include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/ViewOptions.hpp>
 #include <Aero/IRenderer.hpp>
 #include <Aero/View.hpp>
+#include "gui/input/InputDevicesState.hpp"
 
 #if defined(_WIN32)
 #include "app/platform/win32/InputRouters.hpp"
 #include "app/platform/win32/Window.hpp"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#ifdef ShowWindow
+#undef ShowWindow
+#endif
 #else
 #include "app/platform/x11/Window.hpp"
 #endif
@@ -42,6 +51,8 @@ Base::Result<Render::RenderContext*> CreateRenderContext(
     std::uint32_t width,
     std::uint32_t height,
     Base::IAllocator* allocator) noexcept {
+    (void)window;
+    (void)allocator;
     if (width == 0U || height == 0U) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -117,7 +128,7 @@ std::uint32_t WindowExtent(
 bool IsWindowType(Meta::TypeId type) noexcept {
     for (Meta::TypeId current = type;
          current != Meta::InvalidTypeId;) {
-        if (current == Aero::Window::StaticTypeId()) return true;
+        if (current == Window::StaticTypeId()) return true;
         current = Meta::ResolveRuntimeTypeInfo(current).baseType;
     }
     return false;
@@ -126,46 +137,19 @@ bool IsWindowType(Meta::TypeId type) noexcept {
 std::uint32_t DecodeWindowCodePoint(
     Base::StringView text) noexcept {
     if (text.Empty()) return 0U;
-    const auto lead = static_cast<std::uint8_t>(text[0]);
-    std::uint32_t value = 0U;
-    std::uint32_t count = 1U;
-    if (lead < 0x80U) return lead;
-    if ((lead & 0xE0U) == 0xC0U) {
-        value = lead & 0x1FU;
-        count = 2U;
-    } else if ((lead & 0xF0U) == 0xE0U) {
-        value = lead & 0x0FU;
-        count = 3U;
-    } else if ((lead & 0xF8U) == 0xF0U) {
-        value = lead & 0x07U;
-        count = 4U;
-    } else {
-        return 0xFFFDU;
-    }
-    if (text.SizeBytes() < count) return 0xFFFDU;
-    for (std::uint32_t index = 1U; index < count; ++index) {
-        const auto byte = static_cast<std::uint8_t>(text[index]);
-        if ((byte & 0xC0U) != 0x80U) return 0xFFFDU;
-        value = (value << 6U) | (byte & 0x3FU);
-    }
-    return value;
+    const Base::DecodedCodePoint decoded =
+        Base::DecodeCodePoint(text.Data(), text.SizeBytes());
+    return decoded.length != 0U ? decoded.value : 0xFFFDU;
 }
 
 } // namespace
 
-struct DesktopHostState {
-    struct WindowHost {
+struct DesktopHostState : public IApplicationHost {
+    struct WindowHost : public IWindowHost {
         explicit WindowHost(DesktopHostState& applicationHost) noexcept
-            : owner(&applicationHost),
-              runtime{
-                  this,
-                  &WindowHost::ShowThunk,
-                  &WindowHost::CloseThunk,
-                  &WindowHost::IsOpenThunk,
-                  &WindowHost::NativeHandleThunk,
-                  &WindowHost::HostedViewThunk} {}
+            : owner(&applicationHost) {}
 
-        ~WindowHost() noexcept {
+        ~WindowHost() noexcept override {
             Shutdown();
         }
 
@@ -186,10 +170,12 @@ struct DesktopHostState {
             options.clipboard = &clipboard;
             options.textInputMethodHost = &inputMethod;
 #endif
-            Base::Result<Base::Ref<View>> created =
-                owner->environment.CreateView(options, owner->allocator);
-            if (!created) return created.GetStatus();
-            view = std::move(created).Value();
+            view = owner->environment.CreateView(options, owner->allocator);
+            if (!view) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to create GUI view");
+            }
             return {};
         }
 
@@ -213,17 +199,17 @@ Base::Result<void> LoadFromUri(
             if (!IsWindowType(root->RuntimeType())) {
                 // WPF/Noesis host a non-Window StartupUri root (for example a
                 // UserControl) inside an automatically created default Window.
-                Base::Ref<Aero::Window> hosted;
-                auto made = Base::MakeRef<Aero::Window>();
+                Base::Ref<Window> hosted;
+                auto made = Base::MakeRef<Window>();
                 if (!made) {
                     return HostFailure(
                         Base::ErrorCode::OutOfMemory,
                         "Unable to allocate a host Window for StartupUri");
                 }
-                hosted = std::move(made).Value();
+                hosted = std::move(made);
                 hosted->SetContent(root);
                 windowOwner = Base::Ref<Base::Object>(hosted);
-                window = static_cast<Aero::Window*>(windowOwner.Get());
+                window = static_cast<Window*>(windowOwner.Get());
                 loadedDocument = std::move(loaded).Value();
                 return FinishInitialization(true);
             }
@@ -242,10 +228,10 @@ Base::Result<void> LoadFromUri(
             }
             Base::Result<void> created = CreateView();
             if (!created) return created.GetStatus();
-            if (DesktopHost::WindowComponentRequested(*value)) {
+            if (value->ComponentRequested()) {
                 Base::String componentPath;
                 const Base::StringView authored =
-                    DesktopHost::WindowComponentUri(*value);
+                    value->ComponentUri();
                 Base::Result<void> assigned;
                 if (!authored.Empty()) {
                     const bool absolute = authored.SizeBytes() > 2U &&
@@ -322,6 +308,12 @@ Base::Result<void> LoadFromUri(
                 window->GetHeight(), owner->defaultHeight);
             Base::Result<void> native = CreateNativeWindow(width, height);
             if (!native) return native.GetStatus();
+            // Make the window visible immediately. SetContent / first Update
+            // of a large tree (Inventory) can take several seconds; waiting
+            // until that finishes looks like a hung process with no window.
+            if (owner != nullptr && owner->visible && nativeWindow) {
+                nativeWindow->Show();
+            }
             width = nativeWindow->ClientWidth();
             height = nativeWindow->ClientHeight();
             if (width == 0U || height == 0U) {
@@ -354,10 +346,13 @@ Base::Result<void> LoadFromUri(
             const Size size{
                 static_cast<double>(width) / dpiScale,
                 static_cast<double>(height) / dpiScale};
-            Base::Result<void> viewport = view->SetViewport(
-                {size, width, height, dpiScale});
-            if (!viewport) return viewport.GetStatus();
-            Base::Result<void> mounted;
+            if (!view->SetViewport(
+                {size, width, height, dpiScale})) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to set view viewport");
+            }
+            bool mounted = false;
             if (programmaticRoot) {
                 if (loadedDocument.IsValid()) {
                     mounted = view->SetContent(
@@ -373,9 +368,18 @@ Base::Result<void> LoadFromUri(
                 mounted = view->SetContent(
                     std::move(loadedDocument), size);
             }
-            if (!mounted) return mounted.GetStatus();
-            DesktopHost::AttachWindow(*window, &runtime);
-            DesktopHost::NotifyWindowSourceInitialized(*window);
+            if (!mounted) {
+                return HostFailure(
+                    Base::ErrorCode::InvalidState,
+                    "Failed to mount view content");
+            }
+            window->Attach(this);
+            window->NotifySourceInitialized();
+            static_cast<void>(view->Update(0.0));
+            firstLayoutFlushed = true;
+            if (owner != nullptr && owner->visible && nativeWindow) {
+                static_cast<void>(RenderFrame(true));
+            }
             return {};
         }
 
@@ -395,9 +399,10 @@ Base::Result<void> LoadFromUri(
                     "Application native window allocation failed");
             }
             Platform::WindowDescriptor descriptor;
-            descriptor.title = window->GetTitle().Empty()
+            const Base::StringView windowTitle = window->GetTitle();
+            descriptor.title = windowTitle.Empty()
                 ? Base::StringView("AeroGUI")
-                : window->GetTitle();
+                : windowTitle;
             descriptor.width = width;
             descriptor.height = height;
             descriptor.visible = false;
@@ -410,29 +415,31 @@ Base::Result<void> LoadFromUri(
                 nativeWindow->NativeHandle();
             void* nativeHandle = reinterpret_cast<void*>(handle.window);
             clipboard.SetOwnerWindow(nativeHandle);
-            Base::Result<void> inputAttached =
-                inputMethod.Attach(nativeHandle);
-            if (!inputAttached) {
+            if (!inputMethod.Attach(nativeHandle)) {
                 nativeWindow->Close();
-                return inputAttached.GetStatus();
+                return Base::Status::Failure(
+                    Base::ErrorCode::InternalError,
+                    "Win32 failed to attach IME to window");
             }
 #endif
             return {};
         }
 
-        Base::Result<void> HandleEvent(
+        void HandleEvent(
             const Platform::WindowEvent& event) noexcept {
             switch (event.type) {
             case Platform::WindowEventType::CloseRequested:
                 if (window != nullptr) window->Close();
                 else Close();
-                return {};
+                RequestHostExitIfIdle();
+                return;
             case Platform::WindowEventType::Closed:
                 closeRequested = true;
                 if (window != nullptr) {
-                    DesktopHost::NotifyWindowClosed(*window);
+                    window->NotifyClosed();
                 }
-                return {};
+                RequestHostExitIfIdle();
+                return;
             case Platform::WindowEventType::Resized:
             case Platform::WindowEventType::ScaleChanged:
                 frameRequested = true;
@@ -443,14 +450,14 @@ Base::Result<void> LoadFromUri(
                     pendingDpiScale = event.dpiScale;
                 }
                 hasPendingResize = true;
-                return {};
+                return;
             case Platform::WindowEventType::PointerMove:
             case Platform::WindowEventType::PointerDown:
             case Platform::WindowEventType::PointerDoubleClick:
             case Platform::WindowEventType::PointerUp:
             case Platform::WindowEventType::PointerWheel: {
-                Base::Result<void> resized = ApplyPendingResize();
-                if (!resized) return resized.GetStatus();
+                Input::DeviceState::SetLastModifiers(event.modifiers);
+                ApplyPendingResize();
                 const int x = static_cast<int>(event.x / dpiScale);
                 const int y = static_cast<int>(event.y / dpiScale);
                 bool handled = false;
@@ -468,20 +475,21 @@ Base::Result<void> LoadFromUri(
                     handled = event.wheelDeltaX != 0.0
                         ? view->MouseHWheel(
                             x, y,
-                            static_cast<int>(event.wheelDeltaX / 120.0))
+                            static_cast<int>(std::lround(event.wheelDeltaX)))
                         : view->MouseWheel(
                             x, y,
-                            static_cast<int>(event.wheelDeltaY / 120.0));
+                            static_cast<int>(std::lround(event.wheelDeltaY)));
                 } else {
                     handled = view->MouseMove(x, y);
                 }
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::KeyDown:
             case Platform::WindowEventType::KeyUp: {
-                if (event.key == 0U) return {};
+                if (event.key == 0U) return;
+                Input::DeviceState::SetLastModifiers(event.modifiers);
                 const Input::Key key = static_cast<Input::Key>(event.key);
                 const bool handled =
                     event.type == Platform::WindowEventType::KeyDown
@@ -489,86 +497,80 @@ Base::Result<void> LoadFromUri(
                     : view->KeyUp(key);
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::TextInput: {
-                if (event.textSize == 0U) return {};
+                if (event.textSize == 0U) return;
                 const bool handled = view->Char(
                     DecodeWindowCodePoint(event.Text()));
                 (void)handled;
                 frameRequested = true;
-                return {};
+                return;
             }
             case Platform::WindowEventType::Exposed:
                 frameRequested = true;
-                return {};
+                return;
             case Platform::WindowEventType::Invalid:
             default:
-                return {};
+                return;
             }
         }
 
-        Base::Result<void> ApplyPendingResize() noexcept {
-            if (!hasPendingResize) return {};
+        void ApplyPendingResize() noexcept {
+            if (!hasPendingResize) return;
             const std::uint32_t width = pendingResizeWidth;
             const std::uint32_t height = pendingResizeHeight;
             const double nextDpiScale = pendingDpiScale;
             hasPendingResize = false;
             if (width != 0U && height != 0U) {
-                Base::Result<void> resized =
-                    renderContext->Resize(width, height);
-                if (!resized) return resized.GetStatus();
+                static_cast<void>(renderContext->Resize(width, height));
             }
             const Size logicalSize{
                 static_cast<double>(width) / nextDpiScale,
                 static_cast<double>(height) / nextDpiScale};
-            Base::Result<void> viewport = view->SetViewport(
-                {logicalSize, width, height, nextDpiScale});
-            if (!viewport) return viewport.GetStatus();
+            static_cast<void>(view->SetViewport(
+                {logicalSize, width, height, nextDpiScale}));
             dpiScale = nextDpiScale;
             frameRequested = true;
-            return {};
+            if (!firstLayoutFlushed &&
+                width != 0U && height != 0U && view) {
+                static_cast<void>(view->Update(updateTimeSeconds));
+                firstLayoutFlushed = true;
+            }
         }
 
-        Base::Result<bool> PumpEvents() noexcept {
-            if (!nativeWindow || !nativeWindow->IsOpen() || closeRequested) {
+        bool PumpEvents() noexcept {
+            if (!nativeWindow) {
                 return false;
             }
             bool handled = false;
             for (;;) {
                 Platform::WindowEvent event;
-                Base::Result<bool> received = nativeWindow->PollEvent(event);
-                if (!received) return received.GetStatus();
-                if (!received.Value()) break;
+                if (!nativeWindow->PollEvent(event)) break;
                 handled = true;
-                Base::Result<void> status = HandleEvent(event);
-                if (!status) return status.GetStatus();
-                if (closeRequested) break;
+                HandleEvent(event);
             }
-            Base::Result<void> resized = ApplyPendingResize();
-            if (!resized) return resized.GetStatus();
+            if (!closeRequested && nativeWindow->IsOpen()) {
+                ApplyPendingResize();
+            }
             return handled;
         }
 
-        Base::Result<bool> WaitForActivity(
+        bool WaitForActivity(
             std::uint32_t timeoutMilliseconds,
             bool blockUntilEvent) noexcept {
             if (!nativeWindow || !nativeWindow->IsOpen() || closeRequested) {
                 return false;
             }
             Platform::WindowEvent event;
-            Base::Result<bool> received = blockUntilEvent
+            const bool handled = blockUntilEvent
                 ? nativeWindow->WaitEvent(event)
                 : nativeWindow->WaitEventFor(event, timeoutMilliseconds);
-            if (!received) return received.GetStatus();
-            bool handled = received.Value();
             if (handled) {
-                Base::Result<void> status = HandleEvent(event);
-                if (!status) return status.GetStatus();
+                HandleEvent(event);
             }
-            Base::Result<bool> drained = PumpEvents();
-            if (!drained) return drained.GetStatus();
-            return handled || drained.Value();
+            const bool drained = PumpEvents();
+            return handled || drained;
         }
 
         Base::Result<void> RenderFrame(bool force = false) noexcept {
@@ -588,8 +590,7 @@ Base::Result<void> LoadFromUri(
             }
             lastUpdate = now;
             updateClockInitialized = true;
-            updateTimeSeconds +=
-                static_cast<double>(elapsedMilliseconds) / 1000.0;
+            updateTimeSeconds += static_cast<double>(elapsedMilliseconds) / 1000.0;
             const bool committed = view->Update(updateTimeSeconds);
             if (closeRequested || shutdown) return {};
 
@@ -607,8 +608,17 @@ Base::Result<void> LoadFromUri(
                     Base::ErrorCode::InvalidState,
                     "Application render device is unavailable");
             }
+#if defined(_WIN32)
+            char capCheck[64];
+            const bool capturing =
+                GetEnvironmentVariableA("AERO_CAPTURE_PATH", capCheck, sizeof(capCheck)) > 0;
+#else
+            const char* capEnv = std::getenv("AERO_CAPTURE_PATH");
+            const bool capturing = (capEnv != nullptr && capEnv[0] != '\0');
+#endif
             const bool needsRender = force || frameRequested ||
-                committed || synchronized || !firstFrameRendered;
+                committed || synchronized || !firstFrameRendered ||
+                (capturing && updateTimeSeconds < 1.5);
             if (!needsRender) return {};
 
             if (!renderer.RenderOffscreen()) {
@@ -624,85 +634,89 @@ Base::Result<void> LoadFromUri(
             return {};
         }
 
-        Base::Result<void> Show() noexcept {
+        void Show() noexcept override {
             if (closeRequested || !nativeWindow) {
-                return HostFailure(
-                    Base::ErrorCode::InvalidState,
-                    "Window native host is unavailable");
+                return;
             }
             if (!firstFrameRendered) {
-                Base::Result<void> rendered = RenderFrame(true);
-                if (!rendered) return rendered.GetStatus();
+                static_cast<void>(RenderFrame(true));
             }
-            Base::Result<void> shown = nativeWindow->Show();
-            if (shown && window != nullptr) {
-                DesktopHost::NotifyWindowContentRendered(*window);
+            nativeWindow->Show();
+            if (window != nullptr) {
+                window->NotifyContentRendered();
+                frameRequested = true;
             }
-            return shown;
         }
 
-        void Close() noexcept {
+        void Close() noexcept override {
             closeRequested = true;
             // Tear down the graphics context while the native surface (and its
             // X11 display) is still alive. The GLX context must be destroyed
             // before the display connection closes; Shutdown() later repeats
             // the teardown idempotently.
             if (renderContext) renderContext->Shutdown();
-            if (nativeWindow != nullptr && nativeWindow->IsOpen()) {
+            if (nativeWindow != nullptr) {
                 nativeWindow->Close();
             }
         }
 
-        bool IsOpen() const noexcept {
+        void RequestHostExitIfIdle() noexcept {
+            if (owner == nullptr || owner->application == nullptr) return;
+            const ShutdownMode mode = owner->application->GetShutdownMode();
+            if (mode == ShutdownMode::OnExplicitShutdown) return;
+            if (mode == ShutdownMode::OnMainWindowClose) {
+                Window* main = owner->application->GetMainWindow();
+                for (WindowHost* host : owner->windows) {
+                    if (host != nullptr &&
+                        host->window == main &&
+                        host->IsOpen()) {
+                        return;
+                    }
+                }
+            } else {
+                for (WindowHost* host : owner->windows) {
+                    if (host != nullptr && host->IsOpen()) return;
+                }
+            }
+            owner->RequestExit(0);
+        }
+
+        bool IsOpen() const noexcept override {
             return !closeRequested && nativeWindow && nativeWindow->IsOpen();
         }
 
-        Platform::NativeWindowHandle NativeHandle() const noexcept {
+        Platform::NativeWindowHandle NativeHandle() const noexcept override {
             return nativeWindow
                 ? nativeWindow->NativeHandle()
                 : Platform::NativeWindowHandle{};
         }
 
-        View* HostedView() noexcept { return view.Get(); }
+        View* HostedView() noexcept override { return view.Get(); }
 
         void Shutdown() noexcept {
             if (shutdown) return;
             shutdown = true;
-            if (renderContext) renderContext->Shutdown();
             if (window != nullptr) {
-                DesktopHost::NotifyWindowClosed(*window);
-                DesktopHost::DetachWindow(*window);
+                window->NotifyClosed();
+                window->Detach();
             }
 #if defined(_WIN32)
             static_cast<void>(inputMethod.Detach());
 #endif
-            if (nativeWindow) nativeWindow->Close();
-            loadedDocument = {};
             view.Reset();
+            loadedDocument = {};
             windowOwner.Reset();
             window = nullptr;
+            if (renderContext) {
+                renderContext->Shutdown();
+            }
+            if (nativeWindow) {
+                nativeWindow->Close();
+            }
             nativeWindow.reset();
         }
 
-        static Base::Result<void> ShowThunk(void* context) noexcept {
-            return static_cast<WindowHost*>(context)->Show();
-        }
-        static void CloseThunk(void* context) noexcept {
-            static_cast<WindowHost*>(context)->Close();
-        }
-        static bool IsOpenThunk(const void* context) noexcept {
-            return static_cast<const WindowHost*>(context)->IsOpen();
-        }
-        static Platform::NativeWindowHandle NativeHandleThunk(
-            const void* context) noexcept {
-            return static_cast<const WindowHost*>(context)->NativeHandle();
-        }
-        static View* HostedViewThunk(void* context) noexcept {
-            return static_cast<WindowHost*>(context)->HostedView();
-        }
-
         DesktopHostState* owner = nullptr;
-        WindowHostState runtime;
         Base::Ref<View> view;
         std::unique_ptr<Render::RenderContext> renderContext;
         Base::Ref<Base::Object> windowOwner;
@@ -716,6 +730,7 @@ Base::Result<void> LoadFromUri(
         bool closeRequested = false;
         bool hasPendingResize = false;
         bool firstFrameRendered = false;
+        bool firstLayoutFlushed = false;
         bool frameRequested = true;
         bool updateClockInitialized = false;
         std::chrono::steady_clock::time_point lastUpdate;
@@ -731,14 +746,7 @@ Base::Result<void> LoadFromUri(
         const RunOptions& source,
         Application* providedApplication,
         Base::Ref<Window> providedWindow) noexcept
-        : applicationRuntime{
-              this,
-              &DesktopHostState::RequestExitThunk,
-              &DesktopHostState::ShowWindowThunk,
-              &DesktopHostState::WindowCountThunk,
-              &DesktopHostState::WindowAtThunk,
-              &DesktopHostState::SetMainWindowThunk},
-          allocator(source.allocator != nullptr
+        : allocator(source.allocator != nullptr
               ? source.allocator
               : &Base::GetDefaultAllocator()),
           environment(allocator),
@@ -775,11 +783,10 @@ Base::Result<void> LoadFromUri(
         ShutdownWindows();
         if (application != nullptr) {
             ReleaseAdoptedApplicationResources();
-            DesktopHost::DetachApplication(*application);
+            application->Detach();
         }
         application = nullptr;
         applicationOwner.Reset();
-        loaderView.Reset();
     }
 
     Base::Result<void> CreateRuntime() noexcept {
@@ -794,28 +801,38 @@ Base::Result<void> LoadFromUri(
         return environment.Initialize();
     }
 
-    Base::Result<Base::Ref<View>> CreateLoaderView() noexcept {
-        ViewOptions options;
-        options.text.fontSearchRoot = assetRoot.View();
-        options.diagnostics = diagnostics;
-        return environment.CreateView(options, allocator);
-    }
 
     void LoadDictionarySourcesRecursively(
         ResourceDictionary& dict,
-        const Base::ResourceUri& baseUri) noexcept {
+        const Base::ResourceUri& baseUri,
+        ResourceDictionary* parent = nullptr) noexcept {
         if (!dict.GetSource().Empty()) {
-            Base::Result<Base::ResourceUri> resolved =
-                Base::ResourceUri::Resolve(baseUri, dict.GetSource().Canonical());
-            if (resolved) {
-                Markup::XamlReader dictReader(environment);
-                Base::Result<Markup::XamlDocument> dictDoc =
-                    dictReader.Load(resolved.Value().Canonical(), dict, {}, diagnostics);
-                if (dictDoc && dictDoc.Value().Root()) {
-                    if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
-                        auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
-                        if (resDict != &dict) {
-                            static_cast<void>(dict.AddMerged(*resDict));
+            // XamlLoader already resolved Source= dictionaries (including nested
+            // MergedDictionaries). Reloading into the placeholder with the
+            // placeholder itself as ambient cannot see sibling application
+            // merges, so Color.Gray9 / theme brushes fail and the second copy
+            // shadows the good first load.
+            const bool alreadyLoaded =
+                dict.Size() > 0U || dict.MergedDictionaryCount() > 0U;
+            if (!alreadyLoaded) {
+                Base::Result<Base::ResourceUri> resolved =
+                    Base::ResourceUri::Resolve(baseUri, dict.GetSource().Canonical());
+                if (resolved) {
+                    Markup::XamlReader dictReader(environment);
+                    ResourceDictionary* ambient =
+                        parent != nullptr ? parent : &dict;
+                    Base::Result<Markup::XamlDocument> dictDoc =
+                        dictReader.Load(
+                            resolved.Value().Canonical(),
+                            *ambient,
+                            {},
+                            diagnostics);
+                    if (dictDoc && dictDoc.Value().Root()) {
+                        if (dictDoc.Value().Root()->RuntimeType() == ResourceDictionary::StaticTypeId()) {
+                            auto* resDict = static_cast<ResourceDictionary*>(dictDoc.Value().Root().Get());
+                            if (resDict != &dict) {
+                                dict.AddMerged(*resDict);
+                            }
                         }
                     }
                 }
@@ -824,7 +841,8 @@ Base::Result<void> LoadFromUri(
         for (std::uint32_t i = 0; i < dict.MergedDictionaryCount(); ++i) {
             auto merged = dict.MergedDictionaryAt(i);
             if (merged) {
-                LoadDictionarySourcesRecursively(merged.Value(), baseUri);
+                LoadDictionarySourcesRecursively(
+                    merged, baseUri, &dict);
             }
         }
     }
@@ -832,50 +850,7 @@ Base::Result<void> LoadFromUri(
     Base::Result<void> LoadApplication() noexcept {
         if (suppliedApplication != nullptr) {
             application = suppliedApplication;
-            Base::Result<Base::Ref<View>> created = CreateLoaderView();
-            if (!created) return created.GetStatus();
-            loaderView = std::move(created).Value();
-            Markup::XamlReader reader(environment);
-            Base::Result<Markup::XamlDocument> loaded =
-                reader.LoadComponent<Application>(
-                    applicationFile.View(), {}, diagnostics);
-            if (!loaded) return loaded.GetStatus();
-            const Base::Ref<Base::Object>& root = loaded.Value().Root();
-            if (!root) {
-                return HostFailure(
-                    Base::ErrorCode::InvalidArgument,
-                    "Application XAML root must be Application");
-            }
-            applicationOwner = root;
-            Application& authored = static_cast<Application&>(*root);
-
-            LoadDictionarySourcesRecursively(authored.GetResources(), loaded.Value().CanonicalUri());
-
-            Base::Result<ResourceDictionary> sharedResources =
-                authored.GetResources().Share();
-            if (!sharedResources) {
-                return sharedResources.GetStatus();
-            }
-            DesktopHost::AdoptApplicationResources(
-                *application, std::move(sharedResources).Value());
-            applicationResourcesAdopted = true;
-            const Base::StringView startup =
-                application->GetStartupUri().Empty()
-                ? authored.GetStartupUri()
-                : application->GetStartupUri();
-            if (!startup.Empty()) {
-                Base::Result<Base::ResourceUri> resolved =
-                    Base::ResourceUri::Resolve(
-                        loaded.Value().CanonicalUri(), startup);
-                if (!resolved) return resolved.GetStatus();
-                startupUri = std::move(resolved).Value();
-            }
-            return {};
         }
-
-        Base::Result<Base::Ref<View>> created = CreateLoaderView();
-        if (!created) return created.GetStatus();
-        loaderView = std::move(created).Value();
         Markup::XamlReader reader(environment);
         Base::Result<Markup::XamlDocument> loaded =
             reader.LoadComponent<Application>(
@@ -888,30 +863,41 @@ Base::Result<void> LoadFromUri(
                 "Application XAML root must be Application");
         }
         applicationOwner = root;
-        application = static_cast<Application*>(applicationOwner.Get());
-        if (!application->GetStartupUri().Empty()) {
+        Application& authored = static_cast<Application&>(*root);
+
+        LoadDictionarySourcesRecursively(authored.GetResources(), loaded.Value().CanonicalUri());
+
+        if (suppliedApplication != nullptr) {
+            Base::Result<ResourceDictionary> sharedResources =
+                authored.GetResources().Share();
+            if (!sharedResources) {
+                return sharedResources.GetStatus();
+            }
+            application->AdoptResources(
+                std::move(sharedResources).Value());
+            applicationResourcesAdopted = true;
+        } else {
+            application = &authored;
+        }
+
+        const Base::StringView startup =
+            application->GetStartupUri().Empty()
+            ? authored.GetStartupUri()
+            : application->GetStartupUri();
+        if (!startup.Empty()) {
             Base::Result<Base::ResourceUri> resolved =
                 Base::ResourceUri::Resolve(
-                    loaded.Value().CanonicalUri(),
-                    application->GetStartupUri());
+                    loaded.Value().CanonicalUri(), startup);
             if (!resolved) return resolved.GetStatus();
             startupUri = std::move(resolved).Value();
         }
         return {};
     }
 
-    Base::Result<WindowHost*> CreateWindowHost() noexcept {
+    WindowHost* CreateWindowHost() noexcept {
         auto* host = new (std::nothrow) WindowHost(*this);
-        if (host == nullptr) {
-            return HostFailure(
-                Base::ErrorCode::OutOfMemory,
-                "Unable to allocate application Window host");
-        }
-        Base::Result<void> appended = windows.PushBack(host);
-        if (!appended) {
-            delete host;
-            return appended.GetStatus();
-        }
+        if (host == nullptr) return nullptr;
+        windows.PushBack(host);
         return host;
     }
 
@@ -933,14 +919,16 @@ Base::Result<void> LoadFromUri(
     }
 
     Base::Result<void> StartApplication() noexcept {
-        Base::Result<void> attached = DesktopHost::AttachApplication(
-            *application, &applicationRuntime, nullptr);
+        Base::Result<void> attached = application->Attach(this, nullptr);
         if (!attached) return attached.GetStatus();
 
         if (suppliedWindow || !startupUri.Empty()) {
-            Base::Result<WindowHost*> allocated = CreateWindowHost();
-            if (!allocated) return allocated.GetStatus();
-            WindowHost* host = allocated.Value();
+            WindowHost* host = CreateWindowHost();
+            if (host == nullptr) {
+                return HostFailure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Unable to allocate application Window host");
+            }
             Base::Result<void> loaded = suppliedWindow
                 ? host->LoadProgrammatic(suppliedWindow)
                 : host->LoadFromUri(startupUri);
@@ -950,83 +938,150 @@ Base::Result<void> LoadFromUri(
             }
             mainWindow = host->window;
             if (application->GetMainWindow() == nullptr) {
-                DesktopHost::AttachMainWindow(*application, mainWindow);
+                application->AttachMainWindow(mainWindow);
             }
         }
 
         // WPF allows Application.Run() without StartupUri. In that form the
         // application creates and shows one or more windows from OnStartup().
-        DesktopHost::RaiseApplicationStartup(*application);
+        application->RaiseStartup();
         if (application->GetMainWindow() == nullptr && !windows.Empty()) {
-            DesktopHost::AttachMainWindow(*application, windows[0]->window);
+            application->AttachMainWindow(windows[0]->window);
         }
         return {};
     }
 
-    Base::Result<void> ShowWindow(Window& value) noexcept {
+    void ShowWindow(Window& value) noexcept override {
         WindowHost* existing = FindWindow(value);
-        if (existing != nullptr) return {};
-        Base::Ref<Window> owner = Base::Ref<Window>::TryFromBorrowed(value);
-        if (!owner) {
-            return HostFailure(
-                Base::ErrorCode::InvalidArgument,
-                "Window.Show requires a Window created with Base::MakeRef");
+        if (existing != nullptr) {
+            existing->Show();
+            return;
         }
-        Base::Result<WindowHost*> allocated = CreateWindowHost();
-        if (!allocated) return allocated.GetStatus();
-        WindowHost* host = allocated.Value();
+        Base::Ref<Window> owner = Base::Ref<Window>::TryFromBorrowed(value);
+        if (!owner) return;
+        WindowHost* host = CreateWindowHost();
+        if (host == nullptr) return;
         Base::Result<void> loaded = host->LoadProgrammatic(std::move(owner));
         if (!loaded) {
             RemoveWindowAt(windows.Size() - 1U);
-            return loaded.GetStatus();
+            return;
         }
         if (application->GetMainWindow() == nullptr) {
-            DesktopHost::AttachMainWindow(*application, host->window);
+            application->AttachMainWindow(host->window);
         }
         Base::Result<void> rendered = host->RenderFrame();
         if (!rendered) {
             RemoveWindowAt(windows.Size() - 1U);
-            return rendered.GetStatus();
+            return;
         }
-        return {};
     }
 
-    std::uint32_t WindowCount() const noexcept {
+    bool RunDialog(Window& dialog) noexcept override {
+        WindowHost* host = FindWindow(dialog);
+        if (host == nullptr) {
+            return false;
+        }
+        struct SuspendedWindows {
+            Base::Vector<std::uintptr_t> handles;
+            std::uintptr_t focus = 0U;
+            explicit SuspendedWindows(Base::IAllocator* memory) noexcept
+                : handles(memory) {}
+            ~SuspendedWindows() noexcept {
+#if defined(_WIN32)
+                for (std::uintptr_t value : handles) {
+                    ::EnableWindow(reinterpret_cast<HWND>(value), TRUE);
+                }
+                const std::uintptr_t restore = focus != 0U
+                    ? focus
+                    : (handles.Empty() ? 0U : handles[0]);
+                if (restore != 0U) {
+                    ::SetForegroundWindow(reinterpret_cast<HWND>(restore));
+                }
+#endif
+            }
+        } suspended(allocator);
+        Base::Ref<Window> owner = dialog.GetOwner();
+        Window* ownerWindow = owner.Get();
+        std::uintptr_t ownerHandle = 0U;
+#if defined(_WIN32)
+        const std::uintptr_t dialogHandle = host->NativeHandle().window;
+        HWND dialogHwnd = reinterpret_cast<HWND>(dialogHandle);
+        if (ownerWindow != nullptr && ownerWindow != &dialog) {
+            WindowHost* ownerHost = FindWindow(*ownerWindow);
+            if (ownerHost != nullptr) {
+                ownerHandle = ownerHost->NativeHandle().window;
+            }
+        }
+        HWND ownerHwnd = reinterpret_cast<HWND>(ownerHandle);
+        if (dialogHwnd != nullptr && ownerHwnd != nullptr) {
+            suspended.focus = ownerHandle;
+            ::SetWindowLongPtrW(
+                dialogHwnd, GWLP_HWNDPARENT,
+                reinterpret_cast<LONG_PTR>(ownerHwnd));
+            RECT dialogRect{};
+            RECT ownerRect{};
+            if (::GetWindowRect(dialogHwnd, &dialogRect) != FALSE &&
+                ::GetWindowRect(ownerHwnd, &ownerRect) != FALSE) {
+                const int width = dialogRect.right - dialogRect.left;
+                const int height = dialogRect.bottom - dialogRect.top;
+                const int x = ownerRect.left +
+                    ((ownerRect.right - ownerRect.left) - width) / 2;
+                const int y = ownerRect.top +
+                    ((ownerRect.bottom - ownerRect.top) - height) / 2;
+                ::SetWindowPos(
+                    dialogHwnd, HWND_TOP, x, y, 0, 0,
+                    SWP_NOSIZE);
+            }
+        }
+        for (WindowHost* other : windows) {
+            if (other == nullptr || other == host || !other->IsOpen()) continue;
+            const std::uintptr_t handle = other->NativeHandle().window;
+            if (handle == 0U) continue;
+            ::EnableWindow(reinterpret_cast<HWND>(handle), FALSE);
+            suspended.handles.PushBack(handle);
+        }
+#else
+        static_cast<void>(ownerWindow);
+        static_cast<void>(ownerHandle);
+#endif
+        while (!exitRequested && host->IsOpen()) {
+            bool handledEvent = false;
+            for (std::uint32_t index = 0U;
+                 index < windows.Size() && !exitRequested;
+                 ++index) {
+                WindowHost* candidate = windows[index];
+                if (candidate == nullptr) continue;
+                if (candidate->PumpEvents()) {
+                    handledEvent = true;
+                }
+            }
+            if (exitRequested || !host->IsOpen()) break;
+            for (WindowHost* candidate : windows) {
+                if (candidate != nullptr && candidate->IsOpen()) {
+                    Base::Result<void> rendered = candidate->RenderFrame();
+                    if (!rendered) return false;
+                }
+            }
+            if (!handledEvent && host->IsOpen()) {
+                host->WaitForActivity(16U, false);
+            }
+        }
+        const ::Aero::Nullable<bool> accepted = dialog.GetDialogResult();
+        return accepted.GetHasValue() && accepted.GetValue();
+    }
+
+    std::uint32_t WindowCount() const noexcept override {
         return windows.Size();
     }
 
-    Window* WindowAt(std::uint32_t index) const noexcept {
+    Window* WindowAt(std::uint32_t index) const noexcept override {
         return index < windows.Size() && windows[index] != nullptr
             ? windows[index]->window
             : nullptr;
     }
 
-    void SetMainWindow(Window* value) noexcept {
+    void SetMainWindow(Window* value) noexcept override {
         mainWindow = value;
-    }
-
-    Base::Result<void> RemoveClosedWindows() noexcept {
-        for (std::uint32_t index = 0U; index < windows.Size();) {
-            WindowHost* host = windows[index];
-            if (host != nullptr && host->IsOpen()) {
-                ++index;
-                continue;
-            }
-            Window* closingWindow = host != nullptr ? host->window : nullptr;
-            const bool mainClosed = closingWindow != nullptr &&
-                closingWindow == application->GetMainWindow();
-            if (host != nullptr && closingWindow != nullptr) {
-                DesktopHost::NotifyWindowClosed(*closingWindow);
-            }
-            RemoveWindowAt(index);
-            const ShutdownMode mode = application->GetShutdownMode();
-            if ((mode == ShutdownMode::OnMainWindowClose && mainClosed) ||
-                (mode == ShutdownMode::OnLastWindowClose && windows.Empty())) {
-                RequestExit(0);
-                return {};
-            }
-        }
-        return {};
     }
 
     Base::Result<int> Run() noexcept {
@@ -1037,11 +1092,12 @@ Base::Result<void> LoadFromUri(
 
         for (WindowHost* host : windows) {
             status = host->RenderFrame(true);
-            if (!status) return status.GetStatus();
+            if (!status) {
+                return status.GetStatus();
+            }
         }
         if (visible && !windows.Empty()) {
-            status = windows[0]->Show();
-            if (!status) return status.GetStatus();
+            windows[0]->Show();
         }
 
         while (!exitRequested) {
@@ -1051,30 +1107,41 @@ Base::Result<void> LoadFromUri(
                  ++index) {
                 WindowHost* host = windows[index];
                 if (host == nullptr) continue;
-                Base::Result<bool> pumped = host->PumpEvents();
-                if (!pumped) return pumped.GetStatus();
-                handledEvent = handledEvent || pumped.Value();
+                if (host->PumpEvents()) {
+                    handledEvent = true;
+                }
             }
-            status = RemoveClosedWindows();
-            if (!status) return status.GetStatus();
             if (exitRequested) break;
 
+            bool anyOpen = false;
             for (WindowHost* host : windows) {
-                status = host->RenderFrame();
-                if (!status) return status.GetStatus();
+                if (host != nullptr && host->IsOpen()) {
+                    anyOpen = true;
+                    status = host->RenderFrame();
+                    if (!status) return status.GetStatus();
+                }
+            }
+            if (!anyOpen) {
+                // Do not destroy WindowHost here: tearing down the View /
+                // D3D device while the live loop still expects to Present
+                // can hang. RequestExit, then ShutdownWindows after break.
+                if (!exitRequested &&
+                    application->GetShutdownMode() !=
+                        ShutdownMode::OnExplicitShutdown) {
+                    RequestExit(0);
+                }
+                break;
             }
 
-            if (!handledEvent && !windows.Empty()) {
+            if (!handledEvent && anyOpen) {
                 WindowHost* waiter = windows[0];
-                if (waiter != nullptr) {
+                if (waiter != nullptr && waiter->IsOpen()) {
                     // A single non-animated window can block fully on native
                     // events. Animation or multi-window hosting uses a 16 ms
                     // timed native wait so other windows and the animation
                     // clock remain responsive without a 1 ms polling loop.
                     const bool blockUntilEvent = false;
-                    Base::Result<bool> waited = waiter->WaitForActivity(
-                        16U, blockUntilEvent);
-                    if (!waited) return waited.GetStatus();
+                    waiter->WaitForActivity(16U, blockUntilEvent);
                 }
             }
         }
@@ -1082,9 +1149,9 @@ Base::Result<void> LoadFromUri(
         const int result = exitCode;
         ShutdownWindows();
         if (application != nullptr) {
-            DesktopHost::RaiseApplicationExit(*application, result);
+            application->RaiseExit(result);
             ReleaseAdoptedApplicationResources();
-            DesktopHost::DetachApplication(*application);
+            application->Detach();
             application = nullptr;
         }
         applicationOwner.Reset();
@@ -1104,41 +1171,19 @@ Base::Result<void> LoadFromUri(
         // layer before the Gui schema is destroyed; a caller-owned
         // Application otherwise outlives the registry that its templates and
         // Freezables require during destruction.
-        DesktopHost::AdoptApplicationResources(
-            *application, ResourceDictionary{});
+        application->AdoptResources(ResourceDictionary{});
         applicationResourcesAdopted = false;
     }
 
-    void RequestExit(int requestedExitCode) noexcept {
+    void RequestExit(int requestedExitCode) noexcept override {
         exitCode = requestedExitCode;
         exitRequested = true;
-        for (WindowHost* host : windows) {
-            if (host != nullptr) host->Close();
-        }
+        // Shutdown can be requested from CompositionTarget.Rendering while
+        // a WindowHost is still inside RenderFrame. Closing the hosts here
+        // tears down the render context re-entrantly and can deadlock during
+        // Present. The run loop observes exitRequested immediately and
+        // ShutdownWindows performs teardown after the active frame returns.
     }
-
-    static void RequestExitThunk(
-        void* context, int exitCode) noexcept {
-        static_cast<DesktopHostState*>(context)->RequestExit(exitCode);
-    }
-    static Base::Result<void> ShowWindowThunk(
-        void* context, Window& window) noexcept {
-        return static_cast<DesktopHostState*>(context)->ShowWindow(window);
-    }
-    static std::uint32_t WindowCountThunk(
-        const void* context) noexcept {
-        return static_cast<const DesktopHostState*>(context)->WindowCount();
-    }
-    static Window* WindowAtThunk(
-        const void* context, std::uint32_t index) noexcept {
-        return static_cast<const DesktopHostState*>(context)->WindowAt(index);
-    }
-    static void SetMainWindowThunk(
-        void* context, Window* window) noexcept {
-        static_cast<DesktopHostState*>(context)->SetMainWindow(window);
-    }
-
-    ApplicationHostState applicationRuntime;
     Base::IAllocator* allocator = nullptr;
     Gui environment;
     Base::Vector<WindowHost*> windows;
@@ -1158,7 +1203,6 @@ Base::Result<void> LoadFromUri(
     Diagnostics::IDiagnosticSink* diagnostics = nullptr;
     Application* suppliedApplication = nullptr;
     Base::Ref<Window> suppliedWindow;
-    Base::Ref<View> loaderView;
     Base::Ref<Base::Object> applicationOwner;
     Application* application = nullptr;
     Window* mainWindow = nullptr;
@@ -1166,11 +1210,6 @@ Base::Result<void> LoadFromUri(
     bool applicationResourcesAdopted = false;
     int exitCode = 0;
 };
-
-DesktopHost::DesktopHost(
-    const RunOptions& options) noexcept
-    : state_(new (std::nothrow)
-          DesktopHostState(options, nullptr, {})) {}
 
 DesktopHost::DesktopHost(
     Application& application,
@@ -1191,96 +1230,6 @@ Base::Result<int> DesktopHost::Run() noexcept {
             "DesktopHost allocation failed");
     }
     return state_->Run();
-}
-
-Base::Result<void> DesktopHost::AttachApplication(
-    Application& application,
-    void* hostState,
-    Window* mainWindow) noexcept {
-    return application.Attach(hostState, mainWindow);
-}
-
-void DesktopHost::DetachApplication(Application& application) noexcept {
-    application.Detach();
-}
-
-void DesktopHost::RaiseApplicationStartup(Application& application) noexcept {
-    application.RaiseStartup();
-}
-
-void DesktopHost::RaiseApplicationExit(
-    Application& application,
-    int exitCode) noexcept {
-    application.RaiseExit(exitCode);
-}
-
-void DesktopHost::AttachMainWindow(
-    Application& application,
-    Window* window) noexcept {
-    application.AttachMainWindow(window);
-}
-
-void DesktopHost::AdoptApplicationResources(
-    Application& application,
-    ResourceDictionary&& resources) noexcept {
-    application.AdoptResources(std::move(resources));
-}
-
-void DesktopHost::AttachWindow(Window& window, void* hostState) noexcept {
-    window.Attach(hostState);
-}
-
-void DesktopHost::DetachWindow(Window& window) noexcept {
-    window.Detach();
-}
-
-void DesktopHost::NotifyWindowSourceInitialized(Window& window) noexcept {
-    window.NotifySourceInitialized();
-}
-
-void DesktopHost::NotifyWindowContentRendered(Window& window) noexcept {
-    window.NotifyContentRendered();
-}
-
-void DesktopHost::NotifyWindowClosed(Window& window) noexcept {
-    window.NotifyClosed();
-}
-
-bool DesktopHost::WindowComponentRequested(
-    const Window& window) noexcept {
-    return window.ComponentRequested();
-}
-
-Base::StringView DesktopHost::WindowComponentUri(
-    const Window& window) noexcept {
-    return window.ComponentUri();
-}
-
-} // namespace Aero::App
-
-namespace Aero {
-
-void Application::AdoptResources(
-    ResourceDictionary&& resources) noexcept {
-    resources_ = std::move(resources);
-}
-
-bool Window::ComponentRequested() const noexcept {
-    return componentRequested_;
-}
-
-Base::StringView Window::ComponentUri() const noexcept {
-    return componentUri_.View();
-}
-
-} // namespace Aero
-
-namespace Aero::App {
-
-int Run(const RunOptions& options) noexcept {
-    ::Aero::App::DesktopHost host(options);
-    Base::Result<int> result = host.Run();
-    return result ? result.Value() : -1;
 }
 
 } // namespace Aero::App

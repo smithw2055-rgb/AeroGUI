@@ -75,8 +75,6 @@ option(AERO_WITH_FREETYPE
     "Build the built-in FreeType text provider adapter" ON)
 option(AERO_WITH_HARFBUZZ
     "Build the built-in HarfBuzz text shaping adapter" ON)
-option(AERO_WITH_EXPAT
-    "Build the recommended Expat XML tokenizer adapter" ON)
 option(AERO_WITH_MINIAUDIO
     "Build the built-in miniAudio playback provider" ON)
 option(AERO_ENABLE_D3D11_BACKEND
@@ -98,11 +96,27 @@ include(cmake/AeroCompilerOptions.cmake)
 include(cmake/AeroAddXaml.cmake)
 include(cmake/AeroPublicHeaders.cmake)
 
+# Unified output directories for all targets (lib, exe, dll, pdb)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/out")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/out")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/out")
+set(CMAKE_PDB_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/out")
+set(CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/out")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/out/debug")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/out/debug")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/out/debug")
+set(CMAKE_PDB_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/out/debug")
+set(CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/out/debug")
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/out/release")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/out/release")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/out/release")
+set(CMAKE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/out/release")
+set(CMAKE_COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/out/release")
+
 if(AERO_BUILD_SHARED)
     set(AERO_LIBRARY_TYPE SHARED)
-    # Keep test executables beside the DLLs on multi-config Windows builds so
-    # CTest exercises the actual shared artifacts without PATH mutations.
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 else()
     set(AERO_LIBRARY_TYPE STATIC)
 endif()
@@ -114,7 +128,8 @@ add_library(AeroBase ${AERO_LIBRARY_TYPE}
     src/base/ResourceUri.cpp
     src/base/Stream.cpp
     src/base/String.cpp
-    src/base/Utf8.cpp)
+    src/base/Utf8.cpp
+    src/base/Value.cpp)
 
 add_library(Aero::Base ALIAS AeroBase)
 
@@ -376,9 +391,11 @@ elseif(TARGET aero-schema-gen AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 set(_aero_xaml_schema_arguments "")
-if(NOT _aero_schema_manifest STREQUAL "")
+set(_aero_xaml_theme_dependencies "")
+if(NOT "${AERO_BUILTIN_SCHEMA_MANIFEST}" STREQUAL "")
     set(_aero_xaml_schema_arguments
         --schema "${_aero_schema_manifest}")
+    set(_aero_xaml_theme_dependencies "${_aero_schema_manifest_dependency}")
 endif()
 
 set(_aero_xamlc_command "")
@@ -467,7 +484,7 @@ if(AERO_PRECOMPILE_BUILTIN_THEMES)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedXamlThemes.cmake"
         DEPENDS
             ${_aero_xamlc_dependency}
-            ${_aero_schema_manifest_dependency}
+            ${_aero_xaml_theme_dependencies}
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Light.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Dark.xaml"
             "${CMAKE_CURRENT_SOURCE_DIR}/themes/Generic.xaml"

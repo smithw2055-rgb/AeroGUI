@@ -36,7 +36,7 @@ public:
     Base::Result<void> ResolveFace(
         const FontQuery& query,
         FontFace& output) noexcept override;
-    Base::Result<bool> HasCodePoint(
+    bool HasCodePoint(
         FontFaceHandle face,
         std::uint32_t codePoint) noexcept override;
     void ReleaseFace(FontFaceHandle face) noexcept override;
@@ -63,7 +63,6 @@ private:
     void* FindNativeFace(FontFaceHandle face) noexcept;
 
     Base::IAllocator* allocator_ = nullptr;
-    alignas(std::max_align_t) std::uint8_t stateStorage_[4096]{};
     FreeTypeAdapterState* state_ = nullptr;
 };
 

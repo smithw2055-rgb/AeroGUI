@@ -2,9 +2,10 @@
 #include <Aero/Meta.hpp>
 #include <Aero/Module.hpp>
 #include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Button.hpp>
+#include <Aero/Controls/Buttons.hpp>
 #include <Aero/Shapes.hpp>
 #include <Aero/Media/Animation.hpp>
+#include <Aero/Media/DrawingContext.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -25,26 +26,10 @@ enum class Theme : std::uint8_t {
 
 AERO_DECLARE_TYPE_ENUM(SdkConsumer::Theme)
 
-namespace Aero::Meta {
-
-template<>
-struct TypeTraits<SdkConsumer::ViewModel> {
-    static constexpr Meta::TypeId Id() noexcept {
-        return Meta::MakeTypeId(
-            "urn:aero-sdk-consumer", "ViewModel");
-    }
-    static constexpr StringView Namespace() noexcept {
-        return "urn:aero-sdk-consumer";
-    }
-    static constexpr StringView Name() noexcept {
-        return "ViewModel";
-    }
-    static constexpr Meta::TypeId BaseType() noexcept {
-        return Meta::InvalidTypeId;
-    }
-};
-
-} // namespace Aero::Meta
+AERO_DECLARE_TYPE_VALUE_NAMED(
+    SdkConsumer::ViewModel,
+    "urn:aero-sdk-consumer",
+    "ViewModel")
 
 namespace {
 
@@ -63,8 +48,8 @@ struct HasPropertyRegistry<T, std::void_t<decltype(
     std::declval<T&>().PropertyRegistry())>>
     : std::true_type {};
 
-using RawFactory = Aero::Result<
-    Aero::Ref<Aero::Object>> (*)() noexcept;
+using RawFactory =
+    Aero::Ref<Aero::Object> (*)() noexcept;
 
 template<class T, class = void>
 struct HasRawFactoryOverload : std::false_type {};
@@ -147,6 +132,9 @@ Aero::Result<void> RegisterConsumerModule(
             .Event(
                 ConsumerControl::ActivatedEvent,
                 Aero::RoutingStrategy::Bubble)
+            .TemplatePart(
+                "PART_ContentHost",
+                Aero::Meta::TypeOf<Aero::FrameworkElement>())
             .Factory()
             .Result();
     if (!status) return status.GetStatus();

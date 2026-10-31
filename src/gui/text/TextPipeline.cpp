@@ -86,6 +86,43 @@ std::string NormalizedFontName(
     return normalized;
 }
 
+bool MatchesAbbreviatedPackFace(
+    const std::string& candidate,
+    const std::string& normalizedRequest) {
+    struct FaceSuffix {
+        const char* name;
+        const char* abbreviation;
+    };
+    constexpr FaceSuffix suffixes[] = {
+        {"semilight", "sl"},
+        {"semilight", "l"},
+        {"semibold", "sb"},
+        {"semibold", "b"},
+        {"regular", "r"},
+        {"regular", ""},
+        {"light", "l"},
+        {"bold", "sb"},
+        {"bold", "b"},
+        {"bold", "bd"}};
+    for (const FaceSuffix& suffix : suffixes) {
+        const std::size_t length = std::strlen(suffix.name);
+        if (normalizedRequest.size() < length ||
+            normalizedRequest.compare(
+                normalizedRequest.size() - length,
+                length,
+                suffix.name) != 0) {
+            continue;
+        }
+        std::string abbreviated =
+            normalizedRequest.substr(0U, normalizedRequest.size() - length);
+        abbreviated += suffix.abbreviation;
+        if (candidate == abbreviated) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool IsSupportedFontFile(
     const std::filesystem::path& path) {
     std::string extension =
@@ -123,6 +160,21 @@ Base::Result<bool> SelectPackFontPath(
 
     std::string directoryText(
         family.Data(), hash);
+    const std::string componentMarker = ";component/";
+    const auto compPos = directoryText.find(componentMarker);
+    if (compPos != std::string::npos) {
+        directoryText = directoryText.substr(compPos + componentMarker.size());
+    } else {
+        const std::string compSlash = ";component";
+        const auto compPos2 = directoryText.find(compSlash);
+        if (compPos2 != std::string::npos) {
+            directoryText = directoryText.substr(compPos2 + compSlash.size());
+        }
+    }
+    while (!directoryText.empty() &&
+        (directoryText.front() == '/' || directoryText.front() == '\\')) {
+        directoryText.erase(directoryText.begin());
+    }
     while (!directoryText.empty() &&
         (directoryText.back() == '/' ||
          directoryText.back() == '\\')) {
@@ -185,7 +237,10 @@ Base::Result<bool> SelectPackFontPath(
         else preferred += "regular";
         const bool candidateIsRegular =
             candidate == preferred ||
-            (!bold && !italic && candidate == normalizedRequest);
+            MatchesAbbreviatedPackFace(candidate, preferred) ||
+            (!bold && !italic &&
+             (candidate == normalizedRequest ||
+              MatchesAbbreviatedPackFace(candidate, normalizedRequest)));
         std::size_t prefix = 0U;
         while (prefix < candidate.size() &&
             prefix < normalizedRequest.size() &&
@@ -212,10 +267,12 @@ Base::Result<bool> SelectPackFontPath(
             bestDistance = distance;
         }
     }
-    if (error || best.empty() ||
-        bestPrefix == 0U) {
+    if (error || best.empty()) {
         return false;
     }
+    // No filename prefix match (Fonts/#PT Root UI vs Muli/Caladea) still
+    // yields a face from that directory so text measure is non-zero.
+    static_cast<void>(bestPrefix);
 
     const std::string selected =
         best.string();
@@ -283,9 +340,8 @@ Base::Result<void> SelectFontPath(
                     combined.View());
             }
         }
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Configured font path does not exist");
+        // Pack FontFamily such as Fonts/#PT Root UI is not a file path.
+        // Fall through to family-name / system UI face substitution.
     }
 
 #if defined(_WIN32)
@@ -370,13 +426,9 @@ Base::Result<void> SelectFontPath(
     }
 #endif
 
-    if (!family.Empty()) {
-        if (configured == nullptr ||
-            !FileExists(configured)) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Configured font family is unavailable");
-        }
+    if (!family.Empty() &&
+        configured != nullptr &&
+        FileExists(configured)) {
         return Assign(
             output,
             Base::StringView(
@@ -410,19 +462,15 @@ Base::Result<void> SelectFontPath(
             : "No installed primary font was found");
 }
 
-Base::Result<void> ConfigureTypeface(
+void ConfigureTypeface(
     Text::Typeface& typeface,
     Base::StringView family,
     Base::StringView language,
     Base::StringView defaultFamily) noexcept {
-    Base::Result<void> assigned =
-        typeface.SetFamily(
-            family.Empty() ? defaultFamily : family);
-    if (!assigned) return assigned.GetStatus();
+    typeface.SetFamily(family.Empty() ? defaultFamily : family);
     if (!language.Empty()) {
-        assigned = typeface.SetLanguage(language);
+        typeface.SetLanguage(language);
     }
-    return assigned;
 }
 
 class TextBlockLayoutProxy
@@ -508,10 +556,9 @@ public:
           allocator_(allocator),
           fallbackFaces_(allocator) {
         config_ = config;
-        Base::Result<void> copied =
-            fallbackFaces_.Append(
-                config.fallbackFaces);
-        valid_ = static_cast<bool>(copied);
+        fallbackFaces_.Append(
+            config.fallbackFaces);
+        valid_ = true;
         config_.fallbackFaces =
             fallbackFaces_.AsSpan();
         nextGlyphRun_ = config.firstGlyphRunId;
@@ -562,9 +609,8 @@ public:
                 *fonts_, layoutRequest);
         if (!shaped) return shaped.GetStatus();
         if (request.arrangeToAvailableWidth) {
-            shaped = layout.Arrange(
+            layout.Arrange(
                 static_cast<float>(request.availableSize.width));
-            if (!shaped) return shaped.GetStatus();
         }
         output.glyphRuns.Clear();
         output.desiredSize = {
@@ -579,10 +625,8 @@ public:
                     Base::ErrorCode::OutOfRange,
                     "Headless glyph-run ID space is exhausted");
             }
-            Base::Result<void> appended =
-                output.glyphRuns.PushBack(
+            output.glyphRuns.PushBack(
                     nextGlyphRun_++);
-            if (!appended) return appended.GetStatus();
         }
         output.hitRegions.Clear();
         for (const Text::TextLine& line : layout.Lines()) {
@@ -591,7 +635,7 @@ public:
                 : (request.pixelSize > 0.0F ? request.pixelSize : 16.0F);
             for (std::uint32_t r = 0U; r < line.runCount; ++r) {
                 const Text::GlyphRun& run = layout.Runs()[line.firstRun + r];
-                for (std::size_t g = 0; g < run.glyphs.Size(); ++g) {
+                for (std::uint32_t g = 0U; g < run.glyphs.Size(); ++g) {
                     const Text::PositionedGlyph& glyph = run.glyphs[g];
                     TextHitRegion region;
                     region.textOffset = glyph.cluster;
@@ -693,11 +737,6 @@ struct TextPipelineState {
     }
 };
 
-static_assert(sizeof(TextPipelineState) <= 16384U,
-    "TextPipeline inline state storage is too small");
-static_assert(alignof(TextPipelineState) <= alignof(std::max_align_t),
-    "TextPipeline inline state alignment is insufficient");
-
 TextPipeline::TextPipeline(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -724,8 +763,15 @@ Base::Result<void> TextPipeline::Initialize(
             "View text default pixel size must be positive");
     }
 
-    state_ = new (stateStorage_)
-        TextPipelineState(*allocator_, device);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        *allocator_,
+        device);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     state_->allocator = allocator_;
     state_->device = &device;
     state_->proxy.SetFaceResolver(
@@ -767,18 +813,17 @@ Base::Result<void> TextPipeline::Initialize(
                 if (!selected) return false;
 
                 Text::Typeface typeface(state->allocator);
-                Base::Result<void> status = ConfigureTypeface(
+                ConfigureTypeface(
                     typeface,
                     candidate,
                     state->language.View(),
                     state->primaryFamily.View());
-                if (!status) return false;
 
                 Text::FontSource source;
                 source.kind = Text::FontSourceKind::File;
                 source.identifier = path.View();
                 Text::FontFace face;
-                status = state->fonts.LoadFace(
+                const Base::Result<void> status = state->fonts.LoadFace(
                     state->fontProvider.Identity().id,
                     source,
                     typeface,
@@ -863,21 +908,19 @@ Base::Result<void> TextPipeline::Initialize(
     }
     if (status) {
         Text::Typeface typeface(allocator_);
-        status = ConfigureTypeface(
+        ConfigureTypeface(
             typeface,
             options.primaryFamily,
             state_->language.View(),
             state_->primaryFamily.View());
-        if (status) {
-            Text::FontSource source;
-            source.kind = Text::FontSourceKind::File;
-            source.identifier = state_->primaryPath.View();
-            status = state_->fonts.LoadFace(
-                state_->fontProvider.Identity().id,
-                source,
-                typeface,
-                state_->primaryFace);
-        }
+        Text::FontSource source;
+        source.kind = Text::FontSourceKind::File;
+        source.identifier = state_->primaryPath.View();
+        status = state_->fonts.LoadFace(
+            state_->fontProvider.Identity().id,
+            source,
+            typeface,
+            state_->primaryFace);
     }
 
     if (status) {
@@ -900,12 +943,11 @@ Base::Result<void> TextPipeline::Initialize(
                 continue;
             }
             Text::Typeface typeface(allocator_);
-            status = ConfigureTypeface(
+            ConfigureTypeface(
                 typeface,
                 family,
                 state_->language.View(),
                 Base::StringView("Microsoft YaHei"));
-            if (!status) break;
             Text::FontSource source;
             source.kind = Text::FontSourceKind::File;
             source.identifier = path.View();
@@ -916,7 +958,7 @@ Base::Result<void> TextPipeline::Initialize(
                 typeface,
                 face);
             if (status) {
-                status = state_->fallbackFaces.PushBack(
+                state_->fallbackFaces.PushBack(
                     face);
             }
         }
@@ -937,7 +979,7 @@ Base::Result<void> TextPipeline::Initialize(
             options.defaultPixelSize;
         state_->config.atlas.pageWidth = 1024U;
         state_->config.atlas.pageHeight = 1024U;
-        state_->config.atlas.maxPages = 4U;
+        state_->config.atlas.maxPages = 8U;
         state_->resources = resources;
         if (state_->resources != nullptr) {
             state_->resourceGeneration =
@@ -1047,7 +1089,7 @@ TextPipeline::SynchronizeBackend(
     return true;
 }
 
-Base::Result<std::uint32_t>
+std::uint32_t
 TextPipeline::CollectGarbage() noexcept {
     if (state_ == nullptr || state_->layout == nullptr) {
         return 0U;
@@ -1092,8 +1134,7 @@ void TextPipeline::Shutdown() noexcept {
     state_->loadedFonts.Clear();
     state_->fonts.Shutdown();
     state_->fontProvider.Shutdown();
-    state_->~TextPipelineState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 ::Aero::Controls::TextBlockLayout*

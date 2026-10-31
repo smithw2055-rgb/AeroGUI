@@ -19,26 +19,19 @@ struct StreamResourceInfo {
     std::uint64_t revision = 0U;
 };
 
-using XamlProviderChangedHandler =
-    Base::Delegate<void(const Base::ResourceUri&)>;
+using XamlProviderChangedHandler = Base::Delegate<void(const Base::ResourceUri&)>;
 
 class AERO_GUI_API XamlProvider : public Base::Object {
 public:
     virtual ~XamlProvider() = default;
 
-    virtual Result<StreamResourceInfo> Open(
-        const Base::ResourceUri& uri) const noexcept = 0;
-    virtual Result<std::uint64_t> Revision(
-        const Base::ResourceUri&) const noexcept {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "XAML provider does not expose revision probes");
+    virtual Result<StreamResourceInfo> Open(const Base::ResourceUri& uri) const noexcept = 0;
+    virtual Result<std::uint64_t> Revision(const Base::ResourceUri&) const noexcept {
+        return Base::Status::Failure(Base::ErrorCode::Unsupported, "XAML provider does not expose revision probes");
     }
 
-    void AddChangedHandler(
-        const XamlProviderChangedHandler& handler) noexcept;
-    bool RemoveChangedHandler(
-        const XamlProviderChangedHandler& handler) noexcept;
+    void AddChangedHandler(const XamlProviderChangedHandler& handler) noexcept;
+    bool RemoveChangedHandler(const XamlProviderChangedHandler& handler) noexcept;
 
 protected:
     // Providers configured on a Gui must raise notifications on that Gui's
@@ -50,28 +43,20 @@ private:
     XamlProviderChangedHandler changed_;
 };
 
-using XamlOpenCallback = Result<StreamResourceInfo> (*)(
-    const Base::ResourceUri& uri,
-    void* context) noexcept;
-using XamlRevisionCallback = Result<std::uint64_t> (*)(
-    const Base::ResourceUri& uri,
-    void* context) noexcept;
+using XamlOpenCallback = Result<StreamResourceInfo> (*)(const Base::ResourceUri& uri, void* context) noexcept;
+using XamlRevisionCallback = Result<std::uint64_t> (*)(const Base::ResourceUri& uri, void* context) noexcept;
 
 class AERO_GUI_API XamlProviderAdapter : public XamlProvider {
 public:
     XamlProviderAdapter() noexcept = default;
-    XamlProviderAdapter(
-        XamlOpenCallback open,
-        void* context = nullptr,
+    XamlProviderAdapter(XamlOpenCallback open, void* context = nullptr,
         XamlRevisionCallback revision = nullptr) noexcept
         : open_(open), revision_(revision), context_(context) {}
 
     bool IsValid() const noexcept { return open_ != nullptr; }
 
-    Result<StreamResourceInfo> Open(
-        const Base::ResourceUri& uri) const noexcept override;
-    Result<std::uint64_t> Revision(
-        const Base::ResourceUri& uri) const noexcept override;
+    Result<StreamResourceInfo> Open(const Base::ResourceUri& uri) const noexcept override;
+    Result<std::uint64_t> Revision(const Base::ResourceUri& uri) const noexcept override;
 
 private:
     XamlOpenCallback open_ = nullptr;

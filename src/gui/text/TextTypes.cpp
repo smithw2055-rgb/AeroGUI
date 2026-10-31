@@ -2,30 +2,25 @@
 
 namespace Aero::Text {
 
-Base::Result<void> Typeface::SetFamily(
+void Typeface::SetFamily(
     Base::StringView family) noexcept {
     if (family.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Typeface family must not be empty");
+        family_.Clear();
+        return;
     }
-    return family_.Assign(family);
+    family_.Assign(family);
 }
 
-Base::Result<void> Typeface::SetLanguage(
+void Typeface::SetLanguage(
     Base::StringView language) noexcept {
-    return language_.Assign(language);
+    language_.Assign(language);
 }
 
-Base::Result<void> Typeface::SetWeight(
+void Typeface::SetWeight(
     std::uint16_t weight) noexcept {
-    if (weight < 1U || weight > 1000U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Typeface weight must be in the range 1 through 1000");
+    if (weight >= 1U && weight <= 1000U) {
+        weight_ = weight;
     }
-    weight_ = weight;
-    return {};
 }
 
 } // namespace Aero::Text

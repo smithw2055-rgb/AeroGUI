@@ -1,9 +1,9 @@
 #include <Aero/Gui.hpp>
-#include "gui/markup/XamlState.hpp"
+#include "gui/GuiRuntime.hpp"
 #include <AeroApp/App.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 #include <Aero/Module.hpp>
-#include "gui/meta/ModuleSet.hpp"
+#include "gui/core/ModuleSet.hpp"
 
 #include <Aero/Version.hpp>
 
@@ -244,5 +244,6 @@ int main(int argc, char** argv) {
             options.schemaPath)) {
         return Fail("cannot write dependency file");
     }
+    std::exit(0);
     return 0;
 }

@@ -1,5 +1,8 @@
 #include "../FreeTypeAdapter.hpp"
 
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Utf8.hpp>
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
@@ -29,27 +32,15 @@ Base::Status FreeTypeFailure(const char* message) noexcept {
 std::uint32_t DecodeUtf8CodePoint(
     Base::StringView text,
     std::uint32_t& offset) noexcept {
-    const auto* bytes =
-        reinterpret_cast<const unsigned char*>(text.Data());
-    const unsigned char lead = bytes[offset++];
-    if (lead <= 0x7FU) return lead;
-    std::uint32_t codePoint = 0U;
-    std::uint32_t remaining = 0U;
-    if ((lead & 0xE0U) == 0xC0U) {
-        codePoint = lead & 0x1FU;
-        remaining = 1U;
-    } else if ((lead & 0xF0U) == 0xE0U) {
-        codePoint = lead & 0x0FU;
-        remaining = 2U;
-    } else {
-        codePoint = lead & 0x07U;
-        remaining = 3U;
+    const auto decoded = Base::DecodeCodePoint(
+        text.Data() + offset,
+        text.SizeBytes() - offset);
+    if (decoded.length == 0U) {
+        offset += 1U;
+        return 0xFFFDU;
     }
-    while (remaining-- > 0U) {
-        codePoint = (codePoint << 6U) |
-            static_cast<std::uint32_t>(bytes[offset++] & 0x3FU);
-    }
-    return codePoint;
+    offset += decoded.length;
+    return decoded.value;
 }
 
 Base::Result<FT_UInt> ToPixelSize(
@@ -77,12 +68,7 @@ struct OutlineBuilder  {
 bool AppendOutline(
     OutlineBuilder& builder,
     const OutlineCommand& command) noexcept {
-    Base::Result<void> appended =
-        builder.outline->commands.PushBack(command);
-    if (!appended) {
-        builder.status = appended.GetStatus();
-        return false;
-    }
+    builder.outline->commands.PushBack(command);
     return true;
 }
 
@@ -240,11 +226,6 @@ struct FreeTypeAdapterState {
     }
 };
 
-static_assert(sizeof(FreeTypeAdapterState) <= 4096U,
-    "FreeTypeAdapter inline state storage is too small");
-static_assert(alignof(FreeTypeAdapterState) <= alignof(std::max_align_t),
-    "FreeTypeAdapter inline state alignment is insufficient");
-
 FreeTypeAdapter::FreeTypeAdapter(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -261,10 +242,16 @@ FreeTypeAdapter::Initialize() noexcept {
             Base::ErrorCode::AlreadyExists,
             "FreeType adapter is already initialized");
     }
-    state_ = new (stateStorage_) FreeTypeAdapterState(allocator_);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        allocator_);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     if (FT_Init_FreeType(&state_->library) != 0) {
-        state_->~FreeTypeAdapterState();
-        state_ = nullptr;
+        Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
         return FreeTypeFailure("FreeType initialization failed");
     }
     return {};
@@ -281,8 +268,7 @@ void FreeTypeAdapter::Shutdown() noexcept {
     if (state_->library != nullptr) {
         FT_Done_FreeType(state_->library);
     }
-    state_->~FreeTypeAdapterState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 bool FreeTypeAdapter::IsInitialized() const noexcept {
@@ -335,10 +321,8 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         FreeTypeAdapterState::Describe(cached, output);
         return {};
     }
-    Base::Result<FreeTypeAdapterState::FaceRecord*> appended =
-        state_->faces.EmplaceBack(allocator_);
-    if (!appended) return appended.GetStatus();
-    FreeTypeAdapterState::FaceRecord& record = *appended.Value();
+    FreeTypeAdapterState::FaceRecord& record =
+        *state_->faces.EmplaceBack(allocator_);
     record.faceIndex = source.faceIndex;
     record.sourceKind = source.kind;
     record.weight = typeface.Weight();
@@ -348,7 +332,7 @@ Base::Result<void> FreeTypeAdapter::LoadFace(
         record.family.Assign(typeface.Family());
     if (assigned) assigned = record.sourceName.Assign(source.identifier);
     if (assigned && source.kind == FontSourceKind::Memory) {
-        assigned = record.sourceBytes.Append(source.bytes);
+        record.sourceBytes.Append(source.bytes);
     }
     if (!assigned) {
         state_->faces.PopBack();
@@ -415,28 +399,22 @@ Base::Result<void> FreeTypeAdapter::ResolveFace(
         "No loaded FreeType face matches the query");
 }
 
-Base::Result<bool> FreeTypeAdapter::HasCodePoint(
+bool FreeTypeAdapter::HasCodePoint(
     FontFaceHandle handle,
     std::uint32_t codePoint) noexcept {
     if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "FreeType adapter is not initialized");
+        return false;
     }
     if (!handle.IsValid() ||
         handle.provider != AdapterIdentity ||
         codePoint > 0x10FFFFU ||
         (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "FreeType coverage query is invalid");
+        return false;
     }
     FT_Face face = static_cast<FT_Face>(
         FindNativeFace(handle));
     if (face == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "FreeType coverage query references a stale face");
+        return false;
     }
     return FT_Get_Char_Index(face, codePoint) != 0U;
 }
@@ -523,9 +501,7 @@ Base::Result<void> FreeTypeAdapter::Shape(
         glyph.cluster = cluster;
         glyph.advanceX = From26Dot6(
             face->freeTypeFace->glyph->advance.x);
-        Base::Result<void> appended =
-            output.glyphs.PushBack(glyph);
-        if (!appended) return appended.GetStatus();
+        output.glyphs.PushBack(glyph);
     }
     return {};
 }
@@ -606,10 +582,8 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
             Base::ErrorCode::OutOfRange,
             "Glyph bitmap exceeds Aero container limits");
     }
-    Base::Result<void> resized =
-        output.pixels.Resize(
+    output.pixels.Resize(
             static_cast<std::uint32_t>(byteCount));
-    if (!resized) return resized.GetStatus();
     const int pitch = bitmap.pitch < 0
         ? -bitmap.pitch : bitmap.pitch;
     for (std::uint32_t row = 0U; row < bitmap.rows; ++row) {
@@ -617,11 +591,8 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
             ? bitmap.rows - 1U - row : row;
         const unsigned char* source =
             bitmap.buffer + sourceRow * static_cast<std::uint32_t>(pitch);
-        for (std::uint32_t column = 0U;
-             column < bitmap.width;
-             ++column) {
-            output.pixels[row * bitmap.width + column] =
-                source[column];
+        if (bitmap.width > 0U) {
+            std::memcpy(output.pixels.Data() + row * bitmap.width, source, bitmap.width);
         }
     }
     output.format = GlyphPixelFormat::Gray8;
@@ -630,6 +601,7 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
     output.strideBytes = bitmap.width;
     output.bearingX = face->freeTypeFace->glyph->bitmap_left;
     output.bearingY = face->freeTypeFace->glyph->bitmap_top;
+    output.advanceX = From26Dot6(face->freeTypeFace->glyph->metrics.horiAdvance);
     return {};
 }
 

@@ -9,8 +9,8 @@ define another SDK layer; installed product contracts are under `include/Aero`,
 ```text
 src/base/       allocation, strings, object lifetime, streams and C ABI
 src/gui/        WPF semantic kernel, Gui/View composition and ViewRenderer
-src/gui/core/        root Aero: elements, DependencyProperty, Freezable, events, Dispatcher
-src/gui/controls/    controls implementations + the Measure/Arrange layout engine (no templates/styles)
+src/gui/core/        root Aero: elements, DependencyProperty, Freezable, events, Dispatcher, layout engine
+src/gui/controls/    controls implementations (no templates/styles)
 src/gui/templates/   ControlTemplate, DataTemplate and the template engine
 src/gui/styles/      Style and ResourceDictionary
 src/gui/data/        Aero::Data Binding engine
@@ -20,8 +20,9 @@ src/gui/text/        shaping, glyph atlas, editing and font adapters
 src/gui/media/       brushes, images, transforms, effects and animation (incl. the EventTrigger/StoryboardActions/TimerTrigger engine)
 src/gui/interactivity/  Aero::Interactivity: Blend behaviors, trigger actions and the interactivity engine
 src/gui/triggers/    Aero: core WPF style triggers (Trigger/DataTrigger/MultiTrigger/MultiDataTrigger and Condition)
-src/gui/meta/        Aero::Meta / Aero::Module type, value, metadata and modules
+src/gui/core/        Aero::Meta / Aero::Module type, value, metadata and modules
 src/gui/diagnostics/ opt-in inspection and rendering diagnostics
+src/gui/core/        PropertyStore and other kernel-private headers; not installed
 src/render/     immutable-frame encoding, GPU resources and native backends
 src/app/        Application, Window, DesktopHost and desktop presentation
 src/audio/      optional audio product
@@ -30,10 +31,11 @@ src/audio/      optional audio product
 The `src/gui` tree intentionally mirrors the installed WPF-semantic namespaces
 (`Aero`, `Aero::Controls`, `Aero::Data`, `Aero::Markup`, `Aero::Media`,
 `Aero::Meta`) so that a WPF developer can locate the
-implementation of a public type by its namespace. Private implementation
-access headers use the `*State.hpp` / `*Access.hpp` spelling (for example
-`ElementState.hpp`, `MetadataState.hpp`) rather than the retired `*Runtime.hpp`
-pattern.
+implementation of a public type by its namespace. Private composition hubs use responsibility names without a `State` suffix
+(for example `TypeRegistryCore.hpp`, `GuiRuntime.hpp`, `ViewFrame.hpp`,
+`InputManager.hpp`). Avoid reintroducing `*State.hpp` god-headers or the retired
+`*Runtime.hpp` / `*Access.hpp` / `detail/` folder patterns. Kernel-private operations that must
+touch WPF type internals live in src-only headers under `src/gui/core/` (and related domains) and are not installed.
 
 App-owned XAML behavior is supplied to the Gui schema through copied module
 descriptors (`Markup::ResourceScopeRegistration`). This keeps callbacks close
@@ -42,9 +44,11 @@ binary dependency.
 
 The retired `src/integration`, `src/runtime`, `src/providers`, root
 `src/platform`, and domain `private`/`detail` directories must not return.
-Files use responsibility names; `*Internal*` and `*Private*` filenames are
-forbidden. Helpers needed by one translation unit stay in an anonymous
-namespace.
+Installed and ordinary source files use responsibility names; `*Private*`
+filenames are forbidden. Kernel-private store types live under `src/gui/core/` (not
+installed), including
+opaque property store. Helpers needed by one translation unit stay in an
+anonymous namespace.
 
 ## Namespace policy
 
@@ -60,29 +64,22 @@ that still declares a `Detail` or `Runtime` namespace.
 
 ## Trigger and behavior headers
 
-The old `include/Aero/Triggers/` bucket mixed three WPF concepts with three
-different namespaces. It is now split into a WPF-faithful three-way layout so a
-WPF developer can find a type by its .NET namespace:
+The style-trigger types live in one header, `<Aero/Triggers.hpp>`, in the `Aero`
+namespace. Blend interactivity stays under `include/Aero/Interactivity/`.
+Storyboard and media actions stay under `include/Aero/Media/Animation/`.
 
 ```text
-include/Aero/Triggers/          Aero::*            core WPF style triggers
-    TriggerBase.hpp  Trigger.hpp  DataTrigger.hpp
-    MultiTrigger.hpp  MultiDataTrigger.hpp  Conditions.hpp (Aero::Condition)
-    Triggers.hpp                      umbrella aggregator
+include/Aero/Triggers.hpp        Aero::*            Trigger, DataTrigger, MultiTrigger,
+                                                    MultiDataTrigger, TriggerBase, Setter, Condition
 
 include/Aero/Interactivity/      Aero::Interactivity   System.Windows.Interactivity (Blend)
     Behavior.hpp  BlendBehaviors.hpp  TriggerAction.hpp
-    ChangePropertyAction.hpp  SetFocusAction.hpp
-    RemoveElementAction.hpp  LaunchUriOrFileAction.hpp
-    InteractionTriggers.hpp  (PropertyChangedTrigger, KeyTrigger,
-                              InvokeCommandAction, SelectAction,
-                              SelectAllAction, PlaySoundAction)
-    Conditions.hpp       (ComparisonCondition, ConditionalExpression,
-                          ConditionBehavior, the Blend condition primitives)
+    InteractionTriggers.hpp  Conditions.hpp
 
 include/Aero/Media/Animation/    Aero::Media::Animation   System.Windows.Media.Animation
-    EventTrigger.hpp  StoryboardActions.hpp (BeginStoryboard, etc.)
+    StoryboardActions.hpp (BeginStoryboard, etc.)
     StoryboardCompletedTrigger.hpp  TimerTrigger.hpp  MediaActions.hpp
+include/Aero/Triggers.hpp        Aero                     EventTrigger (with Trigger family; Media::Animation alias)
 ```
 
 Rules:
@@ -102,51 +99,88 @@ reference it through `using Aero::Interactivity::TriggerAction;`. The Blend
 condition primitives (`ComparisonCondition`, `ConditionalExpression`,
 `ConditionBehavior`) were relocated from `Aero::Media::Animation` to
 `Aero::Interactivity` because they are authored through interactivity XAML and
-are not part of the timeline model. `Triggers.hpp` re-exports all three groups.
+are not part of the timeline model. `<Aero/Triggers.hpp>` owns the Style/template
+types (`TriggerBase`, `Setter`, `Condition`, `Trigger`, `DataTrigger`,
+`MultiTrigger`, `MultiDataTrigger`). Blend and Media.Animation types keep their
+own headers.
 
 ## View composition
 
-`ViewState` owns the view-affine object factory, effective values, animation,
-element tree, layout, render tree, image cache, text pipeline, binding, events,
-input, control behavior, templates, styles, and the one `ViewRenderer`.
+`ViewFrame` is source-only frame/POD data (`src/gui/ViewFrame.hpp`, not
+installed). `ElementTree` is the service hub (`Layout()`, `Bindings()`,
+`Styles()`, `Events()`, `Input()`, `Animations()`, `VisualStates()`,
+`Templates()`, `RenderTree()`, …). `ViewFrame` owns the tree plus hosts that
+are not on the tree yet (interactivity, storyboards, overlays, focus,
+resources, values, text, images) and forwards hub access through thin
+accessors. Domain methods are defined out of line next to their engine:
+`ViewFrame.cpp` ticks the frame, `media/StoryboardHost.cpp` runs
+storyboard sessions, `interactivity/InteractivityEngine.cpp` evaluates
+ConditionBehavior / EventTrigger / KeyTrigger / DataTrigger, and
+`ViewDocuments.cpp` mounts XamlReader fragments.
 
 The public `View` surface stays small and WPF/Noesis shaped. `Gui` and
 `XamlReader` are the only trusted construction/loading peers. `DesktopHost`
-uses public `View` methods and does not operate on `ViewState`.
+uses public `View` methods and does not operate on `ViewFrame`.
 
 No source-only object uses a heap-allocated `Impl`/`Access` Pimpl. Where a
 large implementation type must remain out of a source header, the owner keeps
 fixed aligned storage and constructs the data state in place. There is no
 second ownership or forwarding object.
 
-## Element implementation facade
+## Kernel: WPF surface, View hub, hot / rare / opaque store
 
 Public WPF types (`Visual`, `UIElement`, `FrameworkElement`, `Control`, …) keep
-a small, WPF-shaped overridable surface. Everything else the engine must read or
-mutate on an element travels through one internal-access facade instead of
-through per-type `Access` friends scattered across installed headers:
+a small, WPF-shaped overridable surface (`GetValue`, `SetValue`, `Measure`,
+`MeasureOverride`, `OnRender`, `GoToState`, …). Installed headers do not
+advertise kernel bags.
 
-- `Media::Visual::Access` — visual tree, event/input/binding routers
-  (`EventRouterFor`/`InputRouterFor`/`BindingEngineFor`), and panel/decorator/
-  path/tree helpers. This is the engine's central internal-access facade (used
-  across `src/gui`); it is the single private entry point described by the
-  comment at the top of `src/gui/core/State.hpp`.
-- `UIElement::Access` — layout state and the `LayoutEngine` handle.
-- `Control::Access` — template/content state and the same panel/decorator
-  helpers re-exposed for controls.
+The ECS-style `Core::Facet` / `GetFacet` / `ElementFacet` / `ElementHost`
+matrix and the older per-type `Access` facades are deleted. They are not the
+product architecture. Panel layout remains virtual `MeasureOverride` /
+`ArrangeOverride` on the control type (see `src/gui/core/LayoutEngine.cpp` and
+`Panels.cpp`); there is no shipped panel layout-facet layer.
 
-The runtime engines are reached through one uniform entry point,
-`Core::Facet` + `Core::GetFacet<T>(UIElement&)` (declared in
-`src/gui/core/Facet.hpp`, specialized at the end of `src/gui/core/State.hpp`),
-so engine objects (`EventRouter`, `InputRouter`, `BindingEngine`,
-`LayoutEngine`) are retrieved by type rather than by a different static method
-per facade.
+Kernel-private reads and writes go through one friend:
 
-The element state that previously lived in a single `State.hpp` is now split
-into per-domain headers under `src/gui/core/state/`
-(`ElementTree.hpp`, `FreezableState.hpp`, `LayoutEngine.hpp`,
-`PropertyEngine.hpp`, `RoutedEvents.hpp`, `EventRouter.hpp`). `State.hpp`
-remains the umbrella that includes them; no public surface changed.
+```cpp
+// (retired) friend class ::Aero::AeroGuiInternal; engines friend concrete types directly
+```
+
+All of those operations live in src-only engine/access headers (not installed).
+Implementation `.cpp` files include that header.
+
+`View` / `ElementTree` is the service hub. The tree holds named pointers
+(`Layout()`, `Bindings()`, `Styles()`, `Events()`, `Input()`, `Animations()`,
+`VisualStates()`, `Templates()`, `RenderTree()`, `TextLayout()`,
+`ControlBehaviors()`, `MeshResources()`, `FindName()`). Visual/UIElement reach
+the tree through `VisualTree()`. Engines are ordinary objects; they do not
+inherit a Facet base just to sit in an array.
+
+Hot private data stays on the object (required for `sizeof` when types are
+subclassed): visual parent, layout flags, desired/render size, value-store
+handle. `UIElement` groups layout fields as private `LayoutHot`. Render dirty
+flags remain on `Visual`. Cold/rare data (routed handler tables, extra command
+maps, debugging) go behind a lazily allocated `Rare*` pointer, not a 16-slot
+facet array.
+
+The dependency-property store is one hashmap on `DependencyObject`, addressed
+by stable `MemberId`. The per-entry layout is an opaque `StoredValueEntry`
+defined only in `src/gui/core/PropertyStore.hpp`; the installed header
+keeps a `void*` handle. Style, Template and Inherited remain providers writing
+into that store. VisualState setters use their own provider rank/origin
+(between Local and Animation) and are cleared by origin on state exit.
+Storyboards stay on the animation engine. Packed StoredValue bit layouts are
+intentionally not part of this kernel; that can be a later optimization.
+
+XAML metadata type-capability tables (`XamlFacets` / TypeRecord masks under
+`src/gui/core/` metadata and `src/gui/markup/`) are a different system. They are not
+`Core::Facet` and must not be confused with the deleted element/engine bags.
+
+Per-domain engine headers live under `src/gui/core/`
+(`ElementTree.hpp`, `LayoutEngine.hpp`, `EffectiveValueEngine.hpp`,
+`RoutedEvents.hpp`, `EventRouter.hpp`). Freezable program data is nested in
+`Freezable::Impl` inside `Freezable.cpp`. `GuiRuntime.hpp` / `ViewFrame.hpp`
+remain the umbrellas that include the engines (`GuiRuntime.hpp` / `ViewFrame.hpp`).
 
 WPF-bridge virtuals for developers who subclass Aero types:
 - `DependencyObject::OnPropertyChanged(const DependencyPropertyChangedEventArgs&)`
@@ -196,8 +230,9 @@ the concrete App D3D11/OpenGL contexts.
 
 ## Markup ownership
 
-`Schema`, `GuiSchema`, `Loader`, `DocumentCache`, `DependencyGraph`, UI object
-model facets, and template facets are ordinary source-only implementations.
+`Schema`, `GuiSchema`, `Loader`, `DocumentCache`, `DependencyGraph`, XAML type
+capability records (`XamlFacets`), and template programs are ordinary
+source-only implementations.
 They use direct or in-place state and do not publish implementation classes in
 the SDK. `XamlDocument` is the ABI-heavy public value that deliberately keeps
 an opaque state pointer.

@@ -1,0 +1,452 @@
+#pragma once
+
+// Dependency-property evaluation, ambient services and provider sessions.
+
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Config.hpp>
+#include <Aero/Base/HashMap.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/Diagnostics.hpp>
+#include "gui/core/PropertyProviderSet.hpp"
+#include <Aero/Threading.hpp>
+
+#include <cstdint>
+
+#include "gui/core/DependencyPropertyRegistry.hpp"
+
+namespace Aero::Meta {
+
+using ::Aero::Threading::Dispatcher;
+using ::Aero::Threading::DispatcherThreadToken;
+using ::Aero::Threading::CurrentDispatcherThreadToken;
+
+using EffectiveValueDiagnostics = PropertyValueSourceInfo;
+
+class EffectiveValueEngine : public IInheritanceChangeSink {
+public:
+    EffectiveValueEngine(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& registry) noexcept;
+    ~EffectiveValueEngine() noexcept override;
+
+    EffectiveValueEngine(const EffectiveValueEngine&) = delete;
+    EffectiveValueEngine& operator=(const EffectiveValueEngine&) = delete;
+    EffectiveValueEngine(EffectiveValueEngine&&) = delete;
+    EffectiveValueEngine& operator=(EffectiveValueEngine&&) = delete;
+
+    Base::Result<void> Initialize() noexcept;
+    bool IsInitialized() const noexcept {
+        return initialized_;
+    }
+
+    Base::Result<void> SetInheritanceParent(
+        DependencyObject& child,
+        DependencyObject* parent) noexcept;
+    DependencyObject* InheritanceParent(
+        const DependencyObject& child) const noexcept;
+
+    // IInheritanceChangeSink: invoked directly when an inheritable property changes
+    void OnInheritancePropertyChanged(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept override;
+    void OnObjectDestroyed(
+        DependencyObject& object) noexcept override;
+
+    // Allocates a process-local provider origin unique to this value engine.
+    // Provider sessions allocate lazily on the owning Dispatcher and retain the
+    // origin for the lifetime of their Style, Theme or Template application.
+    Base::Result<std::uint32_t> AllocateProviderOrigin() noexcept {
+        Base::Result<void> access = dispatcher_->VerifyAccess();
+        if (!access) return access.GetStatus();
+        return providerOrigins_.Allocate();
+    }
+
+    // Canonical contribution API. Style, Template, Theme and Trigger runtimes
+    // allocate a stable origin and use declaration ordinal within that origin.
+    Base::Result<void> SetProviderContribution(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        PropertyProviderToken token,
+        const PropertyValue& value) noexcept;
+    Base::Result<bool> ClearProviderContribution(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        PropertyProviderToken token) noexcept;
+    Base::Result<std::uint32_t> ClearProviderOrigin(
+        DependencyObject& object,
+        std::uint32_t origin) noexcept;
+    Base::Result<bool> ClearProviderOrigin(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        std::uint32_t origin) noexcept;
+
+    // Ownership of expression.context transfers only after this call succeeds.
+    Base::Result<void> SetLocalExpression(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyExpression& expression) noexcept;
+    Base::Result<void> ClearLocalExpression(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+
+    Base::Result<void> SetAnimationValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept;
+    Base::Result<void> ClearAnimationValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+
+    Base::Result<void> Invalidate(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+
+    // Processes only the queue snapshot that existed at entry. Changes queued by
+    // inheritance propagation are deferred to the next PropertyChanges phase.
+    Base::Result<std::uint32_t> Flush() noexcept;
+
+    Base::Result<EffectiveValueDiagnostics> Diagnostics(
+        const DependencyObject& object,
+        DependencyPropertyHandle property) const noexcept;
+
+    // Tracked objects are non-owning. Hosts must detach an object before its
+    // destruction unless the engine itself is destroyed first.
+    Base::Result<void> DetachObject(
+        DependencyObject& object) noexcept;
+
+    void Shutdown() noexcept;
+
+    std::uint32_t TrackedPropertyCount() const noexcept {
+        return queueCount_;
+    }
+    std::uint32_t PendingPropertyCount() const noexcept;
+    bool IsFlushing() const noexcept {
+        return flushing_;
+    }
+
+private:
+    // P2.2: recycled intrusive queue link. The old pending_ vector is gone;
+    // links are popped from / returned to linkFree_, so steady-state
+    // enqueue/dequeue performs zero allocations and can never reallocate.
+    // NOTE: links are engine-owned rather than embedded in StoredValueEntry
+    // because a queued entry may be erased synchronously (e.g. ClearValue
+    // back to default recomputes inline and drops the entry via
+    // RemoveStoredEntry); an entry-owned link would die with it and sever
+    // the chain. Dedup still rides on the per-entry Queued() flag.
+    struct QueueLink {
+        DependencyObject* object = nullptr;
+        DependencyPropertyHandle property;
+        QueueLink* next = nullptr;
+    };
+
+    Dispatcher* dispatcher_ = nullptr;
+    DependencyPropertyRegistry* registry_ = nullptr;
+    QueueLink* queueHead_ = nullptr;
+    QueueLink* queueTail_ = nullptr;
+    QueueLink* linkFree_ = nullptr;
+    std::uint32_t queueCount_ = 0U;
+    Base::HashMap<DependencyObject*, DependencyObject*> parents_;
+    Base::HashMap<DependencyObject*, Base::Vector<DependencyObject*>> childrenByParent_;
+    PropertyProviderOriginAllocator providerOrigins_;
+    bool initialized_ = false;
+    bool flushing_ = false;
+
+    Base::Result<void> VerifyMutable() const noexcept;
+    Base::Result<void> QueueObjectProperty(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> QueueDescendants(
+        DependencyObject& parent,
+        DependencyPropertyHandle property) noexcept;
+    Base::Result<void> Apply(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
+    // Pops a link from the free list or allocates a fresh one. Only fails on
+    // OOM when the free list is empty (steady state never allocates).
+    Base::Result<QueueLink*> AcquireLink() noexcept;
+    void RecycleLink(QueueLink* link) noexcept;
+    void ClearQueueLinks() noexcept;
+
+    static bool IsMutableBaseRank(PropertyValueRank rank) noexcept;
+};
+
+} // namespace Aero::Meta
+
+
+namespace Aero::Meta {
+
+
+struct ObjectFactoryState {
+    Dispatcher* dispatcher = nullptr;
+    DependencyPropertyRegistry* dependencyProperties = nullptr;
+    Meta::Registry* metadata = nullptr;
+
+    bool IsValid() const noexcept {
+        return dispatcher != nullptr && dependencyProperties != nullptr;
+    }
+};
+
+ObjectFactoryState CurrentObjectFactory() noexcept;
+bool HasObjectFactory() noexcept;
+
+Base::Result<Value> TryEncodeValue(
+    TypeId type,
+    const void* source) noexcept;
+
+class ObjectFactoryScope {
+public:
+    ObjectFactoryScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties) noexcept;
+    ObjectFactoryScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties,
+        Meta::Registry& runtime) noexcept;
+    ObjectFactoryScope(
+        Dispatcher& dispatcher,
+        DependencyPropertyRegistry& properties,
+        Meta::Registry* runtime) noexcept;
+    ~ObjectFactoryScope();
+
+    ObjectFactoryScope(const ObjectFactoryScope&) = delete;
+    ObjectFactoryScope& operator=(const ObjectFactoryScope&) = delete;
+    ObjectFactoryScope(ObjectFactoryScope&&) = delete;
+    ObjectFactoryScope& operator=(ObjectFactoryScope&&) = delete;
+
+private:
+    ObjectFactoryState state_;
+    ObjectFactoryState* previous_ = nullptr;
+    DispatcherThreadToken ownerThread_ = 0U;
+};
+
+} // namespace Aero::Meta
+
+
+#include <utility>
+
+namespace Aero {
+
+using namespace ::Aero::Meta;
+
+// Canonical expression-to-DP boundary. Binding and MultiBinding use this
+// after their explicit converters; other expression runtimes can share it
+// without depending on Data. Type-specific conversions belong to metadata
+// codecs or an authored converter; this helper only normalizes text,
+// null-object typing and object covariance.
+Base::Result<PropertyValue> NormalizeValueForProperty(
+    Meta::Registry* metadata,
+    const DependencyProperty& property,
+    PropertyValue value) noexcept;
+
+// Manager-owned provider state. One session belongs to one StyleEngine,
+// StyleEngine or TemplateEngine allocates all provider origins through the
+// shared EffectiveValueEngine, preventing cross-manager token collisions.
+class PropertyProviderSession {
+public:
+    PropertyProviderSession(
+        EffectiveValueEngine& engine,
+        PropertyValueRank setterRank,
+        PropertyValueRank triggerRank) noexcept
+        : engine_(&engine),
+          setterRank_(setterRank),
+          triggerRank_(triggerRank) {}
+
+    PropertyProviderSession(const PropertyProviderSession&) = delete;
+    PropertyProviderSession& operator=(const PropertyProviderSession&) = delete;
+
+    Base::Result<void> SetSetterValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        Base::Result<std::uint32_t> origin = EnsureOrigin(setterOrigin_);
+        if (!origin) return origin.GetStatus();
+        const PropertyProviderToken token{
+            setterRank_, origin.Value(), 0U};
+        return engine_->SetProviderContribution(
+            object, property, token, value);
+    }
+
+    Base::Result<void> ClearSetterValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        if (setterOrigin_ == 0U) return {};
+        Base::Result<bool> cleared =
+            engine_->ClearProviderOrigin(object, property, setterOrigin_);
+        if (!cleared) return cleared.GetStatus();
+        return {};
+    }
+
+    Base::Result<void> SetTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        Base::Result<std::uint32_t> origin = EnsureOrigin(triggerOrigin_);
+        if (!origin) return origin.GetStatus();
+        Base::Result<std::uint32_t> ordinal = NextOrdinal(
+            nextTriggerOrdinal_, "Property trigger ordinal limit reached");
+        if (!ordinal) return ordinal.GetStatus();
+        const PropertyProviderToken token{
+            triggerRank_, origin.Value(), ordinal.Value()};
+        return engine_->SetProviderContribution(
+            object, property, token, value);
+    }
+
+    Base::Result<void> ClearTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        if (triggerOrigin_ == 0U) return {};
+        Base::Result<bool> cleared =
+            engine_->ClearProviderOrigin(object, property, triggerOrigin_);
+        if (!cleared) return cleared.GetStatus();
+        return {};
+    }
+
+    Base::Result<void> ClearObjectProviders(
+        DependencyObject& object) noexcept {
+        if (setterOrigin_ != 0U) {
+            Base::Result<std::uint32_t> cleared =
+                engine_->ClearProviderOrigin(object, setterOrigin_);
+            if (!cleared) return cleared.GetStatus();
+        }
+        if (triggerOrigin_ != 0U) {
+            Base::Result<std::uint32_t> cleared =
+                engine_->ClearProviderOrigin(object, triggerOrigin_);
+            if (!cleared) return cleared.GetStatus();
+        }
+        return {};
+    }
+
+    Base::Result<void> DetachObject(
+        DependencyObject& object) noexcept {
+        Base::Result<void> cleared = ClearObjectProviders(object);
+        if (!cleared) return cleared.GetStatus();
+        return engine_->DetachObject(object);
+    }
+
+    Base::Result<std::uint32_t> Flush() noexcept {
+        return engine_->Flush();
+    }
+
+    bool IsFlushing() const noexcept {
+        return engine_->IsFlushing();
+    }
+
+private:
+    EffectiveValueEngine* engine_ = nullptr;
+    PropertyValueRank setterRank_ = PropertyValueRank::Default;
+    PropertyValueRank triggerRank_ = PropertyValueRank::Default;
+    std::uint32_t setterOrigin_ = 0U;
+    std::uint32_t triggerOrigin_ = 0U;
+    std::uint32_t nextTriggerOrdinal_ = 0U;
+
+    Base::Result<std::uint32_t> EnsureOrigin(
+        std::uint32_t& origin) noexcept {
+        if (origin != 0U) return origin;
+        Base::Result<std::uint32_t> allocated =
+            engine_->AllocateProviderOrigin();
+        if (!allocated) return allocated.GetStatus();
+        origin = allocated.Value();
+        return origin;
+    }
+
+    static Base::Result<std::uint32_t> NextOrdinal(
+        std::uint32_t& next,
+        const char* message) noexcept {
+        if (next == UINT32_MAX) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                message);
+        }
+        return next++;
+    }
+};
+
+class StyleProviderSession {
+public:
+    explicit StyleProviderSession(
+        EffectiveValueEngine& engine) noexcept
+        : session_(
+              engine,
+              PropertyValueRank::StyleSetter,
+              PropertyValueRank::StyleTrigger) {}
+
+    Base::Result<void> SetStyleValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        return session_.SetSetterValue(object, property, value);
+    }
+    Base::Result<void> ClearStyleValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        return session_.ClearSetterValue(object, property);
+    }
+    Base::Result<void> SetTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        return session_.SetTriggerValue(object, property, value);
+    }
+    Base::Result<void> ClearTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        return session_.ClearTriggerValue(object, property);
+    }
+    Base::Result<std::uint32_t> Flush() noexcept {
+        return session_.Flush();
+    }
+    bool IsFlushing() const noexcept {
+        return session_.IsFlushing();
+    }
+
+private:
+    PropertyProviderSession session_;
+};
+
+class TemplatedParentProviderSession {
+public:
+    explicit TemplatedParentProviderSession(
+        EffectiveValueEngine& engine) noexcept
+        : session_(
+              engine,
+              PropertyValueRank::TemplatedParentSetter,
+              PropertyValueRank::TemplatedParentTrigger) {}
+
+    Base::Result<void> SetTemplateValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        return session_.SetSetterValue(object, property, value);
+    }
+    Base::Result<void> ClearTemplateValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        return session_.ClearSetterValue(object, property);
+    }
+    Base::Result<void> SetTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        const PropertyValue& value) noexcept {
+        return session_.SetTriggerValue(object, property, value);
+    }
+    Base::Result<void> ClearTriggerValue(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept {
+        return session_.ClearTriggerValue(object, property);
+    }
+    Base::Result<void> DetachObject(
+        DependencyObject& object) noexcept {
+        return session_.DetachObject(object);
+    }
+    Base::Result<std::uint32_t> Flush() noexcept {
+        return session_.Flush();
+    }
+
+private:
+    PropertyProviderSession session_;
+};
+
+} // namespace Aero
+

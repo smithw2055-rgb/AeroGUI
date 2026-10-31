@@ -1,5 +1,6 @@
 #include "TextLayout.hpp"
 
+#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/Utf8.hpp>
 
 #include <algorithm>
@@ -112,9 +113,7 @@ Base::Result<void> TokenizeParagraph(
         segment.start = segmentStart;
         segment.length = offset - segmentStart;
         segment.kind = kind;
-        Base::Result<void> appended =
-            segments.PushBack(segment);
-        if (!appended) return appended.GetStatus();
+        segments.PushBack(segment);
     }
     return {};
 }
@@ -159,13 +158,12 @@ Base::Result<void> ValidateRequest(
 
 } // namespace
 
-Base::Result<void> TextLayout::AddRun(GlyphRun&& run) noexcept {
+void TextLayout::AddRun(GlyphRun&& run) noexcept {
     if (!run.face.IsValid() ||
         !std::isfinite(run.pixelSize) ||
         run.pixelSize <= 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Glyph run requires a valid face and positive pixel size");
+        AERO_ASSERT(false && "Glyph run requires a valid face and positive pixel size");
+        return;
     }
     for (const PositionedGlyph& glyph : run.glyphs) {
         if (glyph.glyph == InvalidGlyphId ||
@@ -173,19 +171,14 @@ Base::Result<void> TextLayout::AddRun(GlyphRun&& run) noexcept {
             !std::isfinite(glyph.y) ||
             !std::isfinite(glyph.advanceX) ||
             glyph.advanceX < 0.0F) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "Glyph run contains invalid positioned glyph data");
+            AERO_ASSERT(false && "Glyph run contains invalid positioned glyph data");
+            return;
         }
     }
-    Base::Result<GlyphRun*> appended =
-        runs_.EmplaceBack(std::move(run));
-    return appended
-        ? Base::Result<void>()
-        : Base::Result<void>(appended.GetStatus());
+    runs_.EmplaceBack(std::move(run));
 }
 
-Base::Result<void> TextLayout::AddLine(
+void TextLayout::AddLine(
     const TextLine& line) noexcept {
     if (line.firstRun > runs_.Size() ||
         line.runCount > runs_.Size() - line.firstRun ||
@@ -198,26 +191,23 @@ Base::Result<void> TextLayout::AddLine(
         line.width < 0.0F ||
         line.ascent < 0.0F ||
         line.descent < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text line range or metrics are invalid");
+        AERO_ASSERT(false && "Text line range or metrics are invalid");
+        return;
     }
-    return lines_.PushBack(line);
+    lines_.PushBack(line);
 }
 
-Base::Result<void> TextLayout::SetSize(
+void TextLayout::SetSize(
     TextLayoutSize size) noexcept {
     if (!std::isfinite(size.width) ||
         !std::isfinite(size.height) ||
         size.width < 0.0F ||
         size.height < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text layout size must be finite and nonnegative");
+        AERO_ASSERT(false && "Text layout size must be finite and nonnegative");
+        return;
     }
     size_ = size;
     naturalSize_ = size;
-    return {};
 }
 
 Base::Result<void> TextLayout::ShapeAndMeasure(
@@ -373,9 +363,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             run.pixelSize = request.pixelSize;
             run.direction = shaped.direction;
             run.script = shaped.script;
-            Base::Result<void> reserved =
-                run.glyphs.Reserve(shaped.glyphs.Size());
-            if (!reserved) return reserved.GetStatus();
+            run.glyphs.Reserve(shaped.glyphs.Size());
             for (const ShapedGlyph& source : shaped.glyphs) {
                 if (source.advanceX < 0.0F) {
                     return Base::Status::Failure(
@@ -400,9 +388,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 glyph.y =
                     lineY + baseline - source.offsetY;
                 glyph.advanceX = source.advanceX;
-                Base::Result<void> appended =
-                    run.glyphs.PushBack(glyph);
-                if (!appended) return appended.GetStatus();
+                run.glyphs.PushBack(glyph);
                 width += source.advanceX;
             }
             Base::Result<GlyphRun*> appended =
@@ -472,9 +458,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             return 0.0F;
         }
         for (GlyphRun& run : runs) {
-            Base::Result<void> appended =
-                pending.AddRun(std::move(run));
-            if (!appended) return appended.GetStatus();
+            pending.AddRun(std::move(run));
             ++line.runCount;
         }
         return width;
@@ -546,14 +530,10 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         if (foundPartialRun && keepGlyphCount > 0U) {
             GlyphRun& partial =
                 pending.runs_[line.firstRun + keepRunCount];
-            Base::Result<void> resized =
-                partial.glyphs.Resize(keepGlyphCount);
-            if (!resized) return resized.GetStatus();
+            partial.glyphs.Resize(keepGlyphCount);
             ++targetRunCount;
         }
-        Base::Result<void> runsResized =
-            pending.runs_.Resize(line.firstRun + targetRunCount);
-        if (!runsResized) return runsResized.GetStatus();
+        pending.runs_.Resize(line.firstRun + targetRunCount);
         line.runCount = targetRunCount;
         line.width = keptWidth;
 
@@ -617,9 +597,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
             }
 
             maximumWidth = std::max(maximumWidth, line.width);
-            Base::Result<void> appended =
-                pending.AddLine(line);
-            if (!appended) return appended.GetStatus();
+            pending.AddLine(line);
             lineY += lineHeight;
             firstRun = pending.runs_.Size();
             lineWidth = 0.0F;
@@ -629,14 +607,24 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
         };
 
         auto appendPiece = [&](
-            const TextSegment& piece) noexcept -> Base::Result<void> {
-            Base::Vector<GlyphRun> runs(allocator);
-            float pieceWidth = 0.0F;
-            Base::Result<void> shaped =
-                shapeSegment(
-                    piece.start, piece.length,
-                    lineWidth, runs, pieceWidth);
-            if (!shaped) return shaped.GetStatus();
+            const TextSegment& piece,
+            Base::Vector<GlyphRun>* preShapedRuns = nullptr,
+            float preShapedWidth = 0.0F) noexcept -> Base::Result<void> {
+            Base::Vector<GlyphRun> localRuns(allocator);
+            Base::Vector<GlyphRun>& runs = (preShapedRuns != nullptr)
+                ? *preShapedRuns
+                : localRuns;
+            float pieceWidth = (preShapedRuns != nullptr)
+                ? preShapedWidth
+                : 0.0F;
+
+            if (preShapedRuns == nullptr) {
+                Base::Result<void> shaped =
+                    shapeSegment(
+                        piece.start, piece.length,
+                        0.0F, runs, pieceWidth);
+                if (!shaped) return shaped.GetStatus();
+            }
 
             if (wrap &&
                 lineWidth > 0.0F &&
@@ -644,10 +632,8 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 if (lineEndsWhitespace && !boundaries.Empty()) {
                     const WordBoundary& boundary =
                         boundaries.Back();
-                    Base::Result<void> resized =
-                        pending.runs_.Resize(
+                    pending.runs_.Resize(
                             firstRun + boundary.runCount);
-                    if (!resized) return resized.GetStatus();
                     lineWidth = boundary.width;
                     lineEnd = boundary.textEnd;
                 }
@@ -660,11 +646,17 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     lineEnd = lineStart;
                     return {};
                 }
-                runs.Clear();
-                shaped = shapeSegment(
-                    piece.start, piece.length,
-                    0.0F, runs, pieceWidth);
-                if (!shaped) return shaped.GetStatus();
+                for (GlyphRun& run : runs) {
+                    for (PositionedGlyph& glyph : run.glyphs) {
+                        glyph.y += lineHeight;
+                    }
+                }
+            } else if (lineWidth > 0.0F) {
+                for (GlyphRun& run : runs) {
+                    for (PositionedGlyph& glyph : run.glyphs) {
+                        glyph.x += lineWidth;
+                    }
+                }
             }
 
             if (piece.kind == SegmentKind::Whitespace &&
@@ -674,15 +666,11 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     pending.runs_.Size() - firstRun;
                 boundary.textEnd = piece.start;
                 boundary.width = lineWidth;
-                Base::Result<void> added =
-                    boundaries.PushBack(boundary);
-                if (!added) return added.GetStatus();
+                boundaries.PushBack(boundary);
             }
 
             for (GlyphRun& run : runs) {
-                Base::Result<void> appended =
-                    pending.AddRun(std::move(run));
-                if (!appended) return appended.GetStatus();
+                pending.AddRun(std::move(run));
             }
             lineWidth += pieceWidth;
             lineEnd = piece.start + piece.length;
@@ -695,9 +683,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                     pending.runs_.Size() - firstRun;
                 boundary.textEnd = lineEnd;
                 boundary.width = lineWidth;
-                Base::Result<void> added =
-                    boundaries.PushBack(boundary);
-                if (!added) return added.GetStatus();
+                boundaries.PushBack(boundary);
             }
             return {};
         };
@@ -730,7 +716,7 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
                 }
             } else {
                 Base::Result<void> appended =
-                    appendPiece(segment);
+                    appendPiece(segment, &probe, probeWidth);
                 if (!appended) return appended.GetStatus();
             }
         }
@@ -778,12 +764,11 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     return {};
 }
 
-Base::Result<void> TextLayout::Arrange(
+void TextLayout::Arrange(
     float finalWidth) noexcept {
     if (!std::isfinite(finalWidth) || finalWidth < 0.0F) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Text layout arrange width must be finite and nonnegative");
+        AERO_ASSERT(false && "Text layout arrange width must be finite and nonnegative");
+        return;
     }
     for (TextLine& line : lines_) {
         const float available =
@@ -807,7 +792,6 @@ Base::Result<void> TextLayout::Arrange(
     }
     size_.width = finalWidth;
     size_.height = naturalSize_.height;
-    return {};
 }
 
 void TextLayout::Clear() noexcept {

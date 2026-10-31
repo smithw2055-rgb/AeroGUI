@@ -1,138 +1,188 @@
 #pragma once
 
-#include <Aero/Layout.hpp>
-#include <Aero/Media/Brushes.hpp>
+// Shape family: Shape plus the concrete shapes.
 #include <Aero/FrameworkElement.hpp>
+#include <Aero/Media/Brushes.hpp>
+#include <Aero/Media/Images.hpp>
+#include <Aero/Media/Pen.hpp>
+#include <Aero/Base/String.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/Media/Geometries.hpp>
 
-namespace Aero::Core { class DependencyPropertyFacet; }
+#include <cstdint>
 
 namespace Aero::Shapes {
 
+using ::Aero::Meta::DependencyPropertyChangedEventArgs;
+using ::Aero::Meta::DependencyPropertyHandle;
+using ::Aero::Meta::PropertyValue;
 using ::Aero::Meta::TypeId;
 using ::Aero::Media::Brush;
-using ::Aero::Media::Geometry;
 using ::Aero::Media::Stretch;
-
-enum class PenLineJoin : std::uint8_t { Miter = 0U, Bevel, Round };
-enum class PenLineCap : std::uint8_t { Flat = 0U, Square, Round, Triangle };
 
 class AERO_GUI_API Shape : public FrameworkElement {
     AERO_DECLARE_TYPE(Shape, FrameworkElement)
+
 public:
-    Ref<Brush> GetFill() const noexcept;
-    Ref<Brush> GetStroke() const noexcept;
-    double GetStrokeThickness() const noexcept;
-    Stretch GetStretch() const noexcept;
+    bool HitTestCore() const noexcept override {
+        return GetFill() != nullptr || GetStroke() != nullptr;
+    }
 
-    void SetFill(
-        Ref<Brush> value) noexcept;
-    void SetStroke(
-        Ref<Brush> value) noexcept;
-    void SetStrokeThickness(double value) noexcept;
-    void SetStretch(Stretch value) noexcept;
-
-    inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
-    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
+    AERO_DEPENDENCY_PROPERTY2(Ref<Brush>, Fill);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Brush>, Stroke);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Media::Pen>, Pen);
+    AERO_DEPENDENCY_PROPERTY2(double, StrokeThickness);
+    AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
 
 protected:
-    explicit Shape(TypeId runtimeType) noexcept
-        : FrameworkElement(runtimeType) {}
+    explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Shape() override = default;
+
+    // Replaces OnShapePenChanged (Fill/Stroke had a no-op and were dropped).
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
 };
 
 class AERO_GUI_API Rectangle : public Shape {
     AERO_DECLARE_TYPE(Rectangle, Shape)
+
 public:
     Rectangle() noexcept : Shape(StaticTypeId()) {}
     ~Rectangle() override = default;
 
-    double GetRadiusX() const noexcept;
-    double GetRadiusY() const noexcept;
-    void SetRadiusX(double value) noexcept;
-    void SetRadiusY(double value) noexcept;
-
-    inline static constexpr DependencyProperty<double> RadiusXProperty{"RadiusX"};
-    inline static constexpr DependencyProperty<double> RadiusYProperty{"RadiusY"};
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusX);
+    AERO_DEPENDENCY_PROPERTY2(double, RadiusY);
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 };
 
 class AERO_GUI_API Ellipse : public Shape {
     AERO_DECLARE_TYPE(Ellipse, Shape)
+
 public:
     Ellipse() noexcept : Shape(StaticTypeId()) {}
     ~Ellipse() override = default;
 
 protected:
-    Size MeasureOverride(
-        Size availableSize) noexcept override;
-    void OnRender(
-        ::Aero::Media::DrawingContext& context) noexcept override;
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 };
 
-// WPF-shaped vector path. The textual Data value accepts the deterministic
-// SVG/WPF subset used by the Gallery vector assets.
-class AERO_GUI_API Path : public FrameworkElement {
-    AERO_DECLARE_TYPE(Path, FrameworkElement)
+class AERO_GUI_API Line : public Shape {
+    AERO_DECLARE_TYPE(Line, Shape)
+
 public:
-    Path() noexcept;
-    ~Path() override;
+    Line() noexcept : Shape(StaticTypeId()) {}
+    ~Line() override = default;
 
-    Ref<Geometry> GetData() const noexcept;
-    Ref<Brush> GetFill() const noexcept;
-    Ref<Brush> GetStroke() const noexcept;
-    double GetStrokeThickness() const noexcept;
-    PenLineJoin GetStrokeLineJoin() const noexcept;
-    PenLineCap GetStrokeStartLineCap() const noexcept;
-    PenLineCap GetStrokeEndLineCap() const noexcept;
-    double GetTrimStart() const noexcept;
-    double GetTrimEnd() const noexcept;
-    Stretch GetStretch() const noexcept;
-    Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
+    AERO_DEPENDENCY_PROPERTY2(double, X1);
+    AERO_DEPENDENCY_PROPERTY2(double, Y1);
+    AERO_DEPENDENCY_PROPERTY2(double, X2);
+    AERO_DEPENDENCY_PROPERTY2(double, Y2);
 
-    void SetData(Ref<Geometry> value) noexcept;
-    void SetFill(Ref<Brush> value) noexcept;
-    void SetStroke(Ref<Brush> value) noexcept;
-    void SetStrokeThickness(double value) noexcept;
-    void SetStrokeLineJoin(PenLineJoin value) noexcept;
-    void SetStrokeStartLineCap(PenLineCap value) noexcept;
-    void SetStrokeEndLineCap(PenLineCap value) noexcept;
-    void SetTrimStart(double value) noexcept;
-    void SetTrimEnd(double value) noexcept;
-    void SetStretch(Stretch value) noexcept;
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+};
 
-    inline static constexpr DependencyProperty<Ref<Geometry>> DataProperty{"Data"};
-    inline static constexpr DependencyProperty<Ref<Brush>> FillProperty{"Fill"};
-    inline static constexpr DependencyProperty<Ref<Brush>> StrokeProperty{"Stroke"};
-    inline static constexpr DependencyProperty<double> StrokeThicknessProperty{"StrokeThickness"};
-    inline static constexpr DependencyProperty<PenLineJoin> StrokeLineJoinProperty{"StrokeLineJoin"};
-    inline static constexpr DependencyProperty<PenLineCap> StrokeStartLineCapProperty{"StrokeStartLineCap"};
-    inline static constexpr DependencyProperty<PenLineCap> StrokeEndLineCapProperty{"StrokeEndLineCap"};
-    inline static constexpr AttachedProperty<double> TrimStartProperty{"TrimStart"};
-    inline static constexpr AttachedProperty<double> TrimEndProperty{"TrimEnd"};
-    inline static constexpr DependencyProperty<Stretch> StretchProperty{"Stretch"};
+enum class FillRule : std::uint8_t { EvenOdd = 0U, Nonzero };
+
+class AERO_GUI_API Polygon : public Shape {
+    AERO_DECLARE_TYPE(Polygon, Shape)
+
+public:
+    Polygon() noexcept : Shape(StaticTypeId()) {}
+    ~Polygon() override = default;
+
+    void AddPoint(Point point) noexcept;
+
+    AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule);
+
+    Span<const Point> GetPoints() const noexcept;
+    void SetPoints(Span<const Point> points) noexcept;
+    void SetPoints(StringView text) noexcept;
+    void ClearPoints() noexcept;
+    void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
 private:
-#if defined(AERO_GUI_IMPLEMENTATION)
-    friend class ::Aero::Core::DependencyPropertyFacet;
-#endif
+    Base::Vector<Point> points_;
+};
 
-    Result<void> EnsureGeometry() noexcept;
-    Result<void> EnsureMesh() noexcept;
+class AERO_GUI_API Polyline : public Shape {
+    AERO_DECLARE_TYPE(Polyline, Shape)
+
+public:
+    Polyline() noexcept : Shape(StaticTypeId()) {}
+    ~Polyline() override = default;
+
+    void AddPoint(Point point) noexcept;
+
+    Span<const Point> GetPoints() const noexcept;
+    void SetPoints(Span<const Point> points) noexcept;
+    void SetPoints(StringView text) noexcept;
+    void ClearPoints() noexcept;
+    void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+
+private:
+    Base::Vector<Point> points_;
+};
+
+using ::Aero::Media::Geometry;
+using ::Aero::Media::PenLineJoin;
+using ::Aero::Media::PenLineCap;
+
+// WPF-shaped vector path. The textual Data value accepts the deterministic
+// SVG/WPF subset used by the Gallery vector assets.
+class AERO_GUI_API Path : public Shape {
+    AERO_DECLARE_TYPE(Path, Shape)
+
+public:
+    Path() noexcept;
+    ~Path() override;
+
+    bool EnsureGeometry() noexcept;
+    bool EnsureMesh() noexcept;
     void ResetGeometry() noexcept;
     void AttachMeshResources(void* services, bool force = false) noexcept;
     void ReleaseMesh() noexcept;
 
+    double GetTrimStart() const noexcept;
+    void SetTrimStart(double value) noexcept;
+    double GetTrimEnd() const noexcept;
+    void SetTrimEnd(double value) noexcept;
+    StringView GetStrokeDashArray() const noexcept;
+    void SetStrokeDashArray(StringView value) noexcept;
+    Rect GetGeometryBounds() const noexcept { return geometryBounds_; }
+
+    AERO_DEPENDENCY_PROPERTY2(Ref<Geometry>, Data);
+    AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule);
+    AERO_DEPENDENCY_PROPERTY2(PenLineJoin, StrokeLineJoin);
+    AERO_DEPENDENCY_PROPERTY2(PenLineCap, StrokeStartLineCap);
+    AERO_DEPENDENCY_PROPERTY2(PenLineCap, StrokeEndLineCap);
+    AERO_ATTACHED_PROPERTY(double, TrimStart);
+    AERO_ATTACHED_PROPERTY(double, TrimEnd);
+    AERO_DEPENDENCY_PROPERTY(String, StrokeDashArray);
+    AERO_DEPENDENCY_PROPERTY2(double, StrokeDashOffset);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Media::DashStyle>, DashStyle);
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
+    // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
+
+private:
     Base::Vector<Point> geometryVertices_;
     Base::Vector<std::uint32_t> geometryIndices_;
     Base::Vector<Point> pathPoints_;
@@ -145,11 +195,11 @@ private:
     std::uint64_t meshServiceGeneration_ = 0U;
     std::uint64_t mesh_ = 0U;
     std::uint64_t strokeMesh_ = 0U;
+    double lastRenderWidth_ = 0.0;
+    double lastRenderHeight_ = 0.0;
     bool geometryDirty_ = true;
 };
 
 } // namespace Aero::Shapes
 
-AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineJoin)
-
-AERO_DECLARE_TYPE_ENUM(Aero::Shapes::PenLineCap)
+AERO_DECLARE_TYPE_ENUM(Aero::Shapes::FillRule)

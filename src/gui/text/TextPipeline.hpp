@@ -33,7 +33,7 @@ public:
         RenderDevice& device,
         ::Aero::Render::TextResources* resources,
         bool force = false) noexcept;
-    Base::Result<std::uint32_t> CollectGarbage() noexcept;
+    std::uint32_t CollectGarbage() noexcept;
     void Shutdown() noexcept;
 
     ::Aero::Controls::TextBlockLayout*
@@ -41,9 +41,6 @@ public:
 
 private:
     Base::IAllocator* allocator_ = nullptr;
-    // The source-private state is constructed directly in this storage. This
-    // preserves local helper types without a heap-allocated Pimpl lifetime.
-    alignas(std::max_align_t) std::uint8_t stateStorage_[16384]{};
     TextPipelineState* state_ = nullptr;
 };
 

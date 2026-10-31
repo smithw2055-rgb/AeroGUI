@@ -1,6 +1,6 @@
 set(_aero_app_sources
     src/app/Application.cpp
-    src/app/Metadata.cpp
+    src/app/AppMetadata.cpp
     src/app/platform/WindowWait.cpp
     src/app/DesktopHost.cpp
     src/app/Window.cpp)

@@ -42,6 +42,7 @@ set(AERO_PUBLIC_NAMESPACE_BASE_DETAIL_HEADERS
     include/Aero/Base/Object.hpp
     include/Aero/Base/Ref.hpp
     include/Aero/Base/Vector.hpp
+    include/Aero/Base/Value.hpp
     include/Aero/Meta.hpp
     include/Aero/Value.hpp)
 

@@ -4,6 +4,10 @@
 
 #include <cmath>
 #include <cstdint>
+#include "gui/core/Describe.hpp"
+#include <Aero/Media/Fonts.hpp>
+#include <Aero/Value.hpp>
+#include <utility>
 
 namespace Aero::Text {
 namespace {
@@ -111,7 +115,8 @@ Base::Result<void> FontManager::RegisterProvider(
     record.fonts = registration.fonts;
     record.shaper = registration.shaper;
     record.rasterizer = registration.rasterizer;
-    return registrations_.PushBack(record);
+    registrations_.PushBack(record);
+    return {};
 }
 
 Base::Result<void> FontManager::UnregisterProvider(
@@ -223,23 +228,18 @@ Base::Result<void> FontManager::ReleaseFace(
     return {};
 }
 
-Base::Result<bool> FontManager::HasCodePoint(
+bool FontManager::HasCodePoint(
     FontFaceHandle face,
     std::uint32_t codePoint) noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) return ready.GetStatus();
+    if (!VerifyReady()) return false;
     if (!face.IsValid() ||
         codePoint > 0x10FFFFU ||
         (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Font coverage query is invalid");
+        return false;
     }
     ProviderRecord* record = FindProvider(face);
     if (record == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Font face provider is missing or its version changed");
+        return false;
     }
     return record->fonts->HasCodePoint(face, codePoint);
 }
@@ -346,6 +346,7 @@ Base::Result<void> FontManager::RasterizeGlyph(
     output.width = 0U;
     output.height = 0U;
     output.strideBytes = 0U;
+    output.advanceX = 0.0F;
     Base::Result<void> rasterized =
         record->rasterizer->Rasterize(request, output);
     if (!rasterized) return rasterized.GetStatus();
@@ -381,20 +382,18 @@ Base::Result<void> FontManager::ExtractGlyphOutline(
     return ValidateOutline(output);
 }
 
-FontManager::ProviderRecord* FontManager::FindProvider(
-    FontProviderId provider) noexcept {
-    for (ProviderRecord& record : registrations_) {
-        if (record.identity.id == provider) return &record;
-    }
-    return nullptr;
-}
-
 const FontManager::ProviderRecord* FontManager::FindProvider(
     FontProviderId provider) const noexcept {
     for (const ProviderRecord& record : registrations_) {
         if (record.identity.id == provider) return &record;
     }
     return nullptr;
+}
+
+FontManager::ProviderRecord* FontManager::FindProvider(
+    FontProviderId provider) noexcept {
+    return const_cast<ProviderRecord*>(
+        static_cast<const FontManager*>(this)->FindProvider(provider));
 }
 
 FontManager::ProviderRecord* FontManager::FindProvider(
@@ -436,3 +435,36 @@ Base::Result<void> FontManager::ValidateFace(
 }
 
 } // namespace Aero::Text
+
+namespace Aero::MetadataSupport {
+using namespace ::Aero::Meta;
+using Media::FontFamily;
+namespace {
+
+Base::Result<Value> ConvertFontFamilyText(
+    TypeId targetType, Base::StringView text, void*) noexcept {
+    if (targetType != FontFamily::StaticTypeId()) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
+            "FontFamily text conversion received an invalid target");
+    }
+    Base::Ref<FontFamily> family = Base::MakeRef<FontFamily>();
+    if (!family) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    family->SetSource(text);
+    return Value::FromObject(FontFamily::StaticTypeId(),
+        Base::Ref<Base::Object>(std::move(family)));
+}
+} // namespace
+} // namespace Aero::MetadataSupport
+
+namespace Aero::Media {
+
+AERO_DESCRIBE(FontFamily) {
+    using namespace Aero::Meta;
+    Register<FontFamily>(context)
+            .Property("Source", &FontFamily::GetSource, &FontFamily::SetSource, PropertyFlags::Structural)
+            .Content(MakeMemberId(FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
+            .TextConverter(&::Aero::MetadataSupport::ConvertFontFamilyText)
+            .Factory();
+}
+
+} // namespace Aero::Media

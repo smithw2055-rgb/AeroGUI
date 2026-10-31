@@ -1,0 +1,155 @@
+#pragma once
+
+// 2D transform family, including the Transform base.
+// XAML type names stay Transform, TranslateTransform, RotateTransform, ...
+#include <Aero/Animatable.hpp>
+#include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/Ref.hpp>
+#include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
+#include <Aero/DependencyProperty.hpp>
+#include <Aero/Media/FreezableCollection.hpp>
+
+#include <cstdint>
+
+namespace Aero::Media {
+
+using Transform2D = Base::Transform2D;
+
+class AERO_GUI_API Transform : public ::Aero::Animatable {
+    AERO_DECLARE_TYPE(Transform, ::Aero::Animatable)
+
+public:
+    virtual Base::Transform2D GetMatrix() const noexcept = 0;
+    // Freezable content revision (render cache invalidation).
+    std::uint64_t GetRevision() const noexcept;
+
+protected:
+    explicit Transform(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
+};
+
+AERO_GUI_API Base::Transform2D ComposeTransforms(const Base::Transform2D& first,
+    const Base::Transform2D& second) noexcept;
+AERO_GUI_API Base::Point TransformPoint(const Base::Transform2D& transform, Base::Point point) noexcept;
+AERO_GUI_API Base::Rect TransformBounds(const Base::Transform2D& transform, Base::Rect rect) noexcept;
+AERO_GUI_API bool InvertTransform(const Base::Transform2D& transform, Base::Transform2D& inverse) noexcept;
+
+class AERO_GUI_API TranslateTransform : public Transform {
+    AERO_DECLARE_TYPE(TranslateTransform, Transform)
+
+public:
+    TranslateTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrix() const noexcept override;
+
+    AERO_DEPENDENCY_PROPERTY2(double, X);
+    AERO_DEPENDENCY_PROPERTY2(double, Y);
+};
+
+class AERO_GUI_API ScaleTransform : public Transform {
+    AERO_DECLARE_TYPE(ScaleTransform, Transform)
+
+public:
+    ScaleTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrix() const noexcept override;
+
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+};
+
+class AERO_GUI_API RotateTransform : public Transform {
+    AERO_DECLARE_TYPE(RotateTransform, Transform)
+
+public:
+    RotateTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrix() const noexcept override;
+
+    AERO_DEPENDENCY_PROPERTY2(double, Angle);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+};
+
+class AERO_GUI_API SkewTransform : public Transform {
+    AERO_DECLARE_TYPE(SkewTransform, Transform)
+
+public:
+    SkewTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrix() const noexcept override;
+
+    AERO_DEPENDENCY_PROPERTY2(double, AngleX);
+    AERO_DEPENDENCY_PROPERTY2(double, AngleY);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+};
+
+class AERO_GUI_API MatrixTransform : public Transform {
+    AERO_DECLARE_TYPE(MatrixTransform, Transform)
+
+public:
+    MatrixTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrixValue() const noexcept;
+    void SetMatrixValue(Base::Transform2D value) noexcept;
+    Base::Transform2D GetMatrix() const noexcept override { return GetMatrixValue(); }
+
+    AERO_DEPENDENCY_PROPERTY(Base::Transform2D, Matrix);
+};
+
+/// 2D composite: Center + Scale / Skew / Rotate / Translate.
+/// GetMatrix() composes the existing 2D transform primitives around Center.
+class AERO_GUI_API CompositeTransform : public Transform {
+    AERO_DECLARE_TYPE(CompositeTransform, Transform)
+
+public:
+    CompositeTransform() noexcept : Transform(StaticTypeId()) {}
+
+    Base::Transform2D GetMatrix() const noexcept override;
+
+    AERO_DEPENDENCY_PROPERTY2(double, CenterX);
+    AERO_DEPENDENCY_PROPERTY2(double, CenterY);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleX);
+    AERO_DEPENDENCY_PROPERTY2(double, ScaleY);
+    AERO_DEPENDENCY_PROPERTY2(double, SkewX);
+    AERO_DEPENDENCY_PROPERTY2(double, SkewY);
+    AERO_DEPENDENCY_PROPERTY2(double, Rotation);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateX);
+    AERO_DEPENDENCY_PROPERTY2(double, TranslateY);
+};
+
+class AERO_GUI_API TransformGroup : public Transform {
+    AERO_DECLARE_TYPE(TransformGroup, Transform)
+
+public:
+    TransformGroup() noexcept : Transform(StaticTypeId()) {}
+    ~TransformGroup() override;
+
+    void AddChild(Ref<Transform> value) noexcept;
+
+    Span<const Ref<Transform>> GetChildren() const noexcept { return children_.AsSpan(); }
+    void ClearChildren() noexcept;
+    Base::Transform2D GetMatrix() const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
+
+private:
+    bool FreezeCore(bool isChecking) noexcept override;
+    void OnChildChanged(Freezable&) noexcept;
+
+    FreezableCollection<Transform> children_;
+    FreezableChangedHandler childChangedHandler_;
+};
+
+} // namespace Aero::Media
+
+
+AERO_DECLARE_TYPE_VALUE(Base::Point, "Point")
+AERO_DECLARE_TYPE_VALUE(Base::Transform2D, "Matrix")
+

@@ -1,241 +1,227 @@
 #pragma once
 
-#include <Aero/Controls/ListBox.hpp>
+#include <Aero/Controls/Selectors.hpp>
+#include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Style.hpp>
+#include <Aero/Base/Vector.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Controls {
 using ::Aero::Meta::TypeId;
+
 enum class GridViewColumnHeaderRole : std::uint8_t {
     Normal = 0U,
     Floating,
     Padding
 };
 
-// Standard GridView header container. The presenter owns header generation
-// and interaction; this control supplies the WPF-visible Role state used by
-// the default templates.
-class AERO_GUI_API GridViewColumnHeader
-    : public ContentControl {
+class AERO_GUI_API GridViewColumnHeader : public ContentControl {
     AERO_DECLARE_TYPE(GridViewColumnHeader, ContentControl)
+
 public:
-    GridViewColumnHeader() noexcept
-        : ContentControl(StaticTypeId()) {}
+    GridViewColumnHeader() noexcept : ContentControl(StaticTypeId()) {}
 
-    GridViewColumnHeaderRole GetRole() const noexcept {
-        return GetValueOr(
-            RoleProperty, GridViewColumnHeaderRole::Normal);
-    }
-    void SetRole(
-        GridViewColumnHeaderRole value) noexcept {
-        SetValue(RoleProperty, value);
-    }
+    GridViewColumnHeaderRole GetRole() const noexcept { return GetValue(RoleProperty); }
+    void SetRole(GridViewColumnHeaderRole value) noexcept { SetValue(RoleProperty, value); }
 
-    inline static constexpr DependencyProperty<GridViewColumnHeaderRole> RoleProperty{"Role"};
+    AERO_DEPENDENCY_PROPERTY(GridViewColumnHeaderRole, Role);
 };
 
-class AERO_GUI_API GridViewColumn
-    : public DependencyObject {
+class AERO_GUI_API GridViewColumn : public DependencyObject {
     AERO_DECLARE_TYPE(GridViewColumn, DependencyObject)
+
 public:
-    GridViewColumn() noexcept
-        : DependencyObject(StaticTypeId()) {}
+    GridViewColumn() noexcept : DependencyObject(StaticTypeId()) {}
     Value GetHeader() const noexcept;
     void SetHeader(Value value) noexcept;
-    Result<void> SetHeader(StringView value) noexcept;
+    void SetHeader(StringView value) noexcept;
     double GetWidth() const noexcept;
-    void SetWidth(
-        double value) noexcept;
-    Ref<DataTemplate>
-        GetCellTemplate() const noexcept;
-    void SetCellTemplate(
-        Ref<DataTemplate> value) noexcept;
-    Ref<DataTemplate>
-        GetHeaderTemplate() const noexcept;
-    void SetHeaderTemplate(
-        Ref<DataTemplate> value) noexcept;
-    StringView GetDisplayMemberPath()
-        const noexcept;
-    void SetDisplayMemberPath(
-        StringView value) noexcept;
-    Ref<Aero::Data::Binding>
-        GetDisplayMemberBinding() const noexcept;
-    void SetDisplayMemberBinding(
-        Ref<Aero::Data::Binding> value) noexcept;
-    Ref<Style> GetHeaderContainerStyle() const noexcept {
-        return GetValueOr(
-            HeaderContainerStyleProperty,
-            Ref<Style>{});
-    }
-    void SetHeaderContainerStyle(
-        Ref<Style> value) noexcept {
+    void SetWidth(double value) noexcept;
+    Ref<DataTemplate> GetCellTemplate() const noexcept;
+    void SetCellTemplate(Ref<DataTemplate> value) noexcept;
+    Ref<DataTemplate> GetHeaderTemplate() const noexcept;
+    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
+    StringView GetDisplayMemberPath() const noexcept;
+    void SetDisplayMemberPath(StringView value) noexcept;
+    Ref<Aero::Data::Binding> GetDisplayMemberBinding() const noexcept;
+    void SetDisplayMemberBinding(Ref<Aero::Data::Binding> value) noexcept;
+    Ref<Style> GetHeaderContainerStyle() const noexcept { return GetValue(HeaderContainerStyleProperty); }
+    void SetHeaderContainerStyle(Ref<Style> value) noexcept {
         SetValue(HeaderContainerStyleProperty, std::move(value));
     }
 
-    inline static constexpr DependencyProperty<Value> HeaderProperty{"Header"};
-    inline static constexpr DependencyProperty<double> WidthProperty{"Width"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> CellTemplateProperty{"CellTemplate"};
-    inline static constexpr DependencyProperty<Ref<DataTemplate>> HeaderTemplateProperty{"HeaderTemplate"};
-    inline static constexpr DependencyProperty<String> DisplayMemberPathProperty{"DisplayMemberPath"};
-    inline static constexpr DependencyProperty<Ref<Aero::Data::Binding>> DisplayMemberBindingProperty{"DisplayMemberBinding"};
-    inline static constexpr DependencyProperty<Ref<Style>> HeaderContainerStyleProperty{"HeaderContainerStyle"};
+    AERO_DEPENDENCY_PROPERTY(Value, Header);
+    AERO_DEPENDENCY_PROPERTY(double, Width);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, CellTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(String, DisplayMemberPath);
+    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Data::Binding>, DisplayMemberBinding);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, HeaderContainerStyle);
 };
 
-class AERO_GUI_API GridView
-    : public Base::Object {
-    AERO_DECLARE_TYPE(GridView, Base::Object)
+class AERO_GUI_API ViewBase : public DependencyObject {
+    AERO_DECLARE_TYPE(ViewBase, DependencyObject)
+
 public:
-    GridView() noexcept = default;
-    TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-    Span<const Ref<GridViewColumn>>
-        GetColumns() const noexcept {
+    ViewBase() noexcept : DependencyObject(StaticTypeId()) {}
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+
+protected:
+    explicit ViewBase(TypeId runtimeType) noexcept : DependencyObject(runtimeType) {}
+};
+
+class AERO_GUI_API GridView : public ViewBase {
+    AERO_DECLARE_TYPE(GridView, ViewBase)
+
+public:
+    GridView() noexcept : ViewBase(StaticTypeId()) {}
+    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    Span<const Ref<GridViewColumn>> GetColumns() const noexcept {
         return {
             columns_.Data(),
             columns_.Size()};
     }
-    Result<void> AddColumn(
-        Ref<GridViewColumn> column)
-        noexcept;
-    void ClearColumns() noexcept {
-        columns_.Clear();
-    }
-    bool GetAllowsColumnReorder() const noexcept {
-        return allowsColumnReorder_;
-    }
-    void SetAllowsColumnReorder(bool value) noexcept {
-        allowsColumnReorder_ = value;
-    }
-    Ref<Style> GetColumnHeaderContainerStyle() const noexcept {
-        return columnHeaderContainerStyle_;
-    }
-    void SetColumnHeaderContainerStyle(
-        Ref<Style> value) noexcept {
-        columnHeaderContainerStyle_ = std::move(value);
-    }
-    Ref<Base::Object> GetColumnHeaderContextMenu() const noexcept {
-        return columnHeaderContextMenu_;
-    }
-    void SetColumnHeaderContextMenu(Ref<Base::Object> value) noexcept {
-        columnHeaderContextMenu_ = std::move(value);
-    }
-    Ref<Base::Object> GetColumnHeaderTemplate() const noexcept {
-        return columnHeaderTemplate_;
-    }
-    void SetColumnHeaderTemplate(Ref<Base::Object> value) noexcept {
-        columnHeaderTemplate_ = std::move(value);
-    }
-    Ref<Base::Object> GetColumnHeaderTemplateSelector() const noexcept {
-        return columnHeaderTemplateSelector_;
-    }
+    void AddColumn(Ref<GridViewColumn> column) noexcept;
+    void ClearColumns() noexcept { columns_.Clear(); }
+    bool GetAllowsColumnReorder() const noexcept { return GetValue(AllowsColumnReorderProperty); }
+    void SetAllowsColumnReorder(bool value) noexcept { SetValue(AllowsColumnReorderProperty, value); }
+    Ref<Style> GetColumnHeaderContainerStyle() const noexcept { return GetValue(ColumnHeaderContainerStyleProperty); }
+    void SetColumnHeaderContainerStyle(Ref<Style> value) noexcept { SetValue(ColumnHeaderContainerStyleProperty, std::move(value)); }
+    Ref<Base::Object> GetColumnHeaderContextMenu() const noexcept { return GetValue(ColumnHeaderContextMenuProperty); }
+    void SetColumnHeaderContextMenu(Ref<Base::Object> value) noexcept { SetValue(ColumnHeaderContextMenuProperty, std::move(value)); }
+    Ref<Base::Object> GetColumnHeaderTemplate() const noexcept { return GetValue(ColumnHeaderTemplateProperty); }
+    void SetColumnHeaderTemplate(Ref<Base::Object> value) noexcept { SetValue(ColumnHeaderTemplateProperty, std::move(value)); }
+    Ref<Base::Object> GetColumnHeaderTemplateSelector() const noexcept { return GetValue(ColumnHeaderTemplateSelectorProperty); }
     void SetColumnHeaderTemplateSelector(Ref<Base::Object> value) noexcept {
-        columnHeaderTemplateSelector_ = std::move(value);
+        SetValue(ColumnHeaderTemplateSelectorProperty, std::move(value));
     }
-    Ref<Base::Object> GetColumnHeaderToolTip() const noexcept {
-        return columnHeaderToolTip_;
-    }
-    void SetColumnHeaderToolTip(Ref<Base::Object> value) noexcept {
-        columnHeaderToolTip_ = std::move(value);
-    }
+    Ref<Base::Object> GetColumnHeaderToolTip() const noexcept { return GetValue(ColumnHeaderToolTipProperty); }
+    void SetColumnHeaderToolTip(Ref<Base::Object> value) noexcept { SetValue(ColumnHeaderToolTipProperty, std::move(value)); }
     Ref<Base::Object> GetColumnsObject() const noexcept {
         return Ref<Base::Object>::TryFromBorrowed(
             *const_cast<GridView*>(this));
     }
     void SetColumnsObject(Ref<Base::Object>) noexcept {}
 
+    AERO_DEPENDENCY_PROPERTY(bool, AllowsColumnReorder);
+    AERO_DEPENDENCY_PROPERTY(Ref<Style>, ColumnHeaderContainerStyle);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderContextMenu);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplateSelector);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderToolTip);
+
 private:
-    Base::Vector<Ref<GridViewColumn>>
-        columns_;
-    bool allowsColumnReorder_ = false;
-    Ref<Style> columnHeaderContainerStyle_;
-    Ref<Base::Object> columnHeaderContextMenu_;
-    Ref<Base::Object> columnHeaderTemplate_;
-    Ref<Base::Object> columnHeaderTemplateSelector_;
-    Ref<Base::Object> columnHeaderToolTip_;
+    Base::Vector<Ref<GridViewColumn>> columns_;
 };
 
-// Hosts GridView column headers inside the ListView ScrollViewer template.
-// The column collection is normally supplied by a template binding from the
-// owning ListView's GridView and is consumed by the view implementation.
-class AERO_GUI_API GridViewHeaderRowPresenter
-    : public Aero::FrameworkElement {
-    AERO_DECLARE_TYPE(
-        GridViewHeaderRowPresenter,
-        Aero::FrameworkElement)
+namespace Primitives {
+
+class AERO_GUI_API GridViewRowPresenterBase : public Aero::FrameworkElement {
+    AERO_DECLARE_TYPE(GridViewRowPresenterBase, Aero::FrameworkElement)
+
 public:
-    GridViewHeaderRowPresenter() noexcept
-        : FrameworkElement(StaticTypeId()) {}
+    ~GridViewRowPresenterBase() override;
 
-    bool GetAllowsColumnReorder() const noexcept {
-        return GetValueOr(AllowsColumnReorderProperty, false);
-    }
-    void SetAllowsColumnReorder(bool value) noexcept {
-        SetValue(AllowsColumnReorderProperty, value);
-    }
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Columns);
 
-    inline static constexpr DependencyProperty<bool> AllowsColumnReorderProperty{"AllowsColumnReorder"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderContainerStyleProperty{"ColumnHeaderContainerStyle"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderContextMenuProperty{"ColumnHeaderContextMenu"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderTemplateProperty{"ColumnHeaderTemplate"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderTemplateSelectorProperty{"ColumnHeaderTemplateSelector"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnHeaderToolTipProperty{"ColumnHeaderToolTip"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnsProperty{"Columns"};
+protected:
+    explicit GridViewRowPresenterBase(Meta::TypeId runtimeType) noexcept
+        : FrameworkElement(runtimeType) {}
+
+    std::uint32_t GetVisualChildrenCount() const noexcept override;
+    ::Aero::Media::Visual* GetVisualChild(std::uint32_t index) const noexcept override;
+    std::uint32_t GetLayoutChildrenCount() const noexcept override;
+    UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
+    virtual void ClearCells() noexcept;
+
+    Base::Vector<Ref<Base::Object>> ownedCells_;
 };
 
-// The row counterpart to GridViewHeaderRowPresenter. It is instantiated by
-// ListViewItem templates and receives the active GridView columns/content
-// during ListView container realization.
-class AERO_GUI_API GridViewRowPresenter
-    : public Aero::FrameworkElement {
-    AERO_DECLARE_TYPE(
-        GridViewRowPresenter,
-        Aero::FrameworkElement)
+} // namespace Primitives
+
+class AERO_GUI_API GridViewHeaderRowPresenter : public Primitives::GridViewRowPresenterBase {
+    AERO_DECLARE_TYPE(GridViewHeaderRowPresenter, Primitives::GridViewRowPresenterBase)
+
 public:
-    GridViewRowPresenter() noexcept
-        : FrameworkElement(StaticTypeId()) {}
+    GridViewHeaderRowPresenter() noexcept : GridViewRowPresenterBase(StaticTypeId()) {}
+    ~GridViewHeaderRowPresenter() override;
 
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ColumnsProperty{"Columns"};
-    inline static constexpr DependencyProperty<Ref<Base::Object>> ContentProperty{"Content"};
+    bool GetAllowsColumnReorder() const noexcept { return GetValue(AllowsColumnReorderProperty); }
+    void SetAllowsColumnReorder(bool value) noexcept { SetValue(AllowsColumnReorderProperty, value); }
+
+    AERO_DEPENDENCY_PROPERTY(bool, AllowsColumnReorder);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderContainerStyle);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderContextMenu);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplate);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderTemplateSelector);
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, ColumnHeaderToolTip);
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+
+private:
+    void ClearCells() noexcept;
+    void RebuildIfNeeded() noexcept;
+    bool cellsDirty_ = true;
 };
 
-class AERO_GUI_API ListViewItem
-    : public ListBoxItem {
+class AERO_GUI_API GridViewRowPresenter : public Primitives::GridViewRowPresenterBase {
+    AERO_DECLARE_TYPE(GridViewRowPresenter, Primitives::GridViewRowPresenterBase)
+
+public:
+    GridViewRowPresenter() noexcept : GridViewRowPresenterBase(StaticTypeId()) {}
+    ~GridViewRowPresenter() override;
+
+    AERO_DEPENDENCY_PROPERTY(Ref<Base::Object>, Content);
+
+protected:
+    Size MeasureOverride(Size availableSize) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnDataContextChanged(const Value& oldValue, const Value& newValue) noexcept override;
+
+private:
+    void ClearCells() noexcept;
+    void RebuildIfNeeded() noexcept;
+    Base::Ref<Base::Object> lastItem_;
+    const GridView* lastView_ = nullptr;
+    std::uint32_t lastColumnCount_ = 0U;
+};
+
+class AERO_GUI_API ListViewItem : public ListBoxItem {
     AERO_DECLARE_TYPE(ListViewItem, ListBoxItem)
+
 public:
-    ListViewItem() noexcept
-        : ListBoxItem(StaticTypeId()) {}
+    ListViewItem() noexcept : ListBoxItem(StaticTypeId()) {}
     ~ListViewItem() override = default;
 };
 
-class AERO_GUI_API ListView
-    : public ListBox {
+class AERO_GUI_API ListView : public ListBox {
     AERO_DECLARE_TYPE(ListView, ListBox)
+
 public:
-    ListView() noexcept
-        : ListBox(StaticTypeId()) {}
+    ListView() noexcept : ListBox(StaticTypeId()) {}
     ~ListView() override = default;
 
-    Ref<GridView> GetView() const noexcept;
-    void SetView(
-        Ref<GridView> value) noexcept;
+    Ref<ViewBase> GetView() const noexcept;
+    void SetView(Ref<ViewBase> value) noexcept;
 
-    inline static constexpr DependencyProperty<Ref<GridView>> ViewProperty{"View"};
+    AERO_DEPENDENCY_PROPERTY(Ref<ViewBase>, View);
 
 protected:
-    void
-        OnApplyTemplate() noexcept override;
+    void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
-    Result<Ref<FrameworkElement>>
-        CreateContainer(
-            const Ref<Base::Object>& item)
-            noexcept override;
+    Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
 
 private:
     TextBlock* columnHeaders_ = nullptr;
-    Result<void>
-        SynchronizeColumnHeaders() noexcept;
+    void SynchronizeColumnHeaders() noexcept;
 };
+
 } // namespace Aero::Controls
+
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::GridViewColumnHeaderRole)

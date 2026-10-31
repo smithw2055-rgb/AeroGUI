@@ -29,11 +29,7 @@ struct AllocationRequest  {
 class AERO_BASE_API IAllocator {
 public:
     virtual void* Allocate(const AllocationRequest& request) noexcept = 0;
-    virtual void Deallocate(
-        void* memory,
-        std::size_t size,
-        std::size_t alignment,
-        MemoryTag tag) noexcept = 0;
+    virtual void Deallocate(void* memory, std::size_t size, std::size_t alignment, MemoryTag tag) noexcept = 0;
 
 protected:
     ~IAllocator() = default;
@@ -42,17 +38,10 @@ protected:
 class AERO_BASE_API MallocAllocator : public IAllocator {
 public:
     void* Allocate(const AllocationRequest& request) noexcept override;
-    void Deallocate(
-        void* memory,
-        std::size_t size,
-        std::size_t alignment,
-        MemoryTag tag) noexcept override;
+    void Deallocate(void* memory, std::size_t size, std::size_t alignment, MemoryTag tag) noexcept override;
 };
 
-using OutOfMemoryHandler = void(*)(
-    std::size_t size,
-    std::size_t alignment,
-    MemoryTag tag) noexcept;
+using OutOfMemoryHandler = void(*)(std::size_t size, std::size_t alignment, MemoryTag tag) noexcept;
 
 AERO_BASE_API IAllocator& GetSystemAllocator() noexcept;
 AERO_BASE_API IAllocator& GetDefaultAllocator() noexcept;
@@ -61,13 +50,43 @@ AERO_BASE_API IAllocator* SetDefaultAllocator(IAllocator* allocator) noexcept;
 AERO_BASE_API OutOfMemoryHandler
 SetOutOfMemoryHandler(OutOfMemoryHandler handler) noexcept;
 
-[[noreturn]] AERO_BASE_API void ReportOutOfMemory(
-    std::size_t size,
-    std::size_t alignment,
-    MemoryTag tag) noexcept;
+[[noreturn]] AERO_BASE_API void ReportOutOfMemory(std::size_t size, std::size_t alignment, MemoryTag tag) noexcept;
 
 constexpr bool IsValidAlignment(std::size_t alignment) noexcept {
     return alignment != 0U && (alignment & (alignment - 1U)) == 0U;
+}
+
+template<class T, class... TArgs>
+inline Result<void> AllocateObject(
+    IAllocator& allocator,
+    MemoryTag tag,
+    T*& output,
+    TArgs&&... arguments) noexcept {
+    if (output != nullptr) {
+        return Status::Failure(
+            ErrorCode::AlreadyExists,
+            "Object is already allocated");
+    }
+    void* memory = allocator.Allocate({
+        sizeof(T), alignof(T), tag});
+    if (memory == nullptr) {
+        return Status::OutOfMemory("Object allocation failed");
+    }
+    output = new (memory) T(
+        std::forward<TArgs>(arguments)...);
+    return {};
+}
+
+template<class T>
+inline void FreeObject(
+    IAllocator& allocator,
+    MemoryTag tag,
+    T*& object) noexcept {
+    if (object == nullptr) return;
+    object->~T();
+    allocator.Deallocate(
+        object, sizeof(T), alignof(T), tag);
+    object = nullptr;
 }
 
 } // namespace Aero::Base

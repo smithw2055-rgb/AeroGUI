@@ -26,27 +26,18 @@ struct TextureResourceInfo {
     TextureInfo texture;
 };
 
-using TextureProviderChangedHandler =
-    Base::Delegate<void(const Base::ResourceUri&)>;
+using TextureProviderChangedHandler = Base::Delegate<void(const Base::ResourceUri&)>;
 
 class AERO_GUI_API TextureProvider : public Base::Object {
 public:
     virtual ~TextureProvider() = default;
 
-    virtual Result<TextureResourceInfo> Open(
-        const Base::ResourceUri& uri) const noexcept = 0;
-    virtual Result<std::uint64_t> Revision(
-        const Base::ResourceUri&) const noexcept {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Texture provider does not expose revision probes");
+    virtual Result<TextureResourceInfo> Open(const Base::ResourceUri& uri) const noexcept = 0;
+    virtual Result<std::uint64_t> Revision(const Base::ResourceUri&) const noexcept {
+        return Base::Status::Failure(Base::ErrorCode::Unsupported, "Texture provider does not expose revision probes");
     }
-    void AddChangedHandler(
-        const TextureProviderChangedHandler& handler) noexcept {
-        changed_.Add(handler);
-    }
-    bool RemoveChangedHandler(
-        const TextureProviderChangedHandler& handler) noexcept {
+    void AddChangedHandler(const TextureProviderChangedHandler& handler) noexcept { changed_.Add(handler); }
+    bool RemoveChangedHandler(const TextureProviderChangedHandler& handler) noexcept {
         return changed_.Remove(handler);
     }
 

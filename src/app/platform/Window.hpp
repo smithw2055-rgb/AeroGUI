@@ -45,6 +45,9 @@ enum WindowModifier : std::uint32_t {
 inline constexpr std::uint32_t WindowKeyBackspace = 8U;
 inline constexpr std::uint32_t WindowKeyTab = 9U;
 inline constexpr std::uint32_t WindowKeyEnter = 13U;
+inline constexpr std::uint32_t WindowKeyEscape = 27U;
+inline constexpr std::uint32_t WindowKeyPageUp = 0x21U;
+inline constexpr std::uint32_t WindowKeyPageDown = 0x22U;
 inline constexpr std::uint32_t WindowKeySpace = 32U;
 inline constexpr std::uint32_t WindowKeyHome = 0x24U;
 inline constexpr std::uint32_t WindowKeyEnd = 0x23U;
@@ -91,12 +94,12 @@ public:
 
     virtual Base::Result<void> Create(
         const WindowDescriptor& descriptor) noexcept = 0;
-    virtual Base::Result<void> Show() noexcept = 0;
-    virtual Base::Result<bool> PollEvent(
+    virtual void Show() noexcept = 0;
+    virtual bool PollEvent(
         WindowEvent& event) noexcept = 0;
-    virtual Base::Result<bool> WaitEvent(
+    virtual bool WaitEvent(
         WindowEvent& event) noexcept = 0;
-    virtual Base::Result<bool> WaitEventFor(
+    virtual bool WaitEventFor(
         WindowEvent& event,
         std::uint32_t timeoutMilliseconds) noexcept;
     virtual void Close() noexcept = 0;

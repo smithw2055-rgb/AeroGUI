@@ -12,54 +12,58 @@
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Threading.hpp>
 
-#include "gui/core/State.hpp" 
-#include "gui/data/BindingState.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
-#include "gui/triggers/TriggerDiagnostics.hpp"
 
 namespace Aero {
 
 class TriggerEngine {
 public:
-    using TriggerActionHandler = Base::Result<void>(*)(
-        DependencyObject& owner,
-        Base::Span<const Base::Ref<Base::Object>> actions,
-        void* context) noexcept;
+    using TriggerActionHandler = ::Aero::TriggerActionHandler;
 
     TriggerEngine(
         StyleProviderSession& values,
         DependencyPropertyRegistry& properties,
-        Base::Vector<StyleApplication>& applications) noexcept;
+        Base::Vector<StyleApplication>& applications,
+        const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap) noexcept;
     ~TriggerEngine() noexcept;
 
     // Style application lifecycle (trigger side). The style setter application
     // itself remains in StyleEngine; these only manage trigger state.
-    Base::Result<void> SubscribeTriggers(
+    void SubscribeTriggers(
         DependencyObject& object, const Style& style) noexcept;
     void UnsubscribeTriggers(
         DependencyObject& object, const Style& style) noexcept;
-    Base::Result<void> EvaluateTriggers(
+    void EvaluateTriggers(
         DependencyObject& object, const Style& style) noexcept;
-    Base::Result<void> ClearTriggerSetters(
+    void ClearTriggerSetters(
         DependencyObject& object, const Style& style) noexcept;
     void OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    Base::Result<void> ExecuteTriggerActions(
+    void ExecuteTriggerActions(
         DependencyObject& object,
         Base::Span<const Base::Ref<Base::Object>>
             actions) noexcept;
-    Base::Result<void> EnsureTriggerPhaseHook(
+    // P3.2: opts the deferred evaluations into ViewFrame's explicit DataBind
+    // phase (formerly registered a frame hook). ViewFrame calls
+    // TriggerPhaseHook() directly when phase participation is enabled.
+    void EnableDataBindPhase(
         DependencyObject& object) noexcept;
-    Base::Result<void> QueueTriggerEvaluation(
+    bool DataBindPhaseEnabled() const noexcept {
+        return dataBindPhaseEnabled_;
+    }
+    void QueueTriggerEvaluation(
         DependencyObject& object) noexcept;
     void RemovePendingTriggerEvaluation(
         DependencyObject& object) noexcept;
-    Base::Result<std::uint32_t>
-        FlushPendingTriggerEvaluations() noexcept;
+    std::uint32_t FlushPendingTriggerEvaluations() noexcept;
     static void TriggerPhaseHook(void* context) noexcept;
-    Base::Result<void> SetBindingTriggerState(
+    void SetBindingTriggerState(
         DependencyObject& object,
         const Style& style,
         std::uint32_t triggerIndex,
@@ -76,9 +80,10 @@ private:
     StyleProviderSession& values_;
     DependencyPropertyRegistry& properties_;
     Base::Vector<StyleApplication>& applications_;
+    const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
     Dispatcher* dispatcher_ = nullptr;
-    DispatcherFrameHookHandle triggerPhaseHook_;
+    bool dataBindPhaseEnabled_ = false;
     Base::Vector<DependencyObject*>
         pendingTriggerEvaluations_;
     TriggerActionHandler triggerActionHandler_ = nullptr;

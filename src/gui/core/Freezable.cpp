@@ -1,16 +1,44 @@
 #include <Aero/Freezable.hpp>
+#include <Aero/Base/Vector.hpp>
 
-#include "gui/meta/MetadataState.hpp"
-#include "gui/core/State.hpp"
-#include "gui/core/facets/DependencyPropertyFacet.hpp"
-#include "gui/core/state/FreezableState.hpp"
-#include "gui/media/AnimationEngine.hpp"
-#include "gui/styles/StyleState.hpp"
+#include "gui/core/DependencyPropertyRegistry.hpp"
+#include "gui/core/PropertyStore.hpp"
+#include "gui/core/ElementTree.hpp"
+#include "gui/core/LayoutEngine.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/RoutedEvents.hpp"
+#include "gui/core/EventRouter.hpp"
 
 #include <new>
 #include <utility>
+#include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 namespace Aero {
+
+struct Freezable::State {
+    struct ConsumerRecord {
+        Base::WeakRef<DependencyObject> object;
+        DependencyObject* unmanagedObject = nullptr;
+        Meta::DependencyPropertyHandle property;
+    };
+
+    struct HandlerRecord {
+        FreezableChangedHandler handler;
+        bool active = false;
+    };
+
+    explicit State(Base::IAllocator& allocator) noexcept
+        : consumers(&allocator), handlers(&allocator) {}
+
+    Base::Vector<ConsumerRecord> consumers;
+    Base::Vector<HandlerRecord> handlers;
+    std::uint64_t revision = 0U;
+    std::uint32_t notificationDepth = 0U;
+    bool frozen = false;
+    bool freezing = false;
+};
+
 namespace {
 
 constexpr Base::Status FrozenStatus() noexcept {
@@ -33,7 +61,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!owner.PropertyRegistry().Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -50,7 +78,11 @@ bool Contains(
     return false;
 }
 
-struct FreezeCheckContext {
+thread_local Freezable::FreezeCheckContext* activeFreezeCheck = nullptr;
+
+} // namespace
+
+struct Freezable::FreezeCheckContext {
     explicit FreezeCheckContext(Base::IAllocator& allocator) noexcept
         : visiting(&allocator), complete(&allocator) {}
 
@@ -58,20 +90,14 @@ struct FreezeCheckContext {
     Base::Vector<Freezable*> complete;
 };
 
-thread_local FreezeCheckContext* activeFreezeCheck = nullptr;
-
-Base::Result<void> CheckFreezeNode(
-    FreezeCheckContext& context,
-    Freezable& value) noexcept;
-
-Base::Result<void> CheckFreezeChild(
+Base::Result<void> Freezable::CheckFreezeChild(
     void* context,
     Freezable& child) noexcept {
-    return CheckFreezeNode(
+    return Freezable::CheckFreezeNode(
         *static_cast<FreezeCheckContext*>(context), child);
 }
 
-Base::Result<void> CheckFreezeNode(
+Base::Result<void> Freezable::CheckFreezeNode(
     FreezeCheckContext& context,
     Freezable& value) noexcept {
     if (value.IsFrozen() || Contains(context.complete, &value)) return {};
@@ -79,30 +105,31 @@ Base::Result<void> CheckFreezeNode(
         return FreezeGraphStatus(
             "A Freezable object graph contains a cycle");
     }
-    if (Core::DependencyPropertyFacet::HasUnfreezableValueState(value)) {
+    if (value.HasUnfreezableValueState()) {
         return FreezeGraphStatus(
             "A Freezable with an expression or animation cannot be frozen");
     }
-    Base::Result<void> pushed = context.visiting.PushBack(&value);
-    if (!pushed) return pushed.GetStatus();
+    context.visiting.PushBack(&value);
     Base::Result<void> children =
-        Core::DependencyPropertyFacet::VisitFreezableChildren(
-            value, &context, &CheckFreezeChild);
+        value.VisitFreezableChildren(&context, &Freezable::CheckFreezeChild);
     if (!children) {
         context.visiting.PopBack();
         return children.GetStatus();
     }
-    if (!Core::DependencyPropertyFacet::FreezableCheckCore(value)) {
+    if (!value.CheckFreezeCore()) {
         context.visiting.PopBack();
         return FreezeGraphStatus(
             "A Freezable child rejected the freeze operation");
     }
     context.visiting.PopBack();
-    return context.complete.PushBack(&value);
+    context.complete.PushBack(&value);
+    return {};
 }
 
+namespace {
+
 void RemoveHandlerAt(
-    Base::Vector<FreezableState::HandlerRecord>& handlers,
+    Base::Vector<Freezable::State::HandlerRecord>& handlers,
     std::uint32_t index) noexcept {
     for (std::uint32_t next = index + 1U;
          next < handlers.Size(); ++next) {
@@ -112,7 +139,7 @@ void RemoveHandlerAt(
 }
 
 void RemoveConsumerAt(
-    Base::Vector<FreezableState::ConsumerRecord>& consumers,
+    Base::Vector<Freezable::State::ConsumerRecord>& consumers,
     std::uint32_t index) noexcept {
     for (std::uint32_t next = index + 1U;
          next < consumers.Size(); ++next) {
@@ -124,149 +151,206 @@ void RemoveConsumerAt(
 } // namespace
 
 Freezable::Freezable(Meta::TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType),
-      implAllocator_(&Base::GetDefaultAllocator()) {
-    void* memory = implAllocator_->Allocate({
-        sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui});
+    : DependencyObject(runtimeType) {}
+
+bool Freezable::EnsureState() noexcept {
+    if (state_ != nullptr) return true;
+    Base::IAllocator& allocator = Base::GetDefaultAllocator();
+    void* memory = allocator.Allocate({
+        sizeof(Freezable::State), alignof(Freezable::State), Base::MemoryTag::Ui});
     if (memory == nullptr) {
         Base::ReportOutOfMemory(
-            sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
+            sizeof(Freezable::State), alignof(Freezable::State), Base::MemoryTag::Ui);
+        return false;
     }
-    impl_ = new (memory) FreezableState(*implAllocator_);
+    state_ = new (memory) Freezable::State(allocator);
+    return true;
 }
 
 Freezable::~Freezable() {
-    if (impl_ == nullptr) return;
-    impl_->consumers.Clear();
-    impl_->handlers.Clear();
-    impl_->~FreezableState();
-    implAllocator_->Deallocate(
-        impl_, sizeof(FreezableState), alignof(FreezableState), Base::MemoryTag::Ui);
-    impl_ = nullptr;
+    if (state_ == nullptr) return;
+    state_->consumers.Clear();
+    state_->handlers.Clear();
+    state_->~State();
+    Base::GetDefaultAllocator().Deallocate(
+        state_, sizeof(Freezable::State), alignof(Freezable::State), Base::MemoryTag::Ui);
+    state_ = nullptr;
 }
 
 bool Freezable::IsFrozen() const noexcept {
-    return impl_ != nullptr && impl_->frozen;
+    return state_ != nullptr && state_->frozen;
 }
 
 bool Freezable::CanFreeze() const noexcept {
     if (IsFrozen()) return true;
     if (!VerifyAccess()) return false;
-    if (impl_ == nullptr || impl_->freezing) return false;
+    if (state_ != nullptr && state_->freezing) return false;
     if (activeFreezeCheck != nullptr) {
-        return CheckFreezeNode(
+        return Freezable::CheckFreezeNode(
             *activeFreezeCheck,
             *const_cast<Freezable*>(this)).HasValue();
     }
-    FreezeCheckContext context(Base::GetDefaultAllocator());
+    Freezable::FreezeCheckContext context(Base::GetDefaultAllocator());
     activeFreezeCheck = &context;
-    Base::Result<void> checked = CheckFreezeNode(
+    Base::Result<void> checked = Freezable::CheckFreezeNode(
         context, *const_cast<Freezable*>(this));
     activeFreezeCheck = nullptr;
     return checked.HasValue();
 }
 
-Base::Result<void> Freezable::Freeze() noexcept {
-    if (IsFrozen()) return {};
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    if (impl_ == nullptr || impl_->freezing) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "Freezable freeze operation is already active");
+bool Freezable::Freeze() noexcept {
+    if (IsFrozen()) return true;
+    if (!VerifyAccess()) return false;
+    if (state_ != nullptr && state_->freezing) {
+        return false;
     }
 
     if (activeFreezeCheck != nullptr) {
-        return CheckFreezeNode(*activeFreezeCheck, *this);
+        return Freezable::CheckFreezeNode(*activeFreezeCheck, *this).HasValue();
     }
 
-    FreezeCheckContext context(Base::GetDefaultAllocator());
+    Freezable::FreezeCheckContext context(Base::GetDefaultAllocator());
     activeFreezeCheck = &context;
-    Base::Result<void> checked = CheckFreezeNode(context, *this);
+    Base::Result<void> checked = Freezable::CheckFreezeNode(context, *this);
     activeFreezeCheck = nullptr;
-    if (!checked) return checked.GetStatus();
+    if (!checked) return false;
 
     // CheckFreezeNode records a child-first order. The commit phase performs
     // no allocation and cannot leave an object graph partially frozen because
     // every overridable check has already succeeded.
     for (Freezable* current : context.complete) {
         if (current != nullptr && !current->IsFrozen()) {
-            current->impl_->freezing = true;
+            if (!current->EnsureState()) {
+                return false;
+            }
+            current->state_->freezing = true;
         }
     }
     for (Freezable* current : context.complete) {
         if (current == nullptr || current->IsFrozen()) continue;
-        static_cast<void>(current->FreezeCore(false));
-        current->impl_->frozen = true;
+        current->FreezeCore(false);
+        current->state_->frozen = true;
     }
     // Publish one final notification per object only after the complete graph
     // has committed. Child notifications therefore cannot re-notify a parent
     // that is already frozen.
     for (Freezable* current : context.complete) {
-        if (current == nullptr || !current->impl_->freezing) continue;
-        current->impl_->freezing = false;
+        if (current == nullptr || !current->state_->freezing) continue;
+        current->state_->freezing = false;
         current->OnChanged();
-        current->impl_->consumers.Clear();
-        current->impl_->handlers.Clear();
+        current->state_->consumers.Clear();
+        current->state_->handlers.Clear();
     }
+    return true;
+}
+
+Base::Ref<Freezable> Freezable::CreateInstanceCore() const {
     return {};
 }
 
-Base::Result<void> Freezable::AddChangedHandlerChecked(
-    const FreezableChangedHandler& handler) noexcept {
-    Base::Result<void> writable = WritePreamble();
-    if (!writable) return writable.GetStatus();
-    if (handler.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Freezable changed handler is empty");
+Base::Ref<Freezable> Freezable::Clone() const {
+    Base::Ref<Freezable> clone = CreateInstanceCore();
+    if (clone) {
+        clone->CloneCore(*this);
     }
-    FreezableState::HandlerRecord record;
-    record.handler = handler;
-    record.active = true;
-    return impl_->handlers.PushBack(std::move(record));
+    return clone;
+}
+
+Base::Ref<Freezable> Freezable::CloneCurrentValue() const {
+    Base::Ref<Freezable> clone = CreateInstanceCore();
+    if (clone) {
+        clone->CloneCurrentValueCore(*this);
+    }
+    return clone;
+}
+
+void Freezable::CloneCore(const Freezable& source) {
+    const PropertyStore* store = DependencyObjectAccess::Store(source);
+    if (store == nullptr) return;
+
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (!entry.HasLocal()) continue;
+
+        const Meta::DependencyPropertyHandle handle{record.Key()};
+        PropertyValue localValue = entry.LocalValueOrUnset();
+        if (localValue.IsUnset()) continue;
+
+        if (localValue.Kind() == Meta::ValueKind::Object &&
+            !localValue.IsNullObject() && localValue.AsObject()) {
+            Base::Object* obj = localValue.AsObject().Get();
+            if (auto* childFreezable = TryCast<Freezable>(obj)) {
+                Base::Ref<Freezable> childClone = childFreezable->Clone();
+                SetValue(handle, PropertyValue::FromObject(localValue.Type(), std::move(childClone)));
+                continue;
+            }
+        }
+        SetValue(handle, localValue);
+    }
+}
+
+void Freezable::CloneCurrentValueCore(const Freezable& source) {
+    const PropertyStore* store = DependencyObjectAccess::Store(source);
+    if (store == nullptr) return;
+
+    for (const auto& record : store->entries) {
+        const Meta::DependencyPropertyHandle handle{record.Key()};
+        PropertyValue currentValue = source.GetValue(handle);
+        if (currentValue.IsUnset()) continue;
+
+        if (currentValue.Kind() == Meta::ValueKind::Object &&
+            !currentValue.IsNullObject() && currentValue.AsObject()) {
+            Base::Object* obj = currentValue.AsObject().Get();
+            if (auto* childFreezable = TryCast<Freezable>(obj)) {
+                Base::Ref<Freezable> childClone = childFreezable->CloneCurrentValue();
+                SetValue(handle, PropertyValue::FromObject(currentValue.Type(), std::move(childClone)));
+                continue;
+            }
+        }
+        SetValue(handle, currentValue);
+    }
 }
 
 void Freezable::AddChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
-    Base::Result<void> added = AddChangedHandlerChecked(handler);
-    if (!added && added.GetStatus().code == Base::ErrorCode::OutOfMemory) {
-        Base::ReportOutOfMemory(
-            sizeof(FreezableState::HandlerRecord),
-            alignof(FreezableState::HandlerRecord),
-            Base::MemoryTag::Ui);
+    if (handler.Empty()) return;
+    if (!WritePreamble()) return;
+    Freezable::State::HandlerRecord record;
+    record.handler = handler;
+    record.active = true;
+    if (!EnsureState()) {
+        return;
     }
+    static_cast<void>(state_->handlers.PushBack(std::move(record)));
 }
 
 bool Freezable::RemoveChangedHandler(
     const FreezableChangedHandler& handler) noexcept {
-    if (!VerifyAccess() || handler.Empty() || impl_ == nullptr ||
-        impl_->frozen) {
+    if (!VerifyAccess() || handler.Empty() || state_ == nullptr ||
+        state_->frozen) {
         return false;
     }
     for (std::uint32_t index = 0U;
-         index < impl_->handlers.Size(); ++index) {
-        FreezableState::HandlerRecord& record = impl_->handlers[index];
+         index < state_->handlers.Size(); ++index) {
+        Freezable::State::HandlerRecord& record = state_->handlers[index];
         if (!record.active || record.handler != handler) continue;
-        if (impl_->notificationDepth != 0U) {
+        if (state_->notificationDepth != 0U) {
             record.active = false;
         } else {
-            RemoveHandlerAt(impl_->handlers, index);
+            RemoveHandlerAt(state_->handlers, index);
         }
         return true;
     }
     return false;
 }
 
-Base::Result<void> Freezable::WritePreamble() const noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) return access.GetStatus();
-    return IsFrozen() ? Base::Result<void>(FrozenStatus())
-                      : Base::Result<void>();
+bool Freezable::WritePreamble() const noexcept {
+    if (!VerifyAccess()) return false;
+    return !IsFrozen();
 }
 
 void Freezable::WritePostscript() noexcept {
-    if (!IsFrozen() && impl_ != nullptr && !impl_->freezing) OnChanged();
+    if (!IsFrozen() && state_ != nullptr && !state_->freezing) OnChanged();
 }
 
 bool Freezable::FreezeCore(bool) noexcept {
@@ -274,49 +358,48 @@ bool Freezable::FreezeCore(bool) noexcept {
 }
 
 void Freezable::OnChanged() noexcept {
-    if (impl_ == nullptr) return;
-    if (impl_->revision != UINT64_MAX) ++impl_->revision;
+    if (state_ == nullptr) return;
+    if (state_->revision != UINT64_MAX) ++state_->revision;
 
-    ++impl_->notificationDepth;
-    const std::uint32_t handlerCount = impl_->handlers.Size();
+    ++state_->notificationDepth;
+    const std::uint32_t handlerCount = state_->handlers.Size();
     for (std::uint32_t index = 0U; index < handlerCount; ++index) {
-        if (index >= impl_->handlers.Size()) break;
-        const FreezableState::HandlerRecord& record = impl_->handlers[index];
+        if (index >= state_->handlers.Size()) break;
+        const Freezable::State::HandlerRecord& record = state_->handlers[index];
         if (!record.active || record.handler.Empty()) continue;
         FreezableChangedHandler handler = record.handler;
         handler(*this);
     }
-    --impl_->notificationDepth;
-    if (impl_->notificationDepth == 0U) {
+    --state_->notificationDepth;
+    if (state_->notificationDepth == 0U) {
         for (std::uint32_t index = 0U;
-             index < impl_->handlers.Size();) {
-            if (!impl_->handlers[index].active) {
-                RemoveHandlerAt(impl_->handlers, index);
+             index < state_->handlers.Size();) {
+            if (!state_->handlers[index].active) {
+                RemoveHandlerAt(state_->handlers, index);
             } else {
                 ++index;
             }
         }
     }
 
-    const std::uint32_t consumerCount = impl_->consumers.Size();
+    const std::uint32_t consumerCount = state_->consumers.Size();
     for (std::uint32_t index = 0U; index < consumerCount; ++index) {
-        if (index >= impl_->consumers.Size()) break;
-        const FreezableState::ConsumerRecord& record = impl_->consumers[index];
+        if (index >= state_->consumers.Size()) break;
+        const Freezable::State::ConsumerRecord& record = state_->consumers[index];
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* consumer = retained
             ? retained.Get()
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
         if (consumer != nullptr) {
-            Core::DependencyPropertyFacet::InvalidateSubProperty(
-                *consumer, property);
+            (*consumer).InvalidateSubProperty( property);
         }
     }
     for (std::uint32_t index = 0U;
-         index < impl_->consumers.Size();) {
-        const FreezableState::ConsumerRecord& record = impl_->consumers[index];
+         index < state_->consumers.Size();) {
+        const Freezable::State::ConsumerRecord& record = state_->consumers[index];
         if (record.unmanagedObject == nullptr && record.object.Expired()) {
-            RemoveConsumerAt(impl_->consumers, index);
+            RemoveConsumerAt(state_->consumers, index);
         } else {
             ++index;
         }
@@ -329,27 +412,33 @@ void Freezable::OnPropertyInvalidated(
     WritePostscript();
 }
 
-Base::Result<void> Freezable::VerifyMutationAllowed() const noexcept {
+bool Freezable::VerifyMutationAllowed() const noexcept {
     return WritePreamble();
 }
 
 } // namespace Aero
 
-namespace Aero::Core {
+namespace Aero {
 
-Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
-    Freezable& value,
+Base::Result<void> Freezable::AttachConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
+    Freezable& value = *this;
     if (value.IsFrozen() || !property.IsValid()) return {};
-    for (const FreezableState::ConsumerRecord& record : value.impl_->consumers) {
+    if (!value.EnsureState()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Freezable consumer state allocation failed");
+    }
+    Freezable::State* state = value.state_;
+    for (const Freezable::State::ConsumerRecord& record : state->consumers) {
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained
             ? retained.Get()
             : record.unmanagedObject;
         if (candidate == &object && record.property == property) return {};
     }
-    FreezableState::ConsumerRecord record;
+    Freezable::State::ConsumerRecord record;
     Base::Ref<DependencyObject> retained =
         Base::Ref<DependencyObject>::TryFromBorrowed(object);
     if (retained) {
@@ -358,98 +447,127 @@ Base::Result<void> DependencyPropertyFacet::AttachFreezableConsumer(
         record.unmanagedObject = &object;
     }
     record.property = property;
-    return value.impl_->consumers.PushBack(std::move(record));
+    state->consumers.PushBack(std::move(record));
+    return {};
 }
 
-void DependencyPropertyFacet::DetachFreezableConsumer(
-    Freezable& value,
+void Freezable::DetachConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
-    if (value.impl_ == nullptr) return;
+    Freezable& value = *this;
+    Freezable::State* state = value.state_;
+    if (state == nullptr) return;
     for (std::uint32_t index = 0U;
-         index < value.impl_->consumers.Size(); ++index) {
-        FreezableState::ConsumerRecord& record = value.impl_->consumers[index];
+         index < state->consumers.Size(); ++index) {
+        Freezable::State::ConsumerRecord& record = state->consumers[index];
         Base::Ref<DependencyObject> retained = record.object.Lock();
         DependencyObject* candidate = retained
             ? retained.Get()
             : record.unmanagedObject;
         if (candidate == &object && record.property == property) {
-            RemoveConsumerAt(value.impl_->consumers, index);
+            RemoveConsumerAt(state->consumers, index);
             return;
         }
     }
 }
 
-std::uint64_t DependencyPropertyFacet::FreezableRevision(
-    const Freezable& value) noexcept {
-    return value.impl_ != nullptr ? value.impl_->revision : 0U;
+std::uint64_t Freezable::Revision() const noexcept {
+    const Freezable& value = *this;
+    Freezable::State* state = value.state_;
+    return state != nullptr ? state->revision : 0U;
 }
 
-bool DependencyPropertyFacet::FreezableCheckCore(
-    Freezable& value) noexcept {
+bool Freezable::CheckFreezeCore() noexcept {
+    Freezable& value = *this;
     return value.FreezeCore(true);
 }
 
-bool DependencyPropertyFacet::HasUnfreezableValueState(
-    const DependencyObject& object) noexcept {
-    for (const auto& entry : object.values_) {
-        if (entry.hasExpression || entry.hasAnimation ||
-            entry.sourceInfo.hasExpression || entry.sourceInfo.isAnimated) {
+DependencyObject* Freezable::Parent() const noexcept {
+    const Freezable& value = *this;
+    Freezable::State* state = value.state_;
+    if (state == nullptr || state->consumers.Empty()) return nullptr;
+    for (const auto& consumer : state->consumers) {
+        Base::Ref<DependencyObject> retained = consumer.object.Lock();
+        if (retained) return retained.Get();
+        if (consumer.unmanagedObject != nullptr) return consumer.unmanagedObject;
+    }
+    return nullptr;
+}
+
+bool DependencyObject::HasUnfreezableValueState() const noexcept {
+    const DependencyObject& object = *this;
+    const PropertyStore* store = (object).Store();
+    if (store == nullptr) {
+        return false;
+    }
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (entry.HasExpression() || entry.HasAnimation() ||
+            entry.SourceInfo().hasExpression || entry.SourceInfo().isAnimated) {
             return true;
         }
     }
     return false;
 }
 
-Base::Result<void> DependencyPropertyFacet::VisitFreezableChildren(
-    DependencyObject& object,
+Base::Result<void> DependencyObject::VisitFreezableChildren(
     void* context,
-    FreezableVisitor visitor) noexcept {
+    Base::Result<void> (*visitor)(void*, Freezable&) noexcept) noexcept {
+    DependencyObject& object = *this;
     if (visitor == nullptr) return {};
-    for (const Meta::DependencyProperty& property :
-         object.registry_->Properties()) {
-        if (property.MetadataFor(object.runtimeType_) == nullptr) continue;
-        const Meta::PropertyValue value = object.GetValue(property.Handle());
-        Freezable* child = AsFreezable(object, value);
-        if (child == nullptr) continue;
-        Base::Result<void> visited = visitor(context, *child);
-        if (!visited) return visited.GetStatus();
+    const PropertyStore* store = object.Store();
+    if (store == nullptr) {
+        return {};
+    }
+    Base::Vector<Freezable*> children;
+    for (const auto& record : store->entries) {
+        const StoredValueEntry& entry = record.Value();
+        if (entry.effectiveValue.Kind() != Meta::ValueKind::Object ||
+            entry.effectiveValue.IsNullObject()) {
+            continue;
+        }
+        Freezable* child = AsFreezable(object, entry.effectiveValue);
+        if (child != nullptr) {
+            (void)children.PushBack(child);
+        }
+    }
+    for (Freezable* child : children) {
+        if (child != nullptr) {
+            Base::Result<void> visited = visitor(context, *child);
+            if (!visited) return visited.GetStatus();
+        }
     }
     return {};
 }
 
-Base::Result<void> DependencyPropertyFacet::PrepareConsumerChange(
-    DependencyObject& consumer,
+Base::Result<void> DependencyObject::PrepareConsumerChange(
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
     const Meta::PropertyValue& newValue) noexcept {
-    Freezable* oldChild = AsFreezable(consumer, oldValue);
-    Freezable* newChild = AsFreezable(consumer, newValue);
+    Freezable* oldChild = AsFreezable(*this, oldValue);
+    Freezable* newChild = AsFreezable(*this, newValue);
     if (oldChild == newChild || newChild == nullptr) return {};
-    return AttachFreezableConsumer(
-        *newChild, consumer, property);
+    return newChild->AttachConsumer(*this, property);
 }
 
-void DependencyPropertyFacet::CommitConsumerChange(
-    DependencyObject& consumer,
+void DependencyObject::CommitConsumerChange(
     Meta::DependencyPropertyHandle property,
     const Meta::PropertyValue& oldValue,
     const Meta::PropertyValue& newValue) noexcept {
-    Freezable* oldChild = AsFreezable(consumer, oldValue);
-    Freezable* newChild = AsFreezable(consumer, newValue);
+    Freezable* oldChild = AsFreezable(*this, oldValue);
+    Freezable* newChild = AsFreezable(*this, newValue);
     if (oldChild != nullptr && oldChild != newChild) {
-        DetachFreezableConsumer(
-            *oldChild, consumer, property);
+        oldChild->DetachConsumer(*this, property);
     }
 }
 
-void DependencyPropertyFacet::InvalidateSubProperty(
-    DependencyObject& object,
+void DependencyObject::InvalidateSubProperty(
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
+    DependencyObject& object = *this;
     const Meta::DependencyProperty* property =
-        object.registry_->Find(propertyHandle);
+        DependencyObjectAccess::PropertyRegistry((object)).Find(propertyHandle);
     const Meta::PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(object.runtimeType_)
+        ? property->MetadataFor(object.RuntimeType())
         : nullptr;
     if (metadata == nullptr) return;
     const Meta::PropertyInvalidationFlags flags =
@@ -457,4 +575,4 @@ void DependencyPropertyFacet::InvalidateSubProperty(
     object.OnPropertyInvalidated(flags);
 }
 
-} // namespace Aero::Core
+} // namespace Aero

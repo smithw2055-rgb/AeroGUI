@@ -41,10 +41,9 @@ Base::Result<void> ConvertCoverageToSdf(
     Base::Vector<float> foreground(allocator);
     Base::Vector<float> background(allocator);
     Base::Vector<std::uint8_t> pixels(allocator);
-    Base::Result<void> status = foreground.Resize(count);
-    if (status) status = background.Resize(count);
-    if (status) status = pixels.Resize(count);
-    if (!status) return status.GetStatus();
+    foreground.Resize(count);
+    background.Resize(count);
+    pixels.Resize(count);
     constexpr float Infinity = std::numeric_limits<float>::max() / 8.0F;
     auto at = [width](std::uint32_t x, std::uint32_t y) noexcept {
         return y * width + x;
@@ -234,11 +233,6 @@ struct GlyphAtlasState {
     }
 };
 
-static_assert(sizeof(GlyphAtlasState) <= 4096U,
-    "GlyphAtlas inline state storage is too small");
-static_assert(alignof(GlyphAtlasState) <= alignof(std::max_align_t),
-    "GlyphAtlas inline state alignment is insufficient");
-
 GlyphAtlas::GlyphAtlas(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
@@ -265,15 +259,21 @@ Base::Result<void> GlyphAtlas::Initialize(
             Base::ErrorCode::InvalidArgument,
             "Glyph atlas configuration is invalid");
     }
-    state_ = new (stateStorage_) GlyphAtlasState(allocator_);
+    Base::Result<void> allocated = Base::AllocateObject(
+        *allocator_,
+        Base::MemoryTag::Ui,
+        state_,
+        allocator_);
+    if (!allocated) {
+        return allocated.GetStatus();
+    }
     state_->config = config;
     return {};
 }
 
 void GlyphAtlas::Shutdown() noexcept {
     if (state_ == nullptr) return;
-    state_->~GlyphAtlasState();
-    state_ = nullptr;
+    Base::FreeObject(*allocator_, Base::MemoryTag::Ui, state_);
 }
 
 bool GlyphAtlas::IsInitialized() const noexcept {
@@ -304,17 +304,22 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     Base::Result<void> rasterized =
         fonts.RasterizeGlyph(request, bitmap);
     if (!rasterized) return rasterized.GetStatus();
+    if (bitmap.width == 0U || bitmap.height == 0U) {
+        GlyphAtlasPlacement emptyPlacement{};
+        emptyPlacement.key = key;
+        emptyPlacement.deviceGeneration = state_->deviceGeneration;
+        emptyPlacement.width = 0U;
+        emptyPlacement.height = 0U;
+        emptyPlacement.advanceX = bitmap.advanceX;
+        GlyphAtlasState::Entry entry{key, emptyPlacement};
+        const std::uint32_t newIndex = state_->entries.Size();
+        (void)state_->entries.PushBack(entry);
+        (void)state_->entryIndex.Insert(key, newIndex);
+        output = emptyPlacement;
+        return {};
+    }
     Base::Result<void> sdf = ConvertCoverageToSdf(bitmap, allocator_);
     if (!sdf) return sdf.GetStatus();
-    GlyphMetrics metrics;
-    Base::Result<void> measured =
-        fonts.GetGlyphMetrics(request, metrics);
-    if (!measured) return measured.GetStatus();
-    if (bitmap.width == 0U || bitmap.height == 0U) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "Glyph atlas cannot place an empty bitmap");
-    }
 
     const std::uint32_t padding = state_->config.padding;
     if (AddWouldOverflow(bitmap.width, padding * 2U) ||
@@ -340,9 +345,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     }
     if (pageIndex == UINT32_MAX &&
         state_->pages.Size() < state_->config.maxPages) {
-        Base::Result<GlyphAtlasState::Page*> appended =
-            state_->pages.EmplaceBack();
-        if (!appended) return appended.GetStatus();
+        (void)state_->pages.EmplaceBack();
         pageIndex = state_->pages.Size() - 1U;
         if (!state_->Place(
                 state_->pages[pageIndex],
@@ -360,6 +363,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             const GlyphAtlasState::Page& page = state_->pages[index];
             if (page.hasPendingUploads ||
                 page.lastSubmittedFence > completedFence ||
+                (completedFence != 0U && page.lastUse >= completedFence) ||
                 page.lastUse >= oldestUse) {
                 continue;
             }
@@ -395,7 +399,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     placement.height = bitmap.height;
     placement.bearingX = bitmap.bearingX;
     placement.bearingY = bitmap.bearingY;
-    placement.advanceX = metrics.advanceX;
+    placement.advanceX = bitmap.advanceX;
 
     GlyphAtlasState::Entry entry;
     entry.key = key;
@@ -405,16 +409,11 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     if (!stored) return stored.GetStatus();
     const std::uint32_t entryIndex =
         state_->entries.Size() - 1U;
-    Base::Result<
-        Base::HashMap<
+    Base::HashMap<
             GlyphAtlasKey, std::uint32_t,
-            GlyphAtlasKeyHash>::InsertResult> indexed =
+            GlyphAtlasKeyHash>::InsertResult indexed =
         state_->entryIndex.Insert(key, entryIndex);
-    if (!indexed) {
-        state_->entries.PopBack();
-        return indexed.GetStatus();
-    }
-    if (!indexed.Value().inserted) {
+    if (!indexed.inserted) {
         state_->entries.PopBack();
         return Base::Status::Failure(
             Base::ErrorCode::AlreadyExists,
@@ -433,13 +432,8 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
     const std::uint64_t byteCount =
         static_cast<std::uint64_t>(bitmap.width) *
         static_cast<std::uint64_t>(bitmap.height);
-    Base::Result<void> resized = upload.pixels.Resize(
+    upload.pixels.Resize(
         static_cast<std::uint32_t>(byteCount));
-    if (!resized) {
-        static_cast<void>(state_->entryIndex.Erase(key));
-        state_->entries.PopBack();
-        return resized.GetStatus();
-    }
     for (std::uint32_t row = 0U;
          row < bitmap.height; ++row) {
         std::memcpy(
@@ -447,13 +441,7 @@ Base::Result<void> GlyphAtlas::EnsureGlyph(
             bitmap.pixels.Data() + row * bitmap.strideBytes,
             bitmap.width);
     }
-    Base::Result<GlyphAtlasUpload*> queued =
-        state_->uploads.EmplaceBack(std::move(upload));
-    if (!queued) {
-        static_cast<void>(state_->entryIndex.Erase(key));
-        state_->entries.PopBack();
-        return queued.GetStatus();
-    }
+    (void)state_->uploads.EmplaceBack(std::move(upload));
     page.hasPendingUploads = true;
     output = placement;
     return {};
