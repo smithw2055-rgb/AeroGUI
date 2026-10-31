@@ -192,6 +192,8 @@ public:
     AERO_ATTACHED_PROPERTY(PanningMode, PanningMode);
 
 protected:
+    void EnsureFallbackPresenter() noexcept override;
+    void ClearFallbackPresenter() noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnContentChanged(const Value& oldContent, const Value& newContent) override;
     void OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept override;
@@ -206,7 +208,6 @@ protected:
 private:
     friend class ScrollContentPresenter;
 
-    void EnsureFallbackPresenter() noexcept;
     void SyncContentToPresenter() noexcept;
     void AdoptPresenterData(ScrollContentPresenter& presenter, const ScrollData& data, ScrollInputKind kind) noexcept;
     void OnScrollDataChanged(const ScrollData& oldData, const ScrollData& newData, ScrollInputKind kind) noexcept;

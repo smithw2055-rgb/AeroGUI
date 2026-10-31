@@ -337,6 +337,10 @@ public:
 protected:
     explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept : ItemsControl(runtimeType) {}
 
+    void PrepareContainerForItemOverride(FrameworkElement& container,
+        const Ref<Base::Object>& item, std::uint32_t index) noexcept override;
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
+
     virtual void OnHeaderChanged(const Value& oldHeader, const Value& newHeader) {
         (void)oldHeader;
         (void)newHeader;

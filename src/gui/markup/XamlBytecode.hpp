@@ -15,6 +15,7 @@
 #include "gui/templates/TemplateProgram.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
+#include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/markup/XamlSchema.hpp"
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Controls/Grid.hpp>
@@ -22,6 +23,7 @@
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Geometries.hpp>
 #include <Aero/ContentElement.hpp>
+#include <Aero/FrameworkContentElement.hpp>
 
 #include <cstdint>
 #include <cstring>
@@ -848,6 +850,37 @@ struct XamlDocumentExecutionResult {
     VisualContentPlan visualContent;
 };
 
+inline Base::Result<void> ApplyPropertyToObject(
+    Base::Object& target,
+    std::uint64_t propHandle,
+    const Meta::Value& value,
+    Meta::Registry* runtime,
+    Controls::TemplateBuilder* templateBuilder) noexcept {
+    if (auto* depObj = ::Aero::TryCast<DependencyObject>(&target)) {
+        const Meta::DependencyPropertyHandle dpHandle{propHandle};
+        if (DependencyObjectAccess::HasPropertyRegistry(*depObj)) {
+            auto& dpRegistry = DependencyObjectAccess::PropertyRegistry(*depObj);
+            if (dpRegistry.Find(dpHandle) != nullptr) {
+                const bool isTemplateElement = templateBuilder != nullptr &&
+                    (::Aero::TryCast<FrameworkElement>(depObj) != nullptr ||
+                     ::Aero::TryCast<FrameworkContentElement>(depObj) != nullptr);
+                if (isTemplateElement) {
+                    depObj->SetTemplateValue(dpHandle, value);
+                } else {
+                    depObj->SetValue(dpHandle, value);
+                }
+                return {};
+            }
+        }
+    }
+    if (runtime != nullptr) {
+        return runtime->SetProperty(target, propHandle, value);
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidState,
+        "Runtime registry missing in ApplyPropertyToObject");
+}
+
 // ============================================================================
 // XamlVM Executor
 // ============================================================================
@@ -1033,15 +1066,9 @@ inline Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetPropertyValue");
             }
             const std::uint64_t propHandle = program.propertyPool[ip->typeOrPropIdx];
-            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr) {
-                    depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[ip->operandIdx]);
-                } else {
-                    depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, program.valuePool[ip->operandIdx]);
-                }
-            } else if (runtime != nullptr) {
-                static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, program.valuePool[ip->operandIdx]));
-            }
+            static_cast<void>(ApplyPropertyToObject(
+                *outObjects[slot], propHandle, program.valuePool[ip->operandIdx],
+                runtime, context.templateBuilder));
             break;
         }
 
@@ -1060,20 +1087,10 @@ inline Base::Result<void> XamlVM::Execute(
             }
             const std::uint64_t propHandle = program.propertyPool[ip->typeOrPropIdx];
             const std::uint64_t valueType = program.typePool[ip->extraIdx];
-            if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                if (context.templateBuilder != nullptr) {
-                    depObj->SetTemplateValue(
-                        Meta::DependencyPropertyHandle{propHandle},
-                        Meta::Value::FromObject(valueType, outObjects[srcSlot]));
-                } else {
-                    depObj->SetValue(
-                        Meta::DependencyPropertyHandle{propHandle},
-                        Meta::Value::FromObject(valueType, outObjects[srcSlot]));
-                }
-            } else if (runtime != nullptr) {
-                static_cast<void>(runtime->SetProperty(
-                    *outObjects[slot], propHandle, Meta::Value::FromObject(valueType, outObjects[srcSlot])));
-            }
+            static_cast<void>(ApplyPropertyToObject(
+                *outObjects[slot], propHandle,
+                Meta::Value::FromObject(valueType, outObjects[srcSlot]),
+                runtime, context.templateBuilder));
             break;
         }
 
@@ -1100,10 +1117,12 @@ inline Base::Result<void> XamlVM::Execute(
                     return Base::Status::Failure(Base::ErrorCode::InvalidState, "Runtime registry missing in SetPropertyContent");
                 }
                 Base::Result<void> content = (isPropertyEdge != 0U)
-                    ? runtime->SetProperty(
+                    ? ApplyPropertyToObject(
                         *parent,
                         memberId,
-                        Meta::Value::FromObject(valueType, child))
+                        Meta::Value::FromObject(valueType, child),
+                        runtime,
+                        context.templateBuilder)
                     : runtime->WriteContent(
                         *parent,
                         memberId,
@@ -1119,7 +1138,8 @@ inline Base::Result<void> XamlVM::Execute(
                 } else if (runtime != nullptr) {
                     const Meta::TypeInfo* typeInfo = runtime->Types().FindType(parent->RuntimeType());
                     if (typeInfo != nullptr && typeInfo->ContentMember() != Meta::InvalidMemberId) {
-                        static_cast<void>(runtime->WriteContent(*parent, typeInfo->ContentMember(), child));
+                        Base::Result<void> content = runtime->WriteContent(*parent, typeInfo->ContentMember(), child);
+                        if (!content) return content.GetStatus();
                     }
                 }
             }
@@ -1344,12 +1364,14 @@ inline Base::Result<void> XamlVM::Execute(
                 for (std::uint16_t i = 0U; i < bCount; ++i) {
                     const auto& objRef = program.objectRefs[itemStart + i];
                     if (objRef) {
+                        FrameworkElementSeams::AddAuthoredBehavior(*framework, objRef);
                         FrameworkElementSeams::AddStyleBehaviorPrototype(*framework, objRef);
                     }
                 }
                 for (std::uint16_t i = 0U; i < tCount; ++i) {
                     const auto& objRef = program.objectRefs[itemStart + bCount + i];
                     if (objRef) {
+                        FrameworkElementSeams::AddAuthoredTrigger(*framework, objRef);
                         FrameworkElementSeams::AddStyleTriggerPrototype(*framework, objRef);
                     }
                 }
@@ -1475,15 +1497,9 @@ inline Base::Result<void> XamlVM::Execute(
                 return provided.GetStatus();
             }
             if (provided.Value().kind == ProvidedValueKind::Value) {
-                if (auto* depObj = ::Aero::TryCast<DependencyObject>(outObjects[slot].Get())) {
-                    if (context.templateBuilder != nullptr) {
-                        depObj->SetTemplateValue(Meta::DependencyPropertyHandle{propHandle}, provided.Value().value);
-                    } else {
-                        depObj->SetValue(Meta::DependencyPropertyHandle{propHandle}, provided.Value().value);
-                    }
-                } else if (runtime != nullptr) {
-                    static_cast<void>(runtime->SetProperty(*outObjects[slot], propHandle, provided.Value().value));
-                }
+                static_cast<void>(ApplyPropertyToObject(
+                    *outObjects[slot], propHandle, provided.Value().value,
+                    runtime, context.templateBuilder));
             } else if (provided.Value().kind == ProvidedValueKind::Deferred) {
                 deferredExtensions.PushBack(PendingDeferredExtension(provided.Value()));
             } else if (provided.Value().kind == ProvidedValueKind::Expression) {
@@ -1497,27 +1513,8 @@ inline Base::Result<void> XamlVM::Execute(
             break;
         }
 
-        case XamlOpCode::End: {
-            for (PendingDeferredExtension& item : deferredExtensions) {
-                if (item.value.bind != nullptr) {
-                    EffectServices effectServices;
-                    effectServices.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
-                    effectServices.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
-                    effectServices.fallbackResources = context.documentResources != nullptr ? context.documentResources : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
-                    Base::Result<void> bound = item.value.bind(item.value.rollbackContext, effectServices);
-                    if (!bound) return bound.GetStatus();
-                }
-                if (item.value.prepare != nullptr && context.documentNames != nullptr) {
-                    Base::Result<void> prepared = item.value.prepare(item.value.rollbackContext, *context.documentNames);
-                    if (!prepared) return prepared.GetStatus();
-                }
-                if (item.value.commit != nullptr) {
-                    Base::Result<std::uint64_t> committed = item.value.commit(item.value.rollbackContext);
-                    if (!committed) return committed.GetStatus();
-                }
-            }
-            return {};
-        }
+        case XamlOpCode::End:
+            goto finalize;
 
         default:
             return Base::Status::Failure(
@@ -1525,22 +1522,36 @@ inline Base::Result<void> XamlVM::Execute(
                 "Unknown XamlOpCode encountered during VM execution");
         }
     }
+finalize:
     for (PendingDeferredExtension& item : deferredExtensions) {
+        EffectServices effectServices;
+        effectServices.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
+        effectServices.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
+        effectServices.fallbackResources = context.documentResources != nullptr ? context.documentResources : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
+
+        const bool canBind = effectServices.bindings != nullptr;
         if (item.value.bind != nullptr) {
-            EffectServices effectServices;
-            effectServices.effectiveValues = context.loadContext != nullptr ? context.loadContext->effectiveValues : nullptr;
-            effectServices.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
-            effectServices.fallbackResources = context.documentResources != nullptr ? context.documentResources : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
-            Base::Result<void> bound = item.value.bind(item.value.rollbackContext, effectServices);
-            if (!bound) return bound.GetStatus();
+            if (canBind) {
+                Base::Result<void> bound = item.value.bind(item.value.rollbackContext, effectServices);
+                if (!bound) return bound.GetStatus();
+            }
         }
         if (item.value.prepare != nullptr && context.documentNames != nullptr) {
             Base::Result<void> prepared = item.value.prepare(item.value.rollbackContext, *context.documentNames);
             if (!prepared) return prepared.GetStatus();
         }
         if (item.value.commit != nullptr) {
-            Base::Result<std::uint64_t> committed = item.value.commit(item.value.rollbackContext);
-            if (!committed) return committed.GetStatus();
+            if (canBind || item.value.bind == nullptr) {
+                Base::Result<std::uint64_t> committed = item.value.commit(item.value.rollbackContext);
+                if (!committed) return committed.GetStatus();
+                item.value.cleanup = nullptr;
+                item.value.rollbackContext = nullptr;
+            } else {
+                item.value.cleanup = nullptr;
+            }
+        } else {
+            item.value.cleanup = nullptr;
+            item.value.rollbackContext = nullptr;
         }
     }
     return {};
@@ -1610,6 +1621,7 @@ inline Base::Result<void> CompileDocumentToBytecode(
         bool isName = false;
         bool isEvent = false;
         bool isPropertyElement = false;
+        bool isIgnored = false;
         std::size_t objectStackDepth = 0U;
     };
 
@@ -1678,6 +1690,12 @@ inline Base::Result<void> CompileDocumentToBytecode(
                     "Unknown type in bytecode compiler");
             }
 
+            const Meta::TypeInfo* typeInfo = schema.Types().FindType(typeId);
+            if (typeInfo != nullptr && typeInfo->Kind() != Meta::MetadataTypeKind::Object) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Non-object value types require cursor engine");
+            }
             const bool isRoot = objectStack.Empty();
             if (isRoot) {
                 builder.EmitAdoptOrCreateRoot(slot, typeId);
@@ -1693,6 +1711,20 @@ inline Base::Result<void> CompileDocumentToBytecode(
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
                     "StartMember without active object");
+            }
+            Base::StringView memName = node.Name().LocalName();
+            if (memName == "Class" && (objectStack.Back().slot == 0U || objectStack.Back().isRoot)) {
+                MemberFrame mf;
+                mf.parentSlot = objectStack.Back().slot;
+                mf.isIgnored = true;
+                memberStack.PushBack(mf);
+                break;
+            }
+            if (memName == "Key" || memName == "Resources" || memName == "Class" ||
+                (memName.SizeBytes() >= 10U && memName.Substr(memName.SizeBytes() - 10U, 10U) == ".Resources")) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Resources, x:Key, and x:Class require cursor engine");
             }
             const std::uint16_t parentSlot = objectStack.Back().slot;
             MemberFrame mf;
@@ -1717,7 +1749,52 @@ inline Base::Result<void> CompileDocumentToBytecode(
         }
 
         case NodeKind::Value: {
-            if (objectStack.Empty() || memberStack.Empty()) {
+            if (objectStack.Empty()) {
+                break;
+            }
+            if (!memberStack.Empty() && memberStack.Back().isIgnored) {
+                break;
+            }
+            if (memberStack.Empty()) {
+                if (!node.IsFromAttribute() && !TrimAscii(node.Value()).Empty()) {
+                    const ObjectFrame& currentObj = objectStack.Back();
+                    Base::Result<ResolvedMember> contentMember = schema.ResolveContentMember(currentObj.typeId);
+                    if (contentMember) {
+                        const ResolvedMember& mem = contentMember.Value();
+                        Base::StringView strVal = node.Value();
+                        Meta::TypeId targetType = (mem.valueType != Meta::InvalidTypeId)
+                            ? mem.valueType
+                            : Meta::TypeOf<Base::String>();
+                        Base::Result<Meta::Value> converted = schema.ConvertText(
+                            targetType, strVal, nullptr);
+                        if (converted) {
+                            builder.EmitSetPropertyValue(
+                                currentObj.slot,
+                                Meta::DependencyPropertyHandle{mem.id},
+                                converted.Value());
+                            break;
+                        }
+                    }
+                    const Meta::PropertyInfo* textProp = schema.Types().FindProperty(
+                        currentObj.typeId, Base::StringView("Text"), true);
+                    if (textProp != nullptr) {
+                        Meta::TypeId targetType = (textProp->ValueType() != Meta::InvalidTypeId)
+                            ? textProp->ValueType()
+                            : Meta::TypeOf<Base::String>();
+                        Base::Result<Meta::Value> converted = schema.ConvertText(
+                            targetType, node.Value(), nullptr);
+                        if (converted) {
+                            builder.EmitSetPropertyValue(
+                                currentObj.slot,
+                                Meta::DependencyPropertyHandle{textProp->Id()},
+                                converted.Value());
+                            break;
+                        }
+                    }
+                    return Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "Direct inline content requires cursor engine");
+                }
                 break;
             }
             MemberFrame& mf = memberStack.Back();
@@ -1861,12 +1938,20 @@ inline Base::Result<void> CompileDocumentToBytecode(
                 if (!memberStack.Empty()) {
                     MemberFrame& mem = memberStack.Back();
                     if (mem.isPropertyElement) {
+                        const Meta::PropertyInfo* prop = schema.Types().FindProperty(mem.memberId);
+                        const bool isPropertyEdge = prop != nullptr &&
+                            (static_cast<std::uint32_t>(prop->Flags()) &
+                             static_cast<std::uint32_t>(Meta::PropertyFlags::Collection)) == 0U &&
+                            (schema.Metadata() != nullptr && schema.Metadata()->CanWriteProperty(mem.memberId));
+                        const Meta::TypeId valueType = (prop != nullptr && prop->ValueType() != Meta::InvalidTypeId)
+                            ? prop->ValueType()
+                            : finished.typeId;
                         builder.EmitSetPropertyContent(
                             parent.slot,
                             mem.memberId,
                             finished.slot,
-                            finished.typeId,
-                            false);
+                            valueType,
+                            isPropertyEdge);
                     } else {
                         builder.EmitSetPropertyObject(
                             parent.slot,

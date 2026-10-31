@@ -385,6 +385,10 @@ void BackgroundEffectBehavior::OnLayoutUpdated() noexcept {
     Refresh();
 }
 
+void BackgroundEffectBehavior::OnPreRender() noexcept {
+    Refresh();
+}
+
 void BackgroundEffectBehavior::OnBehaviorPropertyChanged(
     DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs&) noexcept {

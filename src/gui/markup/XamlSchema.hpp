@@ -1403,6 +1403,7 @@ public:
     const Meta::TypeRegistry& Types() const noexcept {
         return domain_->Types();
     }
+    ::Aero::Meta::Registry* Metadata() const noexcept { return domain_; }
     Base::Result<const Meta::TypeInfo*> ResolveType(
         Base::StringView xamlNamespace,
         Base::StringView localName) const noexcept;
@@ -1448,7 +1449,6 @@ private:
     friend class ::Aero::ModuleSet;
 
     Base::Result<void> Freeze() noexcept;
-    ::Aero::Meta::Registry* Metadata() const noexcept { return domain_; }
     const ::Aero::Meta::Registry& Domain() const noexcept {
         return *domain_;
     }

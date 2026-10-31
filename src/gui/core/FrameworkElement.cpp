@@ -230,7 +230,9 @@ void FrameworkElement::SyncLayoutScalars() noexcept {
 void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     UIElement::OnPropertyInvalidated(flags);
-    SyncLayoutScalars();
+    if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
+        SyncLayoutScalars();
+    }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         InvalidateVisual();
     }
@@ -584,6 +586,7 @@ Base::Object* FrameworkElement::FindNameObject(
         // SetContent tried to parent that grid under ColorSelector (cycle).
         if (::Aero::TryCast<Controls::UserControl>(
                 const_cast<FrameworkElement*>(current)) != nullptr) {
+            if (current->frameworkRare_ != nullptr && current->frameworkRare_->names.Size() != 0U) { return nullptr; }
             break;
         }
         ::Aero::Media::Visual* visual =

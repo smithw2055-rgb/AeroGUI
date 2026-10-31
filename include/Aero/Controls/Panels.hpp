@@ -72,6 +72,7 @@ private:
     mutable Base::Ref<Base::Object> childrenView_;
     mutable Base::Vector<UIElement*> zOrderCache_;
     mutable bool zOrderDirty_ = true;
+    void EnsureZOrderCache() const noexcept;
     void NotifyChildrenViewReset() noexcept;
 };
 
@@ -86,6 +87,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
 
 protected:
+    StackPanel(TypeId runtimeType, Orientation orientation = Orientation::Vertical) noexcept;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
 };

@@ -40,6 +40,9 @@ public:
     void NotifyLayoutUpdated() noexcept {
         if (associatedObject_ != nullptr) OnLayoutUpdated();
     }
+    void NotifyPreRender() noexcept {
+        if (associatedObject_ != nullptr) OnPreRender();
+    }
 
 protected:
     explicit Behavior(Meta::TypeId runtimeType) noexcept : DependencyObject(runtimeType) {}
@@ -47,6 +50,7 @@ protected:
     virtual void OnAttached() noexcept {}
     virtual void OnDetaching() noexcept {}
     virtual void OnLayoutUpdated() noexcept {}
+    virtual void OnPreRender() noexcept {}
 
 private:
     FrameworkElement* associatedObject_ = nullptr;

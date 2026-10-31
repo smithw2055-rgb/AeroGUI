@@ -89,14 +89,18 @@ protected:
     void OnAttached() noexcept override;
     void OnDetaching() noexcept override;
     void OnLayoutUpdated() noexcept override;
+    void OnPreRender() noexcept override;
 
 private:
     Ref<Media::Brush> originalFill_;
     Ref<Media::Effect> originalEffect_;
     Ref<Media::ImageBrush> projectedImage_;
+    Base::Rect lastSourceBounds_{};
+    Base::Rect lastTargetBounds_{};
     bool updating_ = false;
 
     void Refresh() noexcept;
+    void RefreshIfBoundsChanged() noexcept;
 };
 
 } // namespace Aero::Interactivity

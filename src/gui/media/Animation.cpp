@@ -426,8 +426,29 @@ double EasingFunctionBase::Ease(double progress) const noexcept {
             const double amplitude = std::max(0.0, GetAmplitude());
             return input * input * ((amplitude + 1.0) * input - amplitude);
         }
-        case Kind::Bounce:
-            return 1.0 - EaseOutBounce(1.0 - input);
+        case Kind::Bounce: {
+            if (input <= 0.0) return 0.0;
+            if (input >= 1.0) return 1.0;
+            const double bounces = std::max(1.0, std::floor(GetBounces()));
+            double bounciness = GetBounciness();
+            if (bounciness <= 1.0 || !std::isfinite(bounciness)) {
+                bounciness = 1.001;
+            }
+            const double powB = std::pow(bounciness, bounces);
+            const double oneMinusB = 1.0 - bounciness;
+            const double sum = (1.0 - powB) / oneMinusB + powB * 0.5;
+            const double t = 1.0 - input;
+            const double unitAtT = std::floor(
+                std::log(-t * (1.0 - bounciness) * sum + 1.0) / std::log(bounciness));
+            const double start = (1.0 - std::pow(bounciness, unitAtT)) / (oneMinusB * sum);
+            const double end = (1.0 - std::pow(bounciness, unitAtT + 1.0)) / (oneMinusB * sum);
+            const double mid = (start + end) * 0.5;
+            const double radius = end - mid;
+            const double dt = t - mid;
+            const double amplitude = std::pow(1.0 / bounciness, bounces - unitAtT);
+            const double easeOut = 1.0 - ((-amplitude / (radius * radius)) * (radius - dt) * (radius + dt));
+            return 1.0 - easeOut;
+        }
         case Kind::Elastic: {
             if (input <= 0.0 || input >= 1.0) return input;
             const double oscillations = std::max(1.0, GetOscillations());

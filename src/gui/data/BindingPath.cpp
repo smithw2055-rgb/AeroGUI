@@ -150,14 +150,13 @@ struct CompiledPathKeyHash {
 };
 
 struct CompiledPathCache {
-    static constexpr std::uint32_t Capacity = 256U;
-    std::mutex mutex;
+    static constexpr std::uint32_t Capacity = 1024U;
     Base::HashMap<CompiledPathKey, BindingPathPlan, CompiledPathKeyHash>
         plans;
 };
 
 CompiledPathCache& PathPlanCache() noexcept {
-    static CompiledPathCache cache;
+    static thread_local CompiledPathCache cache;
     return cache;
 }
 
@@ -209,7 +208,6 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
     cacheKey.schema = schemaHash.Value();
     const bool cacheable = static_cast<bool>(cacheKey.path.Assign(path));
     if (cacheable) {
-        std::lock_guard<std::mutex> lock(PathPlanCache().mutex);
         if (BindingPathPlan* hit = PathPlanCache().plans.Find(cacheKey)) {
             return *hit;
         }
@@ -436,7 +434,6 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
         }
     }
     if (cacheable) {
-        std::lock_guard<std::mutex> lock(PathPlanCache().mutex);
         CompiledPathCache& cache = PathPlanCache();
         if (cache.plans.Size() >= CompiledPathCache::Capacity) {
             cache.plans.Clear();

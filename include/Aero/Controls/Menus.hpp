@@ -139,18 +139,13 @@ public:
 
 // ---------------- ToolBar Family ----------------
 
-class AERO_GUI_API ToolBar : public ItemsControl {
-    AERO_DECLARE_TYPE(ToolBar, ItemsControl)
+class AERO_GUI_API ToolBar : public HeaderedItemsControl {
+    AERO_DECLARE_TYPE(ToolBar, HeaderedItemsControl)
 
 public:
     ToolBar() noexcept;
     ~ToolBar() override;
 
-    Value GetHeader() const noexcept;
-    void SetHeader(const Value& value) noexcept;
-    void SetHeader(StringView value) noexcept;
-    Ref<DataTemplate> GetHeaderTemplate() const noexcept;
-    void SetHeaderTemplate(Ref<DataTemplate> value) noexcept;
     Orientation GetOrientation() const noexcept;
     void SetOrientation(Orientation value) noexcept;
     std::uint32_t GetOverflowCapacity() const noexcept;
@@ -160,8 +155,6 @@ public:
     bool GetHasOverflowItems() const noexcept;
     std::uint32_t GetOverflowItemCount() const noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(Value, Header);
-    AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, OverflowCapacity);
     AERO_DEPENDENCY_PROPERTY(bool, IsOverflowOpen);
@@ -180,28 +173,20 @@ private:
     void SynchronizeToolBar() noexcept;
 };
 
-class AERO_GUI_API ToolBarPanel : public Panel {
-    AERO_DECLARE_TYPE(ToolBarPanel, Panel)
+class AERO_GUI_API ToolBarPanel : public StackPanel {
+    AERO_DECLARE_TYPE(ToolBarPanel, StackPanel)
 
 public:
-    ToolBarPanel() noexcept : Panel(StaticTypeId()) {}
+    ToolBarPanel() noexcept : StackPanel(StaticTypeId(), Orientation::Horizontal) {}
     ~ToolBarPanel() override = default;
-
-protected:
-    Size MeasureOverride(Size availableSize) noexcept override;
-    Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
-class AERO_GUI_API ToolBarOverflowPanel : public Panel {
-    AERO_DECLARE_TYPE(ToolBarOverflowPanel, Panel)
+class AERO_GUI_API ToolBarOverflowPanel : public StackPanel {
+    AERO_DECLARE_TYPE(ToolBarOverflowPanel, StackPanel)
 
 public:
-    ToolBarOverflowPanel() noexcept : Panel(StaticTypeId()) {}
+    ToolBarOverflowPanel() noexcept : StackPanel(StaticTypeId(), Orientation::Vertical) {}
     ~ToolBarOverflowPanel() override = default;
-
-protected:
-    Size MeasureOverride(Size availableSize) noexcept override;
-    Size ArrangeOverride(Size finalSize) noexcept override;
 };
 
 class AERO_GUI_API ToolBarTray : public Base::Object {

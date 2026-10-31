@@ -164,7 +164,7 @@ Out ps_main(In i) {
     o.color = float4(0.0, 0.0, 0.0, 0.0);
 
 #elif EFFECT_PATH
-    o.color = (opacity_ * i.coverage) * paint;
+    o.color = opacity_ * paint;
 
 #elif EFFECT_PATH_AA
     // PPAA: per-vertex coverage modulates color

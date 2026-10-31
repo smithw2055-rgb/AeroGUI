@@ -77,6 +77,10 @@ public:
     Base::Result<std::uint32_t> ClearProviderOrigin(
         DependencyObject& object,
         std::uint32_t origin) noexcept;
+    Base::Result<bool> ClearProviderOrigin(
+        DependencyObject& object,
+        DependencyPropertyHandle property,
+        std::uint32_t origin) noexcept;
 
     // Ownership of expression.context transfers only after this call succeeds.
     Base::Result<void> SetLocalExpression(
@@ -256,54 +260,21 @@ public:
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept {
-        // C1: O(1) indexed update. Setter semantics keep a single live
-        // contribution per (object, property); repeat sets reuse the token.
-        const ContributionKey key{&object, property};
-        if (PropertyProviderToken* existing = setterRecords_.Find(key)) {
-            return engine_->SetProviderContribution(
-                object, property, *existing, value);
-        }
-
-        Base::Result<ObjectState*> stateResult = EnsureState(object);
-        if (!stateResult) return stateResult.GetStatus();
-        ObjectState& state = *stateResult.Value();
-        Base::Result<std::uint32_t> origin = EnsureOrigin(
-            state.setterOrigin);
+        Base::Result<std::uint32_t> origin = EnsureOrigin(setterOrigin_);
         if (!origin) return origin.GetStatus();
-        Base::Result<std::uint32_t> ordinal = NextOrdinal(
-            state.nextSetterOrdinal,
-            "Property setter ordinal limit reached");
-        if (!ordinal) return ordinal.GetStatus();
-
         const PropertyProviderToken token{
-            setterRank_, origin.Value(), ordinal.Value()};
-        Base::Result<void> applied = engine_->SetProviderContribution(
+            setterRank_, origin.Value(), 0U};
+        return engine_->SetProviderContribution(
             object, property, token, value);
-        if (!applied) return applied.GetStatus();
-
-        setterRecords_.Insert(key, token);
-        ++state.liveContributions;
-        return {};
     }
 
     Base::Result<void> ClearSetterValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        const ContributionKey key{&object, property};
-        PropertyProviderToken* found = setterRecords_.Find(key);
-        if (found == nullptr) {
-            PruneState(object);
-            return {};
-        }
-        const PropertyProviderToken token = *found;
+        if (setterOrigin_ == 0U) return {};
         Base::Result<bool> cleared =
-            engine_->ClearProviderContribution(object, property, token);
+            engine_->ClearProviderOrigin(object, property, setterOrigin_);
         if (!cleared) return cleared.GetStatus();
-        setterRecords_.Erase(key);
-        if (ObjectState* state = states_.Find(&object)) {
-            if (state->liveContributions != 0U) --state->liveContributions;
-        }
-        PruneState(object);
         return {};
     }
 
@@ -311,121 +282,39 @@ public:
         DependencyObject& object,
         DependencyPropertyHandle property,
         const PropertyValue& value) noexcept {
-        // C1: trigger semantics stack: several simultaneously active triggers
-        // may contribute to the same (object, property) with distinct
-        // ordinals (later declaration wins via IsStronger). The per-pair
-        // token vector is usually length 1.
-        Base::Result<ObjectState*> stateResult = EnsureState(object);
-        if (!stateResult) return stateResult.GetStatus();
-        ObjectState& state = *stateResult.Value();
-        Base::Result<std::uint32_t> origin = EnsureOrigin(
-            state.triggerOrigin);
+        Base::Result<std::uint32_t> origin = EnsureOrigin(triggerOrigin_);
         if (!origin) return origin.GetStatus();
         Base::Result<std::uint32_t> ordinal = NextOrdinal(
-            state.nextTriggerOrdinal,
-            "Property trigger ordinal limit reached");
+            nextTriggerOrdinal_, "Property trigger ordinal limit reached");
         if (!ordinal) return ordinal.GetStatus();
-
         const PropertyProviderToken token{
             triggerRank_, origin.Value(), ordinal.Value()};
-        Base::Result<void> applied = engine_->SetProviderContribution(
+        return engine_->SetProviderContribution(
             object, property, token, value);
-        if (!applied) return applied.GetStatus();
-
-        const ContributionKey key{&object, property};
-        Base::Vector<PropertyProviderToken>* stored =
-            triggerRecords_.Find(key);
-        if (stored == nullptr) {
-            Base::HashMap<ContributionKey,
-                Base::Vector<PropertyProviderToken>,
-                ContributionKeyHash>::InsertResult inserted =
-                triggerRecords_.Insert(
-                    key, Base::Vector<PropertyProviderToken>{});
-            stored = &inserted.entry->Value();
-        }
-        stored->PushBack(token);
-        ++state.liveContributions;
-        return {};
     }
 
     Base::Result<void> ClearTriggerValue(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept {
-        const ContributionKey key{&object, property};
-        Base::Vector<PropertyProviderToken>* stored =
-            triggerRecords_.Find(key);
-        if (stored == nullptr) {
-            PruneState(object);
-            return {};
-        }
-        for (const PropertyProviderToken& token : *stored) {
-            Base::Result<bool> cleared =
-                engine_->ClearProviderContribution(object, property, token);
-            if (!cleared) return cleared.GetStatus();
-        }
-        if (ObjectState* state = states_.Find(&object)) {
-            const std::uint32_t count = stored->Size();
-            state->liveContributions = (state->liveContributions >= count)
-                ? state->liveContributions - count
-                : 0U;
-        }
-        triggerRecords_.Erase(key);
-        PruneState(object);
+        if (triggerOrigin_ == 0U) return {};
+        Base::Result<bool> cleared =
+            engine_->ClearProviderOrigin(object, property, triggerOrigin_);
+        if (!cleared) return cleared.GetStatus();
         return {};
     }
 
     Base::Result<void> ClearObjectProviders(
         DependencyObject& object) noexcept {
-        // C1: single indexed sweep per table. Erase-during-iteration is safe:
-        // HashMap::Erase marks a tombstone without rehashing, and the
-        // index-based iterator skips non-occupied buckets.
-        ObjectState* state = states_.Find(&object);
-        for (auto it = setterRecords_.begin();
-             it != setterRecords_.end();) {
-            if (it->Key().object != &object) {
-                ++it;
-                continue;
-            }
-            const ContributionKey key = it->Key();
-            const PropertyProviderToken token = it->Value();
-            ++it;
-            Base::Result<bool> cleared =
-                engine_->ClearProviderContribution(
-                    object, key.property, token);
+        if (setterOrigin_ != 0U) {
+            Base::Result<std::uint32_t> cleared =
+                engine_->ClearProviderOrigin(object, setterOrigin_);
             if (!cleared) return cleared.GetStatus();
-            setterRecords_.Erase(key);
-            if (state != nullptr && state->liveContributions != 0U) {
-                --state->liveContributions;
-            }
         }
-        for (auto it = triggerRecords_.begin();
-             it != triggerRecords_.end();) {
-            if (it->Key().object != &object) {
-                ++it;
-                continue;
-            }
-            const ContributionKey key = it->Key();
-            ++it;
-            Base::Vector<PropertyProviderToken>* stored =
-                triggerRecords_.Find(key);
-            if (stored != nullptr) {
-                for (const PropertyProviderToken& token : *stored) {
-                    Base::Result<bool> cleared =
-                        engine_->ClearProviderContribution(
-                            object, key.property, token);
-                    if (!cleared) return cleared.GetStatus();
-                }
-                if (state != nullptr) {
-                    const std::uint32_t count = stored->Size();
-                    state->liveContributions =
-                        (state->liveContributions >= count)
-                            ? state->liveContributions - count
-                            : 0U;
-                }
-            }
-            triggerRecords_.Erase(key);
+        if (triggerOrigin_ != 0U) {
+            Base::Result<std::uint32_t> cleared =
+                engine_->ClearProviderOrigin(object, triggerOrigin_);
+            if (!cleared) return cleared.GetStatus();
         }
-        states_.Erase(&object);
         return {};
     }
 
@@ -445,57 +334,12 @@ public:
     }
 
 private:
-    // C1: O(1) contribution index. Setter side keeps one live token per
-    // (object, property); trigger side stacks one token vector per pair.
-    struct ContributionKey {
-        DependencyObject* object = nullptr;
-        DependencyPropertyHandle property;
-
-        bool operator==(const ContributionKey& other) const noexcept {
-            return object == other.object && property == other.property;
-        }
-    };
-
-    struct ContributionKeyHash {
-        Base::HashCode operator()(
-            const ContributionKey& key,
-            Base::HashCode seed = 0U) const noexcept {
-            const Base::HashCode objectHash =
-                Base::DefaultHash<DependencyObject*>{}(
-                    key.object, seed);
-            return Base::MixHash64(
-                objectHash ^
-                static_cast<Base::HashCode>(key.property.value));
-        }
-    };
-
-    struct ObjectState {
-        std::uint32_t setterOrigin = 0U;
-        std::uint32_t triggerOrigin = 0U;
-        std::uint32_t nextSetterOrdinal = 0U;
-        std::uint32_t nextTriggerOrdinal = 0U;
-        std::uint32_t liveContributions = 0U;
-    };
-
     EffectiveValueEngine* engine_ = nullptr;
     PropertyValueRank setterRank_ = PropertyValueRank::Default;
     PropertyValueRank triggerRank_ = PropertyValueRank::Default;
-    Base::HashMap<ContributionKey, PropertyProviderToken,
-        ContributionKeyHash> setterRecords_;
-    Base::HashMap<ContributionKey, Base::Vector<PropertyProviderToken>,
-        ContributionKeyHash> triggerRecords_;
-    Base::HashMap<DependencyObject*, ObjectState> states_;
-
-    Base::Result<ObjectState*> EnsureState(
-        DependencyObject& object) noexcept {
-        if (ObjectState* existing = states_.Find(&object)) {
-            return existing;
-        }
-        Base::HashMap<DependencyObject*, ObjectState>::
-            InsertResult inserted = states_.Insert(
-                &object, ObjectState{});
-        return &inserted.entry->Value();
-    }
+    std::uint32_t setterOrigin_ = 0U;
+    std::uint32_t triggerOrigin_ = 0U;
+    std::uint32_t nextTriggerOrdinal_ = 0U;
 
     Base::Result<std::uint32_t> EnsureOrigin(
         std::uint32_t& origin) noexcept {
@@ -516,14 +360,6 @@ private:
                 message);
         }
         return next++;
-    }
-
-    void PruneState(DependencyObject& object) noexcept {
-        // C1: liveness is tracked inline; no record scan needed.
-        ObjectState* state = states_.Find(&object);
-        if (state != nullptr && state->liveContributions == 0U) {
-            states_.Erase(&object);
-        }
     }
 };
 

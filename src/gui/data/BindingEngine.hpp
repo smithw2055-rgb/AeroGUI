@@ -141,6 +141,14 @@ struct MetadataBindingDescriptor {
     PropertyValue targetNullValue;
     BindingDiagnosticCallback diagnostic = nullptr;
     void* diagnosticContext = nullptr;
+
+    static MetadataBindingDescriptor FromBinding(
+        const Data::Binding& binding,
+        DependencyObject& target,
+        DependencyPropertyHandle targetProperty,
+        Meta::Registry* metadata,
+        Base::Object* explicitSource = nullptr,
+        DependencyObject* dataContextOwner = nullptr) noexcept;
 };
 
 } // namespace Aero::Data

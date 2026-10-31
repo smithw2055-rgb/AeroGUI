@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Controls/Control.hpp>
+#include <Aero/FrameworkElement.hpp>
 
 namespace Aero::Controls {
 
@@ -23,15 +24,14 @@ enum class PopupAnimation : std::uint8_t {
     Scroll,
 };
 
-class AERO_GUI_API Popup : public ContentControl {
-    AERO_DECLARE_TYPE(Popup, ContentControl)
+class AERO_GUI_API Popup : public FrameworkElement {
+    AERO_DECLARE_TYPE(Popup, FrameworkElement)
 
 public:
     Popup() noexcept;
     ~Popup() override;
 
     UIElement* GetChild() const noexcept;
-    UIElement* GetContentElement() const noexcept override;
     void SetChild(UIElement* child) noexcept;
     void SetChild(Ref<UIElement> child) noexcept;
     void SetChild(std::nullptr_t) noexcept;
@@ -81,6 +81,7 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
+    Ref<UIElement> child_;
     Size popupDesiredSize_;
 };
 

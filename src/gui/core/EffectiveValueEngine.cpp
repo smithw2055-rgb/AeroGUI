@@ -993,7 +993,6 @@ DependencyObject::~DependencyObject() {
 namespace Aero::Meta {
 namespace {
 
-constexpr std::uint32_t EffectiveInvalidIndex = UINT32_MAX;
 
 [[maybe_unused]] Base::Status InvalidProviderStatus() noexcept {
     return Base::Status::Failure(
@@ -1235,11 +1234,25 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         const PropertyMetadata* metadata = prop->MetadataFor(child.RuntimeType());
         if (metadata == nullptr) continue;
 
-        if (child.FindStoredEntry(inheritableHandle) != nullptr) {
-            continue;
+        if (const StoredValueEntry* entry = child.FindStoredEntry(inheritableHandle)) {
+            if (entry->HasLocal() || entry->SourceInfo().rank > Meta::PropertyValueRank::Inherited) {
+                continue;
+            }
         }
 
-        bool needsQueue = (parent != nullptr || previousParent != nullptr);
+        auto hasAncestorEntry = [this, inheritableHandle](DependencyObject* start) noexcept {
+            DependencyObject* cursor = start;
+            std::uint32_t depth = 0U;
+            while (cursor != nullptr && depth++ < 100U) {
+                if (cursor->FindStoredEntry(inheritableHandle) != nullptr) {
+                    return true;
+                }
+                cursor = InheritanceParent(*cursor);
+            }
+            return false;
+        };
+
+        const bool needsQueue = hasAncestorEntry(parent) || hasAncestorEntry(previousParent);
 
         if (needsQueue) {
             Base::Result<void> queued = QueueObjectProperty(child, inheritableHandle);
@@ -1515,6 +1528,19 @@ Base::Result<std::uint32_t> EffectiveValueEngine::ClearProviderOrigin(
         if (!queued) return queued.GetStatus();
     }
     return removed;
+}
+
+Base::Result<bool> EffectiveValueEngine::ClearProviderOrigin(
+    DependencyObject& object,
+    DependencyPropertyHandle property,
+    std::uint32_t origin) noexcept {
+    Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    if (origin == 0U) return false;
+    const bool cleared = object.ClearProviderOriginInternal(property, origin);
+    if (!cleared) return false;
+    Base::Result<void> queued = QueueObjectProperty(object, property);
+    if (!queued) return queued.GetStatus();
+    return true;
 }
 
 Base::Result<void> EffectiveValueEngine::SetLocalExpression(

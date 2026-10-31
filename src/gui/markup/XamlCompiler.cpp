@@ -4972,14 +4972,11 @@ CompileTemplateToBytecode(
         builder.EmitCreateObject(slot, nodes[slot].type);
     }
 
-    // 2. Set properties, grids, geometries, stops, behaviors/triggers
+    // 2A. Set value properties, grids, geometries, stops, behaviors/triggers
     for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
         const PrototypeNodeRecord& node = nodes[slot];
         for (const TemplatePrototypeProperty& prop : node.properties) {
-            if (prop.objectNode != UINT32_MAX) {
-                builder.EmitSetPropertyObject(
-                    slot, prop.property, prop.value.Type(), static_cast<std::uint16_t>(prop.objectNode));
-            } else {
+            if (prop.objectNode == UINT32_MAX) {
                 builder.EmitSetPropertyValue(slot, prop.property, prop.value);
             }
         }
@@ -5003,6 +5000,18 @@ CompileTemplateToBytecode(
         if (!node.authoredBehaviors.Empty() || !node.authoredTriggers.Empty()) {
             builder.EmitAttachBehaviorsAndTriggers(
                 slot, node.authoredBehaviors.AsSpan(), node.authoredTriggers.AsSpan());
+        }
+    }
+
+    // 2B. Bottom-up connect object properties (ensure child Freezables/resources are fully initialized)
+    for (std::uint32_t i = nodes.Size(); i > 0U; --i) {
+        const auto slot = static_cast<std::uint16_t>(i - 1U);
+        const PrototypeNodeRecord& node = nodes[slot];
+        for (const TemplatePrototypeProperty& prop : node.properties) {
+            if (prop.objectNode != UINT32_MAX) {
+                builder.EmitSetPropertyObject(
+                    slot, prop.property, prop.value.Type(), static_cast<std::uint16_t>(prop.objectNode));
+            }
         }
     }
 
@@ -5316,7 +5325,6 @@ CompilePropertyTriggers(
             continue;
         }
         if (!configured) return configured.GetStatus();
-        Base::Result<void> added{};
         compiled.PushBack(
                 std::move(trigger));
     }

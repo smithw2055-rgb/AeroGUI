@@ -18,6 +18,7 @@
 #include <cmath>
 #include <utility>
 #include "gui/core/DependencyObjectAccess.hpp"
+#include "gui/ViewFrame.hpp"
 
 namespace Aero::Controls {
 
@@ -321,6 +322,10 @@ void AttachPresenterChild(FrameworkElement& presenter, UIElement& child,
         }
         (void)tree->AttachVisualChild(presenter, child);
     }
+    if (ViewFrame* vf = tree->GetViewState()) {
+        static_cast<void>(ViewFrame::GeneratedItemSubtreeChanged(
+            child, ItemSubtreeChange::Mounted, vf));
+    }
 }
 
 void DetachPresenterChild(FrameworkElement& presenter, UIElement& child) noexcept {
@@ -456,26 +461,40 @@ Size PresenterArrangeCells(
 
 } // namespace
 
+// ---- GridViewRowPresenterBase ----
+
+namespace Primitives {
+
+GridViewRowPresenterBase::~GridViewRowPresenterBase() {
+    ClearCells();
+}
+
+std::uint32_t GridViewRowPresenterBase::GetVisualChildrenCount() const noexcept {
+    return PresenterVisualChildrenCount(*this, ownedCells_);
+}
+
+::Aero::Media::Visual* GridViewRowPresenterBase::GetVisualChild(std::uint32_t index) const noexcept {
+    return PresenterVisualChild(*this, ownedCells_, index);
+}
+
+std::uint32_t GridViewRowPresenterBase::GetLayoutChildrenCount() const noexcept {
+    return PresenterLayoutChildrenCount(*this, ownedCells_);
+}
+
+UIElement* GridViewRowPresenterBase::GetLayoutChild(std::uint32_t index) const noexcept {
+    return PresenterLayoutChild(*this, ownedCells_, index);
+}
+
+void GridViewRowPresenterBase::ClearCells() noexcept {
+    PresenterClearCells(*this, ownedCells_);
+}
+
+} // namespace Primitives
+
 // ---- GridViewHeaderRowPresenter ----
 
 GridViewHeaderRowPresenter::~GridViewHeaderRowPresenter() {
     ClearCells();
-}
-
-std::uint32_t GridViewHeaderRowPresenter::GetVisualChildrenCount() const noexcept {
-    return PresenterVisualChildrenCount(*this, ownedCells_);
-}
-
-::Aero::Media::Visual* GridViewHeaderRowPresenter::GetVisualChild(std::uint32_t index) const noexcept {
-    return PresenterVisualChild(*this, ownedCells_, index);
-}
-
-std::uint32_t GridViewHeaderRowPresenter::GetLayoutChildrenCount() const noexcept {
-    return PresenterLayoutChildrenCount(*this, ownedCells_);
-}
-
-UIElement* GridViewHeaderRowPresenter::GetLayoutChild(std::uint32_t index) const noexcept {
-    return PresenterLayoutChild(*this, ownedCells_, index);
 }
 
 void GridViewHeaderRowPresenter::OnPropertyChanged(
@@ -567,22 +586,6 @@ GridViewRowPresenter::~GridViewRowPresenter() {
     ClearCells();
 }
 
-std::uint32_t GridViewRowPresenter::GetVisualChildrenCount() const noexcept {
-    return PresenterVisualChildrenCount(*this, ownedCells_);
-}
-
-::Aero::Media::Visual* GridViewRowPresenter::GetVisualChild(std::uint32_t index) const noexcept {
-    return PresenterVisualChild(*this, ownedCells_, index);
-}
-
-std::uint32_t GridViewRowPresenter::GetLayoutChildrenCount() const noexcept {
-    return PresenterLayoutChildrenCount(*this, ownedCells_);
-}
-
-UIElement* GridViewRowPresenter::GetLayoutChild(std::uint32_t index) const noexcept {
-    return PresenterLayoutChild(*this, ownedCells_, index);
-}
-
 void GridViewRowPresenter::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (args.GetProperty() == ColumnsProperty.Handle() ||
@@ -601,13 +604,7 @@ void GridViewRowPresenter::OnDataContextChanged(
 }
 
 void GridViewRowPresenter::ClearCells() noexcept {
-    for (const auto& owned : ownedCells_) {
-        if (!owned) continue;
-        if (auto* element = ::Aero::TryCast<UIElement>(owned.Get())) {
-            DetachPresenterChild(*this, *element);
-        }
-    }
-    ownedCells_.Clear();
+    GridViewRowPresenterBase::ClearCells();
     lastItem_.Reset();
     lastView_ = nullptr;
     lastColumnCount_ = 0U;
@@ -656,70 +653,58 @@ void GridViewRowPresenter::RebuildIfNeeded() noexcept {
             // WPF: DisplayMemberBinding has priority over CellTemplate.
             cellTemplate.Reset();
         }
+        Base::Ref<Base::Object> cellElement;
         if (cellTemplate) {
             Base::Result<Base::Ref<Base::Object>> created =
                 FrameworkTemplateState::Instantiate(*cellTemplate, item, bindings);
-            if (!created || !created.Value()) continue;
-            Base::Ref<Base::Object> owned = std::move(created).Value();
-            auto* element = ::Aero::TryCast<UIElement>(owned.Get());
-            if (element == nullptr) continue;
-            if (auto* fe = ::Aero::TryCast<FrameworkElement>(element)) {
-                // Ensure template content binds against the row item.
-                fe->SetDataContext(Value::FromObject(item->RuntimeType(), item));
+            if (created && created.Value()) {
+                cellElement = std::move(created).Value();
+                if (auto* fe = ::Aero::TryCast<FrameworkElement>(cellElement.Get())) {
+                    fe->SetDataContext(Value::FromObject(item->RuntimeType(), item));
+                }
             }
-            AttachPresenterChild(*this, *element, owned);
-            ownedCells_.PushBack(std::move(owned));
-            continue;
-        }
-        Base::StringView pathView;
-        Base::StringView formatView;
-        Base::Ref<Data::IValueConverter> converter;
-        Value converterParameter;
-        Value fallback;
-        Value nullValue;
-        Data::BindingMode mode = Data::BindingMode::Default;
-        UpdateSourceTrigger trigger = UpdateSourceTrigger::Default;
-        if (displayBinding) {
-            pathView = displayBinding->GetPathText();
-            formatView = displayBinding->GetStringFormat();
-            converter = displayBinding->GetConverter();
-            converterParameter = displayBinding->GetConverterParameter();
-            fallback = displayBinding->GetFallbackValue();
-            nullValue = displayBinding->GetTargetNullValue();
-            mode = displayBinding->GetMode();
-            trigger = displayBinding->GetUpdateSourceTrigger();
-        } else if (!displayPath.Empty()) {
-            pathView = displayPath;
         } else {
-            continue;
+            Base::StringView pathView;
+            if (displayBinding) {
+                pathView = displayBinding->GetPathText();
+            } else if (!displayPath.Empty()) {
+                pathView = displayPath;
+            }
+            Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
+            if (text) {
+                text->SetDataContext(Value::FromObject(item->RuntimeType(), item));
+                if (bindings != nullptr && bindings->Metadata() != nullptr) {
+                    Data::MetadataBindingDescriptor descriptor = displayBinding != nullptr
+                        ? Data::MetadataBindingDescriptor::FromBinding(
+                            *displayBinding,
+                            *text,
+                            TextBlock::TextProperty.Handle(),
+                            bindings->Metadata(),
+                            item.Get())
+                        : Data::MetadataBindingDescriptor::FromBinding(
+                            Data::Binding(pathView),
+                            *text,
+                            TextBlock::TextProperty.Handle(),
+                            bindings->Metadata(),
+                            item.Get());
+                    if (pathView.Empty()) {
+                        descriptor.bindsToSource = true;
+                    }
+                    (void)bindings->QueueDeferred(descriptor);
+                    (void)bindings->ActivateDeferredWhenReady(*text);
+                }
+                cellElement = std::move(text);
+            }
         }
-        if (pathView.Empty()) continue;
-        Base::Ref<TextBlock> text = Base::MakeRef<TextBlock>();
-        if (!text) continue;
-        text->SetDataContext(Value::FromObject(item->RuntimeType(), item));
-        if (bindings != nullptr && bindings->Metadata() != nullptr) {
-            Data::MetadataBindingDescriptor descriptor;
-            descriptor.metadata = bindings->Metadata();
-            descriptor.source = item.Get();
-            descriptor.target = text.Get();
-            descriptor.targetProperty = TextBlock::TextProperty.Handle();
-            descriptor.path = pathView;
-            descriptor.stringFormat = formatView;
-            descriptor.mode = Aero::BindingEngine::ResolveBindingMode(
-                *text, TextBlock::TextProperty.Handle(), mode);
-            descriptor.updateSourceTrigger =
-                Aero::BindingEngine::ResolveUpdateSourceTrigger(
-                    *text, TextBlock::TextProperty.Handle(), trigger);
-            descriptor.converterResource = converter;
-            descriptor.converterParameter = converterParameter;
-            descriptor.fallbackValue = fallback;
-            descriptor.targetNullValue = nullValue;
-            (void)bindings->QueueDeferred(descriptor);
-            (void)bindings->ActivateDeferredWhenReady(*text);
+        if (!cellElement) {
+            cellElement = Base::MakeRef<TextBlock>();
         }
-        Base::Ref<Base::Object> owned(text);
-        AttachPresenterChild(*this, *text, owned);
-        ownedCells_.PushBack(std::move(owned));
+        if (cellElement) {
+            if (auto* ui = ::Aero::TryCast<UIElement>(cellElement.Get())) {
+                AttachPresenterChild(*this, *ui, cellElement);
+            }
+            ownedCells_.PushBack(std::move(cellElement));
+        }
     }
 }
 
@@ -805,6 +790,12 @@ AERO_DESCRIBE(GridView) {
         .Factory();
 }
 
+AERO_DESCRIBE(Primitives::GridViewRowPresenterBase) {
+    using namespace Aero::Meta;
+    Register<Primitives::GridViewRowPresenterBase>(context, TypeFlags::Abstract)
+        .Property(Primitives::GridViewRowPresenterBase::ColumnsProperty, Base::Ref<Base::Object>{});
+}
+
 AERO_DESCRIBE(GridViewHeaderRowPresenter) {
     using namespace Aero::Meta;
     Register<GridViewHeaderRowPresenter>(context)
@@ -814,14 +805,12 @@ AERO_DESCRIBE(GridViewHeaderRowPresenter) {
         .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateProperty, Base::Ref<Base::Object>{})
         .Property(GridViewHeaderRowPresenter::ColumnHeaderTemplateSelectorProperty, Base::Ref<Base::Object>{})
         .Property(GridViewHeaderRowPresenter::ColumnHeaderToolTipProperty, Base::Ref<Base::Object>{})
-        .Property(GridViewHeaderRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
         .Factory();
 }
 
 AERO_DESCRIBE(GridViewRowPresenter) {
     using namespace Aero::Meta;
     Register<GridViewRowPresenter>(context)
-        .Property(GridViewRowPresenter::ColumnsProperty, Base::Ref<Base::Object>{})
         .Property(GridViewRowPresenter::ContentProperty, Base::Ref<Base::Object>{})
         .Factory();
 }

@@ -85,18 +85,7 @@ void ButtonBase::OnClick() {
     RoutedEventArgs args;
     RaiseEvent(ClickEvent, &args);
 
-    ICommand* command = GetCommand();
-    if (command != nullptr) {
-        UIElement* target = GetCommandTarget();
-        if (target == nullptr) target = this;
-        const Value parameter = GetCommandParameter();
-        Aero::InputRouter* input = ElementTree::InputOf(*this);
-        if (input != nullptr) {
-            static_cast<void>(input->Execute(*command, parameter, *target));
-        } else {
-            command->Execute(parameter, target);
-        }
-    }
+    CommandHelpers::Execute(*this, GetCommand(), GetCommandParameter(), GetCommandTarget());
 }
 
 void ButtonBase::UpdateVisualState(bool useTransitions) noexcept {
@@ -182,20 +171,7 @@ void ButtonBase::UnhookCommand() noexcept {
 }
 
 void ButtonBase::RefreshCanExecute() noexcept {
-    ICommand* command = GetCommand();
-    bool enabled = true;
-    if (command != nullptr) {
-        UIElement* target = GetCommandTarget();
-        if (target == nullptr) target = this;
-        const Value parameter = GetCommandParameter();
-        Aero::InputRouter* input = ElementTree::InputOf(*this);
-        if (input != nullptr) {
-            enabled = input->CanExecute(*command, parameter, *target);
-        } else {
-            enabled = command->CanExecute(parameter, target);
-        }
-    }
-    commandEnabled_ = enabled;
+    commandEnabled_ = CommandHelpers::CanExecute(*this, GetCommand(), GetCommandParameter(), GetCommandTarget());
     CoerceValue(UIElement::IsEnabledProperty.Handle());
     UpdateVisualState();
 }
@@ -368,42 +344,29 @@ void ToggleButton::OnPropertyChanged(const DependencyPropertyChangedEventArgs& a
 // ---------------------------------------------------------------------------
 
 static void UncheckRadioSiblings(DependencyObject& container, RadioButton& current, Base::StringView group) noexcept {
+    auto visitChild = [&](DependencyObject* child) noexcept {
+        if (child == nullptr || child == &current) return;
+        if (auto* radio = ::Aero::TryCast<RadioButton>(child)) {
+            if (radio->GetGroupName() == group) {
+                const Nullable<bool> isChecked = radio->GetIsChecked();
+                if (isChecked.GetHasValue() && isChecked.GetValue()) {
+                    radio->SetIsChecked(false);
+                }
+            }
+        } else {
+            UncheckRadioSiblings(*child, current, group);
+        }
+    };
+
     const std::uint32_t logicalCount = LogicalTreeHelper::GetChildrenCount(container);
     if (logicalCount > 0) {
         for (std::uint32_t i = 0; i < logicalCount; ++i) {
-            DependencyObject* child = LogicalTreeHelper::GetChild(container, i);
-            if (child == nullptr) continue;
-            if (child != &current && child->RuntimeType() == RadioButton::StaticTypeId()) {
-                auto* radio = static_cast<RadioButton*>(child);
-                if (radio->GetGroupName() == group) {
-                    const Nullable<bool> isChecked = radio->GetIsChecked();
-                    if (isChecked.GetHasValue() && isChecked.GetValue()) {
-                        radio->SetIsChecked(false);
-                    }
-                }
-            } else if (child->RuntimeType() != RadioButton::StaticTypeId()) {
-                UncheckRadioSiblings(*child, current, group);
-            }
+            visitChild(LogicalTreeHelper::GetChild(container, i));
         }
-    } else {
-        auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(&container);
-        if (visual != nullptr) {
-            const std::uint32_t visualCount = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
-            for (std::uint32_t i = 0; i < visualCount; ++i) {
-                ::Aero::Media::Visual* childVisual = ::Aero::Media::VisualTreeHelper::GetChild(*visual, i);
-                if (childVisual == nullptr) continue;
-                if (childVisual != &current && childVisual->RuntimeType() == RadioButton::StaticTypeId()) {
-                    auto* radio = static_cast<RadioButton*>(childVisual);
-                    if (radio->GetGroupName() == group) {
-                        const Nullable<bool> isChecked = radio->GetIsChecked();
-                        if (isChecked.GetHasValue() && isChecked.GetValue()) {
-                            radio->SetIsChecked(false);
-                        }
-                    }
-                } else if (childVisual->RuntimeType() != RadioButton::StaticTypeId()) {
-                    UncheckRadioSiblings(*childVisual, current, group);
-                }
-            }
+    } else if (auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(&container)) {
+        const std::uint32_t visualCount = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
+        for (std::uint32_t i = 0; i < visualCount; ++i) {
+            visitChild(::Aero::Media::VisualTreeHelper::GetChild(*visual, i));
         }
     }
 }

@@ -374,6 +374,31 @@ void DisplayListBuilder::DrawMesh(
     list_.headers_.PushBack(h);
 }
 
+void DisplayListBuilder::DrawPatternMesh(
+    RenderMeshId mesh,
+    RenderImageId image,
+    Rect bounds,
+    Rect viewbox,
+    Color tint,
+    float opacity,
+    std::uint8_t wrapMode) noexcept {
+    if (mesh == InvalidRenderMeshId || image == InvalidRenderImageId || finished_) {
+        return;
+    }
+    CmdDrawPatternMesh cmd{};
+    cmd.mesh = mesh;
+    cmd.image = image;
+    cmd.bounds = bounds;
+    cmd.viewbox = viewbox;
+    cmd.tint = tint;
+    cmd.opacity = opacity;
+    RenderCommandHeader h{};
+    h.kind = RenderCommandKind::DrawPatternMesh;
+    h.wrapMode = wrapMode;
+    h.payloadOffset = AppendPayload(cmd);
+    list_.headers_.PushBack(h);
+}
+
 void DisplayListBuilder::DrawGlyphRun(
     RenderGlyphRunId glyphRun,
     Color tint) noexcept {
@@ -754,6 +779,13 @@ Base::Result<void> ValidateRenderFrame(const RenderFrame& frame) noexcept {
             const auto& cmd = frame.PayloadAt<CmdDrawGradientMesh>(h.payloadOffset);
             if (cmd.mesh == InvalidRenderMeshId || !IsFinite(cmd.tint)) {
                 return InvalidArgument("RenderFrame contains invalid DrawGradientMesh");
+            }
+            break;
+        }
+        case RenderCommandKind::DrawPatternMesh: {
+            const auto& cmd = frame.PayloadAt<CmdDrawPatternMesh>(h.payloadOffset);
+            if (cmd.mesh == InvalidRenderMeshId || cmd.image == InvalidRenderImageId || !IsFinite(cmd.tint)) {
+                return InvalidArgument("RenderFrame contains invalid DrawPatternMesh");
             }
             break;
         }

@@ -290,28 +290,13 @@ BindingExpression BindingOperations::SetBinding(
         return {};
     }
 
-    MetadataBindingDescriptor descriptor;
-    descriptor.metadata = engine->Metadata();
-    descriptor.source = source;
-    descriptor.target = target;
-    descriptor.targetProperty = property;
-    if (!isExplicitSource) {
-        descriptor.dataContextProperty =
-            FrameworkElement::DataContextProperty.Handle();
-        descriptor.dataContextOwner = target;
-    }
-    descriptor.path = binding.GetPathText();
-    descriptor.stringFormat = binding.GetStringFormat();
-    descriptor.bindsToSource = binding.GetPath().GetIsEmpty();
-    descriptor.mode = BindingEngine::ResolveBindingMode(
-        *target, property, binding.GetMode());
-    descriptor.updateSourceTrigger =
-        BindingEngine::ResolveUpdateSourceTrigger(
-            *target, property, binding.GetUpdateSourceTrigger());
-    descriptor.converterResource = binding.GetConverter();
-    descriptor.converterParameter = binding.GetConverterParameter();
-    descriptor.fallbackValue = binding.GetFallbackValue();
-    descriptor.targetNullValue = binding.GetTargetNullValue();
+    MetadataBindingDescriptor descriptor =
+        MetadataBindingDescriptor::FromBinding(
+            binding,
+            *target,
+            property,
+            engine->Metadata(),
+            source);
 
     Base::Result<BindingHandle> attached = engine->Attach(descriptor);
     if (!attached) return {};

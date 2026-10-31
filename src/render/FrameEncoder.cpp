@@ -528,10 +528,21 @@ void UiFrameEncoder::CommitBatches() noexcept {
         pendingReleaseTargets_.Clear();
     }
 
+    currentBatch_.pattern = nullptr;
+    currentBatch_.ramps = nullptr;
+    currentBatch_.image = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.pixelUniforms[0] = {};
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
+
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
     currentBatchVertexStart_ = 0U;
+    currentBatch_ = Batch{};
     currentBatch_.startIndex = 0U;
     currentBatch_.vertexOffset = 0U;
     currentBatch_.numIndices = 0U;
@@ -668,11 +679,25 @@ void UiFrameEncoder::EmitTriangleFan(
 void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
     if (currentBatch_.numIndices > 0U &&
         (currentBatch_.shader != shader ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.ramps != nullptr ||
+         currentBatch_.image != nullptr ||
+         currentBatch_.glyphs != nullptr ||
+         currentBatch_.shadow != nullptr ||
          currentBatch_.renderState.f.colorEnable != 1U ||
          currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
         FlushBatch();
     }
     currentBatch_.shader = shader;
+    currentBatch_.pattern = nullptr;
+    currentBatch_.ramps = nullptr;
+    currentBatch_.image = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.pixelUniforms[0] = {};
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
     AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
     AssignColorEnable(currentBatch_.renderState, 1U);
 }
@@ -686,14 +711,24 @@ void UiFrameEncoder::SetBatchImage(
         (currentBatch_.shader != shader ||
          currentBatch_.image != texture ||
          currentBatch_.shadow != maskTexture ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.ramps != nullptr ||
+         currentBatch_.glyphs != nullptr ||
          currentBatch_.renderState.f.colorEnable != 1U ||
          currentBatch_.renderState.f.blendMode !=
              static_cast<uint8_t>(currentBlendMode_))) {
         FlushBatch();
     }
     currentBatch_.shader = shader;
+    currentBatch_.pattern = nullptr;
+    currentBatch_.ramps = nullptr;
     currentBatch_.image = texture;
+    currentBatch_.glyphs = nullptr;
     currentBatch_.shadow = maskTexture;
+    currentBatch_.pixelUniforms[0] = {};
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
     currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.shadowSampler.f.wrapMode = WrapMode::ClampToEdge;
@@ -715,6 +750,10 @@ void UiFrameEncoder::SetBatchRamp(
          currentBatch_.ramps != ramp ||
          currentBatch_.rampsSampler.f.wrapMode != wrapMode ||
          uniformsDiffer ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.image != nullptr ||
+         currentBatch_.glyphs != nullptr ||
+         currentBatch_.shadow != nullptr ||
          currentBatch_.renderState.f.colorEnable != 1U ||
          currentBatch_.renderState.f.blendMode !=
              static_cast<uint8_t>(currentBlendMode_))) {
@@ -722,7 +761,14 @@ void UiFrameEncoder::SetBatchRamp(
     }
     std::memcpy(paintUniforms_, uniforms, sizeof(paintUniforms_));
     currentBatch_.shader = shader;
+    currentBatch_.pattern = nullptr;
     currentBatch_.ramps = ramp;
+    currentBatch_.image = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
     currentBatch_.rampsSampler.f.wrapMode = wrapMode;
     currentBatch_.rampsSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.pixelUniforms[0].values = paintUniforms_;
@@ -1129,12 +1175,26 @@ void UiFrameEncoder::EmitClipQuad(
     std::uint8_t stencilRef) noexcept {
     if (currentBatch_.numIndices > 0U &&
         (currentBatch_.shader != Shader::Path_Solid ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.ramps != nullptr ||
+         currentBatch_.image != nullptr ||
+         currentBatch_.glyphs != nullptr ||
+         currentBatch_.shadow != nullptr ||
          currentBatch_.renderState.f.colorEnable != 0U ||
          currentBatch_.renderState.f.stencilMode != stencilMode ||
          currentBatch_.stencilRef != stencilRef)) {
         FlushBatch();
     }
     currentBatch_.shader = Shader::Path_Solid;
+    currentBatch_.pattern = nullptr;
+    currentBatch_.ramps = nullptr;
+    currentBatch_.image = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.pixelUniforms[0] = {};
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
     AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
     AssignColorEnable(currentBatch_.renderState, 0U);
     AssignStencilMode(currentBatch_.renderState, stencilMode);
@@ -1170,12 +1230,26 @@ void UiFrameEncoder::EmitClipTriangles(
     }
     if (currentBatch_.numIndices > 0U &&
         (currentBatch_.shader != Shader::Path_Solid ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.ramps != nullptr ||
+         currentBatch_.image != nullptr ||
+         currentBatch_.glyphs != nullptr ||
+         currentBatch_.shadow != nullptr ||
          currentBatch_.renderState.f.colorEnable != 0U ||
          currentBatch_.renderState.f.stencilMode != stencilMode ||
          currentBatch_.stencilRef != stencilRef)) {
         FlushBatch();
     }
     currentBatch_.shader = Shader::Path_Solid;
+    currentBatch_.pattern = nullptr;
+    currentBatch_.ramps = nullptr;
+    currentBatch_.image = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.pixelUniforms[0] = {};
+    currentBatch_.pixelUniforms[1] = {};
+    currentBatch_.vertexUniforms[0] = {};
+    currentBatch_.vertexUniforms[1] = {};
     AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
     AssignColorEnable(currentBatch_.renderState, 0U);
     AssignStencilMode(currentBatch_.renderState, stencilMode);
@@ -1382,7 +1456,7 @@ void UiFrameEncoder::ProcessCommand(
     case RenderCommandKind::FillRect: {
         const auto* cmd = currentFrame_->PayloadPtr<CmdFillRect>(h.payloadOffset);
         if (cmd == nullptr) break;
-        EnsureBatchBlend(Shader::Path_Solid);
+        EnsureBatchBlend(ToPPAAShader(Shader::Path_Solid, enablePPAA_));
         SetContentStencil();
 
         const Point p0 = TransformPoint(currentTransform, cmd->rect.x, cmd->rect.y);
@@ -1485,11 +1559,21 @@ void UiFrameEncoder::ProcessCommand(
         EmitTriangleFan(transformedContour, contourCount, center, c);
 
         if (enablePPAA_) {
+            const double scaleX = std::sqrt(
+                currentTransform.m11 * currentTransform.m11 +
+                currentTransform.m12 * currentTransform.m12);
+            const double scaleY = std::sqrt(
+                currentTransform.m21 * currentTransform.m21 +
+                currentTransform.m22 * currentTransform.m22);
+            const double aaX = scaleX > 1.0e-4 ? 0.5 / scaleX : 0.5;
+            const double aaY = scaleY > 1.0e-4 ? 0.5 / scaleY : 0.5;
+            const double aaRadius = (aaX + aaY) * 0.5;
+
             Point outer[kMaxRoundedRectContourPoints];
             BuildRoundedRectContour(
-                cmd->rect.x - 0.5, cmd->rect.y - 0.5,
-                cmd->rect.width + 1.0, cmd->rect.height + 1.0,
-                radius + 0.5, cornerSegments, outer);
+                cmd->rect.x - aaX, cmd->rect.y - aaY,
+                cmd->rect.width + aaX * 2.0, cmd->rect.height + aaY * 2.0,
+                radius + aaRadius, cornerSegments, outer);
             Color cZero = c;
             cZero.alpha = 0.0f;
             const Point uvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
@@ -1553,11 +1637,21 @@ void UiFrameEncoder::ProcessCommand(
         }
 
         if (enablePPAA_) {
+            const double scaleX = std::sqrt(
+                currentTransform.m11 * currentTransform.m11 +
+                currentTransform.m12 * currentTransform.m12);
+            const double scaleY = std::sqrt(
+                currentTransform.m21 * currentTransform.m21 +
+                currentTransform.m22 * currentTransform.m22);
+            const double aaX = scaleX > 1.0e-4 ? 0.5 / scaleX : 0.5;
+            const double aaY = scaleY > 1.0e-4 ? 0.5 / scaleY : 0.5;
+            const double aaRadius = (aaX + aaY) * 0.5;
+
             Point outerAA[kMaxRoundedRectContourPoints];
             BuildRoundedRectContour(
-                r.x - 0.5, r.y - 0.5,
-                r.width + 1.0, r.height + 1.0,
-                outerRadius + 0.5, cornerSegments, outerAA);
+                r.x - aaX, r.y - aaY,
+                r.width + aaX * 2.0, r.height + aaY * 2.0,
+                outerRadius + aaRadius, cornerSegments, outerAA);
             Color cZero = c;
             cZero.alpha = 0.0f;
             for (std::uint32_t i = 0U; i < contourCount; ++i) {
@@ -1574,9 +1668,9 @@ void UiFrameEncoder::ProcessCommand(
             if (innerRadius > 0.0 && innerW > 1.0 && innerH > 1.0) {
                 Point innerAA[kMaxRoundedRectContourPoints];
                 BuildRoundedRectContour(
-                    r.x + thickness + 0.5, r.y + thickness + 0.5,
-                    std::max(0.0, innerW - 1.0), std::max(0.0, innerH - 1.0),
-                    std::max(0.0, innerRadius - 0.5), cornerSegments, innerAA);
+                    r.x + thickness + aaX, r.y + thickness + aaY,
+                    std::max(0.0, innerW - aaX * 2.0), std::max(0.0, innerH - aaY * 2.0),
+                    std::max(0.0, innerRadius - aaRadius), cornerSegments, innerAA);
                 for (std::uint32_t i = 0U; i < contourCount; ++i) {
                     const std::uint32_t next = (i + 1U) % contourCount;
                     const Point pts[4] = {
@@ -1608,6 +1702,9 @@ void UiFrameEncoder::ProcessCommand(
                 (currentBatch_.shader != Shader::Path_Pattern ||
                  currentBatch_.pattern != tex ||
                  currentBatch_.image != tex ||
+                 currentBatch_.ramps != nullptr ||
+                 currentBatch_.glyphs != nullptr ||
+                 currentBatch_.shadow != nullptr ||
                  currentBatch_.patternSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.imageSampler.f.wrapMode != targetWrapMode ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
@@ -1616,11 +1713,23 @@ void UiFrameEncoder::ProcessCommand(
             }
             currentBatch_.shader = Shader::Path_Pattern;
             currentBatch_.pattern = tex;
+            currentBatch_.ramps = nullptr;
+            currentBatch_.image = tex;
+            currentBatch_.glyphs = nullptr;
+            currentBatch_.shadow = nullptr;
             currentBatch_.patternSampler.f.wrapMode = targetWrapMode;
             currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
-            currentBatch_.image = tex;
             currentBatch_.imageSampler.f.wrapMode = targetWrapMode;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
+            paintUniforms_[0] = static_cast<float>(currentOpacity * cmd->tint.alpha);
+            paintUniforms_[1] = 1.0f;
+            paintUniforms_[2] = 1.0f;
+            paintUniforms_[3] = 1.0f;
+            currentBatch_.pixelUniforms[0].values = paintUniforms_;
+            currentBatch_.pixelUniforms[0].numDwords = 4U;
+            currentBatch_.pixelUniforms[1] = {};
+            currentBatch_.vertexUniforms[0] = {};
+            currentBatch_.vertexUniforms[1] = {};
             AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
             AssignColorEnable(currentBatch_.renderState, 1U);
             SetContentStencil();
@@ -1666,6 +1775,10 @@ void UiFrameEncoder::ProcessCommand(
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::SDF_Solid ||
                  currentBatch_.glyphs != atlas ||
+                 currentBatch_.pattern != nullptr ||
+                 currentBatch_.ramps != nullptr ||
+                 currentBatch_.image != nullptr ||
+                 currentBatch_.shadow != nullptr ||
                  currentBatch_.renderState.f.colorEnable != 1U ||
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_) ||
                  currentBatch_.renderState.f.stencilMode != targetStencilMode ||
@@ -1675,7 +1788,14 @@ void UiFrameEncoder::ProcessCommand(
             glyphAtlasSizeUniform_[0] = static_cast<float>(atlas->GetWidth());
             glyphAtlasSizeUniform_[1] = static_cast<float>(atlas->GetHeight());
             currentBatch_.shader = Shader::SDF_Solid;
+            currentBatch_.pattern = nullptr;
+            currentBatch_.ramps = nullptr;
+            currentBatch_.image = nullptr;
             currentBatch_.glyphs = atlas;
+            currentBatch_.shadow = nullptr;
+            currentBatch_.pixelUniforms[0] = {};
+            currentBatch_.pixelUniforms[1] = {};
+            currentBatch_.vertexUniforms[0] = {};
             currentBatch_.vertexUniforms[1].values = glyphAtlasSizeUniform_;
             currentBatch_.vertexUniforms[1].numDwords = 2U;
             currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
@@ -1719,10 +1839,13 @@ void UiFrameEncoder::ProcessCommand(
         break;
     }
     case RenderCommandKind::DrawSolidMesh:
-    case RenderCommandKind::DrawGradientMesh: {
+    case RenderCommandKind::DrawGradientMesh:
+    case RenderCommandKind::DrawPatternMesh: {
         RenderMeshId meshId = InvalidRenderMeshId;
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F};
         bool isGradient = false;
+        bool isPattern = false;
+        Rect viewbox{0.0, 0.0, 1.0, 1.0};
         bool hasInverse = false;
         Base::Transform2D inverse{};
         Rect bounds{};
@@ -1736,7 +1859,7 @@ void UiFrameEncoder::ProcessCommand(
             if (cmd == nullptr) break;
             meshId = cmd->mesh;
             tint = cmd->tint;
-        } else {
+        } else if (h.kind == RenderCommandKind::DrawGradientMesh) {
             const auto* cmd = currentFrame_->PayloadPtr<CmdDrawGradientMesh>(h.payloadOffset);
             if (cmd == nullptr) break;
             meshId = cmd->mesh;
@@ -1772,6 +1895,50 @@ void UiFrameEncoder::ProcessCommand(
                     uniforms,
                     h.wrapMode);
             }
+        } else {
+            const auto* cmd = currentFrame_->PayloadPtr<CmdDrawPatternMesh>(h.payloadOffset);
+            if (cmd == nullptr) break;
+            meshId = cmd->mesh;
+            tint = cmd->tint;
+            isPattern = true;
+            bounds = cmd->bounds;
+            viewbox = cmd->viewbox;
+            Texture* tex = FindImage(cmd->image);
+            if (tex == nullptr) break;
+
+            const float opacityVal = static_cast<float>(currentOpacity * tint.alpha * cmd->opacity);
+            const float uniforms[4] = {opacityVal, 1.0f, 1.0f, 1.0f};
+            std::memcpy(paintUniforms_, uniforms, sizeof(uniforms));
+
+            const std::uint8_t targetWrapMode = h.wrapMode;
+            const Shader::Enum shader = ToPPAAShader(Shader::Path_Pattern, enablePPAA_);
+            if (currentBatch_.numIndices > 0U &&
+                (currentBatch_.shader != shader ||
+                 currentBatch_.pattern != tex ||
+                 currentBatch_.patternSampler.f.wrapMode != targetWrapMode ||
+                 currentBatch_.ramps != nullptr ||
+                 currentBatch_.image != nullptr ||
+                 currentBatch_.glyphs != nullptr ||
+                 currentBatch_.shadow != nullptr ||
+                 currentBatch_.renderState.f.colorEnable != 1U ||
+                 currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
+                FlushBatch();
+            }
+            currentBatch_.shader = shader;
+            currentBatch_.pattern = tex;
+            currentBatch_.ramps = nullptr;
+            currentBatch_.image = nullptr;
+            currentBatch_.glyphs = nullptr;
+            currentBatch_.shadow = nullptr;
+            currentBatch_.pixelUniforms[1] = {};
+            currentBatch_.vertexUniforms[0] = {};
+            currentBatch_.vertexUniforms[1] = {};
+            currentBatch_.patternSampler.f.wrapMode = targetWrapMode;
+            currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
+            currentBatch_.pixelUniforms[0].values = paintUniforms_;
+            currentBatch_.pixelUniforms[0].numDwords = 4U;
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+            AssignColorEnable(currentBatch_.renderState, 1U);
         }
 
         const MeshEntry* mesh = FindMesh(meshId);
@@ -1779,7 +1946,7 @@ void UiFrameEncoder::ProcessCommand(
             break;
         }
 
-        if (!isGradient) {
+        if (!isGradient && !isPattern) {
             EnsureBatchBlend(ToPPAAShader(Shader::Path_Solid, enablePPAA_));
         }
         SetContentStencil();
@@ -1837,6 +2004,13 @@ void UiFrameEncoder::ProcessCommand(
                     const double ry = std::fabs(radii.y) > 1.0e-6 ? radii.y : 1.0;
                     outU = static_cast<float>((sample.x - startOrOrigin.x) / rx);
                     outV = static_cast<float>((sample.y - startOrOrigin.y) / ry);
+                }
+            } else if (isPattern) {
+                if (bounds.width > 1.0e-6 && bounds.height > 1.0e-6) {
+                    const double uNorm = (local.x - bounds.x) / bounds.width;
+                    const double vNorm = (local.y - bounds.y) / bounds.height;
+                    outU = static_cast<float>(viewbox.x + uNorm * viewbox.width);
+                    outV = static_cast<float>(viewbox.y + vNorm * viewbox.height);
                 }
             }
         };
@@ -2334,7 +2508,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 offRoot = CombineTransform(viewbox, dpiPad);
                 ProjectiveTransform2D invViewbox{};
                 if (Base::Invert(viewbox, invViewbox)) {
-                    const ProjectiveTransform2D visualWithout = CombineTransform(invViewbox, node.renderTransform);
+                    const ProjectiveTransform2D visualWithout = CombineTransform(node.renderTransform, invViewbox);
                     const ProjectiveTransform2D localWithout = CombineTransform(visualWithout, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
                     compositeTransform = CombineTransform(localWithout, baseTransform);
                 }

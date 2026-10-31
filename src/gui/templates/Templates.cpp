@@ -28,6 +28,10 @@
 #include "gui/core/DependencyObjectAccess.hpp"
 
 
+namespace Aero::Markup {
+Base::Result<void> BuildCompiledTemplate(Controls::TemplateBuilder&, void*) noexcept;
+}
+
 namespace Aero::Controls {
 using Aero::Controls::TemplateEngine;
 using Aero::Controls::TemplateHandle;
@@ -723,7 +727,10 @@ FrameworkTemplate::~FrameworkTemplate() noexcept {
 
 Meta::TypeId FrameworkTemplate::GetTargetType() const noexcept {
     if (state_ == nullptr) return Meta::InvalidTypeId;
-    return state_->sealed ? state_->program.targetType : state_->targetType;
+    if (state_->targetType != Meta::InvalidTypeId) {
+        return state_->targetType;
+    }
+    return state_->program.targetType;
 }
 
 bool FrameworkTemplate::GetIsSealed() const noexcept {
@@ -870,6 +877,7 @@ Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
 Base::Result<void> FrameworkTemplateState::Seal(FrameworkTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
+    state->program.targetType = state->targetType;
     Base::Result<void> program = state->deferredProgram.Seal();
     if (!program) return program.GetStatus();
     state->resources.Seal();
@@ -1670,6 +1678,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Controls;
 
+
 Base::Result<void> FrameworkTemplateState::Materialize(
     const ControlTemplate& plan,
     TemplateBuildState& buildState,
@@ -1685,7 +1694,7 @@ Base::Result<void> FrameworkTemplateState::Materialize(
             : built.GetStatus();
     }
 
-    {
+    if (Factory(plan) != &Aero::Markup::BuildCompiledTemplate) {
         const std::uint32_t authoredPartCount = buildState.parts.Size();
         for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
             TemplatePart& part = buildState.parts[index];
@@ -1698,26 +1707,25 @@ Base::Result<void> FrameworkTemplateState::Materialize(
             context.PopulateContentPresenter(
                     *static_cast<ContentPresenter*>(part.object));
         }
-    }
 
-    Control* control = buildState.parent;
-    if (control != nullptr &&
-        properties.Types().IsDerivedFrom(
-            control->RuntimeType(),
-            ItemsControl::StaticTypeId())) {
-        auto& itemsControl = static_cast<ItemsControl&>(*control);
-        const std::uint32_t authoredPartCount = buildState.parts.Size();
-        for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
-            TemplatePart& part = buildState.parts[index];
-            if (part.object == nullptr ||
-                !properties.Types().IsDerivedFrom(
-                    part.object->RuntimeType(),
-                    ItemsPresenter::StaticTypeId())) {
-                continue;
+        Control* control = buildState.parent;
+        if (control != nullptr &&
+            properties.Types().IsDerivedFrom(
+                control->RuntimeType(),
+                ItemsControl::StaticTypeId())) {
+            auto& itemsControl = static_cast<ItemsControl&>(*control);
+            for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
+                TemplatePart& part = buildState.parts[index];
+                if (part.object == nullptr ||
+                    !properties.Types().IsDerivedFrom(
+                        part.object->RuntimeType(),
+                        ItemsPresenter::StaticTypeId())) {
+                    continue;
+                }
+                context.PopulateItemsPresenter(
+                        *static_cast<ItemsPresenter*>(part.object),
+                        itemsControl.GetItemsPanel().Get());
             }
-            context.PopulateItemsPresenter(
-                    *static_cast<ItemsPresenter*>(part.object),
-                    itemsControl.GetItemsPanel().Get());
         }
     }
     return {};
@@ -2432,11 +2440,8 @@ Base::Result<void> TemplateEngine::ClearAt(
         }
     }
     for (Aero::Controls::TemplatePart& part : instance.parts) {
-        if (part.object != nullptr) {
+        if (part.object != nullptr && part.visual == nullptr) {
             (void)values_->DetachObject(*part.object);
-        }
-        if (part.visual != nullptr && tree_ != nullptr) {
-            tree_->InvalidateNodeHandle(*part.visual);
         }
     }
     controlToInstance_.Erase(instance.parent);

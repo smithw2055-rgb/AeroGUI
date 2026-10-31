@@ -591,11 +591,8 @@ Base::Result<void> FreeTypeAdapter::Rasterize(
             ? bitmap.rows - 1U - row : row;
         const unsigned char* source =
             bitmap.buffer + sourceRow * static_cast<std::uint32_t>(pitch);
-        for (std::uint32_t column = 0U;
-             column < bitmap.width;
-             ++column) {
-            output.pixels[row * bitmap.width + column] =
-                source[column];
+        if (bitmap.width > 0U) {
+            std::memcpy(output.pixels.Data() + row * bitmap.width, source, bitmap.width);
         }
     }
     output.format = GlyphPixelFormat::Gray8;

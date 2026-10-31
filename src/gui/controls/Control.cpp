@@ -85,6 +85,14 @@ Size Control::ArrangeOverride(Size finalSize) noexcept {
 
 void Control::OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept {
     FrameworkElement::OnPropertyChanged(args);
+    if (args.GetProperty() == TemplateProperty.Handle()) {
+        if (IsTemplateApplied()) {
+            if (auto* templates = ElementTree::TemplatesOf(*this)) {
+                static_cast<void>(templates->Clear(*this));
+            }
+        }
+        InvalidateMeasure();
+    }
 }
 
 void Control::OnRender(::Aero::Media::DrawingContext& context) noexcept {
@@ -486,6 +494,15 @@ void ContentPresenter::ApplyContent() noexcept {
                     }
                 }
             }
+            if (!templateObj && source != Base::StringView("Content")) {
+                if (const Meta::DependencyProperty* tProp =
+                        registry.Find(templatedParent->RuntimeType(), Base::StringView("ContentTemplate"))) {
+                    Value tVal = templatedParent->GetValue(tProp->Handle());
+                    if (tVal.Kind() == Meta::ValueKind::Object && !tVal.IsNullObject()) {
+                        templateObj = tVal.AsObject();
+                    }
+                }
+            }
         }
     }
     const Value& value = contentValue_;
@@ -507,12 +524,23 @@ void ContentPresenter::ApplyContent() noexcept {
         }
     }
 
-    if (templateObj && templateObj->RuntimeType() == DataTemplate::StaticTypeId()) {
-        auto* dataTemplate = static_cast<DataTemplate*>(templateObj.Get());
-        Base::Ref<Base::Object> itemObj;
-        if (value.Kind() == Meta::ValueKind::Object && !value.IsNullObject()) {
-            itemObj = value.AsObject();
+    Base::Ref<Base::Object> itemObj;
+    if (value.Kind() == Meta::ValueKind::Object && !value.IsNullObject()) {
+        itemObj = value.AsObject();
+    }
+
+    if (!templateObj && itemObj) {
+        Base::Object* obj = itemObj.Get();
+        if (obj != nullptr && ::Aero::TryCast<UIElement>(obj) == nullptr) {
+            Base::Result<Value> implicitTemplate = FindResource(ResourceKey::FromType(obj->RuntimeType()));
+            if (implicitTemplate && implicitTemplate.Value().Kind() == Meta::ValueKind::Object && !implicitTemplate.Value().IsNullObject()) {
+                templateObj = implicitTemplate.Value().AsObject();
+            }
         }
+    }
+
+    auto* dataTemplate = templateObj ? ::Aero::TryCast<DataTemplate>(templateObj.Get()) : nullptr;
+    if (dataTemplate != nullptr) {
         if (itemObj) {
             if (content_ != nullptr && appliedTemplate_ == templateObj) {
                 if (auto* fe = ::Aero::TryCast<FrameworkElement>(content_)) {
@@ -593,66 +621,14 @@ void ContentPresenter::UpdatePresentedText() noexcept {
             return;
         }
     }
+    Aero::BindingEngine* bindings = ElementTree::BindingsOf(*this);
+    Meta::Registry* metadata = bindings != nullptr ? bindings->Metadata() : Meta::CurrentObjectFactory().metadata;
     Base::String text;
-    switch (contentValue_.Kind()) {
-    case Meta::ValueKind::String:
-    case Meta::ValueKind::Boolean:
-    case Meta::ValueKind::SignedInteger:
-    case Meta::ValueKind::UnsignedInteger:
-    case Meta::ValueKind::Double:
-        {
-            Base::Result<void> formatted = Base::ValueConversion::FormatScalarValue(text, contentValue_);
-            if (!formatted) return;
-        }
-        break;
-    case Meta::ValueKind::Object:
-        if (!contentValue_.IsNullObject()) {
-            auto* obj = contentValue_.AsObject().Get();
-            if (obj != nullptr) {
-                if (obj->RuntimeType() == ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
-                    const Meta::Value& inner = static_cast<const ::Aero::Controls::BoxedItemValue&>(*obj).Value();
-                    (void)Base::ValueConversion::FormatScalarValue(text, inner);
-                } else if (!DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                        obj->RuntimeType(), UIElement::StaticTypeId())) {
-                    Aero::BindingEngine* bindings = ElementTree::BindingsOf(*this);
-                    Meta::Registry* metadata = bindings != nullptr ? bindings->Metadata() : Meta::CurrentObjectFactory().metadata;
-                    const Meta::PropertyInfo* prop = metadata != nullptr
-                        ? metadata->Types().FindProperty(obj->RuntimeType(), Base::StringView("Name"), true)
-                        : nullptr;
-                    if (prop != nullptr) {
-                        Base::Result<Meta::Value> displayed = metadata->GetProperty(*obj, prop->Id());
-                        if (displayed && displayed.Value().Kind() == Meta::ValueKind::String) {
-                            (void)text.Assign(displayed.Value().AsString());
-                        }
-                    }
-                }
-                if (text.Empty()) {
-                    const auto* typeInfo = DependencyObjectAccess::PropertyRegistry((*this)).Types().FindType(obj->RuntimeType());
-                    if (typeInfo != nullptr) {
-                        (void)text.Assign(typeInfo->Name());
-                    }
-                }
-            }
-        }
-        break;
-    default:
+    if (!FormatDisplayString(contentValue_, metadata, text)) {
         return;
     }
     auto* textBlock = static_cast<TextBlock*>(content_);
     textBlock->SetText(text.View());
-    if (DependencyObject* templatedParent = GetTemplatedParent()) {
-        if (auto* control = ::Aero::TryCast<Control>(templatedParent)) {
-            textBlock->SetValue(TextBlock::FontSizeProperty, control->GetValue(Control::FontSizeProperty));
-            textBlock->SetValue(TextBlock::FontFamilyProperty, control->GetValue(Control::FontFamilyProperty));
-            const Meta::PropertyValueSourceInfo cpFgSource =
-                GetValueSourceInfo(FrameworkElement::ForegroundProperty.Handle());
-            if (!cpFgSource.isInherited && cpFgSource.rank > Meta::PropertyValueRank::Inherited) {
-                textBlock->SetValue(TextBlock::ForegroundProperty, GetValue(FrameworkElement::ForegroundProperty));
-            } else {
-                textBlock->SetValue(TextBlock::ForegroundProperty, control->GetValue(Control::ForegroundProperty));
-            }
-        }
-    }
 }
 
 void ContentPresenter::SetContentSource(Base::StringView value) noexcept {
@@ -859,6 +835,8 @@ void Expander::OnPropertyChanged(
         } else {
             OnCollapsed();
         }
+    } else if (args.GetProperty() == ExpandDirectionProperty) {
+        InvalidateMeasure();
     }
 }
 

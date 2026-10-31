@@ -13,6 +13,7 @@ public:
     explicit InteractivityEngine(ViewFrame& owner) noexcept;
     void Bind() noexcept;
     void NotifyLayoutUpdated() noexcept;
+    void NotifyPreRender() noexcept;
     void RetryPendingInteractionTriggers() noexcept;
     void FlushPendingStyleDataTriggerEvaluations() noexcept;
 

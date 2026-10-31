@@ -36,6 +36,10 @@ inline bool Same(float left, float right) noexcept {
     return std::fabs(left - right) <= 0.000001f;
 }
 
+inline bool Same(double left, double right) noexcept {
+    return std::fabs(left - right) <= 0.000001;
+}
+
 inline bool SameData(
     const ScrollData& left,
     const ScrollData& right) noexcept {
@@ -358,8 +362,8 @@ ScrollContentPresenter::ApplyScrollDelta(
         0.0, afterHorizontal.verticalOffset + deltaY));
     pendingInputKind_ = ScrollInputKind::Line;
     const ScrollData afterVertical = GetData();
-    return afterHorizontal.horizontalOffset != afterVertical.horizontalOffset ||
-        afterHorizontal.verticalOffset != afterVertical.verticalOffset;
+    return !ScrollSupport::Same(current.horizontalOffset, afterVertical.horizontalOffset) ||
+        !ScrollSupport::Same(current.verticalOffset, afterVertical.verticalOffset);
 }
 
 bool
@@ -560,6 +564,7 @@ ScrollViewer::ScrollViewer() noexcept
 }
 
 ScrollViewer::~ScrollViewer() {
+    ClearFallbackPresenter();
     UnregisterCommands();
     DetachScrollBars();
 }
@@ -796,19 +801,8 @@ void ScrollViewer::EnsureFallbackPresenter() noexcept {
     SyncContentToPresenter();
 }
 
-void ScrollViewer::OnApplyTemplate()
-    noexcept {
-    Control::OnApplyTemplate();
-    DependencyObject* part = GetTemplateChild(
-        ScrollContentPresenter::StaticTypeId());
-    contentPresenter_ =
-        part != nullptr &&
-        part != this
-        ? static_cast<ScrollContentPresenter*>(part)
-        : nullptr;
-    if (contentPresenter_ == nullptr) {
-        EnsureFallbackPresenter();
-    } else if (ownedPresenter_) {
+void ScrollViewer::ClearFallbackPresenter() noexcept {
+    if (ownedPresenter_) {
         ownedPresenter_->ClearHostedContent();
         if (ownedPresenter_->GetVisualParent() == this) {
             if (ElementTree* tree = VisualTree(this)) {
@@ -825,7 +819,27 @@ void ScrollViewer::OnApplyTemplate()
                 RemoveVisualChild(ownedPresenter_.Get());
             }
         }
+        if (contentPresenter_ == ownedPresenter_.Get()) {
+            contentPresenter_ = nullptr;
+        }
         ownedPresenter_.Reset();
+    }
+}
+
+void ScrollViewer::OnApplyTemplate()
+    noexcept {
+    Control::OnApplyTemplate();
+    DependencyObject* part = GetTemplateChild(
+        ScrollContentPresenter::StaticTypeId());
+    contentPresenter_ =
+        part != nullptr &&
+        part != this
+        ? static_cast<ScrollContentPresenter*>(part)
+        : nullptr;
+    if (contentPresenter_ == nullptr) {
+        EnsureFallbackPresenter();
+    } else {
+        ClearFallbackPresenter();
     }
     if (contentPresenter_ != nullptr) {
         SyncContentToPresenter();
@@ -1032,17 +1046,21 @@ void ScrollViewer::OnScrollDataChanged(
     UpdateComputedScrollBarVisibility(newData);
 
     const auto synchronizeBar = [&](
-        Base::StringView name,
+        ScrollBar* bar,
+        Base::StringView fallbackName,
         bool horizontal) noexcept {
-        DependencyObject* part =
-            GetTemplateChild(name);
-        if (part == nullptr ||
-            !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                part->RuntimeType(),
-                ScrollBar::StaticTypeId())) {
+        if (bar == nullptr) {
+            DependencyObject* part = GetTemplateChild(fallbackName);
+            if (part != nullptr &&
+                DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
+                    part->RuntimeType(),
+                    ScrollBar::StaticTypeId())) {
+                bar = static_cast<ScrollBar*>(part);
+            }
+        }
+        if (bar == nullptr) {
             return;
         }
-        auto& bar = *static_cast<ScrollBar*>(part);
         const double extent = horizontal
             ? newData.extentWidth
             : newData.extentHeight;
@@ -1055,24 +1073,24 @@ void ScrollViewer::OnScrollDataChanged(
         const ScrollBarVisibility mode = horizontal
             ? GetHorizontalScrollBarVisibility()
             : GetVerticalScrollBarVisibility();
-        static_cast<void>(bar.SetRange(
+        static_cast<void>(bar->SetRange(
             0.0,
             std::max(0.0, extent - viewport)));
         static_cast<void>(
-            bar.SetViewportSize(viewport));
-        static_cast<void>(bar.SetValue(offset));
-        static_cast<void>(bar.SetVisibility(
+            bar->SetViewportSize(viewport));
+        static_cast<void>(bar->SetValue(offset));
+        static_cast<void>(bar->SetVisibility(
             ComputeScrollBarVisibility(
                 mode, extent, viewport)));
     };
     synchronizingScrollBars_ = true;
     synchronizeBar(
-        Base::StringView(
-            "PART_HorizontalScrollBar"),
+        horizontalScrollBar_,
+        Base::StringView("PART_HorizontalScrollBar"),
         true);
     synchronizeBar(
-        Base::StringView(
-            "PART_VerticalScrollBar"),
+        verticalScrollBar_,
+        Base::StringView("PART_VerticalScrollBar"),
         false);
     synchronizingScrollBars_ = false;
 

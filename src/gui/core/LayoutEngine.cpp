@@ -14,6 +14,7 @@
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Grid.hpp>
+#include <Aero/Shapes.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -692,13 +693,25 @@ void UIElement::ArrangeCore(
         slot.y + effectiveMargin.top,
         layoutFootprint.width,
         layoutFootprint.height};
-    contentSlot.x += AlignmentOffset(contentAvailable.width, layoutFootprint.width,
+    constexpr float kMarginTolerance = 0.05f;
+    const bool hasNegativeMargin =
+        effectiveMargin.left < -kMarginTolerance ||
+        effectiveMargin.top < -kMarginTolerance ||
+        effectiveMargin.right < -kMarginTolerance ||
+        effectiveMargin.bottom < -kMarginTolerance;
+
+    const bool centerHorizontal =
         effectiveHorizontal == HorizontalAlignment::Center ||
-            effectiveHorizontal == HorizontalAlignment::Stretch,
+        (effectiveHorizontal == HorizontalAlignment::Stretch && hasWidth && !hasNegativeMargin);
+    const bool centerVertical =
+        vertical == VerticalAlignment::Center ||
+        (vertical == VerticalAlignment::Stretch && hasHeight && !hasNegativeMargin);
+
+    contentSlot.x += AlignmentOffset(contentAvailable.width, layoutFootprint.width,
+        centerHorizontal,
         effectiveHorizontal == HorizontalAlignment::Right);
     contentSlot.y += AlignmentOffset(contentAvailable.height, layoutFootprint.height,
-        vertical == VerticalAlignment::Center ||
-            vertical == VerticalAlignment::Stretch,
+        centerVertical,
         vertical == VerticalAlignment::Bottom);
 
     element.Layout().SetFlag(LayoutFlags::Arranging, true);
@@ -766,8 +779,9 @@ void UIElement::ArrangeCore(
          localBounds.x + localBounds.width > localSlot.x + localSlot.width + kLayoutTolerance ||
          localBounds.y + localBounds.height > localSlot.y + localSlot.height + kLayoutTolerance);
 
+    const bool isShape = ::Aero::TryCast<::Aero::Shapes::Shape>(&element) != nullptr;
     const bool clipsToBounds = element.GetClipToBounds();
-    const bool hasLayoutClip = overflowsSlot;
+    const bool hasLayoutClip = overflowsSlot && !hasNegativeMargin && !isShape;
     Rect clipRect = localBounds;
     if (hasLayoutClip) {
         clipRect = Intersect(clipRect, localSlot);

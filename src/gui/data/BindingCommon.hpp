@@ -131,6 +131,10 @@ bool TryParseFixedPrecision(
     Base::StringView specifier,
     std::uint32_t& precision) noexcept;
 
+bool TryParseCurrencyPrecision(
+    Base::StringView specifier,
+    std::uint32_t& precision) noexcept;
+
 bool IsZeroPaddingFormat(
     Base::StringView specifier) noexcept;
 

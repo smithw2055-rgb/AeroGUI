@@ -183,7 +183,7 @@ public:
 
     virtual UIElement* GetContentElement() const noexcept;
     ContentPresenter* GetFallbackPresenter() const noexcept;
-    void EnsureFallbackPresenter() noexcept;
+    virtual void EnsureFallbackPresenter() noexcept;
     void EnsureHostedContent() noexcept { EnsureFallbackPresenter(); }
     const Ref<Base::Object>& OwnedContent() const noexcept { return ownedContent_; }
     const Ref<Base::Object>& ContentValue() const noexcept { return ownedContent_; }
@@ -191,6 +191,8 @@ public:
 protected:
     explicit ContentControl(TypeId runtimeType) noexcept;
     ~ContentControl() override;
+
+    virtual void ClearFallbackPresenter() noexcept;
 
     virtual void OnContentChanged(const Value& oldContent, const Value& newContent);
     virtual void OnContentTemplateChanged(const Ref<Base::Object>& oldContentTemplate,
@@ -210,8 +212,6 @@ protected:
     UIElement* ContentElement() const noexcept { return GetContentElement(); }
 
 private:
-    void ClearFallbackPresenter() noexcept;
-
     Ref<ContentPresenter> fallbackPresenter_;
     Ref<Base::Object> ownedContent_;
 };

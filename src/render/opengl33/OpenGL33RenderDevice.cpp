@@ -373,7 +373,7 @@ constexpr const char* UberPixelShaderSource =
     "#elif defined(EFFECT_CLEAR)\n"
     "    fragColor = vec4(0.0);\n"
     "#elif defined(EFFECT_PATH)\n"
-    "    fragColor = (opacity_ * vCoverage) * paint;\n"
+    "    fragColor = opacity_ * paint;\n"
     "#elif defined(EFFECT_PATH_AA)\n"
     "    fragColor = (opacity_ * vCoverage) * paint;\n"
     "#elif defined(EFFECT_OPACITY)\n"

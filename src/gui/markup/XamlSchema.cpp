@@ -3403,7 +3403,9 @@ ResolveTemplateImplicitKey(
     const Base::Object& object,
     void*) noexcept {
     Meta::TypeId key = Meta::InvalidTypeId;
-    if (const auto* tpl = TryCast<FrameworkTemplate>(&object)) {
+    if (const auto* dt = TryCast<DataTemplate>(&object)) {
+        key = dt->GetDataType();
+    } else if (const auto* tpl = TryCast<FrameworkTemplate>(&object)) {
         key = tpl->GetTargetType();
     }
     if (key == Meta::InvalidTypeId) {

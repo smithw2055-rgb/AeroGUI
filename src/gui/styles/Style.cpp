@@ -740,7 +740,6 @@ Base::Result<void> Style::Seal(
     Base::Result<void> frozenProgram = program_->Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
     if (!frozenProgram) return frozenProgram.GetStatus();
-    program_->ClearAuthored();
     resources_.Seal();
     program_->ClearAuthored();
     authoredSetterObjects_.Clear();
@@ -1054,32 +1053,13 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
             continue;
         }
 
-        Data::MetadataBindingDescriptor descriptor;
-        descriptor.metadata = bindings->Metadata();
-        descriptor.source = source;
-        descriptor.target = &object;
-        descriptor.targetProperty = setter.property;
-        if (!isExplicitSource) {
-            descriptor.dataContextProperty =
-                FrameworkElement::DataContextProperty.Handle();
-            descriptor.dataContextOwner = &object;
-        }
-        descriptor.path = binding.GetPathText();
-        descriptor.stringFormat = binding.GetStringFormat();
-        descriptor.bindsToSource = binding.GetPath().GetIsEmpty();
-        descriptor.mode = BindingEngine::ResolveBindingMode(
-            object,
-            setter.property,
-            binding.GetMode());
-        descriptor.updateSourceTrigger =
-            BindingEngine::ResolveUpdateSourceTrigger(
+        Data::MetadataBindingDescriptor descriptor =
+            Data::MetadataBindingDescriptor::FromBinding(
+                binding,
                 object,
                 setter.property,
-                binding.GetUpdateSourceTrigger());
-        descriptor.converterResource = binding.GetConverter();
-        descriptor.converterParameter = binding.GetConverterParameter();
-        descriptor.fallbackValue = binding.GetFallbackValue();
-        descriptor.targetNullValue = binding.GetTargetNullValue();
+                bindings->Metadata(),
+                source);
         Base::Result<Data::BindingHandle> attached =
             bindings->Attach(descriptor);
         if (!attached) return attached.GetStatus();

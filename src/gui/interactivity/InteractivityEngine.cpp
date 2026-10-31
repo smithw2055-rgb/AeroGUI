@@ -279,25 +279,14 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
                     *binding, owner, nullptr, names, nullptr);
             if (!current) return current.GetStatus();
             Meta::PropertyValue expected = condition.GetRightOperand();
-            if (expected.IsNullObject()) {
-                return current.Value().IsNullObject();
-            }
-            if (expected.Kind() == Meta::ValueKind::String &&
-                expected.Type() != current.Value().Type()) {
-                Base::Result<Meta::PropertyValue> converted =
-                    Meta::PropertyValue::TryFromString(
-                        current.Value().Type(), expected.AsString());
-                if (!converted) return false;
-                expected = std::move(converted).Value();
-            }
             const auto comparison = condition.GetComparisonOperator();
-            if (comparison ==
-                ComparisonCondition::Operator::Equal) {
-                return current.Value().Equals(expected);
+            if (comparison == ComparisonCondition::Operator::Equal) {
+                return ComparePropertyValues(
+                    current.Value(), std::move(expected), Metadata(), PropertyComparisonOperator::Equal);
             }
-            if (comparison ==
-                ComparisonCondition::Operator::NotEqual) {
-                return !current.Value().Equals(expected);
+            if (comparison == ComparisonCondition::Operator::NotEqual) {
+                return ComparePropertyValues(
+                    current.Value(), std::move(expected), Metadata(), PropertyComparisonOperator::NotEqual);
             }
             long double left = 0.0L;
             long double right = 0.0L;
@@ -1525,31 +1514,14 @@ Base::Result<void> InteractivityEngine::AttachBehavior(
                     Base::ErrorCode::NotFound,
                     "Behavior Binding source was not found");
             }
-            Data::MetadataBindingDescriptor descriptor;
-            descriptor.metadata = Metadata();
-            descriptor.source = source;
-            descriptor.target = record.instance.Get();
-            descriptor.targetProperty = authored.property;
-            descriptor.dataContextProperty =
-                FrameworkElement::DataContextProperty.Handle();
-            descriptor.dataContextOwner = &owner;
-            descriptor.path = authored.binding->GetPath().GetPath();
-            descriptor.stringFormat =
-                authored.binding->GetStringFormat();
-            descriptor.bindsToSource = descriptor.path.Empty();
-            descriptor.mode = Bindings()->ResolveBindingMode(
-                *record.instance.Get(),
-                authored.property,
-                authored.binding->GetMode());
-            descriptor.updateSourceTrigger =
-                Bindings()->ResolveUpdateSourceTrigger(
+            Data::MetadataBindingDescriptor descriptor =
+                Data::MetadataBindingDescriptor::FromBinding(
+                    *authored.binding,
                     *record.instance.Get(),
                     authored.property,
-                    authored.binding->GetUpdateSourceTrigger());
-            descriptor.fallbackValue =
-                authored.binding->GetFallbackValue();
-            descriptor.targetNullValue =
-                authored.binding->GetTargetNullValue();
+                    Metadata(),
+                    source,
+                    &owner);
             Base::Result<Data::BindingHandle> attached =
                 Bindings()->Attach(descriptor);
             if (!attached) {

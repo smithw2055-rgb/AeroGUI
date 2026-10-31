@@ -160,6 +160,21 @@ Base::Result<bool> SelectPackFontPath(
 
     std::string directoryText(
         family.Data(), hash);
+    const std::string componentMarker = ";component/";
+    const auto compPos = directoryText.find(componentMarker);
+    if (compPos != std::string::npos) {
+        directoryText = directoryText.substr(compPos + componentMarker.size());
+    } else {
+        const std::string compSlash = ";component";
+        const auto compPos2 = directoryText.find(compSlash);
+        if (compPos2 != std::string::npos) {
+            directoryText = directoryText.substr(compPos2 + compSlash.size());
+        }
+    }
+    while (!directoryText.empty() &&
+        (directoryText.front() == '/' || directoryText.front() == '\\')) {
+        directoryText.erase(directoryText.begin());
+    }
     while (!directoryText.empty() &&
         (directoryText.back() == '/' ||
          directoryText.back() == '\\')) {

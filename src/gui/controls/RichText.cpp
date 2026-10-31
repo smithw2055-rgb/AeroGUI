@@ -339,7 +339,6 @@ void ApplyRichText(DependencyObject& object) noexcept {
     }
     auto& text = static_cast<Controls::TextBlock&>(object);
     const Base::StringView trimmed = TrimRichTextToken(source);
-    bool hasSize = false;
     if (StartsWithRichTextToken(trimmed, Base::StringView("[size="))) {
         const std::uint32_t sizeEnd = FindRichTextToken(
             trimmed, Base::StringView("]"), 6U);
@@ -347,7 +346,6 @@ void ApplyRichText(DependencyObject& object) noexcept {
             const Base::StringView sizeStr = trimmed.Substr(6U, sizeEnd - 6U);
             const auto parsed = ::Aero::Base::ValueConversion::ParseDouble(sizeStr);
             if (parsed && parsed.Value() > 0.0) {
-                hasSize = true;
                 const double fontSize = parsed.Value();
                 if (text.GetFontSize() != fontSize) {
                     text.SetFontSize(fontSize);

@@ -440,6 +440,45 @@ private:
 
 using InputRouter = InputManager;
 
+struct CommandHelpers {
+    static bool CanExecute(
+        UIElement& sender,
+        ICommand* command,
+        const Value& parameter,
+        UIElement* target = nullptr) noexcept {
+        if (command == nullptr) {
+            return true;
+        }
+        if (target == nullptr) {
+            target = &sender;
+        }
+        InputRouter* input = ElementTree::InputOf(sender);
+        if (input != nullptr) {
+            return input->CanExecute(*command, parameter, *target);
+        }
+        return command->CanExecute(parameter, target);
+    }
+
+    static void Execute(
+        UIElement& sender,
+        ICommand* command,
+        const Value& parameter,
+        UIElement* target = nullptr) noexcept {
+        if (command == nullptr) {
+            return;
+        }
+        if (target == nullptr) {
+            target = &sender;
+        }
+        InputRouter* input = ElementTree::InputOf(sender);
+        if (input != nullptr) {
+            static_cast<void>(input->Execute(*command, parameter, *target));
+        } else {
+            command->Execute(parameter, target);
+        }
+    }
+};
+
 // Source-only focus queue next to InputRouter
 // (merged from FocusHost.hpp; single owner ViewFrame keeps wiring).
 struct ViewFrame;

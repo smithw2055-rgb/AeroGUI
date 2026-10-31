@@ -378,6 +378,12 @@ void Path::OnPropertyChanged(
     Shape::OnPropertyChanged(args);
 }
 
+void Path::OnPropertyInvalidated(
+    Meta::PropertyInvalidationFlags flags) noexcept {
+    Shape::OnPropertyInvalidated(flags);
+    (*this).ResetGeometry();
+}
+
 namespace {
 
 Base::Result<void> ParseStrokeDashArray(
@@ -849,8 +855,9 @@ void Path::OnRender(
             builder.PushTransform(Transform2D{
                 info.scaleX, 0.0, 0.0, info.scaleY,
                 info.offsetX, info.offsetY});
-            const bool spatial = IsSpatialGradientBrush(fill.Get());
-            if (spatial && !geometryIndices_.Empty()) {
+            const bool spatial = IsSpatialGradientBrush(fill.Get()) ||
+                (fill->RuntimeType() == Media::ImageBrush::StaticTypeId());
+            if (spatial && (!geometryIndices_.Empty() || mesh_ != InvalidRenderMeshId)) {
                 PaintBrushGeometry(
                     builder,
                     fill,
@@ -871,8 +878,9 @@ void Path::OnRender(
     if (strokeMesh_ != InvalidRenderMeshId || !strokeIndices_.Empty()) {
         Base::Ref<Brush> stroke = ResolvePathStroke(*this).brush;
         if (stroke) {
-            const bool spatial = IsSpatialGradientBrush(stroke.Get());
-            if (spatial && !strokeIndices_.Empty()) {
+            const bool spatial = IsSpatialGradientBrush(stroke.Get()) ||
+                (stroke->RuntimeType() == Media::ImageBrush::StaticTypeId());
+            if (spatial && (!strokeIndices_.Empty() || strokeMesh_ != InvalidRenderMeshId)) {
                 const Rect transformedBounds{
                     geometryBounds_.x * info.scaleX + info.offsetX,
                     geometryBounds_.y * info.scaleY + info.offsetY,

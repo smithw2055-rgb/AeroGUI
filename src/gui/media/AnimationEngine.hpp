@@ -74,38 +74,6 @@ public:
         ::Aero::DependencyObject& target,
         Meta::DependencyPropertyHandle property,
         const MatrixAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const DoubleKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const ColorKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const PointKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const ThicknessKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const IntegerKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const SizeKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const MatrixKeyFrameAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const DiscreteAnimation& animation) noexcept;
 
     Base::Result<AnimationHandle> BeginTimeline(
         ::Aero::DependencyObject& target,

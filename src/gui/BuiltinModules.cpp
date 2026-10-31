@@ -553,6 +553,7 @@ Base::Result<void> PopulateControlsMetadata(
     DescribeHook<GridViewColumn>::Run(context);
     DescribeHook<ViewBase>::Run(context);
     DescribeHook<GridView>::Run(context);
+    DescribeHook<Primitives::GridViewRowPresenterBase>::Run(context);
     DescribeHook<GridViewHeaderRowPresenter>::Run(context);
     DescribeHook<GridViewRowPresenter>::Run(context);
     DescribeHook<ListView>::Run(context);

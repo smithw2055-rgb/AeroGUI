@@ -26,8 +26,14 @@ const Meta::DependencyProperty* FindPropertyForToken(
     DependencyObject& object,
     const PropertyPathToken& token) noexcept {
     if (token.isTypeQualified && !token.typeQualifier.Empty()) {
+        Base::StringView ownerName = token.typeQualifier;
+        for (std::uint32_t i = 0U; i < ownerName.SizeBytes(); ++i) {
+            if (ownerName[i] == ':') {
+                ownerName = ownerName.Substr(i + 1U, ownerName.SizeBytes() - i - 1U);
+            }
+        }
         for (const Meta::TypeInfo& type : properties.Types().Types()) {
-            if (type.Name() != token.typeQualifier) continue;
+            if (type.Name() != ownerName) continue;
             const Meta::DependencyProperty* prop =
                 properties.Find(type.Id(), token.propertyName);
             if (prop != nullptr &&
@@ -324,7 +330,7 @@ Base::Result<ResolvedAnimationProperty> ResolveAnimationPropertyPath(
                         transform = static_cast<UIElement&>(*target).GetRenderTransform();
                     }
                 }
-                if (!transform || !properties.Types().IsDerivedFrom(transform->RuntimeType(), Media::TransformGroup::StaticTypeId())) {
+                if (!transform) {
                     if (properties.Types().IsDerivedFrom(target->RuntimeType(), UIElement::StaticTypeId())) {
                         auto group = Base::MakeRef<Media::TransformGroup>();
                         auto scale = Base::MakeRef<Media::ScaleTransform>();

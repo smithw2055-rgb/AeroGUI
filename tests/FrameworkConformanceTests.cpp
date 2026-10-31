@@ -6,6 +6,7 @@
 #include <Aero/Base/Vector.hpp>
 #include <Aero/Collections.hpp>
 #include <Aero/Controls.hpp>
+#include <Aero/Controls/Menus.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Data/BindingExpression.hpp>
 #include <Aero/Data/BindingOperations.hpp>
@@ -117,6 +118,16 @@ using Aero::Controls::UniformGrid;
 using Aero::Controls::UserControl;
 using Aero::Controls::Viewbox;
 using Aero::Controls::VirtualizingStackPanel;
+using Aero::Controls::ScrollViewer;
+using Aero::Controls::Menu;
+using Aero::Controls::MenuItem;
+using Aero::Controls::Primitives::Popup;
+using Aero::Documents::Run;
+using Aero::Documents::Inline;
+using Aero::Media::ScaleTransform;
+using Aero::Media::Animation::EasingFunctionBase;
+using Aero::Media::Animation::EasingMode;
+using Aero::Media::VisualTreeHelper;
 using Aero::Controls::ClickMode;
 using Aero::Controls::Primitives::RepeatButton;
 using Aero::Controls::Primitives::ToggleButton;
@@ -1362,6 +1373,10 @@ bool TestPublicNamesAndHierarchy() {
         "Selector must derive ItemsControl");
     static_assert(std::is_base_of<Aero::FrameworkElement, Aero::Controls::Control>::value,
         "Control must derive FrameworkElement");
+    static_assert(std::is_base_of<Aero::FrameworkElement, Aero::Controls::Primitives::Popup>::value,
+        "Popup must derive FrameworkElement");
+    static_assert(!std::is_base_of<Aero::Controls::ContentControl, Aero::Controls::Primitives::Popup>::value,
+        "Popup must not derive ContentControl");
     static_assert(std::is_base_of<Aero::Media::Visual, UIElement>::value,
         "UIElement must derive Visual");
     static_assert(!HasVisualGetTree<Aero::Media::Visual>::value,
@@ -1380,6 +1395,11 @@ bool TestPublicNamesAndHierarchy() {
     CHECK(TryCast<UIElement>(object) == button.Value().Get());
     CHECK(TryCast<TabControl>(object) == nullptr);
     CHECK(Aero::Media::VisualTreeHelper::GetChildrenCount(*button.Value()) == 0U);
+
+    Result<Ref<Popup>> popup = MakeRef<Popup>();
+    CHECK(popup);
+    CHECK(TryCast<FrameworkElement>(popup.Value().Get()) != nullptr);
+    CHECK(TryCast<ContentControl>(popup.Value().Get()) == nullptr);
 
     CHECK(UIElement::Transform3DProperty.Name() == StringView("Transform3D"));
     return true;
@@ -6523,6 +6543,103 @@ bool TestInventoryTemplateApply();
 bool TestTutorialSampleXamlLoadApply();
 bool TestMarkupExtensionContext();
 bool TestViewLoadXamlAndHotReload();
+bool TestArchitectureRefactoringValidation() {
+    LiveGui* live = NewLiveGui();
+    CHECK(live != nullptr);
+    CHECK(live->view);
+
+    // 1. Validate Popup child management and FrameworkElement inheritance
+    {
+        Result<Ref<Popup>> popup = MakeRef<Popup>();
+        CHECK(popup);
+        Result<Ref<Button>> childBtn = MakeRef<Button>();
+        CHECK(childBtn);
+        popup.Value()->SetChild(childBtn.Value());
+        CHECK(popup.Value()->GetChild() == childBtn.Value().Get());
+        CHECK(VisualTreeHelper::GetChildrenCount(*popup.Value()) == 1U);
+        CHECK(VisualTreeHelper::GetChild(*popup.Value(), 0U) == childBtn.Value().Get());
+
+        popup.Value()->SetChild(nullptr);
+        CHECK(popup.Value()->GetChild() == nullptr);
+        CHECK(VisualTreeHelper::GetChildrenCount(*popup.Value()) == 0U);
+    }
+
+    // 2. Validate ScrollViewer fallback presenter virtual dispatch
+    {
+        Result<Ref<ScrollViewer>> sv = MakeRef<ScrollViewer>();
+        CHECK(sv);
+        Result<Ref<Button>> childBtn = MakeRef<Button>();
+        CHECK(childBtn);
+        sv.Value()->SetContent(childBtn.Value());
+        CHECK(sv.Value()->GetContentElement() != nullptr);
+    }
+
+    // 3. Validate Animation Easing cartesian math
+    {
+        Result<Ref<EasingFunctionBase>> ease = MakeRef<EasingFunctionBase>(
+            EasingFunctionBase::StaticTypeId(),
+            EasingFunctionBase::Kind::Cubic);
+        CHECK(ease);
+        ease.Value()->SetEasingMode(EasingMode::EaseIn);
+        double v0 = ease.Value()->Ease(0.0);
+        double vHalf = ease.Value()->Ease(0.5);
+        double v1 = ease.Value()->Ease(1.0);
+        CHECK(std::abs(v0 - 0.0) < 1e-5);
+        CHECK(std::abs(vHalf - 0.125) < 1e-4);
+        CHECK(std::abs(v1 - 1.0) < 1e-5);
+    }
+
+    // 4. Validate XAML property element edge (ScaleTransform on Grid.RenderTransform),
+    // skipping root x:Class, and default ContentMember (<Run>text</Run>)
+    {
+        const char* xaml =
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+            "      xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n"
+            "      x:Class=\"TestNamespace.TestClass\">\n"
+            "    <Grid.RenderTransform>\n"
+            "        <ScaleTransform ScaleX=\"2.5\" ScaleY=\"3.5\"/>\n"
+            "    </Grid.RenderTransform>\n"
+            "    <TextBlock x:Name=\"TextTarget\"><Run>DirectRunText</Run></TextBlock>\n"
+            "</Grid>";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(xaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        auto* textBlock = doc.Value().FindName<TextBlock>("TextTarget");
+        CHECK(textBlock != nullptr);
+        CHECK(textBlock->GetInlines().GetCount() == 1U);
+        auto* run = TryCast<Run>(textBlock->GetInlines().GetItem(0U));
+        CHECK(run != nullptr);
+        CHECK(run->GetText() == StringView("DirectRunText"));
+
+        CHECK(live->view->SetContent(std::move(doc).Value(), {640.0, 480.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        auto* rootGrid = TryCast<Grid>(live->view->GetContent());
+        CHECK(rootGrid != nullptr);
+
+        auto transform = rootGrid->GetRenderTransform();
+        CHECK(transform != nullptr);
+        auto* scaleTransform = TryCast<ScaleTransform>(transform.Get());
+        CHECK(scaleTransform != nullptr);
+        CHECK(std::abs(scaleTransform->GetScaleX() - 2.5) < 1e-5);
+        CHECK(std::abs(scaleTransform->GetScaleY() - 3.5) < 1e-5);
+    }
+
+    // 5. Validate HeaderedItemsControl with ContentPresenter ContentSource="Header"
+    {
+        Result<Ref<Menu>> menu = MakeRef<Menu>();
+        CHECK(menu);
+        Result<Ref<MenuItem>> menuItem = MakeRef<MenuItem>();
+        CHECK(menuItem);
+        menuItem.Value()->SetHeader(StringView("FileMenu"));
+        menu.Value()->GetItems().Add(menuItem.Value());
+        CHECK(menuItem.Value()->GetHeader().AsString() == StringView("FileMenu"));
+    }
+
+    return true;
+}
 
 int main() {
     RUN(TestValueLayoutAndSSO);
@@ -6590,6 +6707,7 @@ int main() {
     RUN(TestTutorialSampleXamlLoadApply);
     RUN(TestMarkupExtensionContext);
     RUN(TestViewLoadXamlAndHotReload);
+    RUN(TestArchitectureRefactoringValidation);
     std::puts("Aero framework conformance tests passed");
     std::fflush(stdout);
     // LiveGui instances are leaked on purpose (View/~Gui SIGSEGV with mounted

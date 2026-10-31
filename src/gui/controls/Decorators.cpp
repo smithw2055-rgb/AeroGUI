@@ -115,10 +115,10 @@ void AddBulletDecoratorContent(
         Base::Ref<UIElement>::TryFromBorrowed(
             *static_cast<UIElement*>(child.Get()));
     if (!retained) return;
-    if (decorator.GetBullet() == nullptr) {
-        decorator.SetBullet(std::move(retained));
-    } else {
+    if (decorator.GetChild() == nullptr) {
         decorator.SetChild(std::move(retained));
+    } else if (decorator.GetBullet() == nullptr) {
+        decorator.SetBullet(std::move(retained));
     }
 }
 
@@ -558,11 +558,20 @@ AERO_DESCRIBE(Decorator) {
         .Factory();
 }
 
+Base::Ref<UIElement> GetBulletDecoratorBullet(const BulletDecorator& decorator) noexcept {
+    return decorator.GetBullet() != nullptr ? Base::Ref<UIElement>::FromBorrowed(*decorator.GetBullet()) : Base::Ref<UIElement>{};
+}
+
+void SetBulletDecoratorBullet(BulletDecorator& decorator, Base::Ref<UIElement> value) noexcept {
+    decorator.SetBullet(std::move(value));
+}
+
 AERO_DESCRIBE(BulletDecorator) {
     using namespace Aero::Meta;
     Register<BulletDecorator>(context)
         .Property(BulletDecorator::BackgroundProperty, Base::Ref<Aero::Media::Brush>{}, AffectsRender)
-        .Content<Aero::UIElement>("Bullet", ContentKind::Collection, &AddBulletDecoratorContent, &ClearBulletDecoratorContent, ContentFlags::Visual)
+        .Property<Base::Ref<UIElement>, &GetBulletDecoratorBullet, &SetBulletDecoratorBullet>("Bullet", PropertyFlags::Structural)
+        .Content<Aero::UIElement>("Child", ContentKind::Single, &AddBulletDecoratorContent, &ClearBulletDecoratorContent, ContentFlags::Visual)
         .Factory();
 }
 

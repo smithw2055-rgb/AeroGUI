@@ -193,61 +193,53 @@ BindingEngine::ActivateDeferred(
     DependencyObject& target) noexcept {
     hasDirtyBindings_ = true;
     std::uint32_t activated = 0U;
-    for (std::uint32_t index = 0U;
-         index < deferredBindings_.Size();) {
-        DeferredBindingRecord& record =
-            deferredBindings_[index];
+    std::uint32_t writeIndex = 0U;
+    const std::uint32_t initialSize = deferredBindings_.Size();
+    for (std::uint32_t readIndex = 0U; readIndex < initialSize; ++readIndex) {
+        DeferredBindingRecord& record = deferredBindings_[readIndex];
         if (record.target != &target) {
-            ++index;
+            if (writeIndex != readIndex) {
+                deferredBindings_[writeIndex] = std::move(record);
+            }
+            ++writeIndex;
             continue;
         }
         MetadataBindingDescriptor descriptor;
         descriptor.metadata = record.metadata;
         descriptor.source = record.source;
         descriptor.target = record.target;
-        descriptor.targetProperty =
-            record.targetProperty;
-        descriptor.dataContextProperty =
-            record.dataContextProperty;
+        descriptor.targetProperty = record.targetProperty;
+        descriptor.dataContextProperty = record.dataContextProperty;
         descriptor.dataContextOwner = record.dataContextOwner;
         descriptor.path = record.path.View();
-        descriptor.stringFormat =
-            record.stringFormat.View();
+        descriptor.stringFormat = record.stringFormat.View();
         descriptor.bindsToSource = record.bindsToSource;
         descriptor.mode = record.mode;
-        descriptor.updateSourceTrigger =
-            record.updateSourceTrigger;
+        descriptor.updateSourceTrigger = record.updateSourceTrigger;
         descriptor.convert = record.convert;
         descriptor.convertBack = record.convertBack;
         descriptor.converterResource = record.converterResource;
         descriptor.converterParameter = record.converterParameter;
         descriptor.validate = record.validate;
-        descriptor.validateBack =
-            record.validateBack;
-        descriptor.conversionContext =
-            record.conversionContext;
-        descriptor.fallbackValue =
-            record.fallbackValue;
-        descriptor.targetNullValue =
-            record.targetNullValue;
+        descriptor.validateBack = record.validateBack;
+        descriptor.conversionContext = record.conversionContext;
+        descriptor.fallbackValue = record.fallbackValue;
+        descriptor.targetNullValue = record.targetNullValue;
         descriptor.diagnostic = record.diagnostic;
-        descriptor.diagnosticContext =
-            record.diagnosticContext;
-        Base::Result<BindingHandle> attached =
-            Attach(descriptor);
-        for (std::uint32_t move = index + 1U;
-             move < deferredBindings_.Size();
-             ++move) {
-            deferredBindings_[move - 1U] =
-                std::move(deferredBindings_[move]);
-        }
-        (void)deferredBindings_.Resize(
-            deferredBindings_.Size() - 1U);
+        descriptor.diagnosticContext = record.diagnosticContext;
+
+        Base::Result<BindingHandle> attached = Attach(descriptor);
         if (!attached) {
             RecordError(attached.GetStatus());
-            continue;
+        } else {
+            ++activated;
         }
-        ++activated;
+    }
+    if (writeIndex < initialSize) {
+        for (std::uint32_t tail = initialSize; tail < deferredBindings_.Size(); ++tail) {
+            deferredBindings_[writeIndex++] = std::move(deferredBindings_[tail]);
+        }
+        (void)deferredBindings_.Resize(writeIndex);
     }
     return activated;
 }
@@ -506,39 +498,32 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
             ++detached;
         }
     }
-    for (std::uint32_t index = 0U;
-         index < deferredBindings_.Size();) {
-        const DeferredBindingRecord& record =
-            deferredBindings_[index];
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U; readIndex < deferredBindings_.Size(); ++readIndex) {
+        DeferredBindingRecord& record = deferredBindings_[readIndex];
         if (record.source != &object &&
             record.target != &object &&
             record.dataContextOwner != &object) {
-            ++index;
-            continue;
+            if (writeIndex != readIndex) {
+                deferredBindings_[writeIndex] = std::move(record);
+            }
+            ++writeIndex;
+        } else {
+            ++detached;
         }
-        for (std::uint32_t move = index + 1U;
-             move < deferredBindings_.Size();
-             ++move) {
-            deferredBindings_[move - 1U] =
-                std::move(deferredBindings_[move]);
-        }
-        (void)deferredBindings_.Resize(
-            deferredBindings_.Size() - 1U);
-        ++detached;
     }
-    for (std::uint32_t index = 0U;
-         index < pendingDeferredActivations_.Size();) {
-        if (pendingDeferredActivations_[index] != &object) {
-            ++index;
-            continue;
+    (void)deferredBindings_.Resize(writeIndex);
+
+    std::uint32_t writePending = 0U;
+    for (std::uint32_t readIndex = 0U; readIndex < pendingDeferredActivations_.Size(); ++readIndex) {
+        if (pendingDeferredActivations_[readIndex] != &object) {
+            if (writePending != readIndex) {
+                pendingDeferredActivations_[writePending] = pendingDeferredActivations_[readIndex];
+            }
+            ++writePending;
         }
-        for (std::uint32_t move = index + 1U;
-             move < pendingDeferredActivations_.Size(); ++move) {
-            pendingDeferredActivations_[move - 1U] =
-                pendingDeferredActivations_[move];
-        }
-        pendingDeferredActivations_.PopBack();
     }
+    (void)pendingDeferredActivations_.Resize(writePending);
     return detached;
 }
 
@@ -937,6 +922,31 @@ bool TryParseFixedPrecision(
     return true;
 }
 
+bool TryParseCurrencyPrecision(
+    Base::StringView specifier,
+    std::uint32_t& precision) noexcept {
+    if (specifier.Empty() ||
+        (specifier[0] != 'C' && specifier[0] != 'c')) {
+        return false;
+    }
+    if (specifier.SizeBytes() == 1U) {
+        precision = 2U;
+        return true;
+    }
+    std::uint32_t parsed = 0U;
+    for (std::uint32_t index = 1U;
+         index < specifier.SizeBytes();
+         ++index) {
+        const char digit = specifier[index];
+        if (digit < '0' || digit > '9') return false;
+        parsed = parsed * 10U +
+            static_cast<std::uint32_t>(digit - '0');
+        if (parsed > 15U) return false;
+    }
+    precision = parsed;
+    return true;
+}
+
 bool IsZeroPaddingFormat(
     Base::StringView specifier) noexcept {
     if (specifier.Empty()) return false;
@@ -1204,13 +1214,25 @@ Base::Result<Base::String> FormatBindingString(
         numeric &&
         TryParseFixedPrecision(
             specifier, fixedPrecision);
+    std::uint32_t currencyPrecision = 0U;
+    const bool currency =
+        numeric &&
+        TryParseCurrencyPrecision(
+            specifier, currencyPrecision);
     const bool zeroPadding =
         numeric &&
         IsZeroPaddingFormat(specifier);
     const bool thousandsScale =
         numeric &&
         specifier == Base::StringView("#,.##");
-    if (fixedPoint) {
+    if (currency) {
+        std::snprintf(
+            formatted,
+            sizeof(formatted),
+            "$%.*f",
+            static_cast<int>(currencyPrecision),
+            numericValue);
+    } else if (fixedPoint) {
         std::snprintf(
             formatted,
             sizeof(formatted),
@@ -2352,6 +2374,45 @@ AERO_DESCRIBE(MultiBindingProxy) {
     Register<MultiBindingProxy>(context)
             .Property(MultiBindingProxy::ValueProperty, Value::NullObject(TypeOf<Base::Object>()))
             .Factory();
+}
+
+MetadataBindingDescriptor MetadataBindingDescriptor::FromBinding(
+    const Data::Binding& binding,
+    DependencyObject& target,
+    DependencyPropertyHandle targetProperty,
+    Meta::Registry* metadata,
+    Base::Object* explicitSource,
+    DependencyObject* dataContextOwner) noexcept {
+    MetadataBindingDescriptor descriptor;
+    descriptor.metadata = metadata;
+    descriptor.source = explicitSource;
+    descriptor.target = &target;
+    descriptor.targetProperty = targetProperty;
+    const bool isExplicit = explicitSource != nullptr ||
+        binding.GetSource() ||
+        !binding.GetElementName().Empty() ||
+        binding.GetRelativeSource();
+    if (!isExplicit) {
+        descriptor.dataContextProperty =
+            FrameworkElement::DataContextProperty.Handle();
+        descriptor.dataContextOwner =
+            dataContextOwner != nullptr ? dataContextOwner : &target;
+    } else if (dataContextOwner != nullptr) {
+        descriptor.dataContextOwner = dataContextOwner;
+    }
+    descriptor.path = binding.GetPathText();
+    descriptor.stringFormat = binding.GetStringFormat();
+    descriptor.bindsToSource = binding.GetPath().GetIsEmpty();
+    descriptor.mode = BindingEngine::ResolveBindingMode(
+        target, targetProperty, binding.GetMode());
+    descriptor.updateSourceTrigger =
+        BindingEngine::ResolveUpdateSourceTrigger(
+            target, targetProperty, binding.GetUpdateSourceTrigger());
+    descriptor.converterResource = binding.GetConverter();
+    descriptor.converterParameter = binding.GetConverterParameter();
+    descriptor.fallbackValue = binding.GetFallbackValue();
+    descriptor.targetNullValue = binding.GetTargetNullValue();
+    return descriptor;
 }
 
 } // namespace Aero::Data

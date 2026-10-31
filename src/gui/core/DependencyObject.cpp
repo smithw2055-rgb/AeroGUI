@@ -917,6 +917,7 @@ void DependencyObject::SetTemplateValue(
     if (!VerifyMutationAllowed()) return;
     const Meta::DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr) return;
+    property = registered->Handle();
     const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
     if (metadata == nullptr) return;
 

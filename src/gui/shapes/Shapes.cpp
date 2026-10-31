@@ -288,6 +288,11 @@ void Shape::OnPropertyChanged(
     FrameworkElement::OnPropertyChanged(args);
 }
 
+void Shape::OnPropertyInvalidated(
+    Meta::PropertyInvalidationFlags flags) noexcept {
+    FrameworkElement::OnPropertyInvalidated(flags);
+}
+
 
 Size Rectangle::MeasureOverride(
     Size) noexcept {
@@ -344,6 +349,10 @@ void Ellipse::OnRender(
             color.alpha <= 0.0F) {
             return;
         }
+        if (std::abs(bounds.width - bounds.height) <= 1.0e-3) {
+            builder.FillRoundedRect(bounds, color, bounds.width * 0.5);
+            return;
+        }
         Transform2D transform;
         transform.m11 = bounds.width;
         transform.m22 = bounds.height;
@@ -358,6 +367,15 @@ void Ellipse::OnRender(
     auto paintEllipseBrush = [&](Rect bounds, const Base::Ref<Brush>& brush)
         noexcept -> void {
         if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0) {
+            return;
+        }
+        if (std::abs(bounds.width - bounds.height) <= 1.0e-3) {
+            ::Aero::Media::PaintBrushRect(
+                builder,
+                brush,
+                bounds,
+                bounds.width * 0.5,
+                GetFlowDirection() == FlowDirection::RightToLeft);
             return;
         }
         Transform2D transform;
@@ -377,8 +395,10 @@ void Ellipse::OnRender(
 
     const Base::Ref<Brush> fillBrush = GetFill();
     const Base::Ref<Brush> strokeBrush = GetStroke();
+    const bool isImageFill = fillBrush &&
+        fillBrush->RuntimeType() == ::Aero::Media::ImageBrush::StaticTypeId();
     const bool spatialFill =
-        ::Aero::Media::IsSpatialGradientBrush(fillBrush.Get());
+        ::Aero::Media::IsSpatialGradientBrush(fillBrush.Get()) || isImageFill;
     const Color fill = spatialFill
         ? Color{}
         : ::Aero::Media::SampleBrush(fillBrush);

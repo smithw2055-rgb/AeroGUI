@@ -30,24 +30,6 @@ using namespace Aero::Media::Animation::Model;
 using namespace Aero::Media;
 using namespace Aero::Media::Animation::EngineSupport;
 
-namespace {
-
-inline Base::Ref<Media::Animation::EasingFunctionBase> MakeEasingFunction(const ::Aero::Media::Animation::Model::EasingFunction& easing) noexcept {
-    if (easing.kind == ::Aero::Media::Animation::Model::EasingFunctionKind::Linear) return {};
-    auto kind = static_cast<Media::Animation::EasingFunctionBase::Kind>(static_cast<std::uint8_t>(easing.kind));
-    auto ease = Base::MakeRef<Media::Animation::EasingFunctionBase>(
-        Media::Animation::EasingFunctionBase::StaticTypeId(), kind);
-    ease->SetEasingMode(easing.mode);
-    ease->SetPower(easing.power);
-    ease->SetExponent(easing.exponent);
-    ease->SetAmplitude(easing.amplitude);
-    ease->SetOscillations(easing.oscillations);
-    ease->SetSpringiness(easing.springiness);
-    return ease;
-}
-
-} // namespace
-
 AnimationEngine::AnimationEngine(
     ::Aero::Threading::Dispatcher& dispatcher,
     Meta::EffectiveValueEngine& values,
@@ -94,7 +76,7 @@ AnimationEngine::AddTrack(
                 continue;
             }
             existing.state = AnimationState::Stopped;
-            existing.valueApplied = false;
+            ClearTrackValue(existing);
         }
     }
     if (!initialized_) {
@@ -273,62 +255,6 @@ Base::Result<AnimationHandle> AnimationEngine::Begin(
     return BeginTimeline(target, property, *authored, animation.timing);
 }
 
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const DoubleKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const ColorKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const PointKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const ThicknessKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const IntegerKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const SizeKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const MatrixKeyFrameAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject&,
-    Meta::DependencyPropertyHandle,
-    const DiscreteAnimation&) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::Unsupported, "Use BeginTimeline");
-}
-
 AnimationEngine::Track* AnimationEngine::FindTrack(
     AnimationHandle handle) noexcept {
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
@@ -405,25 +331,40 @@ void AnimationEngine::ClearTrackValue(
         static_cast<void>(values_->ClearAnimationValue(
             *track.target, track.property));
         track.valueApplied = false;
-    }
-    // HoldEnd clocks leave the last keyframe on the animation layer. Removing
-    // the clock must restore the pre-storyboard value (Menu3D CircledArrow
-    // Fill.Opacity 0) even when that rest value is not a Local DP.
-    if (track.timeline && track.timeline->IsKeyFrameAnimation() && !track.originValue.IsUnset()) {
-        const Meta::DependencyProperty* prop =
-            DependencyObjectAccess::PropertyRegistry(track.target).Find(track.property);
-        PropertyValue rest = track.originValue;
-        if (prop != nullptr && prop->ValueType() == Meta::TypeOf<Length>() &&
-            rest.Type() == Meta::TypeOf<double>()) {
-            if (auto num = Meta::ValueCodec<double>::Decode(rest)) {
-                if (auto len = Meta::ValueCodec<Length>::Encode(Length::Pixels(num.Value()))) {
-                    rest = std::move(len).Value();
-                }
+
+        if (UIElement* element = TryCast<UIElement>(track.target)) {
+            if (track.property == UIElement::OpacityProperty.Handle()) {
+                element->SetAnimatedOpacity(static_cast<float>(element->GetValue(UIElement::OpacityProperty)));
+                element->InvalidateVisual();
+            } else if (track.property == UIElement::VisibilityProperty.Handle()) {
+                element->SetAnimatedVisibility(element->GetValue(UIElement::VisibilityProperty));
+                element->InvalidateMeasure();
             }
         }
-        static_cast<void>(values_->SetAnimationValue(
-            *track.target, track.property, rest));
-        track.valueApplied = true;
+        if (FrameworkElement* framework = TryCast<FrameworkElement>(track.target)) {
+            if (track.property == FrameworkElement::WidthProperty.Handle()) {
+                framework->SetAnimatedWidth(framework->GetValue(FrameworkElement::WidthProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::HeightProperty.Handle()) {
+                framework->SetAnimatedHeight(framework->GetValue(FrameworkElement::HeightProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::MinWidthProperty.Handle()) {
+                framework->SetAnimatedMinWidth(framework->GetValue(FrameworkElement::MinWidthProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::MinHeightProperty.Handle()) {
+                framework->SetAnimatedMinHeight(framework->GetValue(FrameworkElement::MinHeightProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::MaxWidthProperty.Handle()) {
+                framework->SetAnimatedMaxWidth(framework->GetValue(FrameworkElement::MaxWidthProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::MaxHeightProperty.Handle()) {
+                framework->SetAnimatedMaxHeight(framework->GetValue(FrameworkElement::MaxHeightProperty));
+                framework->InvalidateMeasure();
+            } else if (track.property == FrameworkElement::MarginProperty.Handle()) {
+                framework->SetAnimatedMargin(framework->GetValue(FrameworkElement::MarginProperty));
+                framework->InvalidateMeasure();
+            }
+        }
     }
 }
 

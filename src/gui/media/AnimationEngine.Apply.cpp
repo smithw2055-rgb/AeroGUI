@@ -34,71 +34,10 @@ using namespace Aero::Media::Animation::EngineSupport;
 double AnimationEngine::Ease(
     double progress,
     const EasingFunction& easing) noexcept {
-    const double value = Clamp01(progress);
-    const auto easeIn = [&](double input) noexcept {
-        switch (easing.kind) {
-        case EasingFunctionKind::Linear:
-            return input;
-        case EasingFunctionKind::Sine:
-            return 1.0 - std::cos(input * Pi * 0.5);
-        case EasingFunctionKind::Quadratic:
-            return input * input;
-        case EasingFunctionKind::Cubic:
-            return input * input * input;
-        case EasingFunctionKind::Quartic:
-            return input * input * input * input;
-        case EasingFunctionKind::Quintic:
-            return input * input * input * input * input;
-        case EasingFunctionKind::Circle:
-            return 1.0 - std::sqrt(
-                std::max(0.0, 1.0 - input * input));
-        case EasingFunctionKind::Power:
-            return std::pow(input, std::max(0.0, easing.power));
-        case EasingFunctionKind::Exponential: {
-            const double exponent =
-                std::max(0.0, easing.exponent);
-            return input <= 0.0
-                ? 0.0
-                : (std::exp(exponent * input) - 1.0) /
-                    std::max(
-                        1.0e-9,
-                        std::exp(exponent) - 1.0);
-        }
-        case EasingFunctionKind::Back: {
-            const double amplitude =
-                std::max(0.0, easing.amplitude);
-            return input * input *
-                ((amplitude + 1.0) * input - amplitude);
-        }
-        case EasingFunctionKind::Bounce:
-            return 1.0 - EaseOutBounce(1.0 - input);
-        case EasingFunctionKind::Elastic: {
-            if (input <= 0.0 || input >= 1.0) return input;
-            const double oscillations =
-                std::max(1.0, easing.oscillations);
-            const double springiness =
-                std::max(0.0, easing.springiness);
-            const double envelope = springiness == 0.0
-                ? input
-                : (std::exp(springiness * input) - 1.0) /
-                    (std::exp(springiness) - 1.0);
-            return envelope *
-                std::sin((input * oscillations - 0.25) * 2.0 * Pi);
-        }
-        }
-        return input;
-    };
-    switch (easing.mode) {
-    case EasingMode::EaseIn:
-        return easeIn(value);
-    case EasingMode::EaseOut:
-        return 1.0 - easeIn(1.0 - value);
-    case EasingMode::EaseInOut:
-        return value < 0.5
-            ? easeIn(value * 2.0) * 0.5
-            : 1.0 - easeIn((1.0 - value) * 2.0) * 0.5;
+    if (auto ease = MakeEasingFunction(easing)) {
+        return ease->Ease(progress);
     }
-    return value;
+    return Clamp01(progress);
 }
 
 bool AnimationEngine::ApplyTrack(

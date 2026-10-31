@@ -620,6 +620,48 @@ void PaintBrushRect(
             viewport.width <= 0.0 || viewport.height <= 0.0) {
             viewport = bounds;
         }
+        const Stretch stretch = imageBrush.GetStretch();
+        if (imageBrush.GetTileMode() == TileMode::None &&
+            (stretch == Stretch::UniformToFill || stretch == Stretch::Uniform)) {
+            const double imgWidth = source.width * static_cast<double>(pixelWidth);
+            const double imgHeight = source.height * static_cast<double>(pixelHeight);
+            if (imgWidth > 0.0 && imgHeight > 0.0 && bounds.width > 0.0 && bounds.height > 0.0) {
+                const double scaleX = bounds.width / imgWidth;
+                const double scaleY = bounds.height / imgHeight;
+                if (stretch == Stretch::UniformToFill) {
+                    const double scale = std::max(scaleX, scaleY);
+                    const double drawnWidth = imgWidth * scale;
+                    const double drawnHeight = imgHeight * scale;
+                    const double cropX = 1.0 - bounds.width / drawnWidth;
+                    const double cropY = 1.0 - bounds.height / drawnHeight;
+                    const double alignX = imageBrush.GetAlignmentX() == HorizontalAlignment::Left
+                        ? 0.0
+                        : imageBrush.GetAlignmentX() == HorizontalAlignment::Right ? 1.0 : 0.5;
+                    const double alignY = imageBrush.GetAlignmentY() == VerticalAlignment::Top
+                        ? 0.0
+                        : imageBrush.GetAlignmentY() == VerticalAlignment::Bottom ? 1.0 : 0.5;
+                    source.x += source.width * cropX * alignX;
+                    source.y += source.height * cropY * alignY;
+                    source.width *= (1.0 - cropX);
+                    source.height *= (1.0 - cropY);
+                    viewport = bounds;
+                } else if (stretch == Stretch::Uniform) {
+                    const double scale = std::min(scaleX, scaleY);
+                    const double drawnWidth = imgWidth * scale;
+                    const double drawnHeight = imgHeight * scale;
+                    const double alignX = imageBrush.GetAlignmentX() == HorizontalAlignment::Left
+                        ? 0.0
+                        : imageBrush.GetAlignmentX() == HorizontalAlignment::Right ? 1.0 : 0.5;
+                    const double alignY = imageBrush.GetAlignmentY() == VerticalAlignment::Top
+                        ? 0.0
+                        : imageBrush.GetAlignmentY() == VerticalAlignment::Bottom ? 1.0 : 0.5;
+                    viewport.width = drawnWidth;
+                    viewport.height = drawnHeight;
+                    viewport.x = bounds.x + (bounds.width - drawnWidth) * alignX;
+                    viewport.y = bounds.y + (bounds.height - drawnHeight) * alignY;
+                }
+            }
+        }
         const bool tiled = imageBrush.GetTileMode() != TileMode::None;
         const std::int32_t firstColumn = tiled
             ? static_cast<std::int32_t>(std::floor(
@@ -1151,10 +1193,45 @@ void PaintBrushGeometry(
     Rect bounds,
     bool isRtl,
     Render::RenderMeshId mesh) noexcept {
-    if (!brush || indices.Size() < 3U || vertices.Empty()) {
+    if (!brush) {
         return;
     }
     if (brush->GetOpacity() <= 0.0) return;
+    if (indices.Size() < 3U && mesh == Render::InvalidRenderMeshId) {
+        return;
+    }
+
+    if (brush->RuntimeType() == ImageBrush::StaticTypeId()) {
+        const auto* imageBrush = static_cast<const ImageBrush*>(brush.Get());
+        const Render::RenderImageId imageId = imageBrush->GetRenderImageId();
+        if (imageId != Render::InvalidRenderImageId && mesh != Render::InvalidRenderMeshId) {
+            Rect viewbox = imageBrush->GetViewbox();
+            if (imageBrush->GetViewboxUnits() == BrushMappingMode::Absolute) {
+                const double pw = static_cast<double>(imageBrush->GetPixelWidth());
+                const double ph = static_cast<double>(imageBrush->GetPixelHeight());
+                if (pw > 0.0 && ph > 0.0) {
+                    viewbox.x /= pw;
+                    viewbox.y /= ph;
+                    viewbox.width /= pw;
+                    viewbox.height /= ph;
+                }
+            }
+            viewbox.x = std::clamp(viewbox.x, 0.0f, 1.0f);
+            viewbox.y = std::clamp(viewbox.y, 0.0f, 1.0f);
+            viewbox.width = std::clamp(viewbox.width, 0.0f, 1.0f - viewbox.x);
+            viewbox.height = std::clamp(viewbox.height, 0.0f, 1.0f - viewbox.y);
+            const Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+            builder.DrawPatternMesh(
+                mesh,
+                imageId,
+                bounds,
+                viewbox,
+                tint,
+                static_cast<float>(imageBrush->GetOpacity()),
+                static_cast<std::uint8_t>(imageBrush->GetTileMode()));
+            return;
+        }
+    }
     GpuGradientPaint gpuPaint;
     if (TryPrepareGpuGradient(brush, bounds, isRtl, gpuPaint)) {
         if (mesh != Render::InvalidRenderMeshId) {

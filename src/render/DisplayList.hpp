@@ -61,6 +61,7 @@ enum class RenderCommandKind : std::uint8_t {
     FillGradientQuad,         // CmdGradientQuad (160B)
     DrawSolidMesh,            // CmdDrawSolidMesh (24B)
     DrawGradientMesh,         // CmdDrawGradientMesh (120B)
+    DrawPatternMesh,          // CmdDrawPatternMesh (72B)
     DrawMesh = DrawSolidMesh  // Backward-compatibility alias
 };
 
@@ -161,6 +162,15 @@ struct CmdDrawGradientMesh {
     Transform2D inverse;
 };
 
+struct CmdDrawPatternMesh {
+    RenderMeshId mesh = InvalidRenderMeshId;
+    RenderImageId image = InvalidRenderImageId;
+    Color tint{1.0F, 1.0F, 1.0F, 1.0F};
+    Rect bounds{};
+    Rect viewbox{0.0, 0.0, 1.0, 1.0};
+    float opacity = 1.0F;
+};
+
 class DisplayList {
 public:
     DisplayList() noexcept = default;
@@ -243,6 +253,14 @@ public:
         double len2,
         bool hasInverse,
         Transform2D inverse,
+        std::uint8_t wrapMode = 0U) noexcept;
+    void DrawPatternMesh(
+        RenderMeshId mesh,
+        RenderImageId image,
+        Rect bounds,
+        Rect viewbox = {0.0, 0.0, 1.0, 1.0},
+        Color tint = {1.0F, 1.0F, 1.0F, 1.0F},
+        float opacity = 1.0F,
         std::uint8_t wrapMode = 0U) noexcept;
     void DrawGlyphRun(
         RenderGlyphRunId glyphRun,

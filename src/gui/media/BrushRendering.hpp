@@ -19,8 +19,12 @@
 namespace Aero::Media {
 
 inline bool IsSpatialGradientBrush(const Brush* brush) noexcept {
-    return TryCast<LinearGradientBrush>(brush) != nullptr ||
-        TryCast<RadialGradientBrush>(brush) != nullptr;
+    if (brush == nullptr) return false;
+    if (TryCast<LinearGradientBrush>(brush) != nullptr ||
+        TryCast<RadialGradientBrush>(brush) != nullptr) {
+        return true;
+    }
+    return brush->GetShader() != nullptr;
 }
 
 void PaintBrushRect(
@@ -174,14 +178,33 @@ inline Base::Color ApplyShader(
         return {source.red * wave, source.green * wave,
             source.blue * wave, source.alpha};
     }
-    const double scaleX = 64.0;
-    const double scaleY = 64.0;
-    const double seed = 0.0;
+    auto readDouble = [&](Base::StringView propName, double fallback) noexcept -> double {
+        auto& reg = DependencyObjectAccess::PropertyRegistry(shader);
+        if (const auto* prop = reg.Find(shader.RuntimeType(), propName)) {
+            const auto val = shader.GetValue(prop->Handle());
+            auto decoded = Meta::ValueCodec<double>::Decode(val);
+            if (decoded) return decoded.Value();
+        }
+        return fallback;
+    };
+    auto readColor = [&](Base::StringView propName, Base::Color fallback) noexcept -> Base::Color {
+        auto& reg = DependencyObjectAccess::PropertyRegistry(shader);
+        if (const auto* prop = reg.Find(shader.RuntimeType(), propName)) {
+            const auto val = shader.GetValue(prop->Handle());
+            auto decoded = Meta::ValueCodec<Base::Color>::Decode(val);
+            if (decoded) return decoded.Value();
+        }
+        return fallback;
+    };
+    const double scaleX = readDouble("ScaleX", 64.0);
+    const double scaleY = readDouble("ScaleY", 64.0);
+    const double seed = readDouble("Seed", 0.0);
+    const double shaderTime = readDouble("Time", time);
+    const Base::Color color = readColor("Color", source);
     const double phase =
         std::sin((uv.x * scaleX + uv.y * scaleY + seed) * 12.9898 +
-                 time * 0.0001) * 43758.5453;
+                 shaderTime * 0.0001) * 43758.5453;
     const float noise = static_cast<float>(phase - std::floor(phase));
-    const Base::Color color = source;
     const float amount = 0.35F + noise * 0.65F;
     return {color.red * amount, color.green * amount,
         color.blue * amount, source.alpha * color.alpha};

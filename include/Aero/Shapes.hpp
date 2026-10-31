@@ -40,6 +40,7 @@ protected:
 
     // Replaces OnShapePenChanged (Fill/Stroke had a no-op and were dropped).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
 };
 
 class AERO_GUI_API Rectangle : public Shape {
@@ -179,6 +180,7 @@ protected:
     void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
     // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
 
 private:
     Base::Vector<Point> geometryVertices_;

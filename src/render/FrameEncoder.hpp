@@ -277,6 +277,9 @@ public:
         if (node.opacity < 1.0 && subtreeCommands > 1U) {
             return true;
         }
+        if (node.blendMode != ::Aero::BlendMode::Normal && subtreeCommands > 1U) {
+            return true;
+        }
         if (hasNonAffine3D) {
             return true;
         }

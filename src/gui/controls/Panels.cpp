@@ -50,7 +50,10 @@ void Panel::OnRender(
 StackPanel::StackPanel() noexcept : StackPanel(Orientation::Vertical) {}
 
 StackPanel::StackPanel(Orientation orientation) noexcept
-    : Panel(StaticTypeId()) {
+    : StackPanel(StaticTypeId(), orientation) {}
+
+StackPanel::StackPanel(TypeId runtimeType, Orientation orientation) noexcept
+    : Panel(runtimeType) {
     if (orientation != Orientation::Vertical) {
         SetOrientation(orientation);
     }
@@ -643,16 +646,8 @@ void UIElementCollection::Clear() noexcept {
     owner_->ClearChildrenCore();
 }
 std::uint32_t Panel::GetVisualChildrenCount() const noexcept {
-    std::uint32_t count = 0U;
-    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
-        UIElement* child = ownedChildren_[index]
-            ? static_cast<UIElement*>(ownedChildren_[index].Get())
-            : nullptr;
-        if (child != nullptr && child->GetVisualParent() == this) {
-            ++count;
-        }
-    }
-    return count;
+    EnsureZOrderCache();
+    return zOrderCache_.Size();
 }
 
 namespace {
@@ -663,39 +658,44 @@ struct PanelZOrder {
 };
 } // namespace
 
-::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
-    if (zOrderDirty_ || zOrderCache_.Size() != GetVisualChildrenCount()) {
-        zOrderCache_.Clear();
-        bool hasNonZeroZ = false;
-        std::uint32_t document = 0U;
-        Base::Vector<PanelZOrder> ordered;
-        for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
-            UIElement* child = ownedChildren_[childIndex]
-                ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
-                : nullptr;
-            if (child == nullptr || child->GetVisualParent() != this) continue;
-            PanelZOrder record;
-            record.z = child->GetValue(ZIndexProperty);
-            if (record.z != 0) hasNonZeroZ = true;
-            record.document = document++;
-            record.child = child;
-            ordered.PushBack(record);
-        }
-        if (hasNonZeroZ) {
-            std::sort(
-                ordered.Data(),
-                ordered.Data() + ordered.Size(),
-                [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
-                    if (left.z != right.z) return left.z < right.z;
-                    return left.document < right.document;
-                });
-        }
-        zOrderCache_.Reserve(ordered.Size());
-        for (std::uint32_t i = 0U; i < ordered.Size(); ++i) {
-            zOrderCache_.PushBack(ordered[i].child);
-        }
-        zOrderDirty_ = false;
+void Panel::EnsureZOrderCache() const noexcept {
+    if (!zOrderDirty_) {
+        return;
     }
+    zOrderCache_.Clear();
+    bool hasNonZeroZ = false;
+    std::uint32_t document = 0U;
+    Base::Vector<PanelZOrder> ordered;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) continue;
+        PanelZOrder record;
+        record.z = child->GetValue(ZIndexProperty);
+        if (record.z != 0) hasNonZeroZ = true;
+        record.document = document++;
+        record.child = child;
+        ordered.PushBack(record);
+    }
+    if (hasNonZeroZ) {
+        std::sort(
+            ordered.Data(),
+            ordered.Data() + ordered.Size(),
+            [](const PanelZOrder& left, const PanelZOrder& right) noexcept {
+                if (left.z != right.z) return left.z < right.z;
+                return left.document < right.document;
+            });
+    }
+    zOrderCache_.Reserve(ordered.Size());
+    for (std::uint32_t i = 0U; i < ordered.Size(); ++i) {
+        zOrderCache_.PushBack(ordered[i].child);
+    }
+    zOrderDirty_ = false;
+}
+
+::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
+    EnsureZOrderCache();
     return index < zOrderCache_.Size() ? zOrderCache_[index] : nullptr;
 }
 
@@ -704,6 +704,13 @@ std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
 }
 
 UIElement* Panel::GetLayoutChild(std::uint32_t index) const noexcept {
+    EnsureZOrderCache();
+    if (zOrderCache_.Size() == ownedChildren_.Size()) {
+        if (index < ownedChildren_.Size()) {
+            return static_cast<UIElement*>(ownedChildren_[index].Get());
+        }
+        return nullptr;
+    }
     std::uint32_t current = 0U;
     for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size();
          ++childIndex) {

@@ -41,52 +41,66 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Render;
 
+namespace {
+
+constexpr double kUnconstrainedMeasure = 1.0e12;
+
+void SyncPopupHitTestAndMeasure(
+    FrameworkElement& host,
+    bool open,
+    UIElement* child) noexcept {
+    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
+    static_cast<void>(host.SetIsHitTestVisible(hitTest));
+    host.InvalidateMeasure();
+}
+
+} // namespace
 
 Popup::Popup() noexcept
     : Popup(StaticTypeId()) {}
 
 Popup::Popup(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType) {
+    : FrameworkElement(runtimeType) {
     SetOverlayHostFlag(true);
     static_cast<void>(SetIsHitTestVisible(false));
 }
 
-Popup::~Popup() = default;
-
-UIElement* Popup::GetChild() const noexcept {
-    UIElement* root = GetTemplateRoot();
-    if (root != nullptr) return root;
-    const auto& owned = OwnedContent();
-    if (owned) {
-        return TryCast<UIElement>(owned.Get());
+Popup::~Popup() {
+    UIElement* child = GetChild();
+    if (child != nullptr && child->GetVisualParent() == this) {
+        RemoveVisualChild(child);
     }
-    return nullptr;
 }
 
-UIElement* Popup::GetContentElement() const noexcept {
-    return GetChild();
+UIElement* Popup::GetChild() const noexcept {
+    return child_.Get();
 }
 
 void Popup::SetChild(UIElement* child) noexcept {
-    SetContent(child);
+    SetChild(child != nullptr ? Ref<UIElement>::FromBorrowed(*child) : Ref<UIElement>{});
 }
 
 void Popup::SetChild(Ref<UIElement> child) noexcept {
-    SetContent(std::move(child));
+    if (child_ == child) return;
+    if (child_ != nullptr && child_->GetVisualParent() == this) {
+        RemoveVisualChild(child_.Get());
+    }
+    child_ = std::move(child);
+    if (child_ != nullptr && child_->GetVisualParent() == nullptr) {
+        AddVisualChild(child_.Get());
+    }
+    SyncPopupHitTestAndMeasure(*this, GetIsOpen(), child_.Get());
 }
 
 void Popup::SetChild(std::nullptr_t) noexcept {
-    SetContent(static_cast<UIElement*>(nullptr));
+    SetChild(Ref<UIElement>{});
 }
 
 std::uint32_t Popup::GetVisualChildrenCount() const noexcept {
-    if (GetTemplateRoot() != nullptr) { return Control::GetVisualChildrenCount(); }
-    UIElement* child = GetChild();
-    return child != nullptr ? 1U : 0U;
+    return GetChild() != nullptr ? 1U : 0U;
 }
 
 ::Aero::Media::Visual* Popup::GetVisualChild(std::uint32_t index) const noexcept {
-    if (GetTemplateRoot() != nullptr) { return Control::GetVisualChild(index); }
     if (index != 0U) { return nullptr; }
     return GetChild();
 }
@@ -188,29 +202,15 @@ void Popup::OnOpened(RoutedEventArgs& e) {
     RaiseEvent(OpenedEvent, &e);
 }
 
-namespace {
-
-constexpr double kUnconstrainedMeasure = 1.0e12;
-
-void SyncPopupHitTestAndMeasure(
-    FrameworkElement& host,
-    bool open,
-    UIElement* child) noexcept {
-    const bool hitTest = open && (child == nullptr || child->GetIsHitTestVisible());
-    static_cast<void>(host.SetIsHitTestVisible(hitTest));
-    host.InvalidateMeasure();
-}
-
-} // namespace
-
 void Popup::OnClosed(RoutedEventArgs& e) {
     RaiseEvent(ClosedEvent, &e);
 }
 
 void Popup::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    ContentControl::OnPropertyChanged(args);
-    if (args.GetProperty() == IsOpenProperty) {
+    FrameworkElement::OnPropertyChanged(args);
+    const DependencyPropertyHandle prop = args.GetProperty();
+    if (prop == IsOpenProperty) {
         const bool open = args.GetNewValue().AsBoolean();
         SyncPopupHitTestAndMeasure(*this, open, GetChild());
         RoutedEventArgs eventArgs;
@@ -613,7 +613,10 @@ namespace Primitives {
 
 void SetPopupChild(Base::Object& owner, const Base::Ref<Base::Object>& child, void*) noexcept {
     if (!child) return;
-    static_cast<Popup&>(owner).SetContent(child);
+    auto* element = TryCast<UIElement>(child.Get());
+    if (element != nullptr) {
+        static_cast<Popup&>(owner).SetChild(Ref<UIElement>::FromBorrowed(*element));
+    }
 }
 
 void ClearPopupChild(Base::Object& owner, void*) noexcept {

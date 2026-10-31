@@ -649,9 +649,6 @@ void ElementTree::SetTreeSubtree(
                 bool attachedRender = false;
                 (void)AttachRender(node, child, attachedRender);
             }
-            if (bindings_ != nullptr) {
-                (void)bindings_->ActivateDeferredWhenReady(child);
-            }
         }
         SetTreeSubtree(child, tree);
     });
@@ -1430,13 +1427,6 @@ Base::Result<void> ElementTree::AttachVisualGraph(
     if (!rootAttached) return rootAttached.GetStatus();
     outAttachment = std::move(rootAttached).Value();
 
-    auto parentRenderReady =
-        [this, &visualRoot](::Aero::Media::Visual& parent) noexcept {
-            if (&parent == &visualRoot) return true;
-            if (renderTree_ == nullptr) return true;
-            return ElementTree::RenderTreeOf(parent) ==
-                static_cast<void*>(renderTree_);
-        };
 
     Base::Result<void> completed = CompleteVisualEdges(edges);
     if (!completed) {
@@ -1561,35 +1551,51 @@ Base::Result<void> ElementTree::DetachVisualEdges(
                 (*state.child).GetVisualParent() == state.visualParent;
         };
 
+    // Fast path: reverse topological detachment O(E).
+    // Edges are collected in preorder during XAML instantiation;
+    // traversing in reverse detaches child leaf nodes before parents.
+    for (std::uint32_t i = edges.Size(); i > 0U; --i) {
+        Markup::VisualEdge& edge = edges[i - 1U];
+        reconcileAttachment(edge);
+        if (!edge.state.IsAttached()) continue;
+        Base::Result<void> detached = DetachElement(edge.state);
+        if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
+            return detached.GetStatus();
+        }
+        edge.state = {};
+    }
+
     std::uint32_t remaining = 0U;
     for (Markup::VisualEdge& edge : edges) {
         reconcileAttachment(edge);
         if (edge.state.IsAttached()) ++remaining;
     }
-    while (remaining > 0U) {
-        bool progressed = false;
-        for (Markup::VisualEdge& edge : edges) {
-            reconcileAttachment(edge);
-            if (!edge.state.IsAttached()) continue;
-            bool hasAttachedChild = false;
-            for (const Markup::VisualEdge& candidate : edges) {
-                if (candidate.state.IsAttached() &&
-                    candidate.parent == edge.child) {
-                    hasAttachedChild = true;
-                    break;
+    if (remaining > 0U) {
+        while (remaining > 0U) {
+            bool progressed = false;
+            for (Markup::VisualEdge& edge : edges) {
+                reconcileAttachment(edge);
+                if (!edge.state.IsAttached()) continue;
+                bool hasAttachedChild = false;
+                for (const Markup::VisualEdge& candidate : edges) {
+                    if (candidate.state.IsAttached() &&
+                        candidate.parent == edge.child) {
+                        hasAttachedChild = true;
+                        break;
+                    }
                 }
+                if (hasAttachedChild) continue;
+                Base::Result<void> detached = DetachElement(edge.state);
+                if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
+                    return detached.GetStatus();
+                }
+                edge.state = {};
+                --remaining;
+                progressed = true;
             }
-            if (hasAttachedChild) continue;
-            Base::Result<void> detached = DetachElement(edge.state);
-            if (!detached && detached.GetStatus().code != Base::ErrorCode::NotFound) {
-                return detached.GetStatus();
+            if (!progressed) {
+                break;
             }
-            edge.state = {};
-            --remaining;
-            progressed = true;
-        }
-        if (!progressed) {
-            break;
         }
     }
     return {};

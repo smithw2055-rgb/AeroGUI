@@ -396,7 +396,17 @@ class EventRouter;
     const LayoutHot& Layout() const noexcept { return layout_; }
     void SetAnimatedOpacity(float value) noexcept { layout_.opacity = value; }
     void SetAnimatedOpacity(double value) noexcept { layout_.opacity = static_cast<float>(value); }
-    void SetAnimatedVisibility(Visibility value) noexcept { layout_.visibility = value; }
+    void SetAnimatedVisibility(Visibility value) noexcept {
+        if (layout_.visibility != value) {
+            const Visibility old = layout_.visibility;
+            layout_.visibility = value;
+            if (old == Visibility::Collapsed || value == Visibility::Collapsed) {
+                InvalidateMeasure();
+            } else {
+                InvalidateVisual();
+            }
+        }
+    }
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void SetMouseOverState(bool value) noexcept;
     void SetPressedState(bool value) noexcept;
