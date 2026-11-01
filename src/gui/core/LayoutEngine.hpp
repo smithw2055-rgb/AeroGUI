@@ -9,6 +9,8 @@ namespace Aero {
 
 using namespace Aero::Threading;
 
+class FrameworkElement;
+
 class LayoutEngine {
 public:
     explicit LayoutEngine(Dispatcher& dispatcher) noexcept;
@@ -34,6 +36,7 @@ public:
 
 private:
     friend class Aero::UIElement;
+    friend class Aero::FrameworkElement;
     Dispatcher* dispatcher_ = nullptr;
     UIElement* root_ = nullptr;
     Size rootAvailableSize_;

@@ -30,6 +30,12 @@ class AERO_GUI_API Control : public FrameworkElement {
     AERO_DECLARE_TYPE(Control, FrameworkElement)
 
 public:
+    Control() noexcept : Control(StaticTypeId()) {}
+    ~Control() override {
+        if (templateChild_ != nullptr && templateChild_->GetVisualParent() == this) {
+            RemoveVisualChild(templateChild_);
+        }
+    }
     bool ApplyTemplate() noexcept;
     virtual void OnApplyTemplate() noexcept { return; }
     void SetTemplateChildCore(UIElement* child) noexcept {
@@ -100,11 +106,6 @@ public:
 
 protected:
     explicit Control(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
-    ~Control() override {
-        if (templateChild_ != nullptr && templateChild_->GetVisualParent() == this) {
-            RemoveVisualChild(templateChild_);
-        }
-    }
 
     DependencyObject* GetTemplateChild(StringView name) const noexcept;
     DependencyObject* GetTemplateChild(TypeId type) const noexcept;
@@ -151,6 +152,8 @@ class AERO_GUI_API ContentControl : public Control {
     AERO_DECLARE_TYPE(ContentControl, Control)
 
 public:
+    ContentControl() noexcept : ContentControl(StaticTypeId()) {}
+    ~ContentControl() override;
     static void OnContentPropertyChanged(::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& change) noexcept;
 
@@ -189,7 +192,6 @@ public:
 
 protected:
     explicit ContentControl(TypeId runtimeType) noexcept;
-    ~ContentControl() override;
 
     virtual void ClearFallbackPresenter() noexcept;
 
@@ -300,6 +302,8 @@ class AERO_GUI_API HeaderedContentControl : public ContentControl {
     AERO_DECLARE_TYPE(HeaderedContentControl, ContentControl)
 
 public:
+    HeaderedContentControl() noexcept : HeaderedContentControl(StaticTypeId()) {}
+    ~HeaderedContentControl() override;
     Value GetHeader() const noexcept;
     void SetHeader(const Value& value) noexcept;
     void SetHeader(StringView value) noexcept;
@@ -311,7 +315,6 @@ public:
 
 protected:
     explicit HeaderedContentControl(TypeId runtimeType) noexcept;
-    ~HeaderedContentControl() override;
 
     virtual void OnHeaderChanged(const Value& oldHeader, const Value& newHeader);
     virtual void OnHeaderTemplateChanged(const Ref<DataTemplate>& oldTemplate, const Ref<DataTemplate>& newTemplate);

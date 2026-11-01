@@ -20,6 +20,7 @@ class AnimationEngine;
 class PointerStateMachine;
 class FocusState;
 class EventRouter;
+class FrameworkElement;
 namespace Controls { namespace Primitives { class ButtonBase; } }
 
 using Point = Base::Point;
@@ -296,6 +297,7 @@ protected:
 
 private:
     friend class LayoutEngine;
+    friend class FrameworkElement;
     friend class ElementTree;
     friend class EventRouter;
     friend class AnimationEngine;
@@ -412,8 +414,8 @@ class EventRouter;
     void SetPressedState(bool value) noexcept;
     void SetKeyboardFocusedState(bool value) noexcept;
     void SetKeyboardFocusWithinState(bool value) noexcept;
-    void MeasureCore(LayoutEngine& layout, Size constraint) noexcept;
-    void ArrangeCore(LayoutEngine& layout, Rect slot) noexcept;
+    virtual void MeasureCore(LayoutEngine& layout, Size constraint) noexcept;
+    virtual void ArrangeCore(LayoutEngine& layout, Rect slot) noexcept;
     void InvokeClassHandler(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void EnsureInputClassHandlers() noexcept;
     void AddHandlerErased(RoutedEventHandle event, const void* handler, std::size_t size, std::size_t alignment,

@@ -472,26 +472,129 @@ void UIElement::MeasureCore(
         return;
     }
 
-    const FrameworkElement* framework = ::Aero::TryCast<::Aero::FrameworkElement>(&element);
-    const Thickness margin = framework != nullptr
-        ? framework->GetMargin() : Thickness{};
-    const Size minimum = framework != nullptr
-        ? framework->GetMinSize() : Size{};
-    const Size maximum = framework != nullptr
-        ? framework->GetMaxSize() : Size{1.0e12f, 1.0e12f};
+    element.Layout().SetFlag(LayoutFlags::Measuring, true);
+    const Size result = element.MeasureOverride(constraint);
+    element.Layout().SetFlag(LayoutFlags::Measuring, false);
+    Size desired = result;
+    if (!IsValidLayoutSize(desired)) {
+        AERO_ASSERT(false && "MeasureOverride returned an invalid size");
+        return;
+    }
+    desired.width = std::max(0.0f, desired.width);
+    desired.height = std::max(0.0f, desired.height);
+    element.Layout().untransformedDesiredSize = desired;
+    element.Layout().previousMeasureConstraint = constraint;
+    element.Layout().desiredSize = desired;
+    element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+    element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
+    ++element.Layout().layoutRevision;
+    ++layout.measuredCount_;
+    if (queueArrange) {
+        layout.arrangeQueue_.PushBack(pendingArrange);
+        element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+    }
+}
+
+void UIElement::ArrangeCore(
+    LayoutEngine& layout,
+    Rect slot) noexcept {
+    UIElement& element = *this;
+    if (!IsValidLayoutRect(slot)) {
+        AERO_ASSERT(false && "Arrange slot must be finite and nonnegative");
+        return;
+    }
+    if (!element.GetIsMeasureValid()) {
+        MeasureCore(layout, {slot.width, slot.height});
+    }
+    if (element.GetIsMeasuring() || element.GetIsArranging()) {
+        AERO_ASSERT(false && "Recursive layout operation is not allowed");
+        return;
+    }
+    if (element.GetVisibility() == Visibility::Collapsed) {
+        element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
+        element.Layout().renderSize = {};
+        element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+        element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+        ++element.Layout().layoutRevision;
+        ++layout.arrangedCount_;
+        return;
+    }
+
+    element.Layout().SetFlag(LayoutFlags::Arranging, true);
+    const Size result = element.ArrangeOverride({slot.width, slot.height});
+    element.Layout().SetFlag(LayoutFlags::Arranging, false);
+    Size render = result;
+    if (!IsValidLayoutSize(render)) {
+        AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
+        return;
+    }
+    element.Layout().layoutSlot = slot;
+    element.Layout().renderSize = render;
+    element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    ++element.Layout().layoutRevision;
+    ++layout.arrangedCount_;
+}
+
+void FrameworkElement::MeasureCore(
+    LayoutEngine& layout,
+    Size constraint) noexcept {
+    FrameworkElement& element = *this;
+    if (!IsValidLayoutSize(constraint)) {
+        AERO_ASSERT(false && "Measure constraint must be finite and nonnegative");
+        return;
+    }
+    if (element.GetIsMeasuring() || element.GetIsArranging()) {
+        AERO_ASSERT(false && "Recursive layout operation is not allowed");
+        return;
+    }
+    if (element.GetIsMeasureValid() && SameSize(element.GetPreviousMeasureConstraint(), constraint)) {
+        return;
+    }
+
+    VisualHandle pendingArrange{};
+    bool queueArrange = !element.GetIsArrangeQueued();
+    if (queueArrange) {
+        const VisualHandle handle = ElementTree::HandleOf(element);
+        if (handle.IsValid()) {
+            pendingArrange = handle;
+            layout.arrangeQueue_.Reserve(
+                layout.arrangeQueue_.Size() + 1U);
+        } else {
+            queueArrange = false;
+        }
+    }
+
+    if (element.GetVisibility() == Visibility::Collapsed) {
+        element.Layout().previousMeasureConstraint = constraint;
+        element.Layout().desiredSize = {};
+        element.Layout().untransformedDesiredSize = {};
+        element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+        element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
+        ++element.Layout().layoutRevision;
+        ++layout.measuredCount_;
+        if (queueArrange) {
+            layout.arrangeQueue_.PushBack(pendingArrange);
+            element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+        }
+        return;
+    }
+
+    const Thickness margin = element.GetMargin();
+    const Size minimum = element.GetMinSize();
+    const Size maximum = element.GetMaxSize();
     // Window.Width/Height size the native chrome. The layout root must fill
     // the view client (DPI-converted, user-resized) so Viewbox Uniform can
     // scale. Nested elements still honor explicit Width/Height.
     const bool isLayoutRoot = layout.root_ != nullptr && &element == layout.root_;
-    const bool hasWidth =
-        !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
-    const bool hasHeight =
-        !isLayoutRoot && framework != nullptr && framework->GetHasHeight();
+    const bool hasWidth = !isLayoutRoot && element.GetHasWidth();
+    const bool hasHeight = !isLayoutRoot && element.GetHasHeight();
     Size available = Deflate(constraint, margin);
-    Base::Ref<Transform> layoutTransform =
-        framework != nullptr
-        ? framework->GetLayoutTransform()
-        : Base::Ref<Transform>{};
+    Base::Ref<Transform> layoutTransform = element.GetLayoutTransform();
     Base::Transform2D layoutMatrix;
     if (layoutTransform) {
         layoutMatrix = layoutTransform->GetMatrix();
@@ -507,11 +610,11 @@ void UIElement::MeasureCore(
     available = ClampSize(available, minimum, maximum);
     if (hasWidth) {
         available.width = ClampDimension(
-            static_cast<float>(framework->GetWidth()), minimum.width, maximum.width);
+            static_cast<float>(element.GetWidth()), minimum.width, maximum.width);
     }
     if (hasHeight) {
         available.height = ClampDimension(
-            static_cast<float>(framework->GetHeight()), minimum.height, maximum.height);
+            static_cast<float>(element.GetHeight()), minimum.height, maximum.height);
     }
 
     element.Layout().SetFlag(LayoutFlags::Measuring, true);
@@ -545,9 +648,9 @@ void UIElement::MeasureCore(
     }
     desired.width = std::max(0.0f, desired.width);
     desired.height = std::max(0.0f, desired.height);
-    if (framework != nullptr && framework->GetUseLayoutRounding()) {
-        desired.width = RoundLayoutValue(desired.width, static_cast<float>(framework->GetDpiScale()));
-        desired.height = RoundLayoutValue(desired.height, static_cast<float>(framework->GetDpiScale()));
+    if (element.GetUseLayoutRounding()) {
+        desired.width = RoundLayoutValue(desired.width, static_cast<float>(element.GetDpiScale()));
+        desired.height = RoundLayoutValue(desired.height, static_cast<float>(element.GetDpiScale()));
     }
     element.Layout().previousMeasureConstraint = constraint;
     element.Layout().desiredSize = desired;
@@ -560,13 +663,12 @@ void UIElement::MeasureCore(
         layout.arrangeQueue_.PushBack(pendingArrange);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
     }
-    return;
 }
 
-void UIElement::ArrangeCore(
+void FrameworkElement::ArrangeCore(
     LayoutEngine& layout,
     Rect slot) noexcept {
-    UIElement& element = *this;
+    FrameworkElement& element = *this;
     if (!IsValidLayoutRect(slot)) {
         AERO_ASSERT(false && "Arrange slot must be finite and nonnegative");
         return;
@@ -581,10 +683,7 @@ void UIElement::ArrangeCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
         element.Layout().renderSize = {};
-        if (FrameworkElement* framework =
-                ::Aero::TryCast<::Aero::FrameworkElement>(&element)) {
-            framework->SetActualSize(0.0f, 0.0f);
-        }
+        element.SetActualSize(0.0f, 0.0f);
         element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
@@ -592,36 +691,23 @@ void UIElement::ArrangeCore(
         ++layout.arrangedCount_;
         return;
     }
-    FrameworkElement* framework =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&element);
-    if (framework != nullptr && (framework->GetUseLayoutRounding() ||
-            framework->GetSnapsToDevicePixels())) {
-        const float dpi = static_cast<float>(framework->GetDpiScale());
+    if (element.GetUseLayoutRounding() || element.GetSnapsToDevicePixels()) {
+        const float dpi = static_cast<float>(element.GetDpiScale());
         slot.x = RoundLayoutValue(slot.x, dpi);
         slot.y = RoundLayoutValue(slot.y, dpi);
         slot.width = RoundLayoutValue(slot.width, dpi);
         slot.height = RoundLayoutValue(slot.height, dpi);
     }
-    const Thickness margin = framework != nullptr
-        ? framework->GetMargin() : Thickness{};
-    const Size minimum = framework != nullptr
-        ? framework->GetMinSize() : Size{};
-    const Size maximum = framework != nullptr
-        ? framework->GetMaxSize() : Size{1.0e12f, 1.0e12f};
+    const Thickness margin = element.GetMargin();
+    const Size minimum = element.GetMinSize();
+    const Size maximum = element.GetMaxSize();
     const bool isLayoutRoot = layout.root_ != nullptr && &element == layout.root_;
-    const bool hasWidth =
-        !isLayoutRoot && framework != nullptr && framework->GetHasWidth();
-    const bool hasHeight =
-        !isLayoutRoot && framework != nullptr && framework->GetHasHeight();
-    const HorizontalAlignment horizontal = framework != nullptr
-        ? framework->GetHorizontalAlignment() : HorizontalAlignment::Stretch;
-    const VerticalAlignment vertical = framework != nullptr
-        ? framework->GetVerticalAlignment() : VerticalAlignment::Stretch;
+    const bool hasWidth = !isLayoutRoot && element.GetHasWidth();
+    const bool hasHeight = !isLayoutRoot && element.GetHasHeight();
+    const HorizontalAlignment horizontal = element.GetHorizontalAlignment();
+    const VerticalAlignment vertical = element.GetVerticalAlignment();
     const Size contentAvailable = Deflate({slot.width, slot.height}, margin);
-    Base::Ref<Transform> layoutTransform =
-        framework != nullptr
-        ? framework->GetLayoutTransform()
-        : Base::Ref<Transform>{};
+    Base::Ref<Transform> layoutTransform = element.GetLayoutTransform();
     Base::Transform2D layoutMatrix;
     Size naturalAvailable = contentAvailable;
     if (layoutTransform) {
@@ -635,15 +721,14 @@ void UIElement::ArrangeCore(
                 contentAvailable,
                 layoutMatrix);
     }
-    const Size desiredContent =
-        element.GetUntransformedDesiredSize();
+    const Size desiredContent = element.GetUntransformedDesiredSize();
     const Size constrainedDesired = ClampSize(
         desiredContent, minimum, maximum);
 
     Size finalSize;
     if (hasWidth) {
         finalSize.width = ClampDimension(
-            static_cast<float>(framework->GetWidth()), minimum.width, maximum.width);
+            static_cast<float>(element.GetWidth()), minimum.width, maximum.width);
     } else if (horizontal == HorizontalAlignment::Stretch) {
         finalSize.width = ClampDimension(
             naturalAvailable.width, minimum.width, maximum.width);
@@ -654,7 +739,7 @@ void UIElement::ArrangeCore(
     }
     if (hasHeight) {
         finalSize.height = ClampDimension(
-            static_cast<float>(framework->GetHeight()), minimum.height, maximum.height);
+            static_cast<float>(element.GetHeight()), minimum.height, maximum.height);
     } else if (vertical == VerticalAlignment::Stretch) {
         finalSize.height = ClampDimension(
             naturalAvailable.height, minimum.height, maximum.height);
@@ -676,7 +761,7 @@ void UIElement::ArrangeCore(
             transformed.width,
             transformed.height};
     }
-    const bool isRtl = framework != nullptr && framework->GetFlowDirection() == FlowDirection::RightToLeft;
+    const bool isRtl = element.GetFlowDirection() == FlowDirection::RightToLeft;
     Thickness effectiveMargin = margin;
     HorizontalAlignment effectiveHorizontal = horizontal;
     if (isRtl) {
@@ -722,9 +807,8 @@ void UIElement::ArrangeCore(
         AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
         return;
     }
-    if (framework != nullptr && (framework->GetUseLayoutRounding() ||
-            framework->GetSnapsToDevicePixels())) {
-        const float dpi = static_cast<float>(framework->GetDpiScale());
+    if (element.GetUseLayoutRounding() || element.GetSnapsToDevicePixels()) {
+        const float dpi = static_cast<float>(element.GetDpiScale());
         contentSlot.x = RoundLayoutValue(contentSlot.x, dpi);
         contentSlot.y = RoundLayoutValue(contentSlot.y, dpi);
         render.width = RoundLayoutValue(render.width, dpi);
@@ -732,9 +816,8 @@ void UIElement::ArrangeCore(
     }
     element.Layout().layoutSlot = contentSlot;
     element.Layout().renderSize = render;
-    if (framework != nullptr) {
-        framework->SetActualSize(render.width, render.height);
-    }
+    element.SetActualSize(render.width, render.height);
+
     Size renderedFootprint = render;
     Rect renderedBounds{0.0f, 0.0f, render.width, render.height};
     if (layoutTransform) {
@@ -800,7 +883,6 @@ void UIElement::ArrangeCore(
     element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
     ++element.Layout().layoutRevision;
     ++layout.arrangedCount_;
-    return;
 }
 
 

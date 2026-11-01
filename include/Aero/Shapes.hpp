@@ -38,6 +38,8 @@ protected:
     explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
     ~Shape() override = default;
 
+    virtual void InvalidateGeometry() noexcept {}
+
     // Replaces OnShapePenChanged (Fill/Stroke had a no-op and were dropped).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
@@ -181,6 +183,7 @@ protected:
     // Replaces the OnPath* metadata delegates (all funnel to geometry reset).
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
+    void InvalidateGeometry() noexcept override;
 
 private:
     Base::Vector<Point> geometryVertices_;

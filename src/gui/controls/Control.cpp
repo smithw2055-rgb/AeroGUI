@@ -988,21 +988,6 @@ Size Expander::ArrangeOverride(Size finalSize) noexcept {
 
 namespace {
 
-class BasicControl : public Control {
-public:
-    BasicControl() noexcept : Control(Control::StaticTypeId()) {}
-};
-
-class BasicContentControl : public ContentControl {
-public:
-    BasicContentControl() noexcept : ContentControl(ContentControl::StaticTypeId()) {}
-};
-
-class BasicHeaderedContentControl : public HeaderedContentControl {
-public:
-    BasicHeaderedContentControl() noexcept
-        : HeaderedContentControl(HeaderedContentControl::StaticTypeId()) {}
-};
 
 void SetContentControlContent(
     Base::Object& owner,
@@ -1053,7 +1038,7 @@ AERO_DESCRIBE(Control) {
         .Property(Control::FocusVisualStyleProperty, Base::Ref<Aero::Style>{})
         .Property(Control::OverridesDefaultStyleProperty, false)
         .Property(Control::TemplateProperty, Base::Ref<ControlTemplate>{}, AffectsMeasure)
-        .Factory<BasicControl>();
+        .Factory<Control>();
 }
 
 AERO_DESCRIBE(ContentControl) {
@@ -1063,7 +1048,7 @@ AERO_DESCRIBE(ContentControl) {
         .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
-        .Factory<BasicContentControl>();
+        .Factory<ContentControl>();
 }
 
 AERO_DESCRIBE(ContentPresenter) {
@@ -1085,7 +1070,7 @@ AERO_DESCRIBE(HeaderedContentControl) {
     Register<HeaderedContentControl>(context)
         .Property(HeaderedContentControl::HeaderProperty, Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure)
         .Property(HeaderedContentControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure)
-        .Factory<BasicHeaderedContentControl>();
+        .Factory<HeaderedContentControl>();
 }
 
 AERO_DESCRIBE(UserControl) {

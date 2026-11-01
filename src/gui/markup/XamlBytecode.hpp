@@ -1158,6 +1158,32 @@ inline Base::Result<void> BindCompiledSubProgramToTemplate(
                 trigger);
             if (!configured) return configured.GetStatus();
         }
+        if (runtime != nullptr && properties != nullptr) {
+            if (subProg.propertyTriggers.Empty() &&
+                !::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*controlTemplate).Empty()) {
+                auto trigRes = CompilePropertyTriggers(*controlTemplate, subProg, *runtime, *properties);
+                if (trigRes) {
+                    for (auto& trigger : trigRes.Value()) {
+                        configured = ::Aero::Controls::FrameworkTemplateState::AddPropertyTrigger(
+                            *controlTemplate,
+                            trigger);
+                        if (!configured) return configured.GetStatus();
+                    }
+                }
+            }
+            if (subProg.visualStateGroups.Empty() &&
+                !::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(*controlTemplate).Empty()) {
+                auto vsRes = CompileVisualStates(*controlTemplate, subProg, *runtime, *properties);
+                if (vsRes) {
+                    for (auto& group : vsRes.Value()) {
+                        configured = ::Aero::Controls::FrameworkTemplateState::AddVisualStateGroup(
+                            *controlTemplate,
+                            group);
+                        if (!configured) return configured.GetStatus();
+                    }
+                }
+            }
+        }
         if (properties != nullptr) {
             configured = ::Aero::Controls::FrameworkTemplateState::Seal(
                 *controlTemplate,
@@ -2964,7 +2990,15 @@ inline Base::Result<void> CompileNodesToBytecode(
                         parent.slot, finished.slot, finished.key.View(), finished.isTypeKey ? 1U : 0U);
                 } else if (!memberStack.Empty() && memberStack.Back().parentSlot == parent.slot) {
                     MemberFrame& mem = memberStack.Back();
-                    if (mem.isPropertyElement) {
+                    const bool isMarkupExt = (finished.typeId == Data::MultiBinding::StaticTypeId() ||
+                                              finished.typeId == Data::Binding::StaticTypeId() ||
+                                              schema.Types().IsDerivedFrom(finished.typeId, MarkupExtension::StaticTypeId()));
+                    if (isMarkupExt && mem.memberId != Meta::InvalidMemberId) {
+                        builder.EmitApplyObjectMarkupExtension(
+                            parent.slot,
+                            finished.slot,
+                            Meta::DependencyPropertyHandle{mem.memberId});
+                    } else if (mem.isPropertyElement) {
                         const Meta::PropertyInfo* prop = schema.Types().FindProperty(mem.memberId);
                         const bool isPropertyEdge = prop != nullptr &&
                             (static_cast<std::uint32_t>(prop->Flags()) &

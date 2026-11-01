@@ -744,11 +744,6 @@ namespace {
 
 constexpr double DefaultMaximum = 1.0e12;
 
-class PlaceholderFrameworkElement : public FrameworkElement {
-public:
-    PlaceholderFrameworkElement() noexcept
-        : FrameworkElement(FrameworkElement::StaticTypeId()) {}
-};
 
 bool ValidateLength(const Length& length) noexcept {
     return length.isAuto || (std::isfinite(length.value) && length.value >= 0.0);
@@ -878,7 +873,7 @@ AERO_DESCRIBE(FrameworkElement) {
             "Triggers",
             &AddFrameworkEventTrigger,
             &ClearFrameworkEventTriggers)
-        .Factory<PlaceholderFrameworkElement>();
+        .Factory<FrameworkElement>();
 }
 
 } // namespace Aero

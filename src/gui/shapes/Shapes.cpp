@@ -278,12 +278,7 @@ void Shape::OnPropertyChanged(
     // Former OnShapePenChanged delegate body, moved before base handling to
     // preserve the delegate-then-virtual firing order.
     if (args.GetProperty() == PenProperty.Handle()) {
-        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                RuntimeType(), Path::StaticTypeId())) {
-            (static_cast<Path&>(*this)).ResetGeometry();
-        } else {
-            InvalidateVisual();
-        }
+        InvalidateGeometry(); InvalidateVisual();
     }
     FrameworkElement::OnPropertyChanged(args);
 }

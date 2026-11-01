@@ -80,6 +80,7 @@ class AERO_GUI_API FrameworkElement : public UIElement {
 public:
     using DependencyObject::SetValue;
 
+    FrameworkElement() noexcept : FrameworkElement(StaticTypeId()) {}
     explicit FrameworkElement(TypeId runtimeType) noexcept;
     ~FrameworkElement() override;
 
@@ -216,6 +217,9 @@ protected:
     // NOTE: empty default kept intentionally. Viewbox spacer and other
     // non-visual FrameworkElements rely on zero desired size; UIElement's
     // default (return available) would inflate them. Panel/Control override.
+    void MeasureCore(LayoutEngine& layout, Size constraint) noexcept override;
+    void ArrangeCore(LayoutEngine& layout, Rect slot) noexcept override;
+
     Size MeasureOverride(Size availableSize) noexcept override {
         static_cast<void>(availableSize);
         return Size{};

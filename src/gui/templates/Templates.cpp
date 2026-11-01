@@ -1607,6 +1607,10 @@ Base::Result<void> FrameworkTemplateState::Seal(
     }
     templateState->resources.Seal();
     templateState->sealed = true;
+    templateState->authoredVisualTree.Reset();
+    templateState->authoredTriggers.Clear();
+    templateState->authoredVisualStateGroups.Clear();
+    templateState->authoredNames.Clear();
     return {};
 }
 

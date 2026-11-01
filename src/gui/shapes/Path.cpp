@@ -523,6 +523,8 @@ static PathTransformInfo CalculatePathTransform(
 
 } // namespace
 
+void Path::InvalidateGeometry() noexcept { ResetGeometry(); }
+
 void Path::ResetGeometry() noexcept {
     ReleaseMesh();
     geometryVertices_.Clear();
@@ -642,6 +644,10 @@ bool Path::EnsureGeometry() noexcept {
             if (!stroked) return false;
         }
     }
+    pathPoints_.Clear();
+    pathContourStarts_.Clear();
+    pathContourCounts_.Clear();
+    pathContourClosed_.Clear();
     geometryDirty_ = false;
     return true;
 }

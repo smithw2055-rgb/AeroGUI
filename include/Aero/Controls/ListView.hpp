@@ -135,6 +135,9 @@ protected:
     std::uint32_t GetLayoutChildrenCount() const noexcept override;
     UIElement* GetLayoutChild(std::uint32_t index) const noexcept override;
     virtual void ClearCells() noexcept;
+    const GridView* ResolvePresenterView(const Base::Ref<Base::Object>& columnsValue) const noexcept;
+    Size MeasureCells(const Base::Ref<Base::Object>& columnsValue, Size availableSize) noexcept;
+    Size ArrangeCells(const Base::Ref<Base::Object>& columnsValue, Size finalSize) noexcept;
 
     Base::Vector<Ref<Base::Object>> ownedCells_;
 };

@@ -585,15 +585,9 @@ Panel::~Panel() {
             ? static_cast<UIElement*>(ownedChildren_[index].Get())
             : nullptr;
         if (child != nullptr && child->GetVisualParent() == this) {
-            child->visualParent_ = nullptr;
-            child->prevVisualSibling_ = nullptr;
-            child->nextVisualSibling_ = nullptr;
-            if (child->GetLogicalParent() == this) {
-                child->logicalParent_ = nullptr;
-            }
+            RemoveVisualChild(child);
         }
     }
-    firstVisualChild_ = nullptr;
     ownedChildren_.Clear();
     if (childrenView_) {
         static_cast<PanelChildrenView*>(childrenView_.Get())->DetachOwner();

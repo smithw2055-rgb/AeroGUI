@@ -11,6 +11,8 @@
 #include "gui/data/BindingEngine.hpp"
 #include "gui/data/BindingCommon.hpp"
 #include <Aero/Controls/Control.hpp>
+#include <Aero/Controls/TextBox.hpp>
+#include <Aero/Controls/TextBlock.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/FrameworkElement.hpp>
 #include <Aero/Style.hpp>
@@ -60,6 +62,29 @@ void Element::OnTransform3DChanged(
 void TextProperties::OnCompatibilityPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    // Fast-path for standard controls: direct static property handles avoid runtime reflection lookup
+    if (args.GetProperty() == TextProperties::PlaceholderProperty.Handle()) {
+        if (auto* tb = ::Aero::TryCast<Controls::TextBox>(&object)) {
+            tb->SetValue(Controls::TextBox::PlaceholderProperty.Handle(), args.GetNewValue());
+            return;
+        }
+        if (auto* pb = ::Aero::TryCast<Controls::PasswordBox>(&object)) {
+            pb->SetValue(Controls::PasswordBox::PlaceholderProperty.Handle(), args.GetNewValue());
+            return;
+        }
+    } else if (args.GetProperty() == TextProperties::StrokeProperty.Handle()) {
+        if (auto* tb = ::Aero::TryCast<Controls::TextBlock>(&object)) {
+            tb->SetValue(Controls::TextBlock::StrokeProperty.Handle(), args.GetNewValue());
+            return;
+        }
+    } else if (args.GetProperty() == TextProperties::StrokeThicknessProperty.Handle()) {
+        if (auto* tb = ::Aero::TryCast<Controls::TextBlock>(&object)) {
+            tb->SetValue(Controls::TextBlock::StrokeThicknessProperty.Handle(), args.GetNewValue());
+            return;
+        }
+    }
+
+    // Dynamic fallback for custom/other types
     const Meta::DependencyProperty* source =
         DependencyObjectAccess::PropertyRegistry((object)).Find(args.GetProperty());
     if (source == nullptr) return;
@@ -156,15 +181,7 @@ bool IsTargetCompatible(
     // pretending that the C++ inheritance graph is different.
     const TypeInfo* expected = types.FindType(expectedBase);
     if (properties == nullptr || expected == nullptr) return false;
-    if (expected->Name() ==
-            Base::StringView("HeaderedItemsControl")) {
-        return properties->Find(derived, "Header") != nullptr &&
-            properties->Find(derived, "HeaderTemplate") != nullptr;
-    }
-    if (expected->Name() == Base::StringView("ItemsControl")) {
-        return properties->Find(derived, "ItemsSource") != nullptr &&
-            properties->Find(derived, "ItemTemplate") != nullptr;
-    }
+
     // Headered items controls (e.g. HeaderedItemsControl, TreeViewItem) expose
     // the WPF item contract through Header/HeaderTemplate rather than
     // ItemsSource/ItemTemplate, yet still derive from the items-control
