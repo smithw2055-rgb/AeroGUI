@@ -33,8 +33,7 @@ public:
     bool ApplyTemplate() noexcept;
     virtual void OnApplyTemplate() noexcept { return; }
     void SetTemplateChildCore(UIElement* child) noexcept {
-        if (child != nullptr && child->LayoutParent() != this) { return; }
-        if (templateChild_ != nullptr && child != nullptr && templateChild_ != child) { return; }
+        if (child != nullptr && child->LayoutParent() != this && child->GetVisualParent() != this) { return; }
         if (templateChild_ != nullptr && templateChild_ != child) {
             if (templateChild_->GetVisualParent() == this) {
                 RemoveVisualChild(templateChild_);
@@ -329,6 +328,8 @@ class AERO_GUI_API UserControl : public ContentControl {
 public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
+
+    Base::Result<void> InitializeComponent(StringView uri) noexcept;
 
 protected:
     explicit UserControl(TypeId runtimeType) noexcept : ContentControl(runtimeType) {}

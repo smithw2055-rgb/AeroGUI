@@ -77,10 +77,19 @@ void NameScope::Register(
     }
     entry.object = &object;
     entries_.PushBack(std::move(entry));
+    index_.Clear();
+    for (std::uint32_t i = 0U; i < entries_.Size(); ++i) {
+        static_cast<void>(index_.Insert(entries_[i].name.View(), i));
+    }
 }
 
 Base::Object* NameScope::Find(
     Base::StringView name) const noexcept {
+    if (const std::uint32_t* found = index_.Find(name)) {
+        if (*found < entries_.Size()) {
+            return entries_[*found].object;
+        }
+    }
     for (const Entry& entry : entries_) {
         if (entry.name.View() == name) {
             return entry.object;
@@ -101,6 +110,7 @@ Base::StringView NameScope::NameOf(
 
 void NameScope::Clear() noexcept {
     entries_.Clear();
+    index_.Clear();
 }
 
 bool NameScope::IsValidName(
@@ -193,6 +203,8 @@ struct ResourceDictionary::DictionaryState {
     };
 
     Base::Vector<Entry> entries;
+    Base::HashMap<Base::StringView, std::uint32_t> stringIndex;
+    Base::HashMap<Meta::TypeId, std::uint32_t> typeIndex;
     Base::Vector<Listener> listeners;
     Base::Vector<Merged> merged;
     Base::ResourceUri source;
@@ -209,6 +221,19 @@ namespace {
 ResourceDictionary::DictionaryState::Entry* FindLocal(
     ResourceDictionary::DictionaryState& impl,
     const ResourceKey& key) noexcept {
+    if (key.Kind() == ResourceKeyKind::String) {
+        if (auto* idx = impl.stringIndex.Find(key.StringValue())) {
+            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
+                return &impl.entries[*idx];
+            }
+        }
+    } else if (key.Kind() == ResourceKeyKind::Type) {
+        if (auto* idx = impl.typeIndex.Find(key.TypeValue())) {
+            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
+                return &impl.entries[*idx];
+            }
+        }
+    }
     for (ResourceDictionary::DictionaryState::Entry& entry :
          impl.entries) {
         if (entry.key == key) {
@@ -221,6 +246,19 @@ ResourceDictionary::DictionaryState::Entry* FindLocal(
 const ResourceDictionary::DictionaryState::Entry* FindLocal(
     const ResourceDictionary::DictionaryState& impl,
     const ResourceKey& key) noexcept {
+    if (key.Kind() == ResourceKeyKind::String) {
+        if (auto* idx = impl.stringIndex.Find(key.StringValue())) {
+            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
+                return &impl.entries[*idx];
+            }
+        }
+    } else if (key.Kind() == ResourceKeyKind::Type) {
+        if (auto* idx = impl.typeIndex.Find(key.TypeValue())) {
+            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
+                return &impl.entries[*idx];
+            }
+        }
+    }
     for (const ResourceDictionary::DictionaryState::Entry& entry :
          impl.entries) {
         if (entry.key == key) {
@@ -495,6 +533,16 @@ void ResourceDictionary::Add(
     entry.source = source;
     storage->entries.PushBack(
             std::move(entry));
+    storage->stringIndex.Clear();
+    storage->typeIndex.Clear();
+    for (std::uint32_t i = 0U; i < storage->entries.Size(); ++i) {
+        const ResourceKey& k = storage->entries[i].key;
+        if (k.Kind() == ResourceKeyKind::String) {
+            static_cast<void>(storage->stringIndex.Insert(k.StringValue(), i));
+        } else if (k.Kind() == ResourceKeyKind::Type) {
+            static_cast<void>(storage->typeIndex.Insert(k.TypeValue(), i));
+        }
+    }
     Notify(
         *storage,
         CallbackKey(key),
@@ -637,9 +685,24 @@ bool ResourceDictionary::Remove(
         if (state_->entries[index].key != key) {
             continue;
         }
+        if (key.Kind() == ResourceKeyKind::String) {
+            static_cast<void>(state_->stringIndex.Erase(key.StringValue()));
+        } else if (key.Kind() == ResourceKeyKind::Type) {
+            static_cast<void>(state_->typeIndex.Erase(key.TypeValue()));
+        }
         if (index + 1U != state_->entries.Size()) {
             state_->entries[index] =
                 std::move(state_->entries.Back());
+            const ResourceKey& movedKey = state_->entries[index].key;
+            if (movedKey.Kind() == ResourceKeyKind::String) {
+                if (std::uint32_t* found = state_->stringIndex.Find(movedKey.StringValue())) {
+                    *found = index;
+                }
+            } else if (movedKey.Kind() == ResourceKeyKind::Type) {
+                if (std::uint32_t* found = state_->typeIndex.Find(movedKey.TypeValue())) {
+                    *found = index;
+                }
+            }
         }
         state_->entries.PopBack();
         Notify(
@@ -955,6 +1018,8 @@ void ResourceDictionary::Clear() noexcept {
         return;
     }
     state_->entries.Clear();
+    state_->stringIndex.Clear();
+    state_->typeIndex.Clear();
     while (!state_->merged.Empty()) {
         Access::Merged merged = state_->merged.Back();
         state_->merged.PopBack();

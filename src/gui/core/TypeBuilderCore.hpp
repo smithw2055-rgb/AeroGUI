@@ -6,6 +6,7 @@
 
 #include "gui/core/MetadataRegistrations.hpp"
 #include <Aero/Base/Assert.hpp>
+#include <Aero/TryCast.hpp>
 
 #include <cstring>
 #include <functional>
@@ -490,13 +491,6 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
     return session;
 }
 
-} // namespace Aero::Meta
-
-
-
-
-namespace Aero::Meta {
-
 
 template<class T>
 struct IsResultVoid : std::false_type {};
@@ -690,5 +684,101 @@ Base::Result<Value> InvokeEventHandler(
 }
 
 
+
+template<class TOwner, class TValue, class TGetter>
+struct ReadOnlyOrdinaryPropertyAdapter {
+    TGetter getter;
+
+    static Base::Result<Value> Get(
+        const Base::Object& object,
+        void* context) noexcept {
+        const auto* adapter =
+            static_cast<const ReadOnlyOrdinaryPropertyAdapter*>(context);
+        if (adapter == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Ordinary metadata property adapter is unavailable");
+        }
+        const auto& owner = static_cast<const TOwner&>(object);
+        if constexpr (
+            std::is_same_v<TValue, Base::String> &&
+            std::is_same_v<
+                std::remove_cv_t<std::remove_reference_t<
+                    std::invoke_result_t<
+                        TGetter, const TOwner&>>>,
+                Base::StringView>) {
+            Base::String copied;
+            Base::Result<void> assigned = copied.Assign(
+                std::invoke(adapter->getter, owner));
+            if (!assigned) return assigned.GetStatus();
+            return ValueCodec<TValue>::Encode(copied);
+        } else {
+            return ValueCodec<TValue>::Encode(
+                std::invoke(adapter->getter, owner));
+        }
+    }
+};
+
+template<class T> struct IsRefType : std::false_type {};
+template<class T> struct IsRefType<Base::Ref<T>> : std::true_type {};
+
+using BoundFieldThunk = void (*)(Base::Object& root, Base::Object* child) noexcept;
+
+struct BoundFieldEntry {
+    TypeId ownerType = InvalidTypeId;
+    Base::String name;
+    BoundFieldThunk thunk = nullptr;
+};
+
+inline Base::Vector<BoundFieldEntry>& GetBoundFieldsRegistry() noexcept {
+    static Base::Vector<BoundFieldEntry> s_entries;
+    return s_entries;
+}
+
+inline void RegisterBoundFieldEntry(TypeId ownerType, Base::StringView name, BoundFieldThunk thunk) noexcept {
+    auto& entries = GetBoundFieldsRegistry();
+    for (std::uint32_t i = 0; i < entries.Size(); ++i) {
+        if (entries[i].ownerType == ownerType && entries[i].name.View() == name) {
+            entries[i].thunk = thunk;
+            return;
+        }
+    }
+    BoundFieldEntry entry;
+    entry.ownerType = ownerType;
+    static_cast<void>(entry.name.Assign(name));
+    entry.thunk = thunk;
+    entries.PushBack(std::move(entry));
+}
+
+inline void ApplyBoundFields(Base::Object& root, Base::StringView name, Base::Object* child) noexcept {
+    const TypeId rootType = root.RuntimeType();
+    const auto& entries = GetBoundFieldsRegistry();
+    for (std::uint32_t i = 0; i < entries.Size(); ++i) {
+        if (entries[i].ownerType == rootType && entries[i].name.View() == name) {
+            if (entries[i].thunk != nullptr) {
+                entries[i].thunk(root, child);
+            }
+        }
+    }
+}
+
+template<class TOwner, auto Member>
+void BoundFieldInvoker(Base::Object& root, Base::Object* child) noexcept {
+    auto* owner = ::Aero::TryCast<TOwner>(&root);
+    if (owner == nullptr) return;
+    using Traits = MemberPointerTraits<Member>;
+    using FieldType = typename Traits::FieldType;
+    if constexpr (std::is_pointer_v<FieldType>) {
+        using TargetElem = std::remove_pointer_t<FieldType>;
+        owner->*Member = ::Aero::TryCast<TargetElem>(child);
+    } else if constexpr (IsRefType<FieldType>::value) {
+        using TargetElem = typename FieldType::ElementType;
+        if (auto* typed = ::Aero::TryCast<TargetElem>(child)) {
+            owner->*Member = Base::Ref<TargetElem>::FromBorrowed(*typed);
+        } else {
+            owner->*Member = {};
+        }
+    }
+}
 
 } // namespace Aero::Meta

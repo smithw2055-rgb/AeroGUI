@@ -19,6 +19,7 @@ namespace Aero::Meta {
 inline constexpr std::uint32_t LocalValueProviderOrigin = 1U;
 inline constexpr std::uint32_t AnimationValueProviderOrigin = 2U;
 inline constexpr std::uint32_t VisualStateProviderOrigin = 3U;
+inline constexpr std::uint32_t TemplatedParentSetterOrigin = 4U;
 inline constexpr std::uint32_t FirstCanonicalProviderOrigin = 16U;
 
 class PropertyProviderOriginAllocator {

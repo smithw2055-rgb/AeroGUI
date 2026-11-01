@@ -277,7 +277,8 @@ Base::Result<void> LoadFromUri(
                         existingRoot,
                         componentPath.View(),
                         {},
-                        owner->diagnostics);
+                        owner->diagnostics,
+                        owner->application != nullptr ? &owner->application->GetResources() : nullptr);
                 if (!loaded) return loaded.GetStatus();
                 const Base::Ref<Base::Object>& root = loaded.Value().Root();
                 if (!root || root.Get() != value.Get()) {

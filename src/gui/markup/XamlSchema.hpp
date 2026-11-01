@@ -2224,7 +2224,7 @@ struct LoaderResult {
         root.Reset();
         metadata = nullptr;
         names.Clear();
-        resources.Clear();
+        resources = Aero::ResourceDictionary{};
         visualContent.ReleaseContent();
         visualContent.Clear();
         canonicalUri = {};

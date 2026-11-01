@@ -328,7 +328,9 @@ private:
 
     Base::Result<LoaderResult> CompleteLoad(
         Base::Result<Base::Ref<Base::Object>> loaded) noexcept;
-    Base::Result<void> ResolveDeferredStaticResources() noexcept;
+    Base::Result<void> ResolveDeferredStaticResources(
+        Base::Object* rootObject = nullptr,
+        const Aero::ResourceDictionary* resultResources = nullptr) noexcept;
     Base::Result<void> FinalizeDeferredStylesAndTemplates() noexcept;
     Base::Result<Base::Ref<Base::Object>> LoadReaderCore(
         NodeReader& reader) noexcept;
@@ -1334,7 +1336,7 @@ Base::Result<LoaderResult> ObjectWriter::CompleteLoad(
     // sibling theme dictionaries participate in WPF resource lookup order.
     if (hasDeferredStaticResources_) {
         Base::Result<void> resolved =
-            ResolveDeferredStaticResources();
+            ResolveDeferredStaticResources(result.root.Get(), &result.resources);
         if (!resolved) {
             const Base::Status status = resolved.GetStatus();
             result.Clear();
@@ -1365,11 +1367,29 @@ Base::Result<LoaderResult> ObjectWriter::CompleteLoad(
     return result;
 }
 
-Base::Result<void> ObjectWriter::ResolveDeferredStaticResources() noexcept {
+Base::Result<void> ObjectWriter::ResolveDeferredStaticResources(
+    Base::Object* rootObject,
+    const Aero::ResourceDictionary* resultResources) noexcept {
     for (DeferredStaticResourceRecord& deferred :
          deferredStaticResources_) {
-        Base::Result<Aero::ResourceValue> resource =
-            LookupResource(deferred.key.View());
+        Base::Result<Aero::ResourceValue> resource = Base::Status::Failure(Base::ErrorCode::NotFound, "Resource not found");
+        if (resultResources != nullptr) {
+            Aero::ResourceValue val = resultResources->Lookup(deferred.key.View());
+            if (val.Kind() != Meta::ValueKind::Unset) {
+                resource = std::move(val);
+            }
+        }
+        if (!resource && rootObject != nullptr) {
+            if (auto* dict = ::Aero::TryCast<Aero::ResourceDictionary>(rootObject)) {
+                Aero::ResourceValue val = dict->Lookup(deferred.key.View());
+                if (val.Kind() != Meta::ValueKind::Unset) {
+                    resource = std::move(val);
+                }
+            }
+        }
+        if (!resource) {
+            resource = LookupResource(deferred.key.View());
+        }
         if (!resource) {
             Base::Result<Base::String> message =
                 StaticResourceNotFoundMessage(
@@ -1537,32 +1557,53 @@ Base::Result<Base::Ref<Base::Object>> ObjectWriter::LoadCompiledCore(
         ValidateCompiledCacheIdentity(
             document.Identity(), schema_->Domain());
     if (!compatible) return compatible.GetStatus();
-    // Step 5: High-speed XamlVM Bytecode Document Execution pipeline
-    if (loadContext_ == nullptr || loadContext_->recordingNodes == nullptr) {
-        Base::Result<const XamlBytecodeProgram*> bytecodeReady = EnsureDocumentBytecode(
-            document, *schema_);
-        if (bytecodeReady && bytecodeReady.Value() != nullptr && bytecodeReady.Value()->IsValid()) {
-            const XamlBytecodeProgram& program = *bytecodeReady.Value();
-            XamlDocumentExecutionContext vmContext;
-            vmContext.schema = schema_;
-            vmContext.loadContext = loadContext_;
-            vmContext.runtime = schema_->Metadata();
-            XamlDocumentExecutionResult vmResult;
-            Base::Result<void> executed = XamlVM::ExecuteDocument(
-                program, vmContext, vmResult);
-            if (executed && vmResult.root) {
-                consumed_ = true;
-                root_ = std::move(vmResult.root);
-                committedNames_ = std::move(vmResult.names);
-                committedResources_ = std::move(vmResult.resources);
-                resultVisualContent_ = std::move(vmResult.visualContent);
-                Base::Ref<Base::Object> result = std::move(root_);
-                return result;
-            }
+
+    if (loadContext_ != nullptr && loadContext_->recordingNodes != nullptr) {
+        for (const Node& node : document.Nodes()) {
+            Base::Result<Node> cloned = Node::Clone(node);
+            if (!cloned) return cloned.GetStatus();
+            loadContext_->recordingNodes->PushBack(std::move(cloned).Value());
         }
     }
-    CompiledXamlNodeCursor cursor(document);
-    return LoadCursorCore(cursor);
+
+    // High-speed Single-Track XamlVM Bytecode Document Execution pipeline
+    Base::Result<const XamlBytecodeProgram*> bytecodeReady = EnsureDocumentBytecode(
+        document, *schema_);
+    if (!bytecodeReady) {
+        return bytecodeReady.GetStatus();
+    }
+    if (bytecodeReady.Value() == nullptr || !bytecodeReady.Value()->IsValid()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Failed to compile XAML document to valid bytecode");
+    }
+
+    const XamlBytecodeProgram& program = *bytecodeReady.Value();
+    XamlDocumentExecutionContext vmContext;
+    vmContext.schema = schema_;
+    vmContext.loadContext = loadContext_;
+    vmContext.runtime = schema_->Metadata();
+    XamlDocumentExecutionResult vmResult;
+    Base::Result<void> executed = XamlVM::ExecuteDocument(
+        program, vmContext, vmResult);
+    if (!executed) {
+        return executed.GetStatus();
+    }
+    if (!vmResult.root) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Executing XAML bytecode produced null root");
+    }
+
+    consumed_ = true;
+    root_ = std::move(vmResult.root);
+    committedNames_ = std::move(vmResult.names);
+    committedResources_ = std::move(vmResult.resources);
+    resultVisualContent_ = std::move(vmResult.visualContent);
+    extensionEffects_ = std::move(vmResult.effects.Items());
+    hasDeferredStaticResources_ = vmResult.hasDeferredStaticResources;
+    Base::Ref<Base::Object> result = std::move(root_);
+    return result;
 }
 
 Base::Result<Base::Ref<Base::Object>> ObjectWriter::CreateObject(
@@ -2413,20 +2454,21 @@ Base::Result<ProvidedValue> ObjectWriter::EvaluateMarkupExtension(
             source);
     }
     Base::Result<const Meta::TypeInfo*> typeResult =
-        schema_->ResolveType(
+        Base::Status::Failure(Base::ErrorCode::NotFound, "");
+    char buffer[128];
+    if (localName.SizeBytes() + 9U < sizeof(buffer) &&
+        (localName.SizeBytes() < 9U ||
+         localName.Substr(localName.SizeBytes() - 9U, 9U) != Base::StringView("Extension"))) {
+        std::memcpy(buffer, localName.Data(), localName.SizeBytes());
+        std::memcpy(buffer + localName.SizeBytes(), "Extension", 9U);
+        typeResult = schema_->ResolveType(
+            namespaceResult.Value(),
+            Base::StringView(buffer, localName.SizeBytes() + 9U));
+    }
+    if (!typeResult) {
+        typeResult = schema_->ResolveType(
             namespaceResult.Value(),
             localName);
-    if (!typeResult) {
-        char buffer[128];
-        if (localName.SizeBytes() + 9U < sizeof(buffer) &&
-            (localName.SizeBytes() < 9U ||
-             localName.Substr(localName.SizeBytes() - 9U, 9U) != Base::StringView("Extension"))) {
-            std::memcpy(buffer, localName.Data(), localName.SizeBytes());
-            std::memcpy(buffer + localName.SizeBytes(), "Extension", 9U);
-            typeResult = schema_->ResolveType(
-                namespaceResult.Value(),
-                Base::StringView(buffer, localName.SizeBytes() + 9U));
-        }
     }
     if (!typeResult) {
         return Failure(
@@ -4113,6 +4155,7 @@ Base::Result<void> ObjectWriter::RegisterObjectName(
     }
 
     object.nameRegistered = true;
+    ::Aero::Meta::ApplyBoundFields(*owner.object, object.name.View(), object.object.Get());
     return {};
 }
 
@@ -6294,9 +6337,17 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     const Base::ResourceUri source =
         dictionary.GetSource();
     if (source.Empty()) return {};
+    Base::ResourceUri effectiveSource = source;
+    if (!source.IsAbsolute() && !owner.canonicalUri.Empty()) {
+        Base::Result<Base::ResourceUri> resolved =
+            ResolveRequestedUri(source.Canonical(), owner.canonicalUri);
+        if (resolved) {
+            effectiveSource = std::move(resolved).Value();
+        }
+    }
     if ((!owner.canonicalUri.Empty() &&
-         source == owner.canonicalUri) ||
-        IsLoading(source)) {
+         effectiveSource == owner.canonicalUri) ||
+        IsLoading(effectiveSource)) {
         return Failure(
             Base::Status::Failure(
                 Base::ErrorCode::CycleDetected,
@@ -6328,7 +6379,7 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     const LoadState* previousLoadState = loadState_;
     loadState_ = &resourceContext;
     Base::Result<LoaderResult> loaded =
-        LoadCore(source, options, {});
+        LoadCore(effectiveSource, options, {});
     loadState_ = previousLoadState;
     if (!loaded) {
         return Failure(
@@ -6368,7 +6419,6 @@ Loader::LoaderState::Operation::ResolveDictionaryDependencies(
     merge.target = std::move(target).Value();
     merge.source = std::move(sourceDictionary);
     pending.PushBack(std::move(merge));
-    loaded.Value().Clear();
     return {};
 }
 

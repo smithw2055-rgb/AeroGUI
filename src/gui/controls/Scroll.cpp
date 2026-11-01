@@ -785,7 +785,8 @@ void ScrollViewer::SyncContentToPresenter() noexcept {
 }
 
 void ScrollViewer::EnsureFallbackPresenter() noexcept {
-    if (GetTemplateRoot() != nullptr || contentPresenter_ != nullptr) return;
+    if (IsTemplateApplied()) return;
+    if (contentPresenter_ != nullptr) return;
     if (!ownedPresenter_) {
         ownedPresenter_ = Base::MakeRef<ScrollContentPresenter>();
         if (!ownedPresenter_) return;
@@ -798,11 +799,15 @@ void ScrollViewer::EnsureFallbackPresenter() noexcept {
             AddVisualChild(contentPresenter_);
         }
     }
+    SetTemplateChildCore(contentPresenter_);
     SyncContentToPresenter();
 }
 
 void ScrollViewer::ClearFallbackPresenter() noexcept {
     if (ownedPresenter_) {
+        if (GetTemplateRoot() == ownedPresenter_.Get()) {
+            SetTemplateChildCore(nullptr);
+        }
         ownedPresenter_->ClearHostedContent();
         if (ownedPresenter_->GetVisualParent() == this) {
             if (ElementTree* tree = VisualTree(this)) {
@@ -905,28 +910,9 @@ void ScrollViewer::OnScrollBarValueChanged(
     }
 }
 
-Size ScrollViewer::MeasureOverride(
-    Size availableSize) noexcept {
-    if (GetTemplateRoot() == nullptr) {
+Size ScrollViewer::MeasureOverride(Size availableSize) noexcept {
+    if (GetTemplateRoot() == nullptr && !IsTemplateApplied()) {
         EnsureFallbackPresenter();
-        if (contentPresenter_ != nullptr) {
-            if (ElementTree* tree = VisualTree(this)) {
-                if (VisualTree(contentPresenter_) == nullptr &&
-                    contentPresenter_->GetLogicalParent() == nullptr) {
-                    static_cast<void>(tree->AttachElement(*this, *contentPresenter_));
-                } else if (contentPresenter_->GetVisualParent() != this ||
-                           !contentPresenter_->GetIsLayoutAttached()) {
-                    static_cast<void>(tree->AttachVisualChild(*this, *contentPresenter_));
-                }
-            }
-            if (contentPresenter_->GetIsLayoutAttached() &&
-                contentPresenter_->LayoutParent() == this) {
-                MeasureChild(*contentPresenter_, availableSize);
-                AdoptPresenterData(*contentPresenter_, contentPresenter_->GetData(), ScrollInputKind::Line);
-                return contentPresenter_->GetDesiredSize();
-            }
-            return Size{};
-        }
     }
     const Size measured = ContentControl::MeasureOverride(availableSize);
     if (contentPresenter_ != nullptr) {
@@ -939,28 +925,14 @@ Size ScrollViewer::MeasureOverride(
 }
 
 Size ScrollViewer::ArrangeOverride(Size finalSize) noexcept {
-    if (GetTemplateRoot() == nullptr && contentPresenter_ != nullptr) {
-        if (contentPresenter_->GetIsLayoutAttached() &&
-            contentPresenter_->LayoutParent() == this) {
-            ArrangeChild(
-                *contentPresenter_, {0.0, 0.0, finalSize.width, finalSize.height});
-            return finalSize;
-        }
-    }
     return ContentControl::ArrangeOverride(finalSize);
 }
 
 std::uint32_t ScrollViewer::GetVisualChildrenCount() const noexcept {
-    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
-        return 1U;
-    }
     return ContentControl::GetVisualChildrenCount();
 }
 
 ::Aero::Media::Visual* ScrollViewer::GetVisualChild(std::uint32_t index) const noexcept {
-    if (GetTemplateRoot() == nullptr && ownedPresenter_ && ownedPresenter_->GetVisualParent() == this) {
-        return index == 0U ? ownedPresenter_.Get() : nullptr;
-    }
     return ContentControl::GetVisualChild(index);
 }
 

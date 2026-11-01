@@ -254,10 +254,12 @@ Size Grid::MeasureOverride(
 
     const std::uint32_t columns = GetColumnCount();
     const std::uint32_t rows = GetRowCount();
-    Base::Vector<float> desiredColumns;
-    Base::Vector<float> desiredRows;
-    desiredColumns.Resize(columns, 0.0f);
-    desiredRows.Resize(rows, 0.0f);
+    desiredColumns_.Clear();
+    desiredRows_.Clear();
+    desiredColumns_.Resize(columns, 0.0f);
+    desiredRows_.Resize(rows, 0.0f);
+    auto& desiredColumns = desiredColumns_;
+    auto& desiredRows = desiredRows_;
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
@@ -298,23 +300,10 @@ Size Grid::MeasureOverride(
         }
     }
 
-    struct SpanningChild {
-        UIElement* child = nullptr;
-        std::uint32_t column = 0U;
-        std::uint32_t row = 0U;
-        std::uint32_t columnSpan = 1U;
-        std::uint32_t rowSpan = 1U;
-    };
-    Base::Vector<SpanningChild> spanningChildren;
-
-    struct NonSpanningChild {
-        UIElement* child = nullptr;
-        std::uint32_t column = 0U;
-        std::uint32_t row = 0U;
-        bool hasStarCol = false;
-        bool hasStarRow = false;
-    };
-    Base::Vector<NonSpanningChild> nonSpanningChildren;
+    spanningChildren_.Clear();
+    nonSpanningChildren_.Clear();
+    auto& spanningChildren = spanningChildren_;
+    auto& nonSpanningChildren = nonSpanningChildren_;
 
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;

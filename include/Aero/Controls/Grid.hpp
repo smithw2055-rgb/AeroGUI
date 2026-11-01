@@ -111,6 +111,21 @@ private:
 
     void SyncDefinitionVectors() noexcept;
 
+    struct SpanningChild {
+        UIElement* child = nullptr;
+        std::uint32_t column = 0U;
+        std::uint32_t row = 0U;
+        std::uint32_t columnSpan = 1U;
+        std::uint32_t rowSpan = 1U;
+    };
+    struct NonSpanningChild {
+        UIElement* child = nullptr;
+        std::uint32_t column = 0U;
+        std::uint32_t row = 0U;
+        bool hasStarCol = false;
+        bool hasStarRow = false;
+    };
+
     Base::Vector<GridLength> columns_;
     Base::Vector<GridLength> rows_;
     Base::Vector<Ref<ColumnDefinition>> columnDefinitionObjects_;
@@ -121,6 +136,8 @@ private:
     Base::Vector<float> maxRows_;
     Base::Vector<float> arrangedColumns_;
     Base::Vector<float> arrangedRows_;
+    Base::Vector<SpanningChild> spanningChildren_;
+    Base::Vector<NonSpanningChild> nonSpanningChildren_;
 };
 
 } // namespace Aero::Controls

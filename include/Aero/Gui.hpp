@@ -28,6 +28,8 @@ namespace Media { class TextureProvider; class FontProvider; }
 // document cache; Views own presentation-affine layout/input/render state.
 class AERO_GUI_API Gui {
 public:
+    static Gui* Current() noexcept;
+
     explicit Gui(Base::IAllocator* allocator = nullptr) noexcept;
     ~Gui() noexcept;
 

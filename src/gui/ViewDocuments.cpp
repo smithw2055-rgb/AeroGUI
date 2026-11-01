@@ -606,6 +606,7 @@ Base::Result<void> MountRoot(ViewFrame& state,
             availableSize);
         if (!mountedResult) return mountedResult.GetStatus();
         state.root = std::move(requestedRoot);
+        state.mounted = true;
         const auto rollbackRoot = [&]() noexcept {
             if (state.Animations() != nullptr) {
                 state.Animations()->RemoveAll();
@@ -636,7 +637,6 @@ Base::Result<void> MountRoot(ViewFrame& state,
             rollbackRoot();
             return activated.GetStatus();
         }
-        state.mounted = true;
         return {};
     }
 
@@ -992,7 +992,7 @@ Base::Result<void> UnmountViewFragment(
 Base::Result<void> AdoptLoadedComponent(
     ViewFrame& state,
     Markup::LoaderResult&& incoming) noexcept {
-    if (!state.initialized || !state.mounted ||
+    if (!state.initialized || (!state.mounted && !state.root) ||
         state.Tree() == nullptr || state.Bindings() == nullptr ||
         state.Values() == nullptr || state.allocator == nullptr) {
         return {};

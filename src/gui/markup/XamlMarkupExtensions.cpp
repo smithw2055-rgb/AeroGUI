@@ -2431,13 +2431,70 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
     // Resolve its current resource value while the style dictionary is being
     // built; the style finalizer subsequently converts that value for the
     // target dependency property.
-    if (services.targetObject->RuntimeType() ==
-        Aero::Setter::StaticTypeId()) {
+    const bool isNonDependencyTarget =
+        services.targetObject == nullptr ||
+        services.targetObject->RuntimeType() == Aero::Setter::StaticTypeId() ||
+        services.targetObject->RuntimeType() == Aero::Style::StaticTypeId() ||
+        (services.schema != nullptr && services.schema->Metadata() != nullptr &&
+         !services.schema->Metadata()->Types().IsAssignableFrom(
+             Meta::TypeOf<::Aero::DependencyObject>(),
+             services.targetObject->RuntimeType()));
+    if (isNonDependencyTarget) {
+        if (services.resources.IsAvailable()) {
+            Base::Result<Aero::ResourceValue> res = services.resources.Lookup(key);
+            if (res) {
+                return ProvidedValue::FromValue(std::move(res).Value());
+            }
+        }
+        Base::StringView typeName = key;
+        bool isTypeKey = false;
+        if (key.SizeBytes() >= 2U && key[0] == '{' && key[key.SizeBytes() - 1U] == '}') {
+            Base::StringView inner = TrimAscii(key.Substr(1U, key.SizeBytes() - 2U));
+            if (inner.SizeBytes() >= 7U && inner.Substr(0U, 7U) == "x:Type ") {
+                typeName = TrimAscii(inner.Substr(7U, inner.SizeBytes() - 7U));
+                isTypeKey = true;
+            } else if (inner.SizeBytes() >= 5U && inner.Substr(0U, 5U) == "Type ") {
+                typeName = TrimAscii(inner.Substr(5U, inner.SizeBytes() - 5U));
+                isTypeKey = true;
+            }
+        }
+        Meta::TypeId resolvedTypeId = Meta::InvalidTypeId;
+        if (isTypeKey && services.schema != nullptr) {
+            Base::StringView localName = typeName;
+            for (std::uint32_t i = 0U; i < typeName.SizeBytes(); ++i) {
+                if (typeName[i] == ':') {
+                    localName = TrimAscii(typeName.Substr(i + 1U, typeName.SizeBytes() - i - 1U));
+                    break;
+                }
+            }
+            Base::Result<const Meta::TypeInfo*> resolved = services.schema->ResolveType(Meta::AeroNamespaceUri(), localName);
+            if (!resolved) {
+                resolved = services.schema->ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), localName);
+            }
+            if (resolved && resolved.Value() != nullptr) {
+                resolvedTypeId = resolved.Value()->Id();
+            }
+        }
+
+        auto lookupInDict = [&](const ResourceDictionary* dict) -> Base::Result<Aero::ResourceValue> {
+            if (dict == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "null dict");
+            if (resolvedTypeId != Meta::InvalidTypeId) {
+                Aero::ResourceValue val = dict->Lookup(resolvedTypeId);
+                if (val.Kind() != Meta::ValueKind::Unset) return val;
+            }
+            Aero::ResourceValue val = dict->Lookup(key);
+            if (val.Kind() != Meta::ValueKind::Unset) return val;
+            if (isTypeKey) {
+                val = dict->Lookup(typeName);
+                if (val.Kind() != Meta::ValueKind::Unset) return val;
+            }
+            return Base::Status::Failure(Base::ErrorCode::NotFound, "not found");
+        };
+
         for (const ResourceDictionary* resources :
              services.ambientResourceChain) {
             if (resources == nullptr) continue;
-            Base::Result<Aero::ResourceValue> resource =
-                resources->Lookup(key);
+            Base::Result<Aero::ResourceValue> resource = lookupInDict(resources);
             if (resource) {
                 return ProvidedValue::FromValue(
                     std::move(resource).Value());
@@ -2448,8 +2505,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             }
         }
         if (services.fallbackResources != nullptr) {
-            Base::Result<Aero::ResourceValue> resource =
-                services.fallbackResources->Lookup(key);
+            Base::Result<Aero::ResourceValue> resource = lookupInDict(services.fallbackResources);
             if (resource) {
                 return ProvidedValue::FromValue(
                     std::move(resource).Value());

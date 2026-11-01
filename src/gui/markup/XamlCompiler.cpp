@@ -5208,6 +5208,8 @@ Base::Result<Value> ConvertTriggerValue(
         value, targetType, property, runtime, properties, "Template Trigger");
 }
 
+} // namespace
+
 Base::Result<Base::Vector<TemplatePropertyTrigger>>
 CompilePropertyTriggers(
     ControlTemplate& controlTemplate,
@@ -5562,8 +5564,6 @@ CompileVisualStates(
     }
     return groups;
 }
-
-} // namespace
 
 Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     Base::Ref<Aero::TriggerBase> trigger,

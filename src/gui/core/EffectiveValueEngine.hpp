@@ -248,10 +248,12 @@ public:
     PropertyProviderSession(
         EffectiveValueEngine& engine,
         PropertyValueRank setterRank,
-        PropertyValueRank triggerRank) noexcept
+        PropertyValueRank triggerRank,
+        std::uint32_t fixedSetterOrigin = 0U) noexcept
         : engine_(&engine),
           setterRank_(setterRank),
-          triggerRank_(triggerRank) {}
+          triggerRank_(triggerRank),
+          setterOrigin_(fixedSetterOrigin) {}
 
     PropertyProviderSession(const PropertyProviderSession&) = delete;
     PropertyProviderSession& operator=(const PropertyProviderSession&) = delete;
@@ -412,7 +414,8 @@ public:
         : session_(
               engine,
               PropertyValueRank::TemplatedParentSetter,
-              PropertyValueRank::TemplatedParentTrigger) {}
+              PropertyValueRank::TemplatedParentTrigger,
+              TemplatedParentSetterOrigin) {}
 
     Base::Result<void> SetTemplateValue(
         DependencyObject& object,

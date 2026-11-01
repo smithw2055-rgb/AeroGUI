@@ -122,6 +122,7 @@ struct RootAttachment {
 };
 
 class ElementTree {
+    friend class ::Aero::Media::Visual;
 public:
     ElementTree(
         ::Aero::Threading::Dispatcher& dispatcher,

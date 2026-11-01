@@ -1327,17 +1327,8 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
                    owner_->RuntimeType(),
                    ListView::StaticTypeId()) &&
                static_cast<ListView*>(owner_)->GetView()) {
-        // GridView presents the data item through GridViewRowPresenter and
-        // column bindings. Keep a zero-content visual for the container's
-        // ordinary ContentControl contract while DataContext carries the item.
-        Base::Ref<TextBlock> placeholder = Base::MakeRef<TextBlock>();
-        if (!placeholder) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Failed to allocate TextBlock");
-        }
-        record.content = std::move(placeholder);
-        record.generatedTextContent = true;
+        // GridView presents the data item directly through GridViewRowPresenter reading DataContext.
+        // No placeholder content required.
     } else {
         // No ItemTemplate, DisplayMemberPath, or recognized value wrapper was
         // supplied. Mirror WPF's ToString() fallback by realizing the item
@@ -1366,7 +1357,7 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         record.content = std::move(text);
         record.generatedTextContent = true;
     }
-    if (!record.content ||
+    if (record.content &&
         !DependencyObjectAccess::PropertyRegistry(owner_).Types()
             .IsDerivedFrom(
                 record.content->RuntimeType(),
@@ -1645,7 +1636,7 @@ ItemContainerGenerator::GeneratorState::AttachRecord(
             ContentPresenter::StaticTypeId())) {
         contentPresenter = static_cast<ContentPresenter*>(&container);
     }
-    if (!record.itemIsOwnContainer && contentControl != nullptr) {
+    if (!record.itemIsOwnContainer && contentControl != nullptr && record.content != nullptr) {
         auto& content =
             *static_cast<UIElement*>(
                 record.content.Get());
@@ -1767,7 +1758,7 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
         static_cast<void>(templates_->Clear(static_cast<Control&>(container)));
     }
     UIElement* content = nullptr;
-    if (!record.itemIsOwnContainer && contentControl != nullptr) {
+    if (!record.itemIsOwnContainer && contentControl != nullptr && record.content != nullptr) {
         content = (*contentControl).GetContentElement();
     } else if (!record.itemIsOwnContainer && contentPresenter != nullptr) {
         content = contentPresenter->GetContent();

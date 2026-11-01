@@ -121,79 +121,15 @@ ListView::GetView() const noexcept {
 void ListView::SetView(
     Base::Ref<ViewBase> value) noexcept {
     SetValue(ViewProperty, std::move(value));
-    SynchronizeColumnHeaders();
 }
 
 void
 ListView::OnApplyTemplate() noexcept {
     ListBox::OnApplyTemplate();
-    DependencyObject* headers =
-        GetTemplateChild("ColumnHeaders");
-    columnHeaders_ =
-        headers != nullptr &&
-        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            headers->RuntimeType(),
-            TextBlock::StaticTypeId())
-        ? static_cast<TextBlock*>(headers)
-        : nullptr;
-    if (columnHeaders_ == nullptr) {
-        return;
-    }
-    SynchronizeColumnHeaders();
 }
 
 void ListView::OnTemplateDetached() noexcept {
-    columnHeaders_ = nullptr;
     ListBox::OnTemplateDetached();
-}
-
-void
-ListView::SynchronizeColumnHeaders() noexcept {
-    if (columnHeaders_ == nullptr) return;
-    Base::String text;
-    GridView* view = ::Aero::TryCast<GridView>(GetView().Get());
-    if (view != nullptr) {
-        for (const Base::Ref<GridViewColumn>&
-             column : view->GetColumns()) {
-            if (!column) continue;
-            const Value header = column->GetHeader();
-            if (!text.Append(
-                header.Kind() == ValueKind::String
-                ? header.AsString()
-                : Base::StringView{})) {
-                return;
-            }
-            const std::uint32_t headerCharacters =
-                header.Kind() == ValueKind::String
-                ? header.AsString().SizeBytes()
-                : 0U;
-            const std::uint32_t columnCharacters =
-                column->GetWidth() > 0.0
-                ? static_cast<std::uint32_t>(
-                      std::max(
-                          1.0,
-                          std::floor(
-                              column->GetWidth() /
-                              8.0)))
-                : headerCharacters + 2U;
-            const std::uint32_t padding =
-                std::max(
-                    std::uint32_t{2U},
-                    columnCharacters >
-                            headerCharacters
-                        ? columnCharacters -
-                            headerCharacters
-                        : std::uint32_t{2U});
-            for (std::uint32_t index = 0U;
-                 index < padding;
-                 ++index) {
-                if (!text.Append(Base::StringView(" "))) {
-                    return;
-                }
-            }
-        }
-    }
-    columnHeaders_->SetText(text.View());
 }
 
 Base::Ref<FrameworkElement>
@@ -266,28 +202,12 @@ const GridView* ResolvePresenterView(const FrameworkElement& presenter,
 Base::Ref<Base::Object> ResolveRowItem(const GridViewRowPresenter& presenter,
     const Base::Ref<Base::Object>& contentValue) noexcept {
     if (contentValue) {
-        // Explicit Content binding (WPF ListViewItem template binds
-        // Content="{TemplateBinding Content}"). In this engine the container's
-        // Content is a placeholder TextBlock for GridView mode, so prefer the
-        // DataContext below when Content looks generated. A real data item is
-        // rarely a TextBlock created by the generator.
-        bool contentIsPlaceholder = false;
-        if (contentValue->RuntimeType() == TextBlock::StaticTypeId()) {
-            contentIsPlaceholder = true;
-        }
-        if (!contentIsPlaceholder) {
-            return contentValue;
-        }
+        return contentValue;
     }
     Value dataContext = presenter.GetDataContext();
     if (dataContext.Kind() == ValueKind::Object && !dataContext.IsNullObject() &&
         dataContext.AsObject()) {
-        // Guard against the placeholder TextBlock leaking in as DataContext;
-        // DataContext should be the data item (ContentControl in gallery).
-        Base::Ref<Base::Object> dc = dataContext.AsObject();
-        if (dc->RuntimeType() != TextBlock::StaticTypeId()) {
-            return dc;
-        }
+        return dataContext.AsObject();
     }
     // Fall back to the templated ListViewItem's DataContext.
     const DependencyObject* current = &presenter;
@@ -305,7 +225,6 @@ Base::Ref<Base::Object> ResolveRowItem(const GridViewRowPresenter& presenter,
         if (next == current) break;
         current = next;
     }
-    if (contentValue) return contentValue;
     return {};
 }
 

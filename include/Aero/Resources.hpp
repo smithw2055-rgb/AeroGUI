@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/Base/Config.hpp>
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/Object.hpp>
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
@@ -45,6 +46,7 @@ public:
 
 private:
     Base::Vector<Entry> entries_;
+    Base::HashMap<Base::StringView, std::uint32_t> index_;
 };
 
 enum class ResourceKeyKind : std::uint8_t {

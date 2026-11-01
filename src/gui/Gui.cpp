@@ -15,6 +15,7 @@
 
 #include <new>
 #include <utility>
+#include <atomic>
 
 
 namespace Aero {
@@ -412,11 +413,20 @@ Base::Result<void> GuiRuntime::QuerySource(
     return {};
 }
 
+namespace {
+std::atomic<Gui*> s_currentGui{nullptr};
+}
+
+Gui* Gui::Current() noexcept {
+    return s_currentGui.load(std::memory_order_acquire);
+}
+
 Gui::Gui(
     Base::IAllocator* allocator) noexcept
     : allocator_(allocator != nullptr
           ? allocator
           : &Base::GetDefaultAllocator()) {
+    s_currentGui.store(this, std::memory_order_release);
     Base::Ref<GuiRuntime> made =
         Base::MakeRefWithAllocator<GuiRuntime>(
             *allocator_, *allocator_);
@@ -430,6 +440,8 @@ Gui::Gui(
 }
 
 Gui::~Gui() noexcept {
+    Gui* expected = this;
+    s_currentGui.compare_exchange_strong(expected, nullptr);
     state_.Reset();
 }
 
@@ -623,6 +635,14 @@ Base::Result<void> Gui::LoadComponent(
     }
     GuiRuntime& state = *state_;
     CollectUnclaimedDocuments(state);
+    if (resources == nullptr) {
+        if (auto* visual = TryCast<Media::Visual>(&component)) {
+            ResourceEnvironment env = ElementTree::EnvironmentOf(*visual);
+            if (env.application != nullptr) {
+                resources = const_cast<ResourceDictionary*>(env.application);
+            }
+        }
+    }
     Markup::XamlReader reader(*this);
     Base::Result<Markup::XamlDocument> loaded =
         reader.LoadComponentInto(

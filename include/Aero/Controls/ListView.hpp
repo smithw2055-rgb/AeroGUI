@@ -216,10 +216,6 @@ protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
-
-private:
-    TextBlock* columnHeaders_ = nullptr;
-    void SynchronizeColumnHeaders() noexcept;
 };
 
 } // namespace Aero::Controls

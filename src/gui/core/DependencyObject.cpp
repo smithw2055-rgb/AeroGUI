@@ -927,7 +927,7 @@ void DependencyObject::SetTemplateValue(
 
     Base::Result<void> contribution = ApplyProviderContributionInternal(
         property,
-        PropertyProviderToken{PropertyValueRank::TemplatedParentSetter, FirstCanonicalProviderOrigin, 0U},
+        PropertyProviderToken{PropertyValueRank::TemplatedParentSetter, TemplatedParentSetterOrigin, 0U},
         value);
     if (!contribution) return;
 

@@ -71,6 +71,9 @@ void Media::Visual::AddVisualChild(Visual* child) noexcept {
     firstVisualChild_ = child;
     child->OnVisualParentChanged(oldParent);
     OnVisualChildrenChanged(child, nullptr);
+    if (tree_ != nullptr && child->tree_ != tree_) {
+        static_cast<void>(tree_->AttachVisualChild(*this, *child));
+    }
 }
 
 void Media::Visual::RemoveVisualChild(Visual* child) noexcept {
@@ -88,6 +91,21 @@ void Media::Visual::RemoveVisualChild(Visual* child) noexcept {
         child->prevVisualSibling_ = nullptr;
         child->nextVisualSibling_ = nullptr;
         child->visualParent_ = nullptr;
+        if (tree_ != nullptr && child->tree_ == tree_ && child->logicalParent_ == nullptr) {
+            ElementTree::CleanVisualChildStorage(*this, *child);
+            if (child->LoadedFlag()) {
+                Base::Vector<ElementTree::LifecycleRecord> staged;
+                if (tree_->StageLifecycleSubtree(*child, false, staged)) {
+                    tree_->ApplyLoadedSubtree(*child, false);
+                    tree_->InvalidateHandleSubtree(*child);
+                    tree_->SetTreeSubtree(*child, nullptr);
+                    tree_->PublishLifecycle(staged);
+                }
+            } else {
+                tree_->InvalidateHandleSubtree(*child);
+                tree_->SetTreeSubtree(*child, nullptr);
+            }
+        }
         child->OnVisualParentChanged(oldParent);
     }
     OnVisualChildrenChanged(nullptr, child);
@@ -476,37 +494,11 @@ void ElementTree::InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept 
 }
 
 Base::Result<void> ElementTree::TrackInheritedValues(
-    ::Aero::Media::Visual& node) noexcept {
-    FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
-    if (element == nullptr ||
-        DependencyObjectAccess::PropertyRegistry(element).Find(
-            FrameworkElement::DataContextProperty) == nullptr) {
-        return {};
-    }
-    element->AddValueChangedHandler(
-        FrameworkElement::DataContextProperty,
-        dataContextChangedHandler_);
-    Base::Result<void> invalidated = values_->Invalidate(
-        *element, FrameworkElement::DataContextProperty);
-    if (!invalidated) {
-        (void)element->RemoveValueChangedHandler(
-            FrameworkElement::DataContextProperty,
-            dataContextChangedHandler_);
-        return invalidated.GetStatus();
-    }
+    ::Aero::Media::Visual& /*node*/) noexcept {
     return {};
 }
 
-void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& node) noexcept {
-    FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(&(node));
-    if (element == nullptr ||
-        DependencyObjectAccess::PropertyRegistry(element).Find(
-            FrameworkElement::DataContextProperty) == nullptr) {
-        return;
-    }
-    (void)element->RemoveValueChangedHandler(
-        FrameworkElement::DataContextProperty,
-        dataContextChangedHandler_);
+void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& /*node*/) noexcept {
 }
 
 void ElementTree::OnDataContextChanged(
@@ -834,6 +826,7 @@ Base::Result<void> ElementTree::AttachVisual(
             static_cast<void>(RegisterHandleSubtree(child));
             SetTreeSubtree(child, this);
         }
+        ElementTree::AttachVisualControlTemplateRoot(parent, child);
         ++version_;
         return {};
     }

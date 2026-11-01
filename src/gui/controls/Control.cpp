@@ -27,6 +27,7 @@
 #include "gui/controls/ContentHosting.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
+#include <Aero/Gui.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -1091,6 +1092,16 @@ AERO_DESCRIBE(UserControl) {
     using namespace Aero::Meta;
     Register<UserControl>(context)
         .Factory();
+}
+
+Base::Result<void> UserControl::InitializeComponent(StringView uri) noexcept {
+    Gui* current = Gui::Current();
+    if (current == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotInitialized,
+            "Gui must be initialized before UserControl::InitializeComponent");
+    }
+    return current->LoadComponent(*this, uri);
 }
 
 AERO_DESCRIBE(GroupBox) {

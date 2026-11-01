@@ -477,6 +477,43 @@ public:
         return *this;
     }
 
+    template<class TGetter> TypeBuilder& PropertyReadOnly(StringView name, TGetter getter,
+        PropertyFlags flags = PropertyFlags::None) noexcept {
+        static_assert(std::is_member_function_pointer_v<TGetter>,
+            "Ordinary metadata property getter must be a member function");
+        static_assert(std::is_invocable_v<TGetter, const T&>,
+            "Ordinary metadata property getter must be const-invocable");
+        using GetterResult = std::invoke_result_t<TGetter, const T&>;
+        using GetterValue = std::remove_cv_t<std::remove_reference_t<GetterResult>>;
+        using TValue = std::conditional_t<std::is_same_v<GetterValue, StringView>, String, GetterValue>;
+
+        if (!builder_.Ok()) return *this;
+        using Adapter = ReadOnlyOrdinaryPropertyAdapter<T, TValue, TGetter>;
+        ::Aero::Result<Adapter*> adapter = builder_.OwnBehaviorContext(Adapter{getter});
+        if (!adapter) {
+            builder_.Fail(adapter.GetStatus());
+            return *this;
+        }
+
+        PropertyRegistration registration;
+        registration.name = name;
+        registration.valueType = ValueCodec<TValue>::Type();
+        registration.flags = flags | PropertyFlags::ReadOnly;
+        registration.access = PropertyAccessKind::Ordinary;
+        registration.get = &Adapter::Get;
+        registration.set = nullptr;
+        registration.context = adapter.Value();
+        builder_.Property(registration);
+        if (!builder_.Ok()) { builder_.ReleaseBehaviorContext(adapter.Value()); }
+        return *this;
+    }
+
+    template<auto Member>
+    TypeBuilder& BindField(StringView name) noexcept {
+        RegisterBoundFieldEntry(TypeOf<T>(), name, &BoundFieldInvoker<T, Member>);
+        return *this;
+    }
+
     template<auto Member> TypeBuilder& Field(StringView name, FieldFlags flags = FieldFlags::None) noexcept {
         using Traits = MemberPointerTraits<Member>;
         using Owner = typename Traits::OwnerType;
