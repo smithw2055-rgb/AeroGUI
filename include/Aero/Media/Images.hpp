@@ -28,6 +28,9 @@ enum class StretchDirection : std::uint8_t {
 
 using ::Aero::Meta::TypeId;
 
+AERO_GUI_API void NotifyImageSourceChanged() noexcept;
+AERO_GUI_API std::uint64_t GetImageSourceRevision() noexcept;
+
 // Decoded images are immutable resources. A generation counter replaces the
 // dependency-property store; XAML still sets UriSource and SourceRect by name.
 class AERO_GUI_API ImageSource : public Animatable {

@@ -5,6 +5,7 @@
 #include <Aero/Base/Allocator.hpp>
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/HashMap.hpp>
+#include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
@@ -150,6 +151,8 @@ private:
     Base::HashMap<DependencyObject*, DependencyObject*> parents_;
     Base::HashMap<DependencyObject*, Base::Vector<DependencyObject*>> childrenByParent_;
     PropertyProviderOriginAllocator providerOrigins_;
+    Base::Vector<DependencyObject*> frontier_;
+    Base::HashSet<DependencyObject*> visited_;
     bool initialized_ = false;
     bool flushing_ = false;
 

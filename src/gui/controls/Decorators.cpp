@@ -168,6 +168,7 @@ StretchDirection Image::GetStretchDirection() const noexcept {
 
 void Image::SetSource(Base::Ref<ImageSource> value) noexcept {
     SetValue(SourceProperty, std::move(value));
+    Media::NotifyImageSourceChanged();
 }
 
 void Image::SetStretch(Stretch value) noexcept {
@@ -595,10 +596,21 @@ AERO_DESCRIBE(Border) {
         .Factory();
 }
 
+namespace {
+
+void OnImageSourcePropertyChanged(
+    DependencyObject& /*object*/,
+    const Base::Ref<Media::ImageSource>& /*oldValue*/,
+    const Base::Ref<Media::ImageSource>& /*newValue*/) noexcept {
+    Media::NotifyImageSourceChanged();
+}
+
+} // namespace
+
 AERO_DESCRIBE(Image) {
     using namespace Aero::Meta;
     Register<Image>(context)
-        .Property(Image::SourceProperty, Base::Ref<Media::ImageSource>{}, AffectsMeasure | AffectsRender)
+        .Property(Image::SourceProperty, Base::Ref<Media::ImageSource>{}, AffectsMeasure | AffectsRender, nullptr, &OnImageSourcePropertyChanged)
         .Property(Image::StretchProperty, Media::Stretch::Uniform, AffectsMeasure | AffectsRender)
         .Property(Image::StretchDirectionProperty, Media::StretchDirection::Both, AffectsMeasure | AffectsRender)
         .Factory();

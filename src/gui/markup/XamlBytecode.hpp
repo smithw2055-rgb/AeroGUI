@@ -2627,8 +2627,17 @@ inline Base::Result<void> CompileNodesToBytecode(
             frame.typeId = typeId;
             frame.isRoot = isRoot;
             frame.isTemplate = isTemplate;
-            frame.templateTargetType = (ambientTargetType != Meta::InvalidTypeId)
-                ? ambientTargetType
+            Meta::TypeId inheritedTargetType = ambientTargetType;
+            if (inheritedTargetType == Meta::InvalidTypeId && !objectStack.Empty()) {
+                for (std::size_t i = objectStack.Size(); i > 0U; --i) {
+                    if (objectStack[i - 1U].templateTargetType != Meta::InvalidTypeId) {
+                        inheritedTargetType = objectStack[i - 1U].templateTargetType;
+                        break;
+                    }
+                }
+            }
+            frame.templateTargetType = (inheritedTargetType != Meta::InvalidTypeId)
+                ? inheritedTargetType
                 : (isControlTemplate ? Controls::Control::StaticTypeId() : Meta::InvalidTypeId);
             frame.isDictionary = isDictionary;
             frame.hasResourceScope = isDictionary;
@@ -2907,7 +2916,8 @@ inline Base::Result<void> CompileNodesToBytecode(
                         mf.parentSlot,
                         Meta::DependencyPropertyHandle{mf.memberId},
                         Meta::ValueCodec<Meta::TypeReference>::Encode(ref).Value());
-                    if (objectStack.Back().isTemplate) {
+                    if (objectStack.Back().isTemplate ||
+                        objectStack.Back().typeId == Style::StaticTypeId()) {
                         objectStack.Back().templateTargetType = resolved.Value()->Id();
                     }
                     break;

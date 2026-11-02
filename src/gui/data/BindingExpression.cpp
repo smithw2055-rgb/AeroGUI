@@ -316,6 +316,7 @@ void BindingOperations::ClearBinding(
         for (std::uint32_t index = 0U; index < multi.handles_.Size(); ++index) {
             static_cast<void>(engine->Detach(multi.handles_[index]));
         }
+        engine->ClearMultiBinding(*target, property);
         return;
     }
 
@@ -329,6 +330,8 @@ void BindingOperations::ClearAllBindings(DependencyObject* target) noexcept {
     if (target == nullptr) return;
     BindingEngine* engine = ElementTree::BindingsOf(*target);
     if (engine == nullptr) return;
+
+    engine->ClearMultiBinding(*target);
 
     Base::Vector<BindingInspection> inspections;
     Base::Result<std::uint32_t> inspected =

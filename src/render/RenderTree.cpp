@@ -42,6 +42,22 @@ std::uint64_t HashByte(std::uint64_t hash, std::uint8_t value) noexcept {
     return (hash ^ value) * Prime;
 }
 
+inline std::uint64_t HashBytesFast(std::uint64_t hash, const void* data, std::size_t size) noexcept {
+    constexpr std::uint64_t Prime = 1099511628211ULL;
+    const auto* bytes = static_cast<const std::uint8_t*>(data);
+    while (size >= 8U) {
+        std::uint64_t word = 0U;
+        std::memcpy(&word, bytes, sizeof(word));
+        hash = (hash ^ word) * Prime;
+        bytes += 8U;
+        size -= 8U;
+    }
+    for (std::size_t i = 0U; i < size; ++i) {
+        hash = (hash ^ bytes[i]) * Prime;
+    }
+    return hash;
+}
+
 template <typename T>
 std::uint64_t HashScalar(std::uint64_t hash, const T& value) noexcept {
     const auto* bytes = reinterpret_cast<const std::uint8_t*>(&value);
@@ -138,8 +154,8 @@ std::uint64_t DisplayList::StableHash() const noexcept {
         hash = HashCommandHeader(hash, h);
     }
     hash = HashScalar(hash, payload_.Size());
-    for (std::uint8_t b : payload_) {
-        hash = HashScalar(hash, b);
+    if (!payload_.Empty()) {
+        hash = HashBytesFast(hash, payload_.Data(), payload_.Size());
     }
     return hash;
 }
@@ -510,8 +526,8 @@ std::uint64_t RenderFrame::StableHash() const noexcept {
     for (const RenderCommandHeader& h : commandHeaders_) {
         hash = HashCommandHeader(hash, h);
     }
-    for (std::uint8_t b : commandPayload_) {
-        hash = HashScalar(hash, b);
+    if (!commandPayload_.Empty()) {
+        hash = HashBytesFast(hash, commandPayload_.Data(), commandPayload_.Size());
     }
     for (const RenderGradientRampSnapshot& ramp : gradientRamps_) {
         // brushIdentity is intentionally omitted: it is a process-local cache

@@ -377,6 +377,7 @@ void BindingEngine::RegisterMultiBinding(
     DependencyObject& target,
     DependencyPropertyHandle property,
     Base::Span<const Data::BindingHandle> handles) noexcept {
+    static_cast<void>(ClearMultiBinding(target, property));
     MultiBindingGroup group;
     group.target = &target;
     group.targetProperty = property;
@@ -401,6 +402,45 @@ Data::MultiBindingExpression BindingEngine::FindMultiBinding(
         return expression;
     }
     return {};
+}
+
+bool BindingEngine::ClearMultiBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) noexcept {
+    bool removed = false;
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U; readIndex < multiBindings_.Size(); ++readIndex) {
+        MultiBindingGroup& group = multiBindings_[readIndex];
+        if (group.target == &target && group.targetProperty == property) {
+            removed = true;
+        } else {
+            if (writeIndex != readIndex) {
+                multiBindings_[writeIndex] = std::move(group);
+            }
+            ++writeIndex;
+        }
+    }
+    (void)multiBindings_.Resize(writeIndex);
+    return removed;
+}
+
+bool BindingEngine::ClearMultiBinding(
+    DependencyObject& target) noexcept {
+    bool removed = false;
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U; readIndex < multiBindings_.Size(); ++readIndex) {
+        MultiBindingGroup& group = multiBindings_[readIndex];
+        if (group.target == &target) {
+            removed = true;
+        } else {
+            if (writeIndex != readIndex) {
+                multiBindings_[writeIndex] = std::move(group);
+            }
+            ++writeIndex;
+        }
+    }
+    (void)multiBindings_.Resize(writeIndex);
+    return removed;
 }
 
 BindingEngine::BindingRecord* BindingEngine::FindRecord(
@@ -524,6 +564,7 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
         }
     }
     (void)pendingDeferredActivations_.Resize(writePending);
+    (void)ClearMultiBinding(object);
     return detached;
 }
 

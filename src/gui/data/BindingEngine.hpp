@@ -264,6 +264,11 @@ public:
     Data::MultiBindingExpression FindMultiBinding(
         DependencyObject& target,
         DependencyPropertyHandle property) const noexcept;
+    bool ClearMultiBinding(
+        DependencyObject& target,
+        DependencyPropertyHandle property) noexcept;
+    bool ClearMultiBinding(
+        DependencyObject& target) noexcept;
 
     // Removes every binding whose source or target is object. Tree/object
     // ownership code uses this before destroying a DependencyObject.

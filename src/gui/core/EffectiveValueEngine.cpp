@@ -1265,14 +1265,23 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
 Base::Result<void> EffectiveValueEngine::QueueDescendants(
     DependencyObject& parent,
     DependencyPropertyHandle property) noexcept {
-    Base::Vector<DependencyObject*> frontier;
-    Base::HashSet<DependencyObject*> visited;
-    frontier.PushBack(&parent);
-    visited.Insert(&parent);
+    struct CleanupGuard {
+        Base::Vector<DependencyObject*>& f;
+        Base::HashSet<DependencyObject*>& v;
+        ~CleanupGuard() {
+            f.Clear();
+            v.Clear();
+        }
+    } guard{frontier_, visited_};
+
+    frontier_.Clear();
+    visited_.Clear();
+    frontier_.PushBack(&parent);
+    visited_.Insert(&parent);
     const DependencyProperty* registered = registry_->Find(property);
 
     auto enqueue = [&](DependencyObject* current, DependencyObject* child) -> Base::Result<void> {
-        if (child == nullptr || child == current || !visited.Insert(child).inserted) {
+        if (child == nullptr || child == current || !visited_.Insert(child).inserted) {
             return {};
         }
         const PropertyMetadata* metadata = registered != nullptr
@@ -1284,12 +1293,12 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
             Base::Result<void> queued = QueueObjectProperty(*child, property);
             if (!queued) return queued.GetStatus();
         }
-        frontier.PushBack(child);
+        frontier_.PushBack(child);
         return {};
     };
 
-    for (std::uint32_t cursor = 0U; cursor < frontier.Size(); ++cursor) {
-        DependencyObject* current = frontier[cursor];
+    for (std::uint32_t cursor = 0U; cursor < frontier_.Size(); ++cursor) {
+        DependencyObject* current = frontier_[cursor];
         if (auto* explicitChildren = childrenByParent_.Find(current)) {
             for (DependencyObject* child : *explicitChildren) {
                 Base::Result<void> res = enqueue(current, child);

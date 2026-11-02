@@ -76,10 +76,16 @@ void NameScope::Register(
         return;
     }
     entry.object = &object;
+    const std::size_t oldCapacity = entries_.Capacity();
     entries_.PushBack(std::move(entry));
-    index_.Clear();
-    for (std::uint32_t i = 0U; i < entries_.Size(); ++i) {
-        static_cast<void>(index_.Insert(entries_[i].name.View(), i));
+    if (entries_.Capacity() != oldCapacity) {
+        index_.Clear();
+        for (std::uint32_t i = 0U; i < entries_.Size(); ++i) {
+            static_cast<void>(index_.Insert(entries_[i].name.View(), i));
+        }
+    } else {
+        const std::uint32_t newIdx = entries_.Size() - 1U;
+        static_cast<void>(index_.Insert(entries_[newIdx].name.View(), newIdx));
     }
 }
 
@@ -531,16 +537,27 @@ void ResourceDictionary::Add(
     entry.key = key;
     entry.value = value;
     entry.source = source;
+    const std::size_t oldCapacity = storage->entries.Capacity();
     storage->entries.PushBack(
             std::move(entry));
-    storage->stringIndex.Clear();
-    storage->typeIndex.Clear();
-    for (std::uint32_t i = 0U; i < storage->entries.Size(); ++i) {
-        const ResourceKey& k = storage->entries[i].key;
+    const std::uint32_t newIdx = storage->entries.Size() - 1U;
+    if (storage->entries.Capacity() != oldCapacity) {
+        storage->stringIndex.Clear();
+        storage->typeIndex.Clear();
+        for (std::uint32_t i = 0U; i < storage->entries.Size(); ++i) {
+            const ResourceKey& k = storage->entries[i].key;
+            if (k.Kind() == ResourceKeyKind::String) {
+                static_cast<void>(storage->stringIndex.Insert(k.StringValue(), i));
+            } else if (k.Kind() == ResourceKeyKind::Type) {
+                static_cast<void>(storage->typeIndex.Insert(k.TypeValue(), i));
+            }
+        }
+    } else {
+        const ResourceKey& k = storage->entries[newIdx].key;
         if (k.Kind() == ResourceKeyKind::String) {
-            static_cast<void>(storage->stringIndex.Insert(k.StringValue(), i));
+            static_cast<void>(storage->stringIndex.Insert(k.StringValue(), newIdx));
         } else if (k.Kind() == ResourceKeyKind::Type) {
-            static_cast<void>(storage->typeIndex.Insert(k.TypeValue(), i));
+            static_cast<void>(storage->typeIndex.Insert(k.TypeValue(), newIdx));
         }
     }
     Notify(
@@ -695,9 +712,8 @@ bool ResourceDictionary::Remove(
                 std::move(state_->entries.Back());
             const ResourceKey& movedKey = state_->entries[index].key;
             if (movedKey.Kind() == ResourceKeyKind::String) {
-                if (std::uint32_t* found = state_->stringIndex.Find(movedKey.StringValue())) {
-                    *found = index;
-                }
+                static_cast<void>(state_->stringIndex.Erase(movedKey.StringValue()));
+                static_cast<void>(state_->stringIndex.Insert(movedKey.StringValue(), index));
             } else if (movedKey.Kind() == ResourceKeyKind::Type) {
                 if (std::uint32_t* found = state_->typeIndex.Find(movedKey.TypeValue())) {
                     *found = index;

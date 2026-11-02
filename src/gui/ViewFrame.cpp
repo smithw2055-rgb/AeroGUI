@@ -8,6 +8,7 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/TextBox.hpp>
 #include <Aero/Media/Transform2D.hpp>
+#include <Aero/Media/Images.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Freezable.hpp>
@@ -84,6 +85,7 @@ Base::Result<void> ViewFrame::AttachVisualGraph(
         attachedRootVisual = &rootVisual;
         attachedRootLayout = &rootLayout;
         attachedRootRender = rootRender;
+        imagesDirty = true;
         return {};
     }
 
@@ -93,6 +95,7 @@ Base::Result<void> ViewFrame::CompleteVisualEdges(
             return ViewInvalidState(
                 "Deferred visual edges require an attached root");
         }
+        imagesDirty = true;
         return Tree()->CompleteVisualEdges(edges);
     }
 
@@ -525,6 +528,7 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
             return {};
         }
         static_cast<void>(runtime->Bindings()->Flush());
+        runtime->imagesDirty = true;
         if (runtime->Storyboards() != nullptr) {
             static_cast<void>(runtime->Storyboards()->StartLoadedAnimations(&root));
         }
@@ -540,6 +544,7 @@ Base::Result<void>
             if (pendingGeneratedVisuals.Empty()) {
                 return {};
             }
+            imagesDirty = true;
             Base::Vector<Aero::VisualHandle>
                 pending =
                     std::move(
@@ -735,6 +740,7 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
             }
         }
         state.seenTextureProviderChange = guiState.textureChangeGeneration;
+        state.imagesDirty = true;
     }
     if (state.device) {
         if (state.device->State() != RenderDeviceState::Ready) {
@@ -744,6 +750,7 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
         const std::uint64_t generation = state.device->Generation();
         if (generation != state.deviceGeneration) {
             deviceGenerationChanged = true;
+            state.imagesDirty = true;
             Aero::Media::Visual* rootVisual = state.RootVisual();
             if (rootVisual != nullptr) {
                 state.RenderTree()->Invalidate(
@@ -772,19 +779,26 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
         }
     }
     if (state.Images() != nullptr) {
-        Base::Result<bool> synchronized = state.Images()->Synchronize(
-            state.RootVisual(),
-            state.loadedDocument.canonicalUri,
-            *state.xamlProviders,
-            guiState.textureProvider.Get(),
-            state.GetImageResources(),
-            deviceGenerationChanged);
-        if (!synchronized) return synchronized.GetStatus();
-        if (synchronized.Value()) {
-            Aero::Media::Visual* rootVisual = state.RootVisual();
-            if (rootVisual != nullptr) {
-                state.RenderTree()->Invalidate(
-                    *rootVisual, Aero::Render::RenderInvalidation::All);
+        const std::uint64_t currentImageRevision = Media::GetImageSourceRevision();
+        const bool imageSourceChanged =
+            currentImageRevision != state.seenImageSourceRevision;
+        if (state.imagesDirty || imageSourceChanged || deviceGenerationChanged) {
+            Base::Result<bool> synchronized = state.Images()->Synchronize(
+                state.RootVisual(),
+                state.loadedDocument.canonicalUri,
+                *state.xamlProviders,
+                guiState.textureProvider.Get(),
+                state.GetImageResources(),
+                deviceGenerationChanged);
+            if (!synchronized) return synchronized.GetStatus();
+            state.seenImageSourceRevision = currentImageRevision;
+            state.imagesDirty = false;
+            if (synchronized.Value()) {
+                Aero::Media::Visual* rootVisual = state.RootVisual();
+                if (rootVisual != nullptr) {
+                    state.RenderTree()->Invalidate(
+                        *rootVisual, Aero::Render::RenderInvalidation::All);
+                }
             }
         }
     }

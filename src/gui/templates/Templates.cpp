@@ -303,7 +303,9 @@ TemplateBuilder::ProjectContentCore(
             (void)contentHost->SetContent(nullptr);
         }
         if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr) {
+            projection.originalVisualParent != nullptr &&
+            (projection.originalVisualParent->GetVisualParent() != nullptr ||
+             (state.tree != nullptr && projection.originalVisualParent == state.tree->Root()))) {
             (void)state.tree->AttachVisualChild(
                 *projection.originalVisualParent, *content);
         }
@@ -343,7 +345,8 @@ TemplateBuilder::ProjectContentCore(
                 break;
             }
         }
-        if (!isInsideOwner) {
+        if (!isInsideOwner &&
+            currentVisualParent->GetVisualParent() != nullptr) {
             projection.detachedOriginalVisual = true;
             projection.originalVisualParent = currentVisualParent;
         }
@@ -533,7 +536,9 @@ void TemplateBuilder::Rollback() noexcept {
             (void)projection.contentHost->SetContent(nullptr);
         }
         if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr) {
+            projection.originalVisualParent != nullptr &&
+            (projection.originalVisualParent->GetVisualParent() != nullptr ||
+             (state.tree != nullptr && projection.originalVisualParent == state.tree->Root()))) {
             (void)state.tree->AttachVisualChild(
                 *projection.originalVisualParent, *projection.content);
         }
@@ -2367,7 +2372,9 @@ Base::Result<void> TemplateEngine::ClearAt(
             projection.contentHost->SetContent(nullptr);
         }
         if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr) {
+            projection.originalVisualParent != nullptr &&
+            (projection.originalVisualParent->GetVisualParent() != nullptr ||
+             (tree_ != nullptr && projection.originalVisualParent == tree_->Root()))) {
             (void)tree_->AttachVisualChild(
                 *projection.originalVisualParent, *projection.content);
         }

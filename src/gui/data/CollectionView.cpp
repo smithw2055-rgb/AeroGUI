@@ -3,6 +3,8 @@
 #include <Aero/Layout.hpp>
 #include <Aero/TryCast.hpp>
 #include "gui/core/DependencyPropertyRegistry.hpp"
+#include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,34 +32,13 @@ Base::Vector<DefaultViewEntry>& DefaultViews() noexcept {
     return views;
 }
 
-int CompareSortPropertyValues(
-    const Base::Object* left,
-    const Base::Object* right,
-    StringView propertyName) noexcept {
-    auto* leftObject = const_cast<Base::Object*>(left);
-    auto* rightObject = const_cast<Base::Object*>(right);
-    auto* leftDo = ::Aero::TryCast<DependencyObject>(leftObject);
-    auto* rightDo = ::Aero::TryCast<DependencyObject>(rightObject);
-    if (leftDo == nullptr || rightDo == nullptr || propertyName.Empty()) {
-        return left < right ? -1 : (left > right ? 1 : 0);
-    }
-    const Meta::DependencyProperty* leftProperty =
-        DependencyObjectAccess::PropertyRegistry(leftDo).Find(
-            leftDo->RuntimeType(), propertyName);
-    const Meta::DependencyProperty* rightProperty =
-        DependencyObjectAccess::PropertyRegistry(rightDo).Find(
-            rightDo->RuntimeType(), propertyName);
-    if (leftProperty == nullptr || rightProperty == nullptr) {
-        return left < right ? -1 : (left > right ? 1 : 0);
-    }
-    const Meta::PropertyValue leftValue =
-        leftDo->GetValue(leftProperty->Handle());
-    const Meta::PropertyValue rightValue =
-        rightDo->GetValue(rightProperty->Handle());
+int CompareValues(const Meta::Value& leftValue, const Meta::Value& rightValue) noexcept {
     if (leftValue.Kind() == Meta::ValueKind::Double &&
         rightValue.Kind() == Meta::ValueKind::Double) {
-        if (leftValue.AsDouble() < rightValue.AsDouble()) return -1;
-        if (leftValue.AsDouble() > rightValue.AsDouble()) return 1;
+        const double l = leftValue.AsDouble();
+        const double r = rightValue.AsDouble();
+        if (l < r) return -1;
+        if (l > r) return 1;
         return 0;
     }
     if (leftValue.Type() == ::Aero::Meta::TypeOf<Length>() &&
@@ -67,7 +48,7 @@ int CompareSortPropertyValues(
         const Length* rightLength =
             static_cast<const Length*>(rightValue.AsCustom());
         if (leftLength == nullptr || rightLength == nullptr) {
-            return left < right ? -1 : (left > right ? 1 : 0);
+            return 0;
         }
         const double leftPixels = leftLength->isAuto ? 0.0 : leftLength->value;
         const double rightPixels = rightLength->isAuto ? 0.0 : rightLength->value;
@@ -81,13 +62,73 @@ int CompareSortPropertyValues(
     }
     if (leftValue.Kind() == Meta::ValueKind::SignedInteger &&
         rightValue.Kind() == Meta::ValueKind::SignedInteger) {
-        if (leftValue.AsSignedInteger() < rightValue.AsSignedInteger()) {
-            return -1;
-        }
-        if (leftValue.AsSignedInteger() > rightValue.AsSignedInteger()) {
-            return 1;
-        }
+        if (leftValue.AsSignedInteger() < rightValue.AsSignedInteger()) return -1;
+        if (leftValue.AsSignedInteger() > rightValue.AsSignedInteger()) return 1;
         return 0;
+    }
+    if (leftValue.Kind() == Meta::ValueKind::UnsignedInteger &&
+        rightValue.Kind() == Meta::ValueKind::UnsignedInteger) {
+        if (leftValue.AsUnsignedInteger() < rightValue.AsUnsignedInteger()) return -1;
+        if (leftValue.AsUnsignedInteger() > rightValue.AsUnsignedInteger()) return 1;
+        return 0;
+    }
+    if (leftValue.Kind() == Meta::ValueKind::Boolean &&
+        rightValue.Kind() == Meta::ValueKind::Boolean) {
+        if (!leftValue.AsBoolean() && rightValue.AsBoolean()) return -1;
+        if (leftValue.AsBoolean() && !rightValue.AsBoolean()) return 1;
+        return 0;
+    }
+    return 0;
+}
+
+int CompareSortPropertyValues(
+    const Base::Object* left,
+    const Base::Object* right,
+    StringView propertyName) noexcept {
+    if (left == nullptr || right == nullptr || propertyName.Empty()) {
+        return left < right ? -1 : (left > right ? 1 : 0);
+    }
+    auto* leftObject = const_cast<Base::Object*>(left);
+    auto* rightObject = const_cast<Base::Object*>(right);
+    auto* leftDo = ::Aero::TryCast<DependencyObject>(leftObject);
+    auto* rightDo = ::Aero::TryCast<DependencyObject>(rightObject);
+    if (leftDo != nullptr && rightDo != nullptr) {
+        const Meta::DependencyProperty* leftProperty =
+            DependencyObjectAccess::PropertyRegistry(leftDo).Find(
+                leftDo->RuntimeType(), propertyName);
+        const Meta::DependencyProperty* rightProperty =
+            DependencyObjectAccess::PropertyRegistry(rightDo).Find(
+                rightDo->RuntimeType(), propertyName);
+        if (leftProperty != nullptr && rightProperty != nullptr) {
+            const Meta::PropertyValue leftValue =
+                leftDo->GetValue(leftProperty->Handle());
+            const Meta::PropertyValue rightValue =
+                rightDo->GetValue(rightProperty->Handle());
+            const int cmp = CompareValues(leftValue, rightValue);
+            if (cmp != 0) return cmp;
+            return left < right ? -1 : (left > right ? 1 : 0);
+        }
+    }
+
+    // Fallback for ViewModelBase reflection objects when TryCast<DependencyObject> returns nullptr
+    const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
+    if (factory.metadata != nullptr) {
+        const Meta::PropertyInfo* leftProp =
+            factory.metadata->Types().FindProperty(
+                leftObject->RuntimeType(), propertyName, true);
+        const Meta::PropertyInfo* rightProp =
+            factory.metadata->Types().FindProperty(
+                rightObject->RuntimeType(), propertyName, true);
+        if (leftProp != nullptr && rightProp != nullptr) {
+            Base::Result<Meta::Value> leftVal =
+                factory.metadata->GetProperty(*leftObject, leftProp->Id());
+            Base::Result<Meta::Value> rightVal =
+                factory.metadata->GetProperty(*rightObject, rightProp->Id());
+            if (leftVal && rightVal) {
+                const int cmp = CompareValues(leftVal.Value(), rightVal.Value());
+                if (cmp != 0) return cmp;
+            }
+        }
     }
     return left < right ? -1 : (left > right ? 1 : 0);
 }

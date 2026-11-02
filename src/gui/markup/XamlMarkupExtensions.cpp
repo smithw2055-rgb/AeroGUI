@@ -2906,6 +2906,15 @@ namespace {
 Base::StringView PropertyLocalName(
     Base::StringView value) noexcept {
     value = ::Aero::Base::ValueConversion::Trim(value);
+    if (value.SizeBytes() >= 9U) {
+        const Base::StringView prefix = value.Substr(0, 8);
+        if (prefix == Base::StringView("Property") || prefix == Base::StringView("property")) {
+            Base::StringView remainder = ::Aero::Base::ValueConversion::Trim(value.Substr(8, value.SizeBytes() - 8));
+            if (!remainder.Empty() && remainder[0] == '=') {
+                value = ::Aero::Base::ValueConversion::Trim(remainder.Substr(1, remainder.SizeBytes() - 1));
+            }
+        }
+    }
     for (std::uint32_t index = value.SizeBytes(); index > 0U; --index) {
         if (value[index - 1U] == '.') {
             return value.Substr(index, value.SizeBytes() - index);

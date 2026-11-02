@@ -236,6 +236,10 @@ struct ViewFrame {
     Aero::FrameworkElement* attachedRootRender = nullptr;
     std::uint64_t seenTextureProviderChange = 0U;
     std::uint64_t seenFontProviderChange = 0U;
+    bool imagesDirty = true;
+    std::uint64_t seenImageSourceRevision = 0U;
+
+    void SetImagesDirty() noexcept { imagesDirty = true; }
 
 
 

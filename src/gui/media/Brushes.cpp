@@ -1032,10 +1032,21 @@ AERO_DESCRIBE(TileBrush) {
             .Property(TileBrush::AlignmentYProperty, VerticalAlignment::Center);
 }
 
+namespace {
+
+void OnImageBrushSourcePropertyChanged(
+    DependencyObject& /*object*/,
+    const Base::Ref<ImageSource>& /*oldValue*/,
+    const Base::Ref<ImageSource>& /*newValue*/) noexcept {
+    NotifyImageSourceChanged();
+}
+
+} // namespace
+
 AERO_DESCRIBE(ImageBrush) {
     using namespace Aero::Meta;
     Register<ImageBrush>(context)
-            .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{})
+            .Property(ImageBrush::ImageSourceProperty, Base::Ref<ImageSource>{}, FrameworkPropertyMetadataOptions::None, nullptr, &OnImageBrushSourcePropertyChanged)
             .Factory();
 }
 

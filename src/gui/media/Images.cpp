@@ -1,25 +1,39 @@
 #include <Aero/Media/Images.hpp>
 #include "gui/core/Describe.hpp"
+#include <atomic>
 #include <utility>
 
 namespace Aero::Media {
+
+static std::atomic<std::uint64_t> s_imageSourceRevision{1};
+
+void NotifyImageSourceChanged() noexcept {
+    s_imageSourceRevision.fetch_add(1, std::memory_order_relaxed);
+}
+
+std::uint64_t GetImageSourceRevision() noexcept {
+    return s_imageSourceRevision.load(std::memory_order_relaxed);
+}
 
 void BitmapImage::SetUriSource(
     const Base::ResourceUri& value) noexcept {
     uri_ = value;
     BumpRevision();
+    NotifyImageSourceChanged();
 }
 
 void CroppedBitmap::SetSource(
     Ref<ImageSource> value) noexcept {
     source_ = std::move(value);
     BumpRevision();
+    NotifyImageSourceChanged();
 }
 
 void CroppedBitmap::SetSourceRect(
     Base::Rect value) noexcept {
     sourceRect_ = value;
     BumpRevision();
+    NotifyImageSourceChanged();
 }
 
 } // namespace Aero::Media

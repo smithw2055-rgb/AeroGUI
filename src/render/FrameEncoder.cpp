@@ -922,10 +922,10 @@ void UiFrameEncoder::CompositeOffscreen(
         maskTarget->GetTexture() != nullptr;
 
     const double blurScale = std::max(1.0, effect.radius * dpi);
-    offscreenSizeUniform_[0] =
-        static_cast<float>(static_cast<double>(texture->GetWidth()) / blurScale);
-    offscreenSizeUniform_[1] =
-        static_cast<float>(static_cast<double>(texture->GetHeight()) / blurScale);
+    const float newOffscreenSize[2] = {
+        static_cast<float>(static_cast<double>(texture->GetWidth()) / blurScale),
+        static_cast<float>(static_cast<double>(texture->GetHeight()) / blurScale)
+    };
 
     // Offscreen targets pad by twice the blur radius so the 3x3 kernel, which
     // samples at ±radius, does not clamp against the texture edge. Composite
@@ -972,6 +972,12 @@ void UiFrameEncoder::CompositeOffscreen(
         shadowColor.alpha *= static_cast<float>(
             std::clamp(nodeOpacity * effect.opacity, 0.0, 1.0));
 
+        if (currentBatch_.numIndices > 0U &&
+            std::memcmp(offscreenSizeUniform_, newOffscreenSize, sizeof(newOffscreenSize)) != 0) {
+            FlushBatch();
+        }
+        offscreenSizeUniform_[0] = newOffscreenSize[0];
+        offscreenSizeUniform_[1] = newOffscreenSize[1];
         SetBatchImage(Shader::Shadow, nullptr, texture);
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
@@ -988,6 +994,12 @@ void UiFrameEncoder::CompositeOffscreen(
             TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY - offsetY),
             TransformPoint(nodeTransform, -padX + quadW - offsetX, -padY + quadH - offsetY),
             TransformPoint(nodeTransform, -padX - offsetX, -padY + quadH - offsetY)};
+        if (currentBatch_.numIndices > 0U &&
+            std::memcmp(offscreenSizeUniform_, newOffscreenSize, sizeof(newOffscreenSize)) != 0) {
+            FlushBatch();
+        }
+        offscreenSizeUniform_[0] = newOffscreenSize[0];
+        offscreenSizeUniform_[1] = newOffscreenSize[1];
         SetBatchImage(Shader::Blur, texture);
         currentBatch_.pixelUniforms[0] =
             {offscreenSizeUniform_, 2U, 0U};
@@ -1008,6 +1020,14 @@ void UiFrameEncoder::CompositeOffscreen(
         shader = Shader::Blur;
     } else if (effect.kind == RenderEffectKind::Custom) {
         shader = Shader::Custom_Effect;
+    }
+    if (shader == Shader::Blur || shader == Shader::Custom_Effect) {
+        if (currentBatch_.numIndices > 0U &&
+            std::memcmp(offscreenSizeUniform_, newOffscreenSize, sizeof(newOffscreenSize)) != 0) {
+            FlushBatch();
+        }
+        offscreenSizeUniform_[0] = newOffscreenSize[0];
+        offscreenSizeUniform_[1] = newOffscreenSize[1];
     }
     SetBatchImage(
         shader, texture,
@@ -1657,10 +1677,14 @@ void UiFrameEncoder::ProcessCommand(
         Texture* tex = FindImage(cmd->image);
         if (tex != nullptr) {
             const std::uint8_t targetWrapMode = h.wrapMode;
+            const float targetUniforms[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            const bool uniformsDiffer =
+                std::memcmp(paintUniforms_, targetUniforms, sizeof(targetUniforms)) != 0;
             if (currentBatch_.numIndices > 0U &&
                 (currentBatch_.shader != Shader::Path_Pattern ||
                  currentBatch_.pattern != tex ||
                  currentBatch_.image != tex ||
+                 uniformsDiffer ||
                  currentBatch_.ramps != nullptr ||
                  currentBatch_.glyphs != nullptr ||
                  currentBatch_.shadow != nullptr ||
@@ -1670,6 +1694,7 @@ void UiFrameEncoder::ProcessCommand(
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
+            std::memcpy(paintUniforms_, targetUniforms, sizeof(targetUniforms));
             currentBatch_.shader = Shader::Path_Pattern;
             currentBatch_.pattern = tex;
             currentBatch_.ramps = nullptr;
@@ -1680,10 +1705,6 @@ void UiFrameEncoder::ProcessCommand(
             currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
             currentBatch_.imageSampler.f.wrapMode = targetWrapMode;
             currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
-            paintUniforms_[0] = static_cast<float>(currentOpacity * cmd->tint.alpha);
-            paintUniforms_[1] = 1.0f;
-            paintUniforms_[2] = 1.0f;
-            paintUniforms_[3] = 1.0f;
             currentBatch_.pixelUniforms[0].values = paintUniforms_;
             currentBatch_.pixelUniforms[0].numDwords = 4U;
             currentBatch_.pixelUniforms[1] = {};
@@ -1867,7 +1888,8 @@ void UiFrameEncoder::ProcessCommand(
 
             const float opacityVal = static_cast<float>(currentOpacity * tint.alpha * cmd->opacity);
             const float uniforms[4] = {opacityVal, 1.0f, 1.0f, 1.0f};
-            std::memcpy(paintUniforms_, uniforms, sizeof(uniforms));
+            const bool uniformsDiffer =
+                std::memcmp(paintUniforms_, uniforms, sizeof(uniforms)) != 0;
 
             const std::uint8_t targetWrapMode = h.wrapMode;
             const Shader::Enum shader = ToPPAAShader(Shader::Path_Pattern, enablePPAA_);
@@ -1875,6 +1897,7 @@ void UiFrameEncoder::ProcessCommand(
                 (currentBatch_.shader != shader ||
                  currentBatch_.pattern != tex ||
                  currentBatch_.patternSampler.f.wrapMode != targetWrapMode ||
+                 uniformsDiffer ||
                  currentBatch_.ramps != nullptr ||
                  currentBatch_.image != nullptr ||
                  currentBatch_.glyphs != nullptr ||
@@ -1883,6 +1906,7 @@ void UiFrameEncoder::ProcessCommand(
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
+            std::memcpy(paintUniforms_, uniforms, sizeof(uniforms));
             currentBatch_.shader = shader;
             currentBatch_.pattern = tex;
             currentBatch_.ramps = nullptr;
