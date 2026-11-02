@@ -535,4 +535,56 @@ inline Transform3 MakeRotationZ(double radians) noexcept { const double cosine =
     return output;
 }
 
+inline void BuildRoundedRectContour(
+    double x, double y, double width, double height, double radius,
+    std::uint32_t cornerSegments,
+    Point* out) noexcept {
+    const double centers[4][2] = {
+        {x + radius, y + radius},
+        {x + width - radius, y + radius},
+        {x + width - radius, y + height - radius},
+        {x + radius, y + height - radius}
+    };
+    const double startDir[4][2] = {
+        {-1.0, 0.0},
+        {0.0, -1.0},
+        {1.0, 0.0},
+        {0.0, 1.0}
+    };
+
+    const double delta = cornerSegments > 1U
+        ? (3.14159265358979323846 * 0.5) / static_cast<double>(cornerSegments - 1U)
+        : 0.0;
+    const double cosStep = std::cos(delta);
+    const double sinStep = std::sin(delta);
+
+    std::uint32_t index = 0U;
+    for (int corner = 0; corner < 4; ++corner) {
+        double dirX = startDir[corner][0];
+        double dirY = startDir[corner][1];
+        for (std::uint32_t i = 0U; i < cornerSegments; ++i) {
+            out[index].x = static_cast<float>(centers[corner][0] + radius * dirX);
+            out[index].y = static_cast<float>(centers[corner][1] + radius * dirY);
+            ++index;
+            const double nextX = dirX * cosStep - dirY * sinStep;
+            const double nextY = dirX * sinStep + dirY * cosStep;
+            dirX = nextX;
+            dirY = nextY;
+        }
+    }
+}
+
+inline void BuildRoundedRectContour(
+    Rect bounds, double radius,
+    std::uint32_t cornerSegments,
+    Point* out) noexcept {
+    BuildRoundedRectContour(bounds.x, bounds.y, bounds.width, bounds.height, radius, cornerSegments, out);
+}
+
+inline void BuildRoundedRectContour(
+    Rect bounds, double radius,
+    Point* out) noexcept {
+    BuildRoundedRectContour(bounds.x, bounds.y, bounds.width, bounds.height, radius, 12U, out);
+}
+
 } // namespace Aero::Base
