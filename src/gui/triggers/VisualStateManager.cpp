@@ -664,16 +664,15 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 StaticTypeId()) {
         auto& authored = static_cast<
             Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline);
-        Base::Vector<Aero::Media::Animation::Model::DoubleKeyFrame> frames =
-            Aero::Media::Animation::BuildSortedKeyFrames<
-                Aero::Media::Animation::Model::DoubleKeyFrame>(
-                authored,
+        const Media::Animation::DoubleKeyFrame* frame =
+            Aero::Media::Animation::ResolveFinalKeyFrame(
+                authored.GetKeyFrames(),
                 ComposeTiming(authored, {}).durationMicroseconds);
-        if (frames.Empty()) {
+        if (!frame) {
             return {};
         }
         Base::Result<PropertyValue> to =
-            ValueCodec<double>::Encode(frames.Back().value);
+            ValueCodec<double>::Encode(frame->GetValue());
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
@@ -688,16 +687,15 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 StaticTypeId()) {
         auto& authored = static_cast<
             Media::Animation::ColorAnimationUsingKeyFrames&>(timeline);
-        Base::Vector<Aero::Media::Animation::Model::ColorKeyFrame> frames =
-            Aero::Media::Animation::BuildSortedKeyFrames<
-                Aero::Media::Animation::Model::ColorKeyFrame>(
-                authored,
+        const Media::Animation::ColorKeyFrame* frame =
+            Aero::Media::Animation::ResolveFinalKeyFrame(
+                authored.GetKeyFrames(),
                 ComposeTiming(authored, {}).durationMicroseconds);
-        if (frames.Empty()) {
+        if (!frame) {
             return {};
         }
         Base::Result<PropertyValue> to =
-            ValueCodec<Base::Color>::Encode(frames.Back().value);
+            ValueCodec<Base::Color>::Encode(frame->GetValue());
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
@@ -745,16 +743,15 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 StaticTypeId()) {
         auto& authored = static_cast<
             Media::Animation::PointAnimationUsingKeyFrames&>(timeline);
-        Base::Vector<Aero::Media::Animation::Model::PointKeyFrame> frames =
-            Aero::Media::Animation::BuildSortedKeyFrames<
-                Aero::Media::Animation::Model::PointKeyFrame>(
-                authored,
+        const Media::Animation::PointKeyFrame* frame =
+            Aero::Media::Animation::ResolveFinalKeyFrame(
+                authored.GetKeyFrames(),
                 ComposeTiming(authored, {}).durationMicroseconds);
-        if (frames.Empty()) {
+        if (!frame) {
             return {};
         }
         Base::Result<PropertyValue> to =
-            ValueCodec<Base::Point>::Encode(frames.Back().value);
+            ValueCodec<Base::Point>::Encode(frame->GetValue());
         if (!to) return to.GetStatus();
         values.PushBack(
             TransitionValue{
