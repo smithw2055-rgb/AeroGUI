@@ -416,7 +416,6 @@ private:
     bool initialized_ = false;
     ElementTreeLifecycleHandler lifecycleHandler_ = nullptr;
     void* lifecycleContext_ = nullptr;
-    DependencyPropertyChangedEventHandler dataContextChangedHandler_;
     std::uint64_t nextLifecycleSequence_ = 1U;
     std::uint64_t version_ = 0U;
     bool mutating_ = false;
@@ -446,11 +445,6 @@ private:
     // ViewFrame calls it directly; no hook registration remains.
     static void LifecycleHook(void* context) noexcept;
     Base::Result<void> RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept;
-    Base::Result<void> TrackInheritedValues(::Aero::Media::Visual& node) noexcept;
-    void UntrackInheritedValues(::Aero::Media::Visual& node) noexcept;
-    void OnDataContextChanged(
-        DependencyObject& object,
-        const DependencyPropertyChangedEventArgs& args) noexcept;
     Base::Result<void> AttachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> AttachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;

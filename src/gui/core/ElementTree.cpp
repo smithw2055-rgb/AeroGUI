@@ -220,7 +220,6 @@ void ElementTree::DetachPropertyDependencyGraph(
 void ElementTree::InvalidateNodeHandle(::Aero::Media::Visual& node) noexcept {
     const VisualHandle handle{node.handleIndex_, node.handleGeneration_};
     if (handle.IsValid() && handle.index < handles_.Size()) {
-        UntrackInheritedValues(node);
         HandleEntry& entry = handles_[handle.index];
         if (entry.node == &node) {
             entry.node = nullptr;
@@ -323,9 +322,7 @@ ElementTree::ElementTree(
     : dispatcher_(&dispatcher),
       values_(&values),
       lifecycleQueue_(),
-      handles_(),
-      dataContextChangedHandler_(
-          this, &ElementTree::OnDataContextChanged) {}
+      handles_() {}
 
 ElementTree::~ElementTree() noexcept {
     // P3.2: no frame-hook registration; nothing to unregister.
@@ -454,9 +451,6 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
 
     handles_.Reserve(handles_.Size() + required);
 
-    Base::Vector<::Aero::Media::Visual*> added;
-    added.Reserve(required);
-
     for (::Aero::Media::Visual* current : nodes) {
         if (VisualHandle{current->handleIndex_, current->handleGeneration_}.IsValid()) continue;
 
@@ -465,23 +459,6 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
         handles_.PushBack(entry);
         current->handleIndex_ = handles_.Size() - 1U;
         current->handleGeneration_ = entry.generation;
-
-        Base::Result<void> tracked = TrackInheritedValues(*current);
-        if (!tracked) {
-            current->handleIndex_ = UINT32_MAX;
-            current->handleGeneration_ = 0U;
-            handles_.PopBack();
-            while (!added.Empty()) {
-                ::Aero::Media::Visual* rollback = added.Back();
-                UntrackInheritedValues(*rollback);
-                rollback->handleIndex_ = UINT32_MAX;
-                rollback->handleGeneration_ = 0U;
-                handles_.PopBack();
-                added.PopBack();
-            }
-            return tracked.GetStatus();
-        }
-        added.PushBack(current);
     }
     return {};
 }
@@ -493,21 +470,6 @@ void ElementTree::InvalidateHandleSubtree(::Aero::Media::Visual& node) noexcept 
     InvalidateNodeHandle(node);
 }
 
-Base::Result<void> ElementTree::TrackInheritedValues(
-    ::Aero::Media::Visual& /*node*/) noexcept {
-    return {};
-}
-
-void ElementTree::UntrackInheritedValues(::Aero::Media::Visual& /*node*/) noexcept {
-}
-
-void ElementTree::OnDataContextChanged(
-    DependencyObject& object,
-    const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (args.GetProperty() == FrameworkElement::DataContextProperty) {
-        (void)values_->Invalidate(object, args.GetProperty());
-    }
-}
 
 Base::Result<void> ElementTree::VerifyMutation(
     const ::Aero::Media::Visual& first,
