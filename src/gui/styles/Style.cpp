@@ -380,18 +380,16 @@ Style::Style(
       basedOn_(basedOn),
       implAllocator_(&Base::GetDefaultAllocator()),
       resources_() {
-    auto allocResult = Base::AllocateObject<Style::Program>(
-        *implAllocator_, Base::MemoryTag::Ui, program_);
-    if (!allocResult || program_ == nullptr) {
-        Base::ReportOutOfMemory(
-            sizeof(Style::Program), alignof(Style::Program), Base::MemoryTag::Ui);
-    }
+    static_assert(sizeof(Style::Program) <= sizeof(programStorage_),
+        "programStorage_ is too small for Style::Program");
+    program_ = new (programStorage_) Style::Program();
 }
 
 Style::~Style() {
-    if (program_ == nullptr) return;
-    Base::FreeObject(*implAllocator_, Base::MemoryTag::Ui, program_);
-    program_ = nullptr;
+    if (program_ != nullptr) {
+        program_->~Program();
+        program_ = nullptr;
+    }
 }
 
 TypeId Style::GetTargetType() const noexcept {

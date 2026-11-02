@@ -130,6 +130,7 @@ private:
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
     Base::IAllocator* implAllocator_ = nullptr;
     Program* program_ = nullptr;
+    alignas(alignof(std::uint64_t)) std::uint8_t programStorage_[128]{};
     ResourceDictionary resources_;
     bool sealed_ = false;
 };
