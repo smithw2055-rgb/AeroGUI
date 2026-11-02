@@ -1758,10 +1758,15 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
         static_cast<void>(templates_->Clear(static_cast<Control&>(container)));
     }
     UIElement* content = nullptr;
-    if (!record.itemIsOwnContainer && contentControl != nullptr && record.content != nullptr) {
+    if (!record.itemIsOwnContainer && record.content != nullptr) {
+        content = TryCast<UIElement>(record.content.Get());
+    } else if (!record.itemIsOwnContainer && contentControl != nullptr) {
         content = (*contentControl).GetContentElement();
     } else if (!record.itemIsOwnContainer && contentPresenter != nullptr) {
         content = contentPresenter->GetContent();
+    }
+    if (content == nullptr && !record.itemIsOwnContainer && record.contentMount.child != nullptr) {
+        content = TryCast<UIElement>(record.contentMount.child);
     }
     if (content != nullptr) {
         capture(tree_->DetachElement(record.contentMount));
@@ -1787,6 +1792,8 @@ ItemContainerGenerator::GeneratorState::DetachRecord(
     }
     record.item.Reset();
     record.content.Reset();
+    record.container.Reset();
+    record.subtreeMounts.Clear();
     record.containerMount = {};
     record.contentMount = {};
     record.itemIsOwnContainer = false;
