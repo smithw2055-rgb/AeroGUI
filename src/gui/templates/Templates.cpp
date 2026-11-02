@@ -346,7 +346,8 @@ TemplateBuilder::ProjectContentCore(
             }
         }
         if (!isInsideOwner &&
-            currentVisualParent->GetVisualParent() != nullptr) {
+            (currentVisualParent->GetVisualParent() != nullptr ||
+             (state.tree != nullptr && currentVisualParent == state.tree->Root()))) {
             projection.detachedOriginalVisual = true;
             projection.originalVisualParent = currentVisualParent;
         }

@@ -413,6 +413,11 @@ bool BindingEngine::ClearMultiBinding(
         MultiBindingGroup& group = multiBindings_[readIndex];
         if (group.target == &target && group.targetProperty == property) {
             removed = true;
+            for (BindingHandle h : group.handles) {
+                if (h.IsValid()) {
+                    static_cast<void>(Detach(h));
+                }
+            }
         } else {
             if (writeIndex != readIndex) {
                 multiBindings_[writeIndex] = std::move(group);
@@ -432,6 +437,11 @@ bool BindingEngine::ClearMultiBinding(
         MultiBindingGroup& group = multiBindings_[readIndex];
         if (group.target == &target) {
             removed = true;
+            for (BindingHandle h : group.handles) {
+                if (h.IsValid()) {
+                    static_cast<void>(Detach(h));
+                }
+            }
         } else {
             if (writeIndex != readIndex) {
                 multiBindings_[writeIndex] = std::move(group);

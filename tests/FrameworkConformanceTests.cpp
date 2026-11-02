@@ -4723,6 +4723,27 @@ bool TestCollectionViewAndVirtualization() {
     CHECK(view.MoveCurrentTo(wide.Value().Get()));
     CHECK(view.GetCurrentItem().Get() == wide.Value().Get());
 
+    {
+        Result<Ref<Person>> p1 = MakeRef<Person>();
+        Result<Ref<Person>> p2 = MakeRef<Person>();
+        CHECK(p1 && p2);
+        String n1, n2;
+        CHECK(n1.Assign("Bob"));
+        CHECK(n2.Assign("Alice"));
+        p1.Value()->SetName(std::move(n1));
+        p2.Value()->SetName(std::move(n2));
+        ObservableObjectCollection personSource;
+        personSource.Add(p1.Value());
+        personSource.Add(p2.Value());
+        CollectionView personView(&personSource);
+        personView.SortBy("Name", ListSortDirection::Ascending);
+        CHECK(personView.GetItem(0U).Get() == p2.Value().Get());
+        CHECK(personView.GetItem(1U).Get() == p1.Value().Get());
+        personView.SortBy("Name", ListSortDirection::Descending);
+        CHECK(personView.GetItem(0U).Get() == p1.Value().Get());
+        CHECK(personView.GetItem(1U).Get() == p2.Value().Get());
+    }
+
     Result<Ref<ObservableObjectCollection>> items =
         MakeRef<ObservableObjectCollection>();
     CHECK(items);
@@ -6636,6 +6657,34 @@ bool TestArchitectureRefactoringValidation() {
         menuItem.Value()->SetHeader(StringView("FileMenu"));
         menu.Value()->GetItems().Add(menuItem.Value());
         CHECK(menuItem.Value()->GetHeader().AsString() == StringView("FileMenu"));
+    }
+
+    // 6. Validate MultiBinding and BindingOperations ClearBinding
+    {
+        Result<Ref<TextBlock>> target = MakeRef<TextBlock>();
+        CHECK(target);
+        BindingOperations::ClearBinding(target.Value().Get(), TextBlock::TextProperty.Handle());
+        BindingOperations::ClearAllBindings(target.Value().Get());
+    }
+
+    // 7. Validate TemplateBinding Property= prefix and Style.TargetType propagation
+    {
+        const char* xaml =
+            "<ResourceDictionary xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+            "                    xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">\n"
+            "    <Style TargetType=\"Button\">\n"
+            "        <Setter Property=\"Template\">\n"
+            "            <Setter.Value>\n"
+            "                <ControlTemplate>\n"
+            "                    <Border Background=\"{TemplateBinding Property=Background}\"/>\n"
+            "                </ControlTemplate>\n"
+            "            </Setter.Value>\n"
+            "        </Setter>\n"
+            "    </Style>\n"
+            "</ResourceDictionary>";
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(xaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
     }
 
     return true;

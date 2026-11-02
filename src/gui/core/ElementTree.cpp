@@ -35,7 +35,7 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 namespace {
 
-Base::Status InvalidState(const char* message) noexcept {
+Base::Status TreeInvalidState(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::InvalidState, message);
 }
 
@@ -437,12 +437,12 @@ Base::Result<void> ElementTree::RegisterHandleSubtree(::Aero::Media::Visual& nod
         const VisualHandle currentHandle{current->handleIndex_, current->handleGeneration_};
         if (currentHandle.IsValid()) {
             if (currentHandle.index >= handles_.Size()) {
-                return InvalidState("ElementTree node has an invalid pre-existing handle");
+                return TreeInvalidState("ElementTree node has an invalid pre-existing handle");
             }
             const HandleEntry& entry = handles_[currentHandle.index];
             if (entry.node != current ||
                 entry.generation != currentHandle.generation) {
-                return InvalidState("ElementTree node has a stale pre-existing handle");
+                return TreeInvalidState("ElementTree node has a stale pre-existing handle");
             }
         } else {
             ++required;
@@ -479,10 +479,10 @@ Base::Result<void> ElementTree::VerifyMutation(
         return access;
     }
     if (!initialized_) {
-        return InvalidState("ElementTree must be initialized before mutation");
+        return TreeInvalidState("ElementTree must be initialized before mutation");
     }
     if (mutating_) {
-        return InvalidState("Nested object-tree mutation is not allowed");
+        return TreeInvalidState("Nested object-tree mutation is not allowed");
     }
     if (&first.GetDispatcher() != dispatcher_ ||
         (second != nullptr && &second->GetDispatcher() != dispatcher_)) {
@@ -620,7 +620,7 @@ Base::Result<void> ElementTree::SetRoot(::Aero::Media::Visual* root) noexcept {
         (root->logicalParent_ != nullptr ||
          root->visualParent_ != nullptr ||
          root->tree_ != nullptr)) {
-        return InvalidState("ElementTree root must be fully detached");
+        return TreeInvalidState("ElementTree root must be fully detached");
     }
 
     Base::Vector<LifecycleRecord> staged;
@@ -678,13 +678,13 @@ Base::Result<void> ElementTree::AttachLogical(
             "Logical tree attachment would create a cycle");
     }
     if (parent.tree_ != this) {
-        return InvalidState(
+        return TreeInvalidState(
             "Logical child must be detached and parent must belong to this tree");
     }
     if (child.tree_ == this) {
         if (child.logicalParent_ != nullptr &&
             child.logicalParent_ != &parent) {
-            return InvalidState(
+            return TreeInvalidState(
                 "Logical child must be detached and parent must belong to this tree");
         }
         child.logicalParent_ = &parent;
@@ -698,7 +698,7 @@ Base::Result<void> ElementTree::AttachLogical(
         return {};
     }
     if (child.logicalParent_ != nullptr || child.tree_ != nullptr) {
-        return InvalidState(
+        return TreeInvalidState(
             "Logical child must be detached and parent must belong to this tree");
     }
 
@@ -794,7 +794,7 @@ Base::Result<void> ElementTree::AttachVisual(
     }
     if ((parent.tree_ != nullptr && parent.tree_ != this) ||
         (child.tree_ != nullptr && child.tree_ != this)) {
-        return InvalidState("Visual nodes must be logical members of this tree");
+        return TreeInvalidState("Visual nodes must be logical members of this tree");
     }
     if (child.visualParent_ != nullptr && child.visualParent_ != &parent) {
         child.visualParent_->RemoveVisualChild(&child);
@@ -990,7 +990,7 @@ Base::Result<void> ElementTree::DetachLayout(
     UIElement* parentElement = ::Aero::TryCast<::Aero::UIElement>(&(parent));
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&(child));
     if (layout_ == nullptr || parentElement == nullptr || childElement == nullptr) {
-        return InvalidState("Attached layout edge has no layout service");
+        return TreeInvalidState("Attached layout edge has no layout service");
     }
     Base::Result<void> result = layout_->Detach(*parentElement, *childElement);
     if (!result) return result.GetStatus();
@@ -1002,7 +1002,7 @@ Base::Result<void> ElementTree::DetachRender(
     ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept {
     if (!attached) return {};
     if (renderTree_ == nullptr) {
-        return InvalidState("Attached render edge has no render tree");
+        return TreeInvalidState("Attached render edge has no render tree");
     }
     Base::Result<void> result = renderTree_->Detach(parent, child);
     if (!result) return result.GetStatus();
@@ -1013,7 +1013,7 @@ Base::Result<void> ElementTree::DetachRender(
 Base::Result<Aero::ElementAttachment> ElementTree::AttachElement(
     ::Aero::Media::Visual& logicalParent, ::Aero::Media::Visual& visualParent, ::Aero::Media::Visual& child) noexcept {
     if (&logicalParent == &child || &visualParent == &child) {
-        return InvalidState("Element cannot be attached to itself");
+        return TreeInvalidState("Element cannot be attached to itself");
     }
 
     Aero::ElementAttachment state;
@@ -1087,7 +1087,7 @@ Base::Result<void> ElementTree::DetachElement(
     if (!state.IsAttached()) return {};
     if (state.logicalParent == nullptr || state.visualParent == nullptr ||
         state.child == nullptr) {
-        return InvalidState("Element attachment is incomplete");
+        return TreeInvalidState("Element attachment is incomplete");
     }
 
     ::Aero::Media::Visual& logicalParent = *state.logicalParent;
@@ -1148,7 +1148,7 @@ Base::Result<void> ElementTree::AttachVisual(
     Aero::ElementAttachment& state, ::Aero::Media::Visual& newVisualParent) noexcept {
     if (state.child == nullptr || state.visualAttached ||
         state.layoutAttached || state.renderAttached) {
-        return InvalidState("Element attachment is not ready for a visual parent");
+        return TreeInvalidState("Element attachment is not ready for a visual parent");
     }
     Base::Result<Aero::VisualAttachment> attached =
         AttachVisualChild(newVisualParent, *state.child);
@@ -1211,7 +1211,7 @@ Base::Result<void> ElementTree::DetachVisual(
     Aero::VisualAttachment& state) noexcept {
     if (!state.IsAttached()) return {};
     if (state.visualParent == nullptr || state.child == nullptr) {
-        return InvalidState("Visual attachment is incomplete");
+        return TreeInvalidState("Visual attachment is incomplete");
     }
     ::Aero::Media::Visual& parent = *state.visualParent;
     ::Aero::Media::Visual& child = *state.child;
@@ -1242,7 +1242,7 @@ Base::Result<void> ElementTree::DetachVisual(
 Base::Result<Aero::VisualAttachment> ElementTree::ReparentVisual(
     Aero::VisualAttachment& current, ::Aero::Media::Visual& newVisualParent) noexcept {
     if (current.child == nullptr || current.visualParent == nullptr) {
-        return InvalidState("Visual reparent state is incomplete");
+        return TreeInvalidState("Visual reparent state is incomplete");
     }
     ::Aero::Media::Visual* oldParent = current.visualParent;
     ::Aero::Media::Visual* child = current.child;
@@ -1276,7 +1276,7 @@ Base::Result<Aero::RootAttachment> ElementTree::AttachRoot(
     if (layoutRoot != nullptr) {
         if (layout_ == nullptr) {
             (void)SetRoot(nullptr);
-            return InvalidState("UI root requires a layout service");
+            return TreeInvalidState("UI root requires a layout service");
         }
         Base::Result<void> layout = layout_->SetRoot(layoutRoot, availableSize);
         if (!layout) {
@@ -1323,7 +1323,7 @@ Base::Result<Aero::RootAttachment> ElementTree::AttachRoot(
 Base::Result<void> ElementTree::DetachRoot(
     Aero::RootAttachment& state) noexcept {
     if (!state.IsAttached()) return {};
-    if (state.root == nullptr) return InvalidState("Root attachment is incomplete");
+    if (state.root == nullptr) return TreeInvalidState("Root attachment is incomplete");
 
     if (state.renderAttached) {
         if (renderTree_ != nullptr) {
@@ -1373,7 +1373,7 @@ Base::Result<void> ElementTree::AttachVisualGraph(
     RootAttachment& outAttachment) noexcept {
     if (layout_ == nullptr || outAttachment.IsAttached() ||
         !IsValidLayoutSize(availableSize)) {
-        return InvalidState(
+        return TreeInvalidState(
             "Gui root cannot be attached in its current state");
     }
     AttachPresentation(layout_, renderTree_);
@@ -1394,7 +1394,7 @@ Base::Result<void> ElementTree::AttachVisualGraph(
 Base::Result<void> ElementTree::CompleteVisualEdges(
     Base::Span<Markup::VisualEdge> edges) noexcept {
     if (root_ == nullptr) {
-        return InvalidState(
+        return TreeInvalidState(
             "Deferred visual edges require an attached root");
     }
     std::uint32_t attached = 0U;
@@ -1703,7 +1703,7 @@ Base::Result<void> EventRouter::ValidateClassHandler(
     RoutedEventTable& catalog =
         Events(eventState_);
     if (!catalog.IsFrozen()) {
-        return InvalidState(
+        return TreeInvalidState(
             "RoutedEventTable must be frozen before handlers");
     }
     const RoutedEventTable::Definition* definition =
@@ -1752,11 +1752,11 @@ Base::Result<void> EventRouter::RaiseEvent(
 
     RoutedEventTable& catalog = Events(eventState_);
     if (!catalog.IsFrozen()) {
-        return InvalidState(
+        return TreeInvalidState(
             "RoutedEventTable must be frozen before dispatch");
     }
     if (raiseDepth_ == 64U) {
-        return InvalidState(
+        return TreeInvalidState(
             "Routed event nesting limit was exceeded");
     }
     const RoutedEventTable::Definition* definition = catalog.Find(event);

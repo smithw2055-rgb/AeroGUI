@@ -1874,6 +1874,23 @@ Base::Result<void> ObjectWriter::StartObject(
     }
 
     CreatedObjectRecord& stored = created_[objectIndex];
+    if (typeId == Controls::ControlTemplate::StaticTypeId() && stored.object != nullptr) {
+        for (std::uint32_t i = frames_.Size(); i > 0U; --i) {
+            const Frame& f = frames_[i - 1U];
+            if (f.kind == FrameKind::Object && f.objectIndex < created_.Size()) {
+                const auto& rec = created_[f.objectIndex];
+                if (rec.type == Aero::Style::StaticTypeId() && rec.object != nullptr) {
+                    auto& style = static_cast<Aero::Style&>(*rec.object);
+                    if (style.GetTargetType() != Meta::InvalidTypeId) {
+                        (void)::Aero::Controls::FrameworkTemplateState::SetTargetType(
+                            static_cast<Aero::Controls::ControlTemplate&>(*stored.object),
+                            style.GetTargetType());
+                    }
+                    break;
+                }
+            }
+        }
+    }
     stored.beginCalled = true;
     Base::Result<void> beginResult = schema_->BeginInit(
         stored.type,

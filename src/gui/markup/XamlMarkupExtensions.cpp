@@ -819,6 +819,9 @@ struct DeferredMultiBindingState {
                         manager->Detach(handle));
                 }
             }
+            if (target != nullptr) {
+                manager->ClearMultiBinding(*target, targetProperty);
+            }
         }
         handles.Clear();
         for (const Base::Ref<Data::MultiBindingProxy>& input :
@@ -2914,6 +2917,14 @@ Base::StringView PropertyLocalName(
                 value = ::Aero::Base::ValueConversion::Trim(remainder.Substr(1, remainder.SizeBytes() - 1));
             }
         }
+    } else if (value.SizeBytes() >= 5U) {
+        const Base::StringView prefix = value.Substr(0, 4);
+        if (prefix == Base::StringView("Path") || prefix == Base::StringView("path")) {
+            Base::StringView remainder = ::Aero::Base::ValueConversion::Trim(value.Substr(4, value.SizeBytes() - 4));
+            if (!remainder.Empty() && remainder[0] == '=') {
+                value = ::Aero::Base::ValueConversion::Trim(remainder.Substr(1, remainder.SizeBytes() - 1));
+            }
+        }
     }
     for (std::uint32_t index = value.SizeBytes(); index > 0U; --index) {
         if (value[index - 1U] == '.') {
@@ -3017,9 +3028,13 @@ TemplateBindingExtension::ProvideValue(
             *services.targetObject);
     if (!target) return target.GetStatus();
 
+    Meta::TypeId templateTargetType = controlTemplate.GetTargetType();
+    if (templateTargetType == Meta::InvalidTypeId) {
+        templateTargetType = Controls::Control::StaticTypeId();
+    }
     const Meta::DependencyProperty* source =
         DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
-            controlTemplate.GetTargetType(),
+            templateTargetType,
             propertyName);
     const Meta::DependencyProperty* destination =
         DependencyObjectAccess::PropertyRegistry(target.Value()).Find(

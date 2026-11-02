@@ -2643,7 +2643,12 @@ inline Base::Result<void> CompileNodesToBytecode(
             frame.hasResourceScope = isDictionary;
 
             if (isControlTemplate) {
-                frame.templateShell = Base::MakeRef<Controls::ControlTemplate>();
+                auto ct = Base::MakeRef<Controls::ControlTemplate>();
+                if (frame.templateTargetType != Meta::InvalidTypeId) {
+                    (void)::Aero::Controls::FrameworkTemplateState::SetTargetType(
+                        *ct, frame.templateTargetType);
+                }
+                frame.templateShell = std::move(ct);
             } else if (isDataTemplate) {
                 frame.templateShell = Base::MakeRef<Aero::DataTemplate>();
             }

@@ -1825,6 +1825,7 @@ void UiFrameEncoder::ProcessCommand(
         Color tint = {1.0F, 1.0F, 1.0F, 1.0F};
         bool isGradient = false;
         bool isPattern = false;
+        float patternOpacity = 1.0F;
         Rect viewbox{0.0, 0.0, 1.0, 1.0};
         bool hasInverse = false;
         Base::Transform2D inverse{};
@@ -1881,15 +1882,15 @@ void UiFrameEncoder::ProcessCommand(
             meshId = cmd->mesh;
             tint = cmd->tint;
             isPattern = true;
+            patternOpacity = cmd->opacity;
             bounds = cmd->bounds;
             viewbox = cmd->viewbox;
             Texture* tex = FindImage(cmd->image);
             if (tex == nullptr) break;
 
-            const float opacityVal = static_cast<float>(currentOpacity * tint.alpha * cmd->opacity);
-            const float uniforms[4] = {opacityVal, 1.0f, 1.0f, 1.0f};
+            const float targetUniforms[4] = {1.0f, 1.0f, 1.0f, 1.0f};
             const bool uniformsDiffer =
-                std::memcmp(paintUniforms_, uniforms, sizeof(uniforms)) != 0;
+                std::memcmp(paintUniforms_, targetUniforms, sizeof(targetUniforms)) != 0;
 
             const std::uint8_t targetWrapMode = h.wrapMode;
             const Shader::Enum shader = ToPPAAShader(Shader::Path_Pattern, enablePPAA_);
@@ -1906,7 +1907,7 @@ void UiFrameEncoder::ProcessCommand(
                  currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
                 FlushBatch();
             }
-            std::memcpy(paintUniforms_, uniforms, sizeof(uniforms));
+            std::memcpy(paintUniforms_, targetUniforms, sizeof(targetUniforms));
             currentBatch_.shader = shader;
             currentBatch_.pattern = tex;
             currentBatch_.ramps = nullptr;
@@ -1936,7 +1937,8 @@ void UiFrameEncoder::ProcessCommand(
 
         Color c = tint;
         if (!isGradient) {
-            c.alpha = static_cast<float>(c.alpha * currentOpacity);
+            const float extraOpacity = isPattern ? patternOpacity : 1.0F;
+            c.alpha = static_cast<float>(c.alpha * currentOpacity * extraOpacity);
         }
         const uint32_t color32 = ColorToRGBA32(c, 1.0);
 
