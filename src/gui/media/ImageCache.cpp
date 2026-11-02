@@ -482,13 +482,31 @@ Base::Result<bool> ImageCache::Synchronize(
                         height) * 4U);
             record->pixels.Resize(
                     byteCount);
-            for (std::uint32_t index = 0U;
-                 index < byteCount; ++index) {
-                record->pixels[index] =
-                    decoded[index];
+            const std::uint8_t* src = decoded;
+            std::uint8_t* dst = record->pixels.Data();
+            for (std::uint32_t index = 0U; index + 3U < byteCount; index += 4U) {
+                const std::uint32_t alpha = src[index + 3U];
+                if (alpha == 255U) {
+                    dst[index + 0U] = src[index + 0U];
+                    dst[index + 1U] = src[index + 1U];
+                    dst[index + 2U] = src[index + 2U];
+                    dst[index + 3U] = 255U;
+                } else if (alpha == 0U) {
+                    dst[index + 0U] = 0U;
+                    dst[index + 1U] = 0U;
+                    dst[index + 2U] = 0U;
+                    dst[index + 3U] = 0U;
+                } else {
+                    dst[index + 0U] = static_cast<std::uint8_t>(
+                        (static_cast<std::uint32_t>(src[index + 0U]) * alpha + 127U) / 255U);
+                    dst[index + 1U] = static_cast<std::uint8_t>(
+                        (static_cast<std::uint32_t>(src[index + 1U]) * alpha + 127U) / 255U);
+                    dst[index + 2U] = static_cast<std::uint8_t>(
+                        (static_cast<std::uint32_t>(src[index + 2U]) * alpha + 127U) / 255U);
+                    dst[index + 3U] = static_cast<std::uint8_t>(alpha);
+                }
             }
             stbi_image_free(decoded);
-            PremultiplyStraightRgba(record->pixels);
             record->width =
                 static_cast<std::uint32_t>(width);
             record->height =

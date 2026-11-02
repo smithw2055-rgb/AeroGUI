@@ -1976,6 +1976,8 @@ Base::Result<void> RenderTree::RefreshInPlace(
 
     currentFrame_.effects_.Clear();
     currentFrame_.masks_.Clear();
+    currentFrame_.geometryClipVertices_.Clear();
+    currentFrame_.geometryClipIndices_.Clear();
 
     std::uint32_t cursor = 0U;
     bool fallback = false;
@@ -2263,11 +2265,7 @@ Base::Result<std::uint32_t> RenderTree::Commit() noexcept {
         std::uint32_t refreshedNodes = 0U;
         Base::Result<void> refreshed =
             RefreshInPlace(fallback, refreshedNodes);
-        if (!refreshed) {
-            committing_ = false;
-            return refreshed.GetStatus();
-        }
-        if (!fallback) {
+        if (refreshed && !fallback) {
 #ifndef NDEBUG
             // Opt-in / sampled: every Pump used to double-rebuild in Debug via
             // VerifyRefresh. Default off so conformance stays fast; set
