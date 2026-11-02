@@ -624,35 +624,6 @@ Base::Result<void> TemplateProgram::Seal() noexcept {
     return {};
 }
 
-Base::Result<void> TemplateProgram::FreezeRuntimePlan(
-    TypeId valueTargetType,
-    Base::Vector<TemplateBindingPlan>&& valueBindings,
-    Base::Vector<TemplateMetadataBindingPlan>&&
-        valueMetadataBindings,
-    Base::Vector<TemplateDynamicResourcePlan>&&
-        valueDynamicResources,
-    Base::Vector<TemplatePropertyTrigger>&& valueTriggers,
-    Base::Vector<VisualStateGroupPlan>&& valueVisualStateGroups) noexcept {
-    if (sealed) {
-        return InvalidTemplate(
-            "TemplateProgram runtime plan is already frozen");
-    }
-    if (factory == nullptr ||
-        valueTargetType == InvalidTypeId) {
-        return InvalidTemplate(
-            "TemplateProgram runtime plan is incomplete");
-    }
-    targetType = valueTargetType;
-    bindings = std::move(valueBindings);
-    metadataBindings =
-        std::move(valueMetadataBindings);
-    dynamicResources =
-        std::move(valueDynamicResources);
-    triggers = std::move(valueTriggers);
-    visualStateGroups = std::move(valueVisualStateGroups);
-    sealed = true;
-    return {};
-}
 
 
 Base::Result<void> DeferredObjectProgram::Configure(
@@ -963,7 +934,7 @@ Base::Result<void> FrameworkTemplateState::AddTemplateBinding(
     if (!assigned) return assigned.GetStatus();
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
-    state->bindings.PushBack(std::move(binding));
+    state->program.bindings.PushBack(std::move(binding));
     return {};
 }
 
@@ -993,7 +964,7 @@ Base::Result<void> FrameworkTemplateState::AddTemplatedParentBinding(
     binding.updateSourceTrigger = updateSourceTrigger;
     binding.converter = converter;
     binding.converterParameter = converterParameter;
-    state->metadataBindings.PushBack(std::move(binding));
+    state->program.metadataBindings.PushBack(std::move(binding));
     return {};
 }
 
@@ -1022,7 +993,7 @@ Base::Result<void> FrameworkTemplateState::AddDynamicResource(
     if (assigned) assigned = resource.key.Assign(key);
     if (!assigned) return assigned.GetStatus();
     resource.targetProperty = targetProperty;
-    state->dynamicResources.PushBack(std::move(resource));
+    state->program.dynamicResources.PushBack(std::move(resource));
     return {};
 }
 
@@ -1066,7 +1037,7 @@ Base::Result<void> FrameworkTemplateState::AddPropertyTrigger(
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
     if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (trigger.conditions.Empty()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Template property trigger is incomplete");
-    state->triggers.PushBack(std::move(trigger));
+    state->program.triggers.PushBack(std::move(trigger));
     return {};
 }
 
@@ -1084,7 +1055,7 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
             Base::ErrorCode::InvalidArgument,
             "Visual state group requires a name and at least one state");
     }
-    for (const VisualStateGroupPlan& existing : state->visualStateGroups) {
+    for (const VisualStateGroupPlan& existing : state->program.visualStateGroups) {
         if (existing.name.View() == group.name.View()) {
             return Base::Status::Failure(
                 Base::ErrorCode::AlreadyExists,
@@ -1170,7 +1141,7 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
             }
         }
     }
-    state->visualStateGroups.PushBack(std::move(group));
+    state->program.visualStateGroups.PushBack(std::move(group));
     return {};
 }
 
@@ -1324,39 +1295,37 @@ Base::Span<const TemplateNamespace> FrameworkTemplateState::Namespaces(const Fra
 
 Base::Span<const TemplateBindingPlan> FrameworkTemplateState::Bindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return {};
-    const auto& values = state->sealed ? state->program.bindings : state->bindings;
-    return {values.Data(), values.Size()};
+    return state != nullptr
+        ? Base::Span<const TemplateBindingPlan>(state->program.bindings.Data(), state->program.bindings.Size())
+        : Base::Span<const TemplateBindingPlan>{};
 }
 
 Base::Span<const TemplateMetadataBindingPlan> FrameworkTemplateState::MetadataBindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return {};
-    const auto& values = state->sealed ? state->program.metadataBindings : state->metadataBindings;
-    return {values.Data(), values.Size()};
+    return state != nullptr
+        ? Base::Span<const TemplateMetadataBindingPlan>(state->program.metadataBindings.Data(), state->program.metadataBindings.Size())
+        : Base::Span<const TemplateMetadataBindingPlan>{};
 }
 
 Base::Span<const TemplateDynamicResourcePlan> FrameworkTemplateState::DynamicResources(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return {};
-    const auto& values = state->sealed
-        ? state->program.dynamicResources
-        : state->dynamicResources;
-    return {values.Data(), values.Size()};
+    return state != nullptr
+        ? Base::Span<const TemplateDynamicResourcePlan>(state->program.dynamicResources.Data(), state->program.dynamicResources.Size())
+        : Base::Span<const TemplateDynamicResourcePlan>{};
 }
 
 Base::Span<const TemplatePropertyTrigger> FrameworkTemplateState::Triggers(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return {};
-    const auto& values = state->sealed ? state->program.triggers : state->triggers;
-    return {values.Data(), values.Size()};
+    return state != nullptr
+        ? Base::Span<const TemplatePropertyTrigger>(state->program.triggers.Data(), state->program.triggers.Size())
+        : Base::Span<const TemplatePropertyTrigger>{};
 }
 
 Base::Span<const VisualStateGroupPlan> FrameworkTemplateState::VisualStateGroups(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return {};
-    const auto& values = state->sealed ? state->program.visualStateGroups : state->visualStateGroups;
-    return {values.Data(), values.Size()};
+    return state != nullptr
+        ? Base::Span<const VisualStateGroupPlan>(state->program.visualStateGroups.Data(), state->program.visualStateGroups.Size())
+        : Base::Span<const VisualStateGroupPlan>{};
 }
 
 Base::Result<void> FrameworkTemplateState::Seal(
@@ -1436,35 +1405,35 @@ Base::Result<void> FrameworkTemplateState::Seal(
             Base::Vector<TemplateBindingPlan> merged;
             merged.Append(FrameworkTemplateState::Bindings(*baseTemplate));
             merged.Append(
-                templateState->bindings.AsSpan());
-            templateState->bindings = std::move(merged);
+                templateState->program.bindings.AsSpan());
+            templateState->program.bindings = std::move(merged);
         }
         if (!FrameworkTemplateState::MetadataBindings(*baseTemplate).Empty()) {
             Base::Vector<TemplateMetadataBindingPlan> merged;
             merged.Append(FrameworkTemplateState::MetadataBindings(*baseTemplate));
             merged.Append(
-                templateState->metadataBindings.AsSpan());
-            templateState->metadataBindings = std::move(merged);
+                templateState->program.metadataBindings.AsSpan());
+            templateState->program.metadataBindings = std::move(merged);
         }
         if (!FrameworkTemplateState::DynamicResources(*baseTemplate).Empty()) {
             Base::Vector<TemplateDynamicResourcePlan> merged;
             merged.Append(FrameworkTemplateState::DynamicResources(*baseTemplate));
             merged.Append(
-                templateState->dynamicResources.AsSpan());
-            templateState->dynamicResources = std::move(merged);
+                templateState->program.dynamicResources.AsSpan());
+            templateState->program.dynamicResources = std::move(merged);
         }
         if (!FrameworkTemplateState::Triggers(*baseTemplate).Empty()) {
             Base::Vector<TemplatePropertyTrigger> merged;
             merged.Append(FrameworkTemplateState::Triggers(*baseTemplate));
             merged.Append(
-                templateState->triggers.AsSpan());
-            templateState->triggers = std::move(merged);
+                templateState->program.triggers.AsSpan());
+            templateState->program.triggers = std::move(merged);
         }
         if (!FrameworkTemplateState::VisualStateGroups(*baseTemplate).Empty()) {
             for (const VisualStateGroupPlan& baseGroup :
                 FrameworkTemplateState::VisualStateGroups(*baseTemplate)) {
                 for (const VisualStateGroupPlan& ownGroup :
-                    templateState->visualStateGroups) {
+                    templateState->program.visualStateGroups) {
                     if (ownGroup.name.View() == baseGroup.name.View()) {
                         return Base::Status::Failure(
                             Base::ErrorCode::AlreadyExists,
@@ -1475,8 +1444,8 @@ Base::Result<void> FrameworkTemplateState::Seal(
             Base::Vector<VisualStateGroupPlan> merged;
             merged.Append(FrameworkTemplateState::VisualStateGroups(*baseTemplate));
             merged.Append(
-                templateState->visualStateGroups.AsSpan());
-            templateState->visualStateGroups = std::move(merged);
+                templateState->program.visualStateGroups.AsSpan());
+            templateState->program.visualStateGroups = std::move(merged);
         }
         if (templateState->resources.Size() == 0U &&
             templateState->resources.MergedDictionaryCount() == 0U) {
@@ -1495,7 +1464,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
         return InvalidTemplate(
             "FrameworkTemplate requires a factory and registered target type");
     }
-    for (const TemplateBindingPlan& binding : templateState->bindings) {
+    for (const TemplateBindingPlan& binding : templateState->program.bindings) {
         const DependencyProperty* source =
             properties.Find(binding.sourceProperty);
         const DependencyProperty* target =
@@ -1508,7 +1477,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
         }
     }
     for (const TemplateMetadataBindingPlan& binding :
-         templateState->metadataBindings) {
+         templateState->program.metadataBindings) {
         if (binding.path.Empty() ||
             properties.Find(binding.targetProperty) == nullptr) {
             return Base::Status::Failure(
@@ -1517,7 +1486,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
         }
     }
     for (const TemplateDynamicResourcePlan& resource :
-         templateState->dynamicResources) {
+         templateState->program.dynamicResources) {
         if (resource.targetName.Empty() || resource.key.Empty() ||
             properties.Find(resource.targetProperty) == nullptr) {
             return Base::Status::Failure(
@@ -1525,7 +1494,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 "Template DynamicResource target property was not found");
         }
     }
-    for (const TemplatePropertyTrigger& trigger : templateState->triggers) {
+    for (const TemplatePropertyTrigger& trigger : templateState->program.triggers) {
         for (const TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
             const DependencyProperty* condition =
@@ -1555,9 +1524,9 @@ Base::Result<void> FrameworkTemplateState::Seal(
         }
     }
     for (std::uint32_t groupIndex = 0U;
-        groupIndex < templateState->visualStateGroups.Size(); ++groupIndex) {
+        groupIndex < templateState->program.visualStateGroups.Size(); ++groupIndex) {
         const VisualStateGroupPlan& group =
-            templateState->visualStateGroups[groupIndex];
+            templateState->program.visualStateGroups[groupIndex];
         for (const VisualStatePlan& state : group.states) {
             for (const VisualStateSetterPlan& setter : state.setters) {
                 const DependencyProperty* property =
@@ -1576,7 +1545,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 for (std::uint32_t otherIndex = 0U;
                     otherIndex < groupIndex; ++otherIndex) {
                     for (const VisualStatePlan& otherState :
-                        templateState->visualStateGroups[otherIndex].states) {
+                        templateState->program.visualStateGroups[otherIndex].states) {
                         for (const VisualStateSetterPlan& otherSetter :
                             otherState.setters) {
                             if (otherSetter.property ==
@@ -1594,14 +1563,8 @@ Base::Result<void> FrameworkTemplateState::Seal(
             }
         }
     }
-    Base::Result<void> programSealed =
-        templateState->program.FreezeRuntimePlan(
-            templateState->targetType,
-            std::move(templateState->bindings),
-            std::move(templateState->metadataBindings),
-            std::move(templateState->dynamicResources),
-            std::move(templateState->triggers),
-            std::move(templateState->visualStateGroups));
+    templateState->program.targetType = templateState->targetType;
+    Base::Result<void> programSealed = templateState->program.Seal();
     if (!programSealed) {
         return programSealed.GetStatus();
     }
