@@ -42,6 +42,5 @@ AERO_GUI_API bool IsValidLayoutRect(Rect value) noexcept;
 AERO_GUI_API Size Deflate(Size value, Thickness padding) noexcept;
 AERO_GUI_API Size Inflate(Size value, Thickness padding) noexcept;
 AERO_GUI_API Rect Intersect(Rect left, Rect right) noexcept;
-AERO_GUI_API double RoundLayoutValue(double value, double dpiScale) noexcept;
 
 } // namespace Aero

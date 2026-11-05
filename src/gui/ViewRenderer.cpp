@@ -272,7 +272,6 @@ Base::Result<void> ViewRenderer::Init(
                     *previous, nullptr, true);
             if (!detached) return detached.GetStatus();
         }
-        if (data.Tree() != nullptr) data.Tree()->SetMeshResources(nullptr);
         ShutdownRenderResources();
     }
 
@@ -290,10 +289,6 @@ Base::Result<void> ViewRenderer::Init(
     data.device = device;
     data.deviceGeneration =
         device->Generation();
-    if (data.Tree() != nullptr) {
-        data.Tree()->SetMeshResources(data.GetMeshResources());
-        data.Tree()->SetTextLayout(data.Text() != nullptr ? data.Text()->Layout() : nullptr);
-    }
 
     Aero::Media::Visual* rootVisual =
         data.RootVisual();

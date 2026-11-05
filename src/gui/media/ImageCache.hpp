@@ -48,6 +48,12 @@ private:
     Render::RenderImageId
         nextHeadlessImage_ =
             UINT64_C(1) << 40U;
+
+    // 快路径门控状态
+    Aero::Media::Visual* lastRoot_ = nullptr;
+    std::uint64_t lastTreeVersion_ = UINT64_MAX;
+    std::uint64_t lastImageRevision_ = 0U;
+    Base::ResourceUri lastDocumentUri_;
 };
 
 } // namespace Aero::Media

@@ -580,15 +580,16 @@ private:
 
 Panel::~Panel() {
     zOrderCache_.Clear();
-    for (std::uint32_t index = 0U; index < ownedChildren_.Size(); ++index) {
-        UIElement* child = ownedChildren_[index]
-            ? static_cast<UIElement*>(ownedChildren_[index].Get())
+    Base::Vector<Base::Ref<Base::Object>> children = std::move(ownedChildren_);
+    ownedChildren_.Clear();
+    for (std::uint32_t index = 0U; index < children.Size(); ++index) {
+        UIElement* child = children[index]
+            ? static_cast<UIElement*>(children[index].Get())
             : nullptr;
         if (child != nullptr && child->GetVisualParent() == this) {
             RemoveVisualChild(child);
         }
     }
-    ownedChildren_.Clear();
     if (childrenView_) {
         static_cast<PanelChildrenView*>(childrenView_.Get())->DetachOwner();
         childrenView_.Reset();

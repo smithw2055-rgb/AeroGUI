@@ -318,8 +318,6 @@ namespace Aero {
 Base::Result<void> PopulateUiStyling(
     ::Aero::Meta::Registration& context) noexcept {
     using namespace Aero::Meta;
-    DescribeHook<::Aero::Element>::Run(context);
-    DescribeHook<::Aero::TextProperties>::Run(context);
     DescribeHook<::Aero::RichText>::Run(context);
     DescribeHook<::Aero::SetterBase>::Run(context);
     DescribeHook<::Aero::Setter>::Run(context);
@@ -558,6 +556,8 @@ Base::Result<void> PopulateControlsMetadata(
     DescribeHook<GridViewRowPresenter>::Run(context);
     DescribeHook<ListView>::Run(context);
     DescribeHook<ListViewItem>::Run(context);
+    DescribeHook<::Aero::Element>::Run(context);
+    DescribeHook<::Aero::TextProperties>::Run(context);
     return {};
 }
 

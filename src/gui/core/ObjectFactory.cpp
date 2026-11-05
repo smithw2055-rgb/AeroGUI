@@ -12,22 +12,22 @@ namespace {
 
 thread_local ObjectFactoryState* activeObjectFactory = nullptr;
 
-struct FallbackObjectFactory {
+struct GlobalDefaultObjectFactory {
     Dispatcher dispatcher;
     TypeRegistry types;
     BehaviorTable behaviors{types};
     DependencyPropertyRegistry properties{types, behaviors};
     bool ready = false;
 
-    FallbackObjectFactory() noexcept {
+    GlobalDefaultObjectFactory() noexcept {
         ready = types.Freeze() &&
             behaviors.Freeze() &&
             properties.Freeze();
     }
 };
 
-FallbackObjectFactory& GetFallbackObjectFactory() noexcept {
-    thread_local FallbackObjectFactory fallback;
+GlobalDefaultObjectFactory& GetGlobalDefaultObjectFactory() noexcept {
+    static GlobalDefaultObjectFactory fallback;
     AERO_ASSERT(fallback.ready);
     return fallback;
 }
@@ -35,10 +35,22 @@ FallbackObjectFactory& GetFallbackObjectFactory() noexcept {
 } // namespace
 
 ObjectFactoryState CurrentObjectFactory() noexcept {
-    if (activeObjectFactory != nullptr) {
+    if (activeObjectFactory != nullptr &&
+        activeObjectFactory->dispatcher != nullptr &&
+        activeObjectFactory->dependencyProperties != nullptr) {
         return *activeObjectFactory;
     }
-    FallbackObjectFactory& fallback = GetFallbackObjectFactory();
+    GlobalDefaultObjectFactory& fallback = GetGlobalDefaultObjectFactory();
+    if (activeObjectFactory != nullptr) {
+        ObjectFactoryState state = *activeObjectFactory;
+        if (state.dispatcher == nullptr) {
+            state.dispatcher = &fallback.dispatcher;
+        }
+        if (state.dependencyProperties == nullptr) {
+            state.dependencyProperties = &fallback.properties;
+        }
+        return state;
+    }
     return {&fallback.dispatcher, &fallback.properties, nullptr};
 }
 

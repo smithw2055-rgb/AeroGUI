@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Markup/XamlProvider.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Diagnostics.hpp>
 #include <Aero/Resources.hpp>
@@ -8,28 +9,31 @@
 
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
+#include "gui/core/ModuleSet.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
 
+#include <Aero/Base/Allocator.hpp>
+#include <Aero/Base/Config.hpp>
 #include <Aero/Base/Geometry.hpp>
+#include <Aero/Base/Hash.hpp>
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
+#include <Aero/Base/Object.hpp>
+#include <Aero/Base/Ref.hpp>
 #include <Aero/Base/ResourceUri.hpp>
+#include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
+#include <Aero/Base/String.hpp>
 #include <Aero/Base/StringView.hpp>
-#include <Aero/Controls/Control.hpp>
-#include <Aero/Controls/Menus.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Data/MultiBinding.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Layout.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
-#include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Style.hpp>
 #include <Aero/UIElement.hpp>
-#include "gui/templates/TemplateInstance.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -40,10 +44,15 @@ class DependencyObject;
 class ResourceDictionary;
 class ResourceKey;
 class BindingEngine;
+class Style;
 }
 
 namespace Aero::Controls {
 class ControlTemplate;
+}
+
+namespace Aero::Threading {
+class Dispatcher;
 }
 
 namespace Aero::Markup {
@@ -143,11 +152,6 @@ inline Base::StringView TrimAscii(Base::StringView value) noexcept {
     return ::Aero::Base::ValueConversion::Trim(value);
 }
 
-
-class DeferredContentPlan;
-class Schema;
-struct VisualContentPlan;
-
 enum class ProvidedValueKind : std::uint8_t {
     Value = 0U,
     Handled,
@@ -182,68 +186,22 @@ struct ProvidedValue {
     ProvidedBindCallback bind = nullptr;
 
     static ProvidedValue FromValue(
-        Meta::Value&& provided) noexcept {
-        ProvidedValue result;
-        result.value = static_cast<Meta::Value&&>(provided);
-        return result;
-    }
+        Meta::Value&& provided) noexcept;
     static ProvidedValue Handled(
         void* context = nullptr,
         std::uint64_t token = 0U,
-        ProvidedRollbackCallback rollbackCallback = nullptr) noexcept {
-        ProvidedValue result;
-        result.kind = ProvidedValueKind::Handled;
-        result.rollbackContext = context;
-        result.rollbackToken = token;
-        result.rollback = rollbackCallback;
-        return result;
-    }
+        ProvidedRollbackCallback rollbackCallback = nullptr) noexcept;
     static ProvidedValue Expression(
         Meta::EffectiveValueEngine& engine,
-        const Meta::PropertyExpression& provided) noexcept {
-        ProvidedValue result;
-        result.kind = ProvidedValueKind::Expression;
-        result.effectiveValues = &engine;
-        result.expression = provided;
-        return result;
-    }
+        const Meta::PropertyExpression& provided) noexcept;
     static ProvidedValue Deferred(
         void* context,
         ProvidedCommitCallback commitCallback,
         ProvidedRollbackCallback rollbackCallback,
         ProvidedCleanupCallback cleanupCallback,
         ProvidedPrepareCallback prepareCallback = nullptr,
-        ProvidedBindCallback bindCallback = nullptr) noexcept {
-        ProvidedValue result;
-        result.kind = ProvidedValueKind::Deferred;
-        result.rollbackContext = context;
-        result.prepare = prepareCallback;
-        result.commit = commitCallback;
-        result.rollback = rollbackCallback;
-        result.cleanup = cleanupCallback;
-        result.bind = bindCallback;
-        return result;
-    }
-    void Discard() noexcept {
-        if (kind == ProvidedValueKind::Expression &&
-            expression.cleanup != nullptr) {
-            expression.cleanup(expression.context);
-        } else if (kind == ProvidedValueKind::Handled &&
-                   rollback != nullptr) {
-            rollback(rollbackContext, rollbackToken);
-        } else if (kind == ProvidedValueKind::Deferred &&
-                   cleanup != nullptr) {
-            cleanup(rollbackContext);
-        }
-        expression = {};
-        rollbackContext = nullptr;
-        rollbackToken = 0U;
-        rollback = nullptr;
-        prepare = nullptr;
-        commit = nullptr;
-        cleanup = nullptr;
-        bind = nullptr;
-    }
+        ProvidedBindCallback bindCallback = nullptr) noexcept;
+    void Discard() noexcept;
 };
 
 class NamespaceScope {
@@ -608,20 +566,6 @@ private:
 inline constexpr Base::StringView LanguageNamespaceUri() noexcept {
     return Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml");
 }
-
-class Schema;
-class SchemaManifest;
-class CompiledDocument;
-class NodeReader;
-class XamlFacets;
-struct XamlTypeFacet;
-struct XamlLifecycleFacet;
-struct XamlNameScopeFacet;
-struct XamlResourceScopeFacet;
-struct XamlDeferredContentFacet;
-struct XamlImplicitResourceKeyFacet;
-struct XamlPropertyTargetFacet;
-struct XamlMarkupExtensionFacet;
 
 enum class XmlTokenKind : std::uint8_t {
     None = 0U,
@@ -1318,33 +1262,16 @@ private:
 
 // Canonical public schema API.
 
-namespace Aero { class DependencyObject; class ResourceDictionary; class ResourceKey; }
-namespace Aero { class ModuleSet; }
-namespace Aero::Data { class MultiBinding; }
-
 namespace Aero {
 class GuiSchema;
 }
 
 namespace Aero::Markup {
-
-struct ExtensionServices;
-struct ProvidedValue;
-class Loader;
-class ObjectWriter;
-class SchemaManifest;
 struct LoadState;
-
-} // namespace Aero::Markup
-
-namespace Aero::Markup {
 class XamlStyleSchemaFacet;
 
 Base::Result<void> PopulateMarkupMetadata(
     ::Aero::Meta::Registration& context) noexcept;
-} // namespace Aero::Markup
-
-namespace Aero::Markup {
 
 enum class MemberSyntax : std::uint8_t {
     Attribute = 0U,
@@ -1597,54 +1524,12 @@ MarkupMetadataModuleName() noexcept {
     return "Aero.Markup";
 }
 
-inline Base::Result<void> RegisterMarkupMetadata(
-    ::Aero::Meta::Registry& domain) noexcept {
-    constexpr std::uint32_t SchemaVersion = 4U;
-    const Base::StringView name =
-        MarkupMetadataModuleName();
-    return domain.RegisterModule({
-        Meta::MakeMetadataModuleId(name),
-        name,
-        SchemaVersion,
-        &PopulateMarkupMetadata,
-        nullptr,
-        nullptr});
-}
-
-} // namespace Aero::Markup
-
-// Consolidated private Markup runtime and schema contract.
+Base::Result<void> RegisterMarkupMetadata(
+    ::Aero::Meta::Registry& domain) noexcept;
 
 // ===== Loader contract =====
 // XamlReader → Loader → ObjectWriter → Schema. Loader owns a short-lived
 // LoaderState session; LoadState (≈ ParserContext) is per-Load only.
-#include <Aero/Base/Allocator.hpp>
-#include <Aero/Base/Config.hpp>
-#include <Aero/Base/Hash.hpp>
-#include <Aero/Base/Object.hpp>
-#include <Aero/Base/Ref.hpp>
-#include <Aero/Base/ResourceUri.hpp>
-#include <Aero/Base/Result.hpp>
-#include <Aero/Base/Span.hpp>
-#include <Aero/Base/String.hpp>
-#include <Aero/Base/StringView.hpp>
-#include <Aero/Base/Vector.hpp>
-#include <Aero/Markup/XamlProvider.hpp>
-
-
-#include <atomic>
-
-namespace Aero { class ResourceDictionary; }
-
-namespace Aero::Meta {
-class DependencyPropertyRegistry;
-class EffectiveValueEngine;
-}
-namespace Aero::Threading { class Dispatcher; }
-
-namespace Aero::Markup {
-
-class Schema;
 
 class EffectLifetime : public Base::Object {
 public:
@@ -2056,148 +1941,37 @@ struct CommittedEffect {
     bool committed = false;
 
     Base::Result<void> Bind(
-        const EffectServices& services) noexcept {
-        if (!lifetime && services.lifetime) lifetime = services.lifetime;
-        if (effectiveValues == nullptr && services.effectiveValues != nullptr) {
-            effectiveValues = services.effectiveValues;
-        }
-        return bind != nullptr
-            ? bind(context, services)
-            : Base::Result<void>();
-    }
-
+        const EffectServices& services) noexcept;
     Base::Result<void> Prepare(
-        const Aero::NameScope& names) noexcept {
-        return prepare != nullptr
-            ? prepare(context, names)
-            : Base::Result<void>();
-    }
-
-    Base::Result<void> Commit() noexcept {
-        if (committed) return {};
-        if (lifetime && !lifetime->IsActive()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidState,
-                "XAML effect runtime is no longer active");
-        }
-        if (pendingExpression.IsValid()) {
-            if (effectiveValues == nullptr || target == nullptr ||
-                !property.IsValid()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidState,
-                    "Deferred XAML property expression is invalid");
-            }
-            Base::Result<void> installed =
-                effectiveValues->SetLocalExpression(
-                    *target, property, pendingExpression);
-            if (!installed) return installed.GetStatus();
-            pendingExpression = {};
-            committed = true;
-            return {};
-        }
-        if (commit != nullptr) {
-            Base::Result<std::uint64_t> result = commit(context);
-            if (!result) return result.GetStatus();
-            token = result.Value();
-            committed = true;
-            return {};
-        }
-        committed = true;
-        return {};
-    }
-
-    void Rollback() noexcept {
-        const bool runtimeActive = !lifetime || lifetime->IsActive();
-        if (committed && runtimeActive) {
-            if (effectiveValues != nullptr && target != nullptr) {
-                // A committed XAML effect is rolled back only when its
-                // document/template lifetime is being discarded. Remove the
-                // complete engine record instead of queueing a recomputation
-                // for an object that may be released immediately afterwards.
-                static_cast<void>(effectiveValues->DetachObject(*target));
-            }
-            if (rollback != nullptr) {
-                rollback(context, token);
-            }
-        } else if (!committed && pendingExpression.cleanup != nullptr) {
-            pendingExpression.cleanup(pendingExpression.context);
-        }
-        if (cleanup != nullptr) cleanup(context);
-        lifetime.Reset();
-        effectiveValues = nullptr;
-        target = nullptr;
-        targetOwner.Reset();
-        pendingExpression = {};
-        context = nullptr;
-        token = 0U;
-        prepare = nullptr;
-        commit = nullptr;
-        rollback = nullptr;
-        cleanup = nullptr;
-        bind = nullptr;
-        committed = false;
-    }
+        const Aero::NameScope& names) noexcept;
+    Base::Result<void> Commit() noexcept;
+    void Rollback() noexcept;
 };
 
 class CommittedEffectPlan {
 public:
     CommittedEffectPlan() noexcept = default;
-    ~CommittedEffectPlan() noexcept { Rollback(); }
+    ~CommittedEffectPlan() noexcept;
 
     CommittedEffectPlan(
-        CommittedEffectPlan&& other) noexcept
-        : effects_(std::move(other.effects_)) {}
+        CommittedEffectPlan&& other) noexcept;
     CommittedEffectPlan& operator=(
-        CommittedEffectPlan&& other) noexcept {
-        if (this == &other) return *this;
-        Rollback();
-        effects_ = std::move(other.effects_);
-        return *this;
-    }
+        CommittedEffectPlan&& other) noexcept;
 
     CommittedEffectPlan(const CommittedEffectPlan&) = delete;
     CommittedEffectPlan& operator=(
         const CommittedEffectPlan&) = delete;
 
     Base::Result<void> Bind(
-        const EffectServices& services) noexcept {
-        for (CommittedEffect& effect : effects_) {
-            Base::Result<void> bound = effect.Bind(services);
-            if (!bound) return bound.GetStatus();
-        }
-        return {};
-    }
-
+        const EffectServices& services) noexcept;
     Base::Vector<CommittedEffect>& Items() noexcept { return effects_; }
     const Base::Vector<CommittedEffect>& Items() const noexcept {
         return effects_;
     }
     Base::Result<void> Prepare(
-        const Aero::NameScope& names) noexcept {
-        for (CommittedEffect& effect : effects_) {
-            Base::Result<void> prepared = effect.Prepare(names);
-            if (!prepared) return prepared.GetStatus();
-        }
-        return {};
-    }
-    Base::Result<void> Commit() noexcept {
-        for (std::uint32_t index = 0U; index < effects_.Size(); ++index) {
-            Base::Result<void> committed = effects_[index].Commit();
-            if (committed) continue;
-            for (std::uint32_t rollbackIndex = index;
-                 rollbackIndex > 0U; --rollbackIndex) {
-                effects_[rollbackIndex - 1U].Rollback();
-            }
-            return committed.GetStatus();
-        }
-        return {};
-    }
-    void Rollback() noexcept {
-        for (std::uint32_t index = effects_.Size(); index > 0U; --index) {
-            effects_[index - 1U].Rollback();
-        }
-        effects_.Clear();
-    }
+        const Aero::NameScope& names) noexcept;
+    Base::Result<void> Commit() noexcept;
+    void Rollback() noexcept;
     std::uint32_t Size() const noexcept { return effects_.Size(); }
 
 private:
@@ -2219,31 +1993,10 @@ struct LoaderResult {
     Base::Ref<EffectLifetime> runtimeLifetime;
     bool hasDeferredStaticResources = false;
 
-    void Clear() noexcept {
-        effects.Rollback();
-        root.Reset();
-        metadata = nullptr;
-        names.Clear();
-        resources = Aero::ResourceDictionary{};
-        visualContent.ReleaseContent();
-        visualContent.Clear();
-        canonicalUri = {};
-        dependencies.Clear();
-        runtimeLifetime.Reset();
-        hasDeferredStaticResources = false;
-    }
+    void Clear() noexcept;
 };
 
-} // namespace Aero::Markup
-
-
 // ===== LoadState contract =====
-
-
-
-
-
-namespace Aero::Markup {
 
 using LoadFinalizeCallback = Base::Result<void> (*)(
     LoaderResult& result,
@@ -2265,24 +2018,13 @@ struct LoadState {
     Meta::DependencyPropertyRegistry* dependencyProperties = nullptr;
     std::uint32_t maxObjects = UINT32_MAX;
     bool deferUnresolvedStaticResources = false;
-    Base::Vector<Node>* recordingNodes = nullptr;
     LoadFinalizeCallback finalize = nullptr;
     void* finalizeContext = nullptr;
 };
 
 } // namespace Aero::Markup
 
-
 // ===== GuiSchema contract =====
-#include "gui/core/ModuleSet.hpp"
-
-
-namespace Aero::Meta { class Registry; class Registration; }
-
-
-namespace Aero::Markup {
-class Schema;
-}
 
 namespace Aero {
 
@@ -2318,14 +2060,10 @@ private:
 
 } // namespace Aero
 
-
 // ===== ResourceSupport contract =====
 // Private XAML resource-scope registration.
 
-
 namespace Aero::Markup {
-
-class Schema;
 
 // Installs the ResourceDictionary schema adapters shared by runtime, compiled,
 // application and theme XAML.
@@ -2338,13 +2076,7 @@ private:
     Schema* schema_ = nullptr;
 };
 
-} // namespace Aero::Markup
-
-
 // ===== StaticResourceObject contract =====
-#include <Aero/DependencyProperty.hpp>
-
-namespace Aero::Markup {
 
 // Supports the object-element form used by the reference theme, for example
 // <StaticResource ResourceKey="Anim.Expand.Vertical.Loaded"/>.
@@ -2369,21 +2101,8 @@ public:
     AERO_DEPENDENCY_PROPERTY(Base::String, ResourceKey);
 };
 
-} // namespace Aero::Markup
-
-
-namespace Aero::Markup {
-using ::Aero::Markup::StaticResourceObject;
-}
-
-
 // ===== UiObjectModel contract =====
 // Private registration bridge for UI authoring objects.
-
-
-namespace Aero::Markup {
-
-class Schema;
 
 struct UiObjectModelOptions {
     UiObjectModelOptions() noexcept = default;
@@ -2444,8 +2163,6 @@ private:
 // ===== UiObjectModelInternal contract =====
 
 
-#include <Aero/Controls/Control.hpp>
-
 namespace Aero::Markup {
 
 class XamlStyleSchemaFacet {
@@ -2500,19 +2217,8 @@ private:
     State* state_ = nullptr;
 };
 
-} // namespace Aero::Markup
-
-namespace Aero::Markup {
-using ::Aero::Markup::XamlStyleSchemaFacet;
-using ::Aero::Markup::XamlTemplateSchemaFacet;
-}
-
-
 // ===== XamlDocumentInternal contract =====
 
-
-
-namespace Aero::Markup {
 Base::Result<::Aero::Markup::XamlDocument> AdoptXamlDocument(
     ::Aero::Markup::LoaderResult&& result,
     Base::IAllocator& allocator) noexcept;
@@ -2534,103 +2240,19 @@ inline constexpr Base::StringView BlendInteractivityNamespace(
 inline constexpr Base::StringView SystemNamespacePrefix(
     "clr-namespace:System");
 
-inline bool MatchesClrNamespacePrefix(
+bool MatchesClrNamespacePrefix(
     Base::StringView value,
-    Base::StringView prefix) noexcept {
-    return value.SizeBytes() >= prefix.SizeBytes() &&
-        value.Substr(0U, prefix.SizeBytes()) == prefix;
-}
-
-inline bool IsExtensionsClrNamespace(Base::StringView value) noexcept {
-    if (value.SizeBytes() < 31 ||
-        !MatchesClrNamespacePrefix(value, Base::StringView("clr-namespace:"))) {
-        return false;
-    }
-    return MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:AeroGUIExtensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Aero.GUI.Extensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:NoesisGUIExtensions")) ||
-        MatchesClrNamespacePrefix(
-            value, Base::StringView("clr-namespace:Noesis.GUI.Extensions"));
-}
-
-inline Base::StringView CanonicalXamlNamespace(
-    Base::StringView value) noexcept {
-    if (value.SizeBytes() < 31) {
-        return value;
-    }
-    return value == WpfPresentationNamespace ||
-            value == BehaviorsNamespace ||
-            value == BlendInteractivityNamespace ||
-            IsExtensionsClrNamespace(value)
-        ? Meta::AeroNamespaceUri()
-        : value;
-}
-
-inline bool IsSystemNamespace(
-    Base::StringView value) noexcept {
-    return value.SizeBytes() >=
-            SystemNamespacePrefix.SizeBytes() &&
-        value.Substr(0U, SystemNamespacePrefix.SizeBytes()) ==
-            SystemNamespacePrefix;
-}
-
-inline Base::StringView CanonicalXamlTypeName(
-    Base::StringView value) noexcept {
-    switch (value.SizeBytes()) {
-    case 8:
-        if (value == Base::StringView("Geometry")) {
-            return Base::StringView("StreamGeometry");
-        }
-        break;
-    case 10:
-        if (value == Base::StringView("WavesBrush")) {
-            return Base::StringView("WavesShader");
-        }
-        break;
-    case 15:
-        if (value == Base::StringView("MonochromeBrush")) {
-            return Base::StringView("MonochromeShader");
-        }
-        break;
-    case 18:
-        if (value == Base::StringView("ConicGradientBrush")) {
-            return Base::StringView("ConicGradientShader");
-        }
-        break;
-    case 21:
-        if (value == Base::StringView("VisualStateTransition")) {
-            return Base::StringView("VisualTransition");
-        }
-        break;
-    default:
-        break;
-    }
-    return value;
-}
-
-inline bool IsAeroExtensionsFacade(
+    Base::StringView prefix) noexcept;
+bool IsExtensionsClrNamespace(Base::StringView value) noexcept;
+Base::StringView CanonicalXamlNamespace(
+    Base::StringView value) noexcept;
+bool IsSystemNamespace(
+    Base::StringView value) noexcept;
+Base::StringView CanonicalXamlTypeName(
+    Base::StringView value) noexcept;
+bool IsAeroExtensionsFacade(
     Base::StringView xamlNamespace,
-    Base::StringView ownerName) noexcept {
-    if (!IsExtensionsClrNamespace(xamlNamespace)) {
-        return false;
-    }
-    switch (ownerName.SizeBytes()) {
-    case 4:
-        return ownerName == Base::StringView("Text") ||
-               ownerName == Base::StringView("Path");
-    case 5:
-        return ownerName == Base::StringView("Brush");
-    case 7:
-        return ownerName == Base::StringView("Element");
-    case 8:
-        return ownerName == Base::StringView("RichText");
-    default:
-        return false;
-    }
-}
+    Base::StringView ownerName) noexcept;
 
 struct ParsedXamlMemberName {
     Base::StringView ownerName;
@@ -2640,56 +2262,10 @@ struct ParsedXamlMemberName {
     bool isAliasedToBlendMode = false;
 };
 
-inline Base::Result<ParsedXamlMemberName> ParseXamlMemberName(
+Base::Result<ParsedXamlMemberName> ParseXamlMemberName(
     Base::StringView localName,
     Base::StringView namespaceUri,
-    Base::StringView targetXamlNamespace) noexcept {
-    if (localName.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML member name cannot be empty");
-    }
-    std::uint32_t dot = localName.SizeBytes();
-    for (std::uint32_t index = 0U; index < localName.SizeBytes(); ++index) {
-        if (localName[index] != '.') continue;
-        if (dot != localName.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "XAML member contains multiple owner separators");
-        }
-        dot = index;
-    }
-
-    ParsedXamlMemberName result;
-    if (dot == localName.SizeBytes()) {
-        result.hasOwner = false;
-        result.memberName = localName;
-        return result;
-    }
-
-    if (dot == 0U || dot + 1U >= localName.SizeBytes()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "XAML member owner syntax is invalid");
-    }
-
-    result.hasOwner = true;
-    result.ownerName = localName.Substr(0U, dot);
-    result.memberName = localName.Substr(dot + 1U, localName.SizeBytes() - dot - 1U);
-    result.ownerNamespace = namespaceUri.Empty()
-        ? targetXamlNamespace : namespaceUri;
-
-    if (IsAeroExtensionsFacade(result.ownerNamespace, result.ownerName)) {
-        if (result.ownerName == Base::StringView("Element") &&
-            result.memberName == Base::StringView("BlendingMode")) {
-            result.hasOwner = false;
-            result.memberName = Base::StringView("BlendMode");
-            result.isAliasedToBlendMode = true;
-        }
-    }
-
-    return result;
-}
+    Base::StringView targetXamlNamespace) noexcept;
 
 inline bool HasPropertyFlag(
     Meta::PropertyFlags flags,
@@ -2705,177 +2281,34 @@ inline bool HasEventFlag(
             static_cast<std::uint32_t>(test)) != 0U;
 }
 
-inline ResolvedMember MakeResolvedPropertyMember(
+ResolvedMember MakeResolvedPropertyMember(
     Meta::MemberId id,
     Meta::TypeId ownerType,
     Meta::TypeId valueType,
-    Meta::PropertyFlags flags) noexcept {
-    ResolvedMember resolved;
-    resolved.id = id;
-    resolved.kind = Meta::MemberKind::Property;
-    resolved.ownerType = ownerType;
-    resolved.valueType = valueType;
-    resolved.propertyFlags = flags;
-    resolved.attached = HasPropertyFlag(flags, Meta::PropertyFlags::Attached);
-    return resolved;
-}
-
-inline ResolvedMember MakeResolvedEventMember(
+    Meta::PropertyFlags flags) noexcept;
+ResolvedMember MakeResolvedEventMember(
     Meta::MemberId id,
     Meta::TypeId ownerType,
     Meta::TypeId eventArgsType,
-    Meta::EventFlags flags) noexcept {
-    ResolvedMember resolved;
-    resolved.id = id;
-    resolved.kind = Meta::MemberKind::Event;
-    resolved.ownerType = ownerType;
-    resolved.valueType = eventArgsType;
-    resolved.eventFlags = flags;
-    resolved.attached = HasEventFlag(flags, Meta::EventFlags::Attached);
-    return resolved;
-}
-
+    Meta::EventFlags flags) noexcept;
 
 // ============================================================================
 // SECTION: XamlPropertyResolution
 // ============================================================================
 
-inline const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
+const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
     const ::Aero::Meta::DependencyPropertyRegistry& properties,
     ::Aero::Meta::TypeId targetType,
-    ::Aero::Base::StringView name) noexcept {
-    const ::Aero::Meta::DependencyProperty* property = properties.Find(targetType, name);
-    if (property != nullptr) return property;
+    ::Aero::Base::StringView name) noexcept;
 
-    if (name == ::Aero::Base::StringView("IsFocused") &&
-        properties.Types().IsDerivedFrom(targetType, ::Aero::UIElement::StaticTypeId())) {
-        return properties.Find(::Aero::UIElement::IsKeyboardFocusedProperty.Handle());
-    }
-
-    if (name == ::Aero::Base::StringView("ContextMenu")) {
-        property = properties.Find(
-            ::Aero::Controls::ContextMenuService::ContextMenuProperty.Handle());
-        if (property != nullptr) return property;
-    }
-
-    std::uint32_t separator = UINT32_MAX;
-    for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
-        if (name[index] == '.') separator = index;
-    }
-    if (separator == UINT32_MAX || separator == 0U || separator + 1U >= name.SizeBytes()) {
-        return nullptr;
-    }
-
-    ::Aero::Base::StringView ownerName = name.Substr(0U, separator);
-    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
-        if (ownerName[index] == ':') {
-            ownerName = ownerName.Substr(index + 1U, ownerName.SizeBytes() - index - 1U);
-            break;
-        }
-    }
-
-    const ::Aero::Meta::TypeInfo* owner = properties.Types().FindType(
-        ::Aero::Meta::AeroNamespaceUri(), ownerName);
-    if (owner == nullptr && ownerName == ::Aero::Base::StringView("Text")) {
-        owner = properties.Types().FindType(
-            ::Aero::Meta::AeroNamespaceUri(), "TextProperties");
-    }
-    const ::Aero::Base::StringView member = name.Substr(
-        separator + 1U, name.SizeBytes() - separator - 1U);
-    if (owner != nullptr) {
-        property = properties.Find(owner->Id(), member);
-        if (property != nullptr) return property;
-    }
-
-    return properties.Find(targetType, member);
-}
-
-inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
+::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
     ::Aero::Meta::TypeId targetPropertyType,
-    const ::Aero::Meta::Value& value) noexcept {
-    if (value.Type() == targetPropertyType) {
-        return value;
-    }
+    const ::Aero::Meta::Value& value) noexcept;
 
-    if ((targetPropertyType == ::Aero::Length::StaticTypeId() ||
-         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Length>() ||
-         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) &&
-        (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger ||
-         value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger ||
-         value.Kind() == ::Aero::Meta::ValueKind::Double)) {
-        double numericVal = 0.0;
-        if (value.Kind() == ::Aero::Meta::ValueKind::Double) {
-            auto num = ::Aero::Meta::ValueCodec<double>::Decode(value);
-            if (num) numericVal = num.Value();
-        } else if (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger) {
-            auto num = ::Aero::Meta::ValueCodec<std::int64_t>::Decode(value);
-            if (num) numericVal = static_cast<double>(num.Value());
-        } else if (value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger) {
-            auto num = ::Aero::Meta::ValueCodec<std::uint64_t>::Decode(value);
-            if (num) numericVal = static_cast<double>(num.Value());
-        }
-        if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) {
-            return ::Aero::Meta::ValueCodec<::Aero::GridLength>::Encode(::Aero::GridLength::Pixel(numericVal));
-        }
-        return ::Aero::Meta::ValueCodec<::Aero::Length>::Encode(::Aero::Length::Pixels(numericVal));
-    }
-
-    if (targetPropertyType == ::Aero::Media::Brush::StaticTypeId() &&
-        value.Type() == ::Aero::Meta::TypeOf<::Aero::Base::Color>()) {
-        auto color = ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Decode(value);
-        if (!color) return color.GetStatus();
-        auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
-        if (!brush) {
-            return ::Aero::Base::Status::Failure(::Aero::Base::ErrorCode::OutOfMemory, "Failed to create brush");
-        }
-        return ::Aero::Meta::Value::FromObject(
-            ::Aero::Media::Brush::StaticTypeId(),
-            ::Aero::Base::Ref<::Aero::Base::Object>(std::move(brush)));
-    }
-
-    if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {
-        if (value.IsNullObject()) {
-            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
-        }
-        if (value.Type() == ::Aero::Meta::TypeOf<bool>() ||
-            value.Kind() == ::Aero::Meta::ValueKind::Boolean) {
-            auto boolVal = ::Aero::Meta::ValueCodec<bool>::Decode(value);
-            if (!boolVal) return boolVal.GetStatus();
-            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
-                ::Aero::Nullable<bool>(boolVal.Value()));
-        }
-    }
-
-    if (value.IsNullObject() && value.Type() != targetPropertyType) {
-        return ::Aero::Meta::Value::NullObject(targetPropertyType);
-    }
-
-    return value;
-}
-
-inline ::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
+::Aero::Base::Result<::Aero::Meta::Value> CoerceXamlValueForProperty(
     const ::Aero::Meta::DependencyProperty& property,
     const ::Aero::Meta::Value& value,
-    const ::Aero::Meta::TypeRegistry& types) noexcept {
-    if (property.ValueType() == ::Aero::Meta::TypeOf<::Aero::Base::Color>() &&
-        value.Kind() == ::Aero::Meta::ValueKind::Object &&
-        types.IsDerivedFrom(value.Type(), ::Aero::Media::Brush::StaticTypeId())) {
-        ::Aero::Base::Result<::Aero::Base::Ref<::Aero::Media::Brush>> brush =
-            ::Aero::Meta::ValueCodec<::Aero::Base::Ref<::Aero::Media::Brush>>::Decode(value);
-        if (!brush) return brush.GetStatus();
-        if (brush.Value() == nullptr ||
-            brush->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
-            return ::Aero::Base::Status::Failure(
-                ::Aero::Base::ErrorCode::InvalidArgument,
-                "Color-backed text property requires SolidColorBrush");
-        }
-        return ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Encode(
-            static_cast<const ::Aero::Media::SolidColorBrush&>(*brush.Value()).GetColor());
-    }
-
-    return CoerceXamlValueForProperty(property.ValueType(), value);
-}
-
+    const ::Aero::Meta::TypeRegistry& types) noexcept;
 
 // ============================================================================
 // SECTION: MarkupExtension Providers & Context
@@ -3093,7 +2526,6 @@ private:
         void* context) noexcept;
 };
 
-
 Base::Result<long double> ReadConstantBindingNumber(
     const Meta::Value& value) noexcept;
 Base::Result<Meta::Value> ConvertConstantBindingValue(
@@ -3113,41 +2545,7 @@ Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
 Base::Result<void> RegisterBuiltinMarkupExtensions(
     Schema& schema) noexcept;
 
-inline MarkupExtensionContext MakeMarkupExtensionContext(
-    const ExtensionServices& services) noexcept {
-    auto typeResolver = [](void* ctx, Base::StringView name) noexcept -> Base::Result<const Meta::TypeInfo*> {
-        const auto* s = static_cast<const ExtensionServices*>(ctx);
-        if (s == nullptr || s->schema == nullptr || name.Empty()) {
-            return Base::Status::Failure(Base::ErrorCode::InvalidState, "ExtensionServices is null or name is empty");
-        }
-        std::uint32_t colon = name.SizeBytes();
-        for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
-            if (name[index] != ':') continue;
-            if (colon != name.SizeBytes()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference contains multiple namespace prefixes");
-            }
-            colon = index;
-        }
-        Base::StringView prefix;
-        Base::StringView localName = name;
-        if (colon != name.SizeBytes()) {
-            if (colon == 0U || colon + 1U >= name.SizeBytes()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference namespace prefix is malformed");
-            }
-            prefix = name.Substr(0U, colon);
-            localName = name.Substr(colon + 1U, name.SizeBytes() - colon - 1U);
-        }
-        Base::Result<Base::StringView> uri = s->namespaces.Lookup(prefix);
-        if (!uri) return uri.GetStatus();
-        return s->schema->ResolveType(uri.Value(), localName);
-    };
-    return MarkupExtensionContext(
-        services.targetObject,
-        services.targetMember,
-        services.baseUri,
-        const_cast<ExtensionServices*>(&services),
-        typeResolver);
-}
-
+MarkupExtensionContext MakeMarkupExtensionContext(
+    const ExtensionServices& services) noexcept;
 
 } // namespace Aero::Markup

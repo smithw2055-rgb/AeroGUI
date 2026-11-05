@@ -65,8 +65,18 @@ Base::Result<bool> ConvertBoolean(
 Base::Result<::Aero::Nullable<bool>> ConvertNullableBoolean(
     Base::StringView text) noexcept {
     const Base::StringView value = Trim(text);
-    if (value.Empty() || (value.SizeBytes() == 4U && EqualsAsciiInsensitive(value, "null"))) {
+    if (value.Empty() ||
+        (value.SizeBytes() == 4U && EqualsAsciiInsensitive(value, "null")) ||
+        (value.SizeBytes() == 8U && EqualsAsciiInsensitive(value, "{x:null}"))) {
         return ::Aero::Nullable<bool>{};
+    }
+    if (value.SizeBytes() == 1U) {
+        if (value[0] == '1') {
+            return ::Aero::Nullable<bool>{true};
+        }
+        if (value[0] == '0') {
+            return ::Aero::Nullable<bool>{false};
+        }
     }
     Base::Result<bool> converted = ConvertBoolean(value);
     if (!converted) return converted.GetStatus();

@@ -895,7 +895,8 @@ Base::Result<Value> ConvertBrushText(
     TypeId targetType,
     Base::StringView text,
     void* context) noexcept {
-    if (targetType != Brush::StaticTypeId() ||
+    if ((targetType != Brush::StaticTypeId() &&
+         targetType != SolidColorBrush::StaticTypeId()) ||
         context == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -924,7 +925,7 @@ Base::Result<Value> ConvertBrushText(
     }
     made->SetColor(color.Value());
     return Value::FromObject(
-        Brush::StaticTypeId(),
+        targetType,
         Base::Ref<Base::Object>(std::move(made)));
 }
 
@@ -947,6 +948,7 @@ AERO_DESCRIBE(SolidColorBrush) {
     Register<SolidColorBrush>(context)
             .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
             .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
+            .TextConverter(&::Aero::MetadataSupport::ConvertBrushText)
             .Factory();
 }
 

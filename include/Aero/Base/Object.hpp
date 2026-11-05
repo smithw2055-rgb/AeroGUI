@@ -4,7 +4,9 @@
 #include <Aero/Base/Config.hpp>
 #include <Aero/Base/MetadataId.hpp>
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 
 namespace Aero::Base {
 
@@ -16,8 +18,7 @@ template<class T> class WeakRef;
 
 class WeakRefBase;
 
-using DestroyObjectFn = void(*)(Object* object, IAllocator* allocator, std::size_t size,
-    std::size_t alignment) noexcept;
+using DestroyObjectFn = void(*)(Object* object, IAllocator* allocator) noexcept;
 
 struct AdoptRefTag {};
 inline constexpr AdoptRefTag AdoptRef{};
@@ -37,14 +38,17 @@ public:
 
 protected:
     Object() noexcept = default;
-    virtual ~Object() = default;
+    virtual ~Object();
+    void ExpireWeakReferences() noexcept;
 
 private:
-    void* control_ = nullptr;
+    mutable std::atomic<std::uint32_t> strongCount_{0U};
+    mutable std::atomic<void*> control_{nullptr};
+    IAllocator* allocator_ = nullptr;
+    DestroyObjectFn destroy_ = nullptr;
 
     bool TryAddStrongReference() noexcept;
-    bool AttachManagedLifetime(IAllocator& allocator, DestroyObjectFn destroy, std::size_t objectSize,
-        std::size_t objectAlignment) noexcept;
+    bool AttachManagedLifetime(IAllocator& allocator, DestroyObjectFn destroy) noexcept;
 
     template<class T> friend class Ref;
 
@@ -72,9 +76,11 @@ public:
     void Swap(WeakRefBase& other) noexcept;
     bool Expired() const noexcept;
     Object* LockObject() const noexcept;
+    Object* PeekObject() const noexcept;
 
 protected:
     void Attach(Object& object) noexcept;
+    bool TryAttach(Object& object) noexcept;
 
     void* control_ = nullptr;
 };

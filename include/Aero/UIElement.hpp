@@ -262,6 +262,7 @@ protected:
     void OnVisualChildrenChanged(::Aero::Media::Visual* visualAdded,
         ::Aero::Media::Visual* visualRemoved) noexcept override;
     void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     virtual Size MeasureOverride(Size availableSize) noexcept;
     virtual Size ArrangeOverride(Size finalSize) noexcept;
     virtual void OnRender(Media::DrawingContext& context) noexcept;
@@ -307,6 +308,7 @@ private:
     friend class UIElementChildRange;
     friend class UIElementChildRange::Iterator;
     friend class Aero::Input::RoutedCommand;
+    friend void OnRenderStateChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
 
 class EventRouter;
 
@@ -396,19 +398,7 @@ class EventRouter;
 
     LayoutHot& Layout() noexcept { return layout_; }
     const LayoutHot& Layout() const noexcept { return layout_; }
-    void SetAnimatedOpacity(float value) noexcept { layout_.opacity = value; }
-    void SetAnimatedOpacity(double value) noexcept { layout_.opacity = static_cast<float>(value); }
-    void SetAnimatedVisibility(Visibility value) noexcept {
-        if (layout_.visibility != value) {
-            const Visibility old = layout_.visibility;
-            layout_.visibility = value;
-            if (old == Visibility::Collapsed || value == Visibility::Collapsed) {
-                InvalidateMeasure();
-            } else {
-                InvalidateVisual();
-            }
-        }
-    }
+    void SyncHotProperty(DependencyPropertyHandle property, const Meta::PropertyValue& newValue) noexcept;
     void InvokeHandlers(RoutedEventHandle event, RoutedEventArgs& args) noexcept;
     void SetMouseOverState(bool value) noexcept;
     void SetPressedState(bool value) noexcept;

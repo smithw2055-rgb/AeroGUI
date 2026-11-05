@@ -931,6 +931,19 @@ Base::Result<void> MountViewFragment(
     // A second AttachElement(host, root) then fails with "already attached".
     if (rootElement->GetIsLayoutAttached() ||
         (host).GetTemplateRoot() != nullptr) {
+        if (rootVisual->GetLogicalParent() == nullptr &&
+            VisualTree(host) == &context) {
+            Base::Result<void> logical =
+                context.AttachLogical(host, *rootVisual.Value());
+            if (!logical) {
+                restoreActiveNames();
+                static_cast<void>(host.SetContent(nullptr));
+                fragment->document.Clear();
+                FreeObject(*state.allocator, Base::MemoryTag::Ui, fragment);
+                return logical.GetStatus();
+            }
+            fragment->rootEdge.logicalAttached = true;
+        }
         fragment->rootEdge.logicalParent = &host;
         fragment->rootEdge.visualParent =
             rootVisual->GetVisualParent() != nullptr

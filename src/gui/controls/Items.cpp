@@ -678,19 +678,6 @@ void ItemsControl::PrepareContainerForItemOverride(
             Value::FromObject(
                 item->RuntimeType(), item));
     }
-    if (auto* headered = TryCast<HeaderedItemsControl>(&container)) {
-        if (item && item.Get() != &container) {
-            const Value currentHeader = headered->GetHeader();
-            if (currentHeader.Kind() == Meta::ValueKind::Unset || currentHeader.IsNullObject()) {
-                headered->SetHeader(Value::FromObject(item->RuntimeType(), item));
-            }
-            if (!headered->GetHeaderTemplate()) {
-                if (const auto& itemTemplate = GetItemTemplate()) {
-                    headered->SetHeaderTemplate(itemTemplate);
-                }
-            }
-        }
-    }
     if (!item ||
         !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             container.RuntimeType(), ItemsControl::StaticTypeId())) {
@@ -786,10 +773,6 @@ void ItemsControl::ClearContainerForItemOverride(
         if (auto* childItems = TryCast<ItemsControl>(&container)) {
             childItems->ClearHierarchicalDataTemplate();
         }
-    }
-    if (auto* headered = TryCast<HeaderedItemsControl>(&container)) {
-        headered->ClearValue(HeaderedItemsControl::HeaderProperty);
-        headered->ClearValue(HeaderedItemsControl::HeaderTemplateProperty);
     }
     container.ClearValue(
         FrameworkElement::DataContextProperty);
@@ -893,11 +876,10 @@ AERO_DESCRIBE(HeaderedItemsControl) {
         .Property(HeaderedItemsControl::HeaderTemplateProperty, Base::Ref<DataTemplate>{}, AffectsMeasure);
 }
 
-void HeaderedItemsControl::PrepareContainerForItemOverride(
+void HeaderedItemsControl::PrepareHeaderedItemsControlContainer(
+    ItemsControl& owner,
     FrameworkElement& container,
-    const Base::Ref<Base::Object>& item,
-    std::uint32_t index) noexcept {
-    ItemsControl::PrepareContainerForItemOverride(container, item, index);
+    const Base::Ref<Base::Object>& item) noexcept {
     if (auto* headered = TryCast<HeaderedItemsControl>(&container)) {
         if (item && item.Get() != &container) {
             const Value currentHeader = headered->GetHeader();
@@ -905,7 +887,7 @@ void HeaderedItemsControl::PrepareContainerForItemOverride(
                 headered->SetHeader(Value::FromObject(item->RuntimeType(), item));
             }
             if (!headered->GetHeaderTemplate()) {
-                if (const auto& itemTemplate = GetItemTemplate()) {
+                if (const auto& itemTemplate = owner.GetItemTemplate()) {
                     headered->SetHeaderTemplate(itemTemplate);
                 }
             }
@@ -913,13 +895,26 @@ void HeaderedItemsControl::PrepareContainerForItemOverride(
     }
 }
 
+void HeaderedItemsControl::ClearHeaderedItemsControlContainer(
+    FrameworkElement& container) noexcept {
+    if (auto* headered = TryCast<HeaderedItemsControl>(&container)) {
+        headered->ClearValue(HeaderedItemsControl::HeaderProperty);
+        headered->ClearValue(HeaderedItemsControl::HeaderTemplateProperty);
+    }
+}
+
+void HeaderedItemsControl::PrepareContainerForItemOverride(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    ItemsControl::PrepareContainerForItemOverride(container, item, index);
+    PrepareHeaderedItemsControlContainer(*this, container, item);
+}
+
 void HeaderedItemsControl::ClearContainerForItemOverride(
     FrameworkElement& container) noexcept {
     ItemsControl::ClearContainerForItemOverride(container);
-    if (auto* headered = TryCast<HeaderedItemsControl>(&container)) {
-        headered->ClearValue(HeaderProperty);
-        headered->ClearValue(HeaderTemplateProperty);
-    }
+    ClearHeaderedItemsControlContainer(container);
 }
 
 

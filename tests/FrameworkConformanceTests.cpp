@@ -6687,6 +6687,583 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(doc.HasValue());
     }
 
+    // 8. Validate O(1) DFS interval IsDerivedFrom via TryCast
+    {
+        Result<Ref<Button>> btn = MakeRef<Button>();
+        CHECK(btn);
+        Aero::Base::Object* rawObj = btn.Value().Get();
+        CHECK(Aero::TryCast<Button>(rawObj) == btn.Value().Get());
+        CHECK(Aero::TryCast<FrameworkElement>(rawObj) == btn.Value().Get());
+        CHECK(Aero::TryCast<UIElement>(rawObj) == btn.Value().Get());
+        CHECK(Aero::TryCast<Aero::Media::Visual>(rawObj) == btn.Value().Get());
+        CHECK(Aero::TryCast<Aero::DependencyObject>(rawObj) == btn.Value().Get());
+        CHECK(Aero::TryCast<TextBlock>(rawObj) == nullptr);
+        Result<Ref<FrameworkElement>> fe = MakeRef<FrameworkElement>();
+        CHECK(fe);
+        CHECK(Aero::TryCast<Button>(fe.Value().Get()) == nullptr);
+    }
+
+    // 9. Validate TypedValueConverter::DecodeValue<T> numeric and string conversions
+    {
+        struct TestIntConverter final : Aero::Data::TypedValueConverter<std::int32_t, std::int64_t> {
+            Result<std::int64_t> ConvertTyped(
+                const std::int32_t& value,
+                const Aero::Base::Value& parameter,
+                Aero::Base::StringView) noexcept override {
+                Result<std::uint32_t> factor = DecodeValue<std::uint32_t>(parameter);
+                if (!factor) return factor.GetStatus();
+                Result<bool> flag = DecodeValue<bool>(Aero::Base::Value("true"));
+                if (!flag || !flag.Value()) {
+                    return Aero::Base::Status::Failure(Aero::Base::ErrorCode::InvalidArgument, "bool decode failed");
+                }
+                return static_cast<std::int64_t>(value) * static_cast<std::int64_t>(factor.Value());
+            }
+        } converter;
+
+        Result<Aero::Base::Value> fromStringInput = converter.Convert(
+            Aero::Base::Value("-12"),
+            Aero::Base::Value("10"));
+        CHECK(fromStringInput.HasValue());
+        CHECK(fromStringInput.Value().Kind() == Aero::Base::ValueKind::SignedInteger);
+        CHECK(fromStringInput.Value().AsSignedInteger() == -120);
+
+        Result<Aero::Base::Value> fromDoubleInput = converter.Convert(
+            Aero::Base::Value(7.0),
+            Aero::Base::Value(static_cast<std::int64_t>(3)));
+        CHECK(fromDoubleInput.HasValue());
+        CHECK(fromDoubleInput.Value().AsSignedInteger() == 21);
+
+        Result<Aero::Base::Value> invalidInput = converter.Convert(
+            Aero::Base::Value("not_an_int"),
+            Aero::Base::Value("10"));
+        CHECK(!invalidInput.HasValue());
+    }
+
+    // 10. Validate intrusive WeakRef::TryAttach and Peek on stack-allocated Visual
+    {
+        Aero::Base::WeakRef<Border> weakStackVisual;
+        CHECK(weakStackVisual.Peek() == nullptr);
+        {
+            Border stackBorder;
+            CHECK(weakStackVisual.TryAttach(stackBorder));
+            CHECK(weakStackVisual.Peek() == &stackBorder);
+            CHECK(!weakStackVisual.Expired());
+            CHECK(!weakStackVisual.Lock()); // stack object has UseCount() == 0
+        }
+        CHECK(weakStackVisual.Peek() == nullptr);
+        CHECK(weakStackVisual.Expired());
+    }
+
+    // 11. Validate PropertyStore sorted binary search & unmaterialized inheritance propagation
+    {
+        Result<Ref<StackPanel>> parentPanel = MakeRef<StackPanel>();
+        Result<Ref<StackPanel>> midPanel = MakeRef<StackPanel>();
+        Result<Ref<TextBlock>> childText = MakeRef<TextBlock>();
+        CHECK(parentPanel && midPanel && childText);
+
+        midPanel.Value()->GetChildren().Add(childText.Value());
+        parentPanel.Value()->GetChildren().Add(midPanel.Value());
+        CHECK(live->view->SetContent(parentPanel.Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        parentPanel.Value()->SetValue(UIElement::IsEnabledProperty, false);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(!childText.Value()->GetIsEnabled());
+
+        parentPanel.Value()->ClearValue(UIElement::IsEnabledProperty);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(childText.Value()->GetIsEnabled());
+        Result<Aero::Meta::PropertyValueSourceInfo> midSource =
+            Aero::Diagnostics::GetValueSource(*midPanel.Value(), UIElement::IsEnabledProperty.Handle());
+        CHECK(midSource.HasValue());
+        CHECK(!midSource.Value().isInherited);
+
+        // Detaching a subtree while an inherited value is active must reset both the detached node and its descendants
+        parentPanel.Value()->SetValue(UIElement::IsEnabledProperty, false);
+        parentPanel.Value()->SetValue(FrameworkElement::DataContextProperty, Aero::Base::Value("RootContext"));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(!midPanel.Value()->GetIsEnabled());
+        CHECK(!childText.Value()->GetIsEnabled());
+        CHECK(childText.Value()->GetValue(FrameworkElement::DataContextProperty).AsString() == "RootContext");
+
+        parentPanel.Value()->GetChildren().Remove(*midPanel.Value());
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(midPanel.Value()->GetIsEnabled());
+        CHECK(childText.Value()->GetIsEnabled());
+        CHECK(childText.Value()->GetValue(FrameworkElement::DataContextProperty).IsNullObject());
+
+        // 12. Validate SetInheritanceParent propagates to descendants even when midPanel already has a StoredValueEntry,
+        // and verify > 255 unmaterialized inheritance notifications do not saturate unmaterializedQueueCount_
+        midPanel.Value()->SetValue(UIElement::IsEnabledProperty, false);
+        midPanel.Value()->ClearValue(UIElement::IsEnabledProperty);
+        parentPanel.Value()->SetValue(UIElement::IsEnabledProperty, false);
+        parentPanel.Value()->GetChildren().Add(midPanel.Value());
+        for (int i = 0; i < 300; ++i) {
+            parentPanel.Value()->SetValue(FrameworkElement::DataContextProperty, Aero::Base::Value(static_cast<std::int64_t>(i)));
+        }
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(!childText.Value()->GetIsEnabled());
+        CHECK(childText.Value()->GetValue(FrameworkElement::DataContextProperty).AsSignedInteger() == 299);
+    }
+
+    // 13. Validate ControlTemplate VSM and Triggers with compile-time part indices and object Setter.Value
+    {
+        constexpr const char* kVsmTriggerPartIndexXaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.Resources>
+        <ControlTemplate x:Key="IndexedButtonTemplate" TargetType="Button">
+            <Border x:Name="RootBorder" Width="120" Height="40">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal"/>
+                        <VisualState x:Name="Pressed">
+                            <Setter TargetName="InnerLabel" Property="Opacity" Value="0.5"/>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBlock x:Name="InnerLabel" Text="{TemplateBinding Content}" Opacity="1.0"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger SourceName="RootBorder" Property="Width" Value="120">
+                    <Setter TargetName="RootBorder" Property="LayoutTransform">
+                        <Setter.Value>
+                            <RotateTransform Angle="90"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </Grid.Resources>
+    <Button x:Name="TestBtn" Template="{StaticResource IndexedButtonTemplate}" Content="Indexed"/>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kVsmTriggerPartIndexXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        Button* btn = doc.Value().FindName<Button>("TestBtn");
+        CHECK(btn != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        Border* rootBorder = TryCast<Border>(btn->GetTemplateRoot());
+        CHECK(rootBorder != nullptr);
+        TextBlock* innerLabel = TryCast<TextBlock>(rootBorder->GetChild());
+        CHECK(innerLabel != nullptr);
+        CHECK(innerLabel->GetText() == "Indexed");
+        CHECK(rootBorder->GetLayoutTransform().Get() != nullptr);
+
+        CHECK(VisualStateManager::GoToState(*btn, "Pressed", false));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK( std::abs(innerLabel->GetOpacity() - 0.5) < 1e-4 );
+
+        CHECK(VisualStateManager::GoToState(*btn, "Normal", false));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK( std::abs(innerLabel->GetOpacity() - 1.0) < 1e-4 );
+    }
+
+    // 14. Validate VSM StaticResource resolution (including forward-referenced resource),
+    // BasedOn ControlTemplate direct VisualStateManager.VisualStateGroups, and DataTemplate Trigger SourceName / ElementName slot indexing
+    {
+        constexpr const char* kVsmResourceAndBasedOnXaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.Resources>
+        <ControlTemplate x:Key="BaseVsmTemplate" TargetType="Button">
+            <Border x:Name="RootBorder" Width="100" Height="30">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal"/>
+                        <VisualState x:Name="Pressed">
+                            <Setter TargetName="RootBorder" Property="Background" Value="{StaticResource ForwardPressedBrush}"/>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBlock x:Name="Label" Text="{TemplateBinding Content}"/>
+            </Border>
+        </ControlTemplate>
+        <SolidColorBrush x:Key="ForwardPressedBrush" Color="#FF112233"/>
+        <ControlTemplate x:Key="DerivedVsmTemplate" TargetType="Button" BasedOn="{StaticResource BaseVsmTemplate}">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="FocusStates">
+                    <VisualState x:Name="Unfocused"/>
+                    <VisualState x:Name="Focused">
+                        <Setter TargetName="Label" Property="Opacity" Value="0.25"/>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+        </ControlTemplate>
+        <DataTemplate x:Key="IndexedDataTemplate">
+            <Border x:Name="ItemBorder" Width="80">
+                <TextBlock x:Name="ItemText" Text="Hello"/>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="ItemBorder" Property="Width" Value="80">
+                    <Setter TargetName="ItemText" Property="Opacity" Value="0.75"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding Text, ElementName=ItemText}" Value="Hello">
+                    <Setter TargetName="ItemBorder" Property="Height" Value="48"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Grid.Resources>
+    <StackPanel>
+        <Button x:Name="DerivedBtn" Template="{StaticResource DerivedVsmTemplate}" Content="VSM"/>
+        <ItemsControl x:Name="DataHost" ItemTemplate="{StaticResource IndexedDataTemplate}"/>
+    </StackPanel>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kVsmResourceAndBasedOnXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        Button* derivedBtn = doc.Value().FindName<Button>("DerivedBtn");
+        ItemsControl* dataHost = doc.Value().FindName<ItemsControl>("DataHost");
+        CHECK(derivedBtn != nullptr);
+        CHECK(dataHost != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        Result<Ref<ObservableObjectCollection>> hostItems = MakeRef<ObservableObjectCollection>();
+        CHECK(hostItems);
+        Aero::Controls::AddBoxedStringItem(*hostItems.Value(), "Row0");
+        dataHost->SetItemsSource(Ref<Aero::Base::Object>(hostItems.Value()));
+        static_cast<void>(dataHost->ApplyTemplate());
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        Border* btnBorder = TryCast<Border>(derivedBtn->GetTemplateRoot());
+        CHECK(btnBorder != nullptr);
+        TextBlock* btnLabel = TryCast<TextBlock>(btnBorder->GetChild());
+        CHECK(btnLabel != nullptr);
+
+        CHECK(VisualStateManager::GoToState(*derivedBtn, "Pressed", false));
+        CHECK(VisualStateManager::GoToState(*derivedBtn, "Focused", false));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        auto* pressedBrush = TryCast<SolidColorBrush>(btnBorder->GetBackground().Get());
+        CHECK(pressedBrush != nullptr);
+        CHECK(std::abs(pressedBrush->GetColor().red - (0x11 / 255.0F)) < 1e-2F &&
+              std::abs(pressedBrush->GetColor().green - (0x22 / 255.0F)) < 1e-2F &&
+              std::abs(pressedBrush->GetColor().blue - (0x33 / 255.0F)) < 1e-2F);
+        CHECK(std::abs(btnLabel->GetOpacity() - 0.25) < 1e-4);
+
+        const auto findItemBorder = [](auto& self, Aero::Media::Visual& visual) -> Border* {
+            if (auto* border = TryCast<Border>(&visual)) {
+                if (std::abs(border->GetWidth() - 80.0) < 0.5) {
+                    return border;
+                }
+            }
+            const std::uint32_t count = Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
+            for (std::uint32_t index = 0U; index < count; ++index) {
+                Aero::Media::Visual* child = Aero::Media::VisualTreeHelper::GetChild(visual, index);
+                if (child == nullptr) continue;
+                if (Border* found = self(self, *child)) return found;
+            }
+            return nullptr;
+        };
+        Border* itemBorder = findItemBorder(findItemBorder, *dataHost);
+        CHECK(itemBorder != nullptr);
+        TextBlock* itemText = TryCast<TextBlock>(itemBorder->GetChild());
+        CHECK(itemText != nullptr);
+        CHECK(std::abs(itemText->GetOpacity() - 0.75) < 1e-4);
+        CHECK(std::abs(itemBorder->GetHeight() - 48.0) < 1e-4);
+    }
+
+    // 15. Validate StoredValueEntry inline revision preservation for plain local values
+    {
+        Result<Ref<Button>> button = MakeRef<Button>();
+        CHECK(button);
+        button.Value()->SetWidth(120.0);
+        Result<Aero::Meta::PropertyValueSourceInfo> source1 =
+            Aero::Diagnostics::GetValueSource(*button.Value(), FrameworkElement::WidthProperty.Handle());
+        CHECK(source1.HasValue());
+        CHECK(source1.Value().revision > 0U);
+
+        button.Value()->SetWidth(180.0);
+        Result<Aero::Meta::PropertyValueSourceInfo> source2 =
+            Aero::Diagnostics::GetValueSource(*button.Value(), FrameworkElement::WidthProperty.Handle());
+        CHECK(source2.HasValue());
+        CHECK(source2.Value().revision > source1.Value().revision);
+    }
+
+    // 16. Validate shared Freezable and shared IItemsSource / DependencyObject item survival when a single Visual detaches
+    {
+        const char* sharedXaml =
+            "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+            "            xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n"
+            "            x:Name=\"RootPanel\">\n"
+            "    <StackPanel.Resources>\n"
+            "        <SolidColorBrush x:Key=\"SharedBrush\" Color=\"#FF0000\" Opacity=\"{Binding Value, ElementName=OpacitySlider}\"/>\n"
+            "        <SolidColorBrush x:Key=\"SharedItemBrush\" Color=\"#00FF00\" Opacity=\"{Binding Value, ElementName=ItemSlider}\"/>\n"
+            "    </StackPanel.Resources>\n"
+            "    <Slider x:Name=\"OpacitySlider\" Minimum=\"0\" Maximum=\"1\" Value=\"0.8\"/>\n"
+            "    <Slider x:Name=\"ItemSlider\" Minimum=\"0\" Maximum=\"1\" Value=\"0.6\"/>\n"
+            "    <Border x:Name=\"BorderA\" Width=\"40\" Height=\"20\" Background=\"{StaticResource SharedBrush}\"/>\n"
+            "    <Border x:Name=\"BorderB\" Width=\"40\" Height=\"20\" Background=\"{StaticResource SharedBrush}\"/>\n"
+            "    <ItemsControl x:Name=\"ListA\"/>\n"
+            "    <ItemsControl x:Name=\"ListB\"/>\n"
+            "</StackPanel>";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(sharedXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        auto* rootPanel = doc.Value().FindName<StackPanel>("RootPanel");
+        auto* opacitySlider = doc.Value().FindName<Slider>("OpacitySlider");
+        auto* itemSlider = doc.Value().FindName<Slider>("ItemSlider");
+        auto* borderA = doc.Value().FindName<Border>("BorderA");
+        auto* borderB = doc.Value().FindName<Border>("BorderB");
+        auto* listA = doc.Value().FindName<ItemsControl>("ListA");
+        auto* listB = doc.Value().FindName<ItemsControl>("ListB");
+        CHECK(rootPanel != nullptr && opacitySlider != nullptr && itemSlider != nullptr);
+        CHECK(borderA != nullptr && borderB != nullptr && listA != nullptr && listB != nullptr);
+
+        auto* sharedBrush = TryCast<SolidColorBrush>(borderA->GetBackground().Get());
+        CHECK(sharedBrush != nullptr);
+        CHECK(sharedBrush == TryCast<SolidColorBrush>(borderB->GetBackground().Get()));
+
+        Aero::Value itemBrushVal = rootPanel->GetResources().Lookup(StringView("SharedItemBrush"));
+        auto* sharedItemBrush = itemBrushVal.Kind() == Aero::Base::ValueKind::Object
+            ? TryCast<SolidColorBrush>(itemBrushVal.AsObject().Get())
+            : nullptr;
+        CHECK(sharedItemBrush != nullptr);
+
+        Result<Ref<ObservableObjectCollection>> sharedItems = MakeRef<ObservableObjectCollection>();
+        CHECK(sharedItems);
+        sharedItems.Value()->Add(itemBrushVal.AsObject());
+        listA->SetItemsSource(Ref<Aero::Base::Object>(sharedItems.Value()));
+        listB->SetItemsSource(Ref<Aero::Base::Object>(sharedItems.Value()));
+
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        CHECK(std::abs(sharedBrush->GetOpacity() - 0.8) < 1e-4);
+        CHECK(std::abs(sharedItemBrush->GetOpacity() - 0.6) < 1e-4);
+
+        // Detach borderA and listA while borderB and listB remain alive and sharing the resources/items
+        rootPanel->GetChildren().Remove(*borderA);
+        rootPanel->GetChildren().Remove(*listA);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        // Bindings on sharedBrush and sharedItemBrush must still be active because borderB and listB still use them
+        opacitySlider->SetValue(0.25);
+        itemSlider->SetValue(0.35);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(sharedBrush->GetOpacity() - 0.25) < 1e-4);
+        CHECK(std::abs(sharedItemBrush->GetOpacity() - 0.35) < 1e-4);
+
+        // Now detach the last remaining consumers (borderB and listB)
+        rootPanel->GetChildren().Remove(*borderB);
+        rootPanel->GetChildren().Remove(*listB);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        // After all visual consumers are gone, bindings on the non-visual objects should be detached
+        opacitySlider->SetValue(0.9);
+        itemSlider->SetValue(0.95);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(sharedBrush->GetOpacity() - 0.9) > 1e-2);
+        CHECK(std::abs(sharedItemBrush->GetOpacity() - 0.95) > 1e-2);
+    }
+
+    // 17. Validate incremental layout scalar sync and multi-property unmaterialized inheritance bitmask
+    {
+        const char* treeXaml =
+            "<UserControl xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+            "             xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n"
+            "             x:Name=\"OuterControl\">\n"
+            "    <StackPanel HorizontalAlignment=\"Left\" VerticalAlignment=\"Top\">\n"
+            "        <Border x:Name=\"ChildBox\">\n"
+            "            <TextBlock x:Name=\"LeafText\" Text=\"Hello\"/>\n"
+            "        </Border>\n"
+            "    </StackPanel>\n"
+            "</UserControl>";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(treeXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        auto* outer = doc.Value().FindName<UserControl>("OuterControl");
+        auto* childBox = doc.Value().FindName<Border>("ChildBox");
+        auto* leafText = doc.Value().FindName<TextBlock>("LeafText");
+        CHECK(outer != nullptr && childBox != nullptr && leafText != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        childBox->SetWidth(150.0);
+        childBox->SetHeight(60.0);
+        childBox->SetMargin(Aero::Base::Thickness{10.0, 5.0, 10.0, 5.0});
+        childBox->SetValue(UIElement::OpacityProperty, 0.5);
+        outer->SetFontSize(22.0);
+        outer->SetIsEnabled(false);
+        outer->SetFlowDirection(Aero::FlowDirection::RightToLeft);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        CHECK(std::abs(childBox->GetActualWidth() - 150.0) < 1e-3);
+        CHECK(std::abs(childBox->GetActualHeight() - 60.0) < 1e-3);
+        CHECK(std::abs(childBox->GetOpacity() - 0.5) < 1e-4);
+        CHECK(std::abs(leafText->GetFontSize() - 22.0) < 1e-4);
+        CHECK(!leafText->GetIsEnabled());
+        CHECK(leafText->GetFlowDirection() == Aero::FlowDirection::RightToLeft);
+
+        childBox->SetVisibility(Visibility::Collapsed);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(childBox->GetDesiredSize().width) < 1e-4);
+    }
+
+    // 18. Validate nested FreezableCollection (LinearGradientBrush -> GradientStop) and Cross-View resource/item sharing
+    {
+        const char* gradXaml =
+            "<StackPanel xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+            "            xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"\n"
+            "            x:Name=\"GradRoot\">\n"
+            "    <StackPanel.Resources>\n"
+            "        <LinearGradientBrush x:Key=\"SharedGrad\">\n"
+            "            <GradientStop x:Name=\"SharedStop\" Color=\"#FF0000\" Offset=\"{Binding Value, ElementName=OffsetSlider}\"/>\n"
+            "            <GradientStop Color=\"#0000FF\" Offset=\"1.0\"/>\n"
+            "        </LinearGradientBrush>\n"
+            "    </StackPanel.Resources>\n"
+            "    <Slider x:Name=\"OffsetSlider\" Minimum=\"0\" Maximum=\"1\" Value=\"0.3\"/>\n"
+            "    <Border x:Name=\"GradBorderA\" Width=\"40\" Height=\"20\" Background=\"{StaticResource SharedGrad}\"/>\n"
+            "    <Border x:Name=\"GradBorderB\" Width=\"40\" Height=\"20\" Background=\"{StaticResource SharedGrad}\"/>\n"
+            "</StackPanel>";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(gradXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        auto* gradRoot = doc.Value().FindName<StackPanel>("GradRoot");
+        auto* offsetSlider = doc.Value().FindName<Slider>("OffsetSlider");
+        auto* gradBorderA = doc.Value().FindName<Border>("GradBorderA");
+        auto* gradBorderB = doc.Value().FindName<Border>("GradBorderB");
+        CHECK(gradRoot != nullptr && offsetSlider != nullptr && gradBorderA != nullptr && gradBorderB != nullptr);
+
+        auto* sharedGrad = TryCast<Aero::Media::LinearGradientBrush>(gradBorderA->GetBackground().Get());
+        CHECK(sharedGrad != nullptr);
+        CHECK(sharedGrad->GetGradientStops().Size() == 2U);
+        auto* stop0 = sharedGrad->GetGradientStops()[0U].Get();
+        CHECK(stop0 != nullptr);
+
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(stop0->GetOffset() - 0.3F) < 1e-4F);
+
+        // Create a second View on the same Gui sharing the same LinearGradientBrush
+        auto view2Res = live->gui.CreateView(Aero::ViewOptions{});
+        CHECK(view2Res.HasValue() && view2Res.Value().Get() != nullptr);
+        View* view2 = view2Res.Value().Get();
+
+        Result<Aero::Markup::XamlDocument> doc2 = reader.Parse(
+            StringView("<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Width=\"40\" Height=\"20\"/>"),
+            {}, {}, &live->diagnostics);
+        CHECK(doc2.HasValue());
+        auto* view2Border = doc2.Value().Root<Border>();
+        CHECK(view2Border != nullptr);
+        view2Border->SetBackground(gradBorderA->GetBackground());
+        CHECK(view2->SetContent(std::move(doc2).Value(), {200.0, 100.0}));
+        Pump(*view2, live->viewTime);
+
+        // Remove GradBorderA from view 1; GradBorderB and view2Border still share sharedGrad
+        gradRoot->GetChildren().Remove(*gradBorderA);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        offsetSlider->SetValue(0.65);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(stop0->GetOffset() - 0.65F) < 1e-4F);
+
+        // Unmount view2; GradBorderB in view 1 still uses sharedGrad, so stop0's binding must survive!
+        Result<Aero::Markup::XamlDocument> emptyDoc = reader.Parse(
+            StringView("<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"/>"),
+            {}, {}, &live->diagnostics);
+        CHECK(emptyDoc.HasValue());
+        CHECK(view2->SetContent(std::move(emptyDoc).Value(), {200.0, 100.0}));
+        live->viewTime += 0.016;
+        Pump(*view2, live->viewTime);
+
+        offsetSlider->SetValue(0.85);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(stop0->GetOffset() - 0.85F) < 1e-4F);
+    }
+
+    // 19. Validate non-default Local value preservation under higher-precedence VisualState provider and failed SetValue rollback over active Style/Inherited value
+    {
+        constexpr const char* kLocalVsVisualStateXaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.Resources>
+        <Style x:Key="WidthStyle" TargetType="Button">
+            <Setter Property="Width" Value="140"/>
+        </Style>
+        <ControlTemplate x:Key="LocalVsVsmTemplate" TargetType="Button">
+            <Border x:Name="RootBorder" Width="120" Height="40">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                        <VisualState x:Name="Normal"/>
+                        <VisualState x:Name="Pressed">
+                            <Setter TargetName="InnerLabel" Property="Opacity" Value="0.25"/>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBlock x:Name="InnerLabel" Text="Test" Opacity="0.85"/>
+            </Border>
+        </ControlTemplate>
+    </Grid.Resources>
+    <Button x:Name="VsmBtn" Style="{StaticResource WidthStyle}" Template="{StaticResource LocalVsVsmTemplate}"/>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kLocalVsVisualStateXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        Button* btn = doc.Value().FindName<Button>("VsmBtn");
+        CHECK(btn != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        Border* rootBorder = TryCast<Border>(btn->GetTemplateRoot());
+        CHECK(rootBorder != nullptr);
+        TextBlock* innerLabel = TryCast<TextBlock>(rootBorder->GetChild());
+        CHECK(innerLabel != nullptr);
+        innerLabel->SetValue(UIElement::OpacityProperty, 0.85);
+        CHECK(std::abs(innerLabel->GetOpacity() - 0.85) < 1e-4);
+        CHECK(innerLabel->ReadLocalValue(UIElement::OpacityProperty).Kind() == Aero::Base::ValueKind::Double);
+
+        // Activate VisualState "Pressed" (0.25) over non-default Local value (0.85)
+        CHECK(VisualStateManager::GoToState(*btn, "Pressed", false));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(innerLabel->GetOpacity() - 0.25) < 1e-4);
+        CHECK(innerLabel->ReadLocalValue(UIElement::OpacityProperty).Kind() == Aero::Base::ValueKind::Double);
+        CHECK(std::abs(innerLabel->ReadLocalValue(UIElement::OpacityProperty).AsDouble() - 0.85) < 1e-4);
+
+        // Return to "Normal": non-default Local value (0.85) must be restored (not wiped to 1.0 default)
+        CHECK(VisualStateManager::GoToState(*btn, "Normal", false));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(std::abs(innerLabel->GetOpacity() - 0.85) < 1e-4);
+
+        // Failed SetValue validation (negative Width) over active StyleSetter (140.0) must preserve 140.0
+        CHECK(std::abs(btn->GetWidth() - 140.0) < 1e-4);
+        btn->SetWidth(-10.0);
+        CHECK(std::abs(btn->GetWidth() - 140.0) < 1e-4);
+    }
+
     return true;
 }
 

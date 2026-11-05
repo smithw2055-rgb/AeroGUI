@@ -8,26 +8,19 @@
 namespace Aero::Base {
 namespace {
 
+constexpr std::uint32_t ExpiredLockBit = 0x80000000U;
+
 struct ObjectControlBlock {
-    std::atomic<std::uint32_t> strong{1U};
     std::atomic<std::uint32_t> weak{1U};
+    std::atomic<std::uint32_t> lockState{0U};
     std::atomic<Object*> object{nullptr};
     IAllocator* allocator = nullptr;
-    std::size_t objectSize = 0;
-    std::size_t objectAlignment = 0;
-    DestroyObjectFn destroy = nullptr;
 };
-
-void ReleaseWeak(ObjectControlBlock* control) noexcept;
 
 ObjectControlBlock* CreateObjectControlBlock(
     IAllocator& allocator,
-    Object* object,
-    std::size_t objectSize,
-    std::size_t objectAlignment,
-    DestroyObjectFn destroy) noexcept {
+    Object* object) noexcept {
     AERO_ASSERT(object != nullptr);
-    AERO_ASSERT(destroy != nullptr);
 
     void* memory = allocator.Allocate({
         sizeof(ObjectControlBlock),
@@ -40,58 +33,19 @@ ObjectControlBlock* CreateObjectControlBlock(
     auto* control = new (memory) ObjectControlBlock();
     control->object.store(object, std::memory_order_release);
     control->allocator = &allocator;
-    control->objectSize = objectSize;
-    control->objectAlignment = objectAlignment;
-    control->destroy = destroy;
     return control;
 }
 
-void AddStrong(ObjectControlBlock* control) noexcept {
+void DestroyObjectControlBlock(ObjectControlBlock* control) noexcept {
     AERO_ASSERT(control != nullptr);
-    const std::uint32_t previous =
-        control->strong.fetch_add(1U, std::memory_order_relaxed);
-    AERO_ASSERT(previous > 0U);
-    AERO_ASSERT(previous < std::numeric_limits<std::uint32_t>::max());
-    (void)previous;
-}
-
-bool AcquireStrong(ObjectControlBlock* control) noexcept {
-    AERO_ASSERT(control != nullptr);
-
-    std::uint32_t count = control->strong.load(std::memory_order_acquire);
-    while (count != 0U) {
-        AERO_ASSERT(count < std::numeric_limits<std::uint32_t>::max());
-        if (control->strong.compare_exchange_weak(
-                count,
-                count + 1U,
-                std::memory_order_acquire,
-                std::memory_order_relaxed)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void ReleaseStrong(ObjectControlBlock* control) noexcept {
-    AERO_ASSERT(control != nullptr);
-    const std::uint32_t previous =
-        control->strong.fetch_sub(1U, std::memory_order_acq_rel);
-    AERO_ASSERT(previous > 0U);
-
-    if (previous != 1U) {
-        return;
-    }
-
-    Object* object = control->object.exchange(nullptr, std::memory_order_acq_rel);
-    AERO_ASSERT(object != nullptr);
-    AERO_ASSERT(control->destroy != nullptr);
-    control->destroy(
-        object,
-        control->allocator,
-        control->objectSize,
-        control->objectAlignment);
-
-    ReleaseWeak(control);
+    IAllocator* allocator = control->allocator;
+    AERO_ASSERT(allocator != nullptr);
+    control->~ObjectControlBlock();
+    allocator->Deallocate(
+        control,
+        sizeof(ObjectControlBlock),
+        alignof(ObjectControlBlock),
+        MemoryTag::WeakControlBlock);
 }
 
 void AddWeak(ObjectControlBlock* control) noexcept {
@@ -113,61 +67,120 @@ void ReleaseWeak(ObjectControlBlock* control) noexcept {
         return;
     }
 
-    IAllocator* allocator = control->allocator;
-    control->~ObjectControlBlock();
-    allocator->Deallocate(
-        control,
-        sizeof(ObjectControlBlock),
-        alignof(ObjectControlBlock),
-        MemoryTag::WeakControlBlock);
+    DestroyObjectControlBlock(control);
 }
 
-Object* GetObject(ObjectControlBlock* control) noexcept {
+bool AcquireLockGuard(ObjectControlBlock* control) noexcept {
     AERO_ASSERT(control != nullptr);
-    return control->object.load(std::memory_order_acquire);
+    std::uint32_t state = control->lockState.load(std::memory_order_acquire);
+    while ((state & ExpiredLockBit) == 0U) {
+        AERO_ASSERT((state & ~ExpiredLockBit) < (ExpiredLockBit - 1U));
+        if (control->lockState.compare_exchange_weak(
+                state,
+                state + 1U,
+                std::memory_order_acquire,
+                std::memory_order_relaxed)) {
+            return true;
+        }
+    }
+    return false;
 }
 
-std::uint32_t GetStrongCount(ObjectControlBlock* control) noexcept {
+void ReleaseLockGuard(ObjectControlBlock* control) noexcept {
     AERO_ASSERT(control != nullptr);
-    return control->strong.load(std::memory_order_acquire);
+    const std::uint32_t previous =
+        control->lockState.fetch_sub(1U, std::memory_order_release);
+    AERO_ASSERT((previous & ~ExpiredLockBit) > 0U);
+    (void)previous;
+}
+
+void ExpireControlBlock(ObjectControlBlock* control) noexcept {
+    AERO_ASSERT(control != nullptr);
+    control->object.store(nullptr, std::memory_order_release);
+    const std::uint32_t previous =
+        control->lockState.fetch_or(ExpiredLockBit, std::memory_order_acq_rel);
+    AERO_ASSERT((previous & ExpiredLockBit) == 0U);
+    (void)previous;
+    while ((control->lockState.load(std::memory_order_acquire) & ~ExpiredLockBit) != 0U) {
+    }
 }
 
 } // namespace
 
+Object::~Object() {
+    ExpireWeakReferences();
+}
+
+void Object::ExpireWeakReferences() noexcept {
+    void* rawControl = control_.load(std::memory_order_relaxed);
+    if (rawControl != nullptr) {
+        rawControl = control_.exchange(nullptr, std::memory_order_acq_rel);
+        if (rawControl != nullptr) {
+            auto* control = static_cast<ObjectControlBlock*>(rawControl);
+            ExpireControlBlock(control);
+            ReleaseWeak(control);
+        }
+    }
+}
+
 void Object::AddRef() noexcept {
-    AERO_ASSERT(control_ != nullptr);
-    AddStrong(static_cast<ObjectControlBlock*>(control_));
+    const std::uint32_t previous =
+        strongCount_.fetch_add(1U, std::memory_order_relaxed);
+    AERO_ASSERT(previous > 0U);
+    AERO_ASSERT(previous < std::numeric_limits<std::uint32_t>::max());
+    (void)previous;
 }
 
 void Object::Release() noexcept {
-    AERO_ASSERT(control_ != nullptr);
-    ReleaseStrong(static_cast<ObjectControlBlock*>(control_));
+    const std::uint32_t previous =
+        strongCount_.fetch_sub(1U, std::memory_order_acq_rel);
+    AERO_ASSERT(previous > 0U);
+
+    if (previous != 1U) {
+        return;
+    }
+
+    void* rawControl = control_.exchange(nullptr, std::memory_order_acq_rel);
+    auto* control = static_cast<ObjectControlBlock*>(rawControl);
+    if (control != nullptr) {
+        ExpireControlBlock(control);
+        ReleaseWeak(control);
+    }
+
+    DestroyObjectFn destroy = destroy_;
+    IAllocator* allocator = allocator_;
+    AERO_ASSERT(destroy != nullptr);
+    destroy(this, allocator);
 }
 
 std::uint32_t Object::UseCount() const noexcept {
-    AERO_ASSERT(control_ != nullptr);
-    return GetStrongCount(static_cast<ObjectControlBlock*>(control_));
+    return strongCount_.load(std::memory_order_acquire);
 }
 
 bool Object::TryAddStrongReference() noexcept {
-    if (control_ == nullptr) {
-        return false;
+    std::uint32_t count = strongCount_.load(std::memory_order_acquire);
+    while (count != 0U) {
+        AERO_ASSERT(count < std::numeric_limits<std::uint32_t>::max());
+        if (strongCount_.compare_exchange_weak(
+                count,
+                count + 1U,
+                std::memory_order_acquire,
+                std::memory_order_relaxed)) {
+            return true;
+        }
     }
-    return AcquireStrong(static_cast<ObjectControlBlock*>(control_));
+    return false;
 }
 
 bool Object::AttachManagedLifetime(
     IAllocator& allocator,
-    DestroyObjectFn destroy,
-    std::size_t objectSize,
-    std::size_t objectAlignment) noexcept {
-    AERO_ASSERT(control_ == nullptr);
-    ObjectControlBlock* control = CreateObjectControlBlock(
-        allocator, this, objectSize, objectAlignment, destroy);
-    if (control == nullptr) {
-        return false;
-    }
-    control_ = control;
+    DestroyObjectFn destroy) noexcept {
+    AERO_ASSERT(destroy != nullptr);
+    AERO_ASSERT(strongCount_.load(std::memory_order_relaxed) == 0U);
+    AERO_ASSERT(control_.load(std::memory_order_relaxed) == nullptr);
+    allocator_ = &allocator;
+    destroy_ = destroy;
+    strongCount_.store(1U, std::memory_order_release);
     return true;
 }
 
@@ -219,29 +232,101 @@ void WeakRefBase::Swap(WeakRefBase& other) noexcept {
 }
 
 bool WeakRefBase::Expired() const noexcept {
-    return control_ == nullptr
-        || GetStrongCount(static_cast<ObjectControlBlock*>(control_)) == 0U;
+    if (control_ == nullptr) {
+        return true;
+    }
+    auto* control = static_cast<ObjectControlBlock*>(control_);
+    if (!AcquireLockGuard(control)) {
+        return true;
+    }
+    Object* object = control->object.load(std::memory_order_acquire);
+    const bool expired = (object == nullptr) ||
+        (object->destroy_ != nullptr && object->UseCount() == 0U);
+    ReleaseLockGuard(control);
+    return expired;
 }
 
 Object* WeakRefBase::LockObject() const noexcept {
     if (control_ == nullptr) {
         return nullptr;
     }
-    ObjectControlBlock* control =
-        static_cast<ObjectControlBlock*>(control_);
-    if (!AcquireStrong(control)) {
+    auto* control = static_cast<ObjectControlBlock*>(control_);
+    if (!AcquireLockGuard(control)) {
         return nullptr;
     }
-    Object* object = GetObject(control);
-    AERO_ASSERT(object != nullptr);
+    Object* object = control->object.load(std::memory_order_acquire);
+    const bool acquired =
+        (object != nullptr) && object->TryAddStrongReference();
+    ReleaseLockGuard(control);
+    return acquired ? object : nullptr;
+}
+
+Object* WeakRefBase::PeekObject() const noexcept {
+    if (control_ == nullptr) {
+        return nullptr;
+    }
+    auto* control = static_cast<ObjectControlBlock*>(control_);
+    if (!AcquireLockGuard(control)) {
+        return nullptr;
+    }
+    Object* object = control->object.load(std::memory_order_acquire);
+    if (object != nullptr && object->destroy_ != nullptr && object->UseCount() == 0U) {
+        object = nullptr;
+    }
+    ReleaseLockGuard(control);
     return object;
 }
 
 void WeakRefBase::Attach(Object& object) noexcept {
-    void* control = object.control_;
-    AERO_ASSERT(control != nullptr);
+    AERO_ASSERT(object.UseCount() > 0U);
+    if (object.UseCount() == 0U) {
+        if (control_ != nullptr) {
+            Reset();
+        }
+        return;
+    }
+    const bool attached = TryAttach(object);
+    AERO_ASSERT(attached);
+    (void)attached;
+}
+
+bool WeakRefBase::TryAttach(Object& object) noexcept {
+    if (control_ != nullptr) {
+        Reset();
+    }
+    if (object.destroy_ != nullptr && object.UseCount() == 0U) {
+        return false;
+    }
+
+    void* existing = object.control_.load(std::memory_order_acquire);
+    auto* control = static_cast<ObjectControlBlock*>(existing);
+    if (control == nullptr) {
+        IAllocator& allocator = object.allocator_ != nullptr
+            ? *object.allocator_
+            : GetDefaultAllocator();
+        ObjectControlBlock* candidate =
+            CreateObjectControlBlock(allocator, &object);
+        if (candidate == nullptr) {
+            return false;
+        }
+        if (object.control_.compare_exchange_strong(
+                existing,
+                candidate,
+                std::memory_order_acq_rel,
+                std::memory_order_acquire)) {
+            control = candidate;
+        } else {
+            DestroyObjectControlBlock(candidate);
+            control = static_cast<ObjectControlBlock*>(existing);
+        }
+    }
+
+    if (control == nullptr) {
+        return false;
+    }
     control_ = control;
-    AddWeak(static_cast<ObjectControlBlock*>(control));
+    AddWeak(control);
+    return true;
 }
 
 } // namespace Aero::Base

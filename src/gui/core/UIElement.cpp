@@ -184,11 +184,7 @@ Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
 }
 
 Base::Ref<Media::Transform3D> UIElement::GetTransform3D() const noexcept {
-    Base::Ref<Media::Transform3D> value = GetValue(Transform3DProperty);
-    if (value) {
-        return value;
-    }
-    return GetValue(Element::Transform3DProperty);
+    return GetValue(Transform3DProperty);
 }
 
 void UIElement::SetTransform3D(
@@ -329,10 +325,30 @@ UIElement::GetCommandBindings() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 
+void UIElement::SyncHotProperty(
+    DependencyPropertyHandle property,
+    const Meta::PropertyValue& newValue) noexcept {
+    if (property == OpacityProperty.Handle()) {
+        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
+        if (decoded) {
+            layout_.opacity = static_cast<float>(decoded.Value());
+        }
+    } else if (property == VisibilityProperty.Handle()) {
+        Base::Result<Visibility> decoded = Meta::ValueCodec<Visibility>::Decode(newValue);
+        if (decoded) {
+            layout_.visibility = decoded.Value();
+        }
+    }
+}
+
+void UIElement::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    SyncHotProperty(args.GetProperty(), args.GetNewValue());
+    ::Aero::Media::Visual::OnPropertyChanged(args);
+}
+
 void UIElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
-    layout_.opacity = static_cast<float>(GetValue(OpacityProperty));
-    layout_.visibility = GetValue(VisibilityProperty);
     if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
         InvalidateMeasure();
     } else if (HasFlag(flags, PropertyInvalidationFlags::Arrange)) {
@@ -868,9 +884,9 @@ UIElement* UIElement::LayoutParent() const noexcept {
 }
 
 UIElement::~UIElement() {
-    layout_.layoutAttached = false;
-    layout_.measureQueued = false;
-    layout_.arrangeQueued = false;
+    layout_.SetFlag(LayoutFlags::LayoutAttached, false);
+    layout_.SetFlag(LayoutFlags::MeasureQueued, false);
+    layout_.SetFlag(LayoutFlags::ArrangeQueued, false);
     CleanupHandlers();
     if (rare_ != nullptr && rare_->inputBindings != nullptr) {
         delete static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
@@ -899,9 +915,10 @@ bool ValidateUnitDouble(
 
 void OnRenderStateChanged(
     DependencyObject& object,
-    const DependencyPropertyChangedEventArgs&) noexcept {
+    const DependencyPropertyChangedEventArgs& args) noexcept {
     auto& visual =
         static_cast<UIElement&>(object);
+    visual.SyncHotProperty(args.GetProperty(), args.GetNewValue());
     (visual).InvalidateRenderState();
 }
 

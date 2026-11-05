@@ -203,6 +203,8 @@ public:
                (!authoredValue_.IsUnset() || !value_.IsUnset());
     }
     void ReleaseAuthored() noexcept {
+        property_ = {};
+        value_ = {};
         propertyName_.Clear();
         sourceName_.Clear();
         authoredValue_ = {};

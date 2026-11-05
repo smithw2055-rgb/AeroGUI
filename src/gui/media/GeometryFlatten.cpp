@@ -343,28 +343,71 @@ Result<void> TessellateFillContours(
         double bottom = 0.0;
         double middle = 0.0;
     };
+    struct ScanEdge {
+        Point start;
+        Point end;
+        double minY = 0.0;
+        double maxY = 0.0;
+    };
+
+    Base::Vector<ScanEdge> allEdges;
+    std::size_t totalEdges = 0U;
+    for (const FillContour contour : contours) {
+        if (contour.count >= 3U) totalEdges += contour.count;
+    }
+    allEdges.Reserve(totalEdges);
+    for (const FillContour contour : contours) {
+        if (contour.count < 3U) continue;
+        for (std::uint32_t edge = 0U; edge < contour.count; ++edge) {
+            const Point start = points[contour.offset + edge];
+            const Point end = points[
+                contour.offset + (edge + 1U) % contour.count];
+            const double minimum = std::min(start.y, end.y);
+            const double maximum = std::max(start.y, end.y);
+            if (maximum - minimum <= 1.0e-9) continue;
+            allEdges.PushBack({start, end, minimum, maximum});
+        }
+    }
+    std::sort(
+        allEdges.Data(),
+        allEdges.Data() + allEdges.Size(),
+        [](const ScanEdge& left, const ScanEdge& right) noexcept {
+            return left.minY < right.minY;
+        });
+
+    Base::Vector<ScanEdge> activeEdges;
+    std::uint32_t edgeCursor = 0U;
     Base::Vector<ScanHit> hits;
+
     for (std::uint32_t band = 1U; band < levels.Size(); ++band) {
         const double topY = levels[band - 1U];
         const double bottomY = levels[band];
         if (bottomY - topY <= 1.0e-9) continue;
         const double middleY = (topY + bottomY) * 0.5;
+
+        while (edgeCursor < allEdges.Size() && allEdges[edgeCursor].minY < middleY) {
+            activeEdges.PushBack(allEdges[edgeCursor++]);
+        }
+
         hits.Clear();
-        for (const FillContour contour : contours) {
-            if (contour.count < 3U) continue;
-            for (std::uint32_t edge = 0U; edge < contour.count; ++edge) {
-                const Point start = points[contour.offset + edge];
-                const Point end = points[
-                    contour.offset + (edge + 1U) % contour.count];
-                const double minimum = std::min(start.y, end.y);
-                const double maximum = std::max(start.y, end.y);
-                if (middleY <= minimum || middleY >= maximum) continue;
+        std::uint32_t activeCount = 0U;
+        for (std::uint32_t i = 0U; i < activeEdges.Size(); ++i) {
+            const ScanEdge& e = activeEdges[i];
+            if (e.maxY > middleY) {
+                if (activeCount != i) {
+                    activeEdges[activeCount] = e;
+                }
+                ++activeCount;
                 hits.PushBack({
-                    FillEdgeX(start, end, topY),
-                    FillEdgeX(start, end, bottomY),
-                    FillEdgeX(start, end, middleY)});
+                    FillEdgeX(e.start, e.end, topY),
+                    FillEdgeX(e.start, e.end, bottomY),
+                    FillEdgeX(e.start, e.end, middleY)});
             }
         }
+        while (activeEdges.Size() > activeCount) {
+            activeEdges.PopBack();
+        }
+
         if (hits.Empty()) continue;
         std::sort(
             hits.Data(),

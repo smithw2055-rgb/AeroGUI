@@ -727,7 +727,7 @@ public:
     }
 
     template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
-        const AttachedPropertyRef<TAliasOwner, TValue>& /*aliasProperty*/,
+        const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
         const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
         const FrameworkPropertyMetadata<TValue>& options) noexcept {
         if (!builder_.Ok()) return *this;
@@ -742,7 +742,27 @@ public:
         metadata.defaultUpdateSourceTrigger = options.DefaultUpdateSourceTrigger();
         metadata.validate = options.Validator();
         metadata.changed = options.ChangeCallback();
-        builder_.AddOwner(sourceProperty.Handle(), TypeOf<T>(), std::move(metadata), DependencyPropertyFlags::Attached);
+        builder_.AddOwner(sourceProperty.Handle(), TypeOf<T>(), std::move(metadata), DependencyPropertyFlags::Attached, aliasProperty.Name());
+        return *this;
+    }
+
+    template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
+        const DependencyPropertyRef<TAliasOwner, TValue>& aliasProperty,
+        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
+        const FrameworkPropertyMetadata<TValue>& options) noexcept {
+        if (!builder_.Ok()) return *this;
+        ::Aero::Result<::Aero::Meta::Value> encoded = builder_.Encode(options.DefaultValue());
+        if (!encoded) {
+            builder_.Fail(encoded.GetStatus());
+            return *this;
+        }
+        PropertyMetadata metadata;
+        metadata.defaultValue = std::move(encoded).Value();
+        metadata.flags = options.Flags();
+        metadata.defaultUpdateSourceTrigger = options.DefaultUpdateSourceTrigger();
+        metadata.validate = options.Validator();
+        metadata.changed = options.ChangeCallback();
+        builder_.AddOwner(sourceProperty.Handle(), TypeOf<T>(), std::move(metadata), DependencyPropertyFlags::None, aliasProperty.Name());
         return *this;
     }
 
@@ -770,6 +790,19 @@ public:
 
     template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
         const AttachedPropertyRef<TAliasOwner, TValue>& aliasProperty,
+        const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
+        TValue defaultValue,
+        FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,
+        bool (*validate)(const TValue&) noexcept = nullptr,
+        void (*changed)(DependencyObject&, const TValue&, const TValue&) noexcept = nullptr) noexcept {
+        FrameworkPropertyMetadata<TValue> metadata(std::move(defaultValue), options);
+        if (validate != nullptr) { metadata.Validate(validate); }
+        if (changed != nullptr) { metadata.Changed(changed); }
+        return AddOwner(aliasProperty, sourceProperty, metadata);
+    }
+
+    template<class TAliasOwner, class TOwner, class TValue> TypeBuilder& AddOwner(
+        const DependencyPropertyRef<TAliasOwner, TValue>& aliasProperty,
         const DependencyPropertyRef<TOwner, TValue>& sourceProperty,
         TValue defaultValue,
         FrameworkPropertyMetadataOptions options = FrameworkPropertyMetadataOptions::None,

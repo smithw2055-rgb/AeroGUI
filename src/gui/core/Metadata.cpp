@@ -208,16 +208,30 @@ bool TypeImplements(
     TypeId target,
     std::uint32_t depth) noexcept {
     if (current == InvalidTypeId || depth > registry.TypeCount()) return false;
-    const TypeInfo* info = registry.FindType(current);
-    if (info == nullptr) return false;
-    for (TypeId direct : info->Interfaces()) {
+    const TypeInfo* owner = registry.FindType(current);
+    if (owner == nullptr) return false;
+    if (registry.IsFrozen() && !owner->AncestorIndices().Empty()) {
+        const Base::Span<const TypeInfo> allTypes = registry.Types();
+        for (std::uint32_t ancestorIndex : owner->AncestorIndices()) {
+            if (ancestorIndex >= allTypes.Size()) break;
+            const TypeInfo& info = allTypes[ancestorIndex];
+            for (TypeId direct : info.Interfaces()) {
+                if (direct == target ||
+                    InterfaceReachable(registry, direct, target, 1U)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    for (TypeId direct : owner->Interfaces()) {
         if (direct == target ||
             InterfaceReachable(registry, direct, target, depth + 1U)) {
             return true;
         }
     }
     return TypeImplements(
-        registry, info->BaseType(), target, depth + 1U);
+        registry, owner->BaseType(), target, depth + 1U);
 }
 
 template<class T>
@@ -757,6 +771,22 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         for (std::uint32_t index : path) state[index] = 2U;
     }
 
+    for (std::uint32_t selfIndex = 0U; selfIndex < types_.Size(); ++selfIndex) {
+        TypeInfo& type = types_[selfIndex];
+        type.ancestorChain_.Clear();
+        type.ancestorIndices_.Clear();
+        std::uint32_t currentIdx = selfIndex;
+        for (std::uint32_t depth = 0U; depth <= types_.Size(); ++depth) {
+            const TypeInfo& info = types_[currentIdx];
+            type.ancestorChain_.PushBack(info.Id());
+            type.ancestorIndices_.PushBack(currentIdx);
+            if (info.BaseType() == InvalidTypeId) break;
+            const std::uint32_t* baseIdx = typeIndex_.Find(info.BaseType());
+            if (baseIdx == nullptr) break;
+            currentIdx = *baseIdx;
+        }
+    }
+
     frozen_ = true;
     return {};
 }
@@ -887,6 +917,21 @@ const PropertyInfo* TypeRegistry::FindProperty(
     TypeId ownerType,
     Base::StringView name,
     bool includeBaseTypes) const noexcept {
+    if (frozen_) {
+        const TypeInfo* type = FindType(ownerType);
+        if (type != nullptr && !type->AncestorChain().Empty()) {
+            for (TypeId current : type->AncestorChain()) {
+                const PropertyInfo* property = FindProperty(
+                    MakeMemberId(current, MemberKind::Property, name));
+                if (property != nullptr && property->OwnerType() == current &&
+                    property->Name() == name) {
+                    return property;
+                }
+                if (!includeBaseTypes) return nullptr;
+            }
+            return nullptr;
+        }
+    }
     TypeId current = ownerType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
@@ -955,6 +1000,21 @@ const EventInfo* TypeRegistry::FindEvent(
     TypeId ownerType,
     Base::StringView name,
     bool includeBaseTypes) const noexcept {
+    if (frozen_) {
+        const TypeInfo* type = FindType(ownerType);
+        if (type != nullptr && !type->AncestorChain().Empty()) {
+            for (TypeId current : type->AncestorChain()) {
+                const EventInfo* eventInfo = FindEvent(
+                    MakeMemberId(current, MemberKind::Event, name));
+                if (eventInfo != nullptr && eventInfo->OwnerType() == current &&
+                    eventInfo->Name() == name) {
+                    return eventInfo;
+                }
+                if (!includeBaseTypes) return nullptr;
+            }
+            return nullptr;
+        }
+    }
     TypeId current = ownerType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
@@ -974,6 +1034,21 @@ EventHandlerThunk TypeRegistry::FindEventHandler(
     TypeId ownerType,
     Base::StringView name,
     bool includeBaseTypes) const noexcept {
+    if (frozen_) {
+        const TypeInfo* owner = FindType(ownerType);
+        if (owner != nullptr && !owner->AncestorIndices().Empty()) {
+            for (std::uint32_t ancestorIndex : owner->AncestorIndices()) {
+                const TypeInfo& type = types_[ancestorIndex];
+                for (const EventHandlerDescriptor& handler : type.EventHandlers()) {
+                    if (handler.name == name) {
+                        return handler.thunk;
+                    }
+                }
+                if (!includeBaseTypes) return nullptr;
+            }
+            return nullptr;
+        }
+    }
     TypeId current = ownerType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
@@ -994,6 +1069,21 @@ TypeId TypeRegistry::FindTemplatePart(
     TypeId ownerType,
     Base::StringView name,
     bool includeBaseTypes) const noexcept {
+    if (frozen_) {
+        const TypeInfo* owner = FindType(ownerType);
+        if (owner != nullptr && !owner->AncestorIndices().Empty()) {
+            for (std::uint32_t ancestorIndex : owner->AncestorIndices()) {
+                const TypeInfo& type = types_[ancestorIndex];
+                for (const TemplatePartDescriptor& part : type.TemplateParts()) {
+                    if (part.name == name) {
+                        return part.partType;
+                    }
+                }
+                if (!includeBaseTypes) return InvalidTypeId;
+            }
+            return InvalidTypeId;
+        }
+    }
     TypeId current = ownerType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
@@ -1010,6 +1100,18 @@ TypeId TypeRegistry::FindTemplatePart(
     return InvalidTypeId;
 }
 MemberId TypeRegistry::FindContentMember(TypeId type) const noexcept {
+    if (frozen_) {
+        const TypeInfo* owner = FindType(type);
+        if (owner != nullptr && !owner->AncestorIndices().Empty()) {
+            for (std::uint32_t ancestorIndex : owner->AncestorIndices()) {
+                const TypeInfo& info = types_[ancestorIndex];
+                if (info.ContentMember() != InvalidMemberId) {
+                    return info.ContentMember();
+                }
+            }
+            return InvalidMemberId;
+        }
+    }
     TypeId current = type;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size(); ++depth) {
@@ -1030,6 +1132,13 @@ bool TypeRegistry::IsDerivedFrom(
     if (type == expectedBase) return true;
     const TypeInfo* info = FindType(type);
     if (info == nullptr) return false;
+
+    if (frozen_) {
+        for (TypeId ancestor : info->ancestorChain_) {
+            if (ancestor == expectedBase) return true;
+        }
+        return false;
+    }
 
     TypeId current = info->BaseType();
     for (std::uint32_t depth = 0U;
@@ -1069,7 +1178,30 @@ void* TypeRegistry::TryCastToInterface(
     if (interfaceType == InvalidTypeId) {
         return nullptr;
     }
-    TypeId current = object.RuntimeType();
+    const TypeId runtimeType = object.RuntimeType();
+    if (frozen_) {
+        const TypeInfo* owner = FindType(runtimeType);
+        if (owner == nullptr) {
+            return nullptr;
+        }
+        for (std::uint32_t ancestorIndex : owner->AncestorIndices()) {
+            const TypeInfo& info = types_[ancestorIndex];
+            const Base::Span<const TypeId> interfaces = info.Interfaces();
+            const Base::Span<const InterfaceCastThunk> casts =
+                info.InterfaceCasts();
+            for (std::uint32_t index = 0U; index < interfaces.Size(); ++index) {
+                if (interfaces[index] != interfaceType) {
+                    continue;
+                }
+                if (index >= casts.Size() || casts[index] == nullptr) {
+                    return nullptr;
+                }
+                return casts[index](&object);
+            }
+        }
+        return nullptr;
+    }
+    TypeId current = runtimeType;
     for (std::uint32_t depth = 0U;
          current != InvalidTypeId && depth <= types_.Size();
          ++depth) {
@@ -1275,14 +1407,16 @@ MetadataAuthoringSession::AddOwner(
     DependencyPropertyHandle property,
     TypeId ownerType,
     PropertyMetadata metadata,
-    DependencyPropertyFlags flags) noexcept {
+    DependencyPropertyFlags flags,
+    Base::StringView aliasName) noexcept {
     if (Ok()) {
         Record(context_->DependencyProperties().
             AddOwner(
                 property,
                 ownerType,
                 metadata,
-                flags));
+                flags,
+                aliasName));
     }
     return *this;
 }
@@ -2370,8 +2504,8 @@ Base::Result<void> MetaTable::SealIndex() noexcept {
         }
     }
 
-    typeDrafts_.Clear();
-    memberDrafts_.Clear();
+    typeDrafts_ = Base::Vector<FacetDraft>();
+    memberDrafts_ = Base::Vector<FacetDraft>();
     typeDraftIndex_.Clear();
     memberDraftIndex_.Clear();
     return {};
@@ -2831,275 +2965,6 @@ Base::Result<void> Registry::ValidateRegistration(
     return {};
 }
 
-Base::Result<Registry::Storage*> Registry::BuildCandidate(
-    const MetadataModuleRegistration* extra,
-    bool seal) const noexcept {
-    if (storage_ == nullptr) return OutOfMemoryStatus();
-
-    Storage* candidate = new (std::nothrow) Storage();
-    if (candidate == nullptr) return OutOfMemoryStatus();
-
-    auto fail = [candidate](const Base::Status& status) noexcept
-        -> Base::Result<Storage*> {
-        delete candidate;
-        return status;
-    };
-    RegistrationTypes registrations(
-        candidate->types,
-        candidate->behaviorRegistrations);
-
-    // Clone the committed authoring state directly. Module callbacks are
-    // intentionally not replayed: each callback executes exactly once and a
-    // failed candidate leaves the current storage untouched.
-    for (const TypeInfo& type : storage_->types.Types()) {
-        const TypeFactoryRegistration* factory =
-            storage_->behaviorRegistrations.FindTypeFactory(type.Id());
-        const TypeRegistration registration{
-            type.XamlNamespace(),
-            type.Name(),
-            type.BaseType(),
-            type.Flags(),
-            factory != nullptr ? factory->factory : nullptr,
-            type.Kind(),
-            type.UnderlyingType(),
-            type.Interfaces()};
-        Base::Result<TypeId> registered =
-            registrations.RegisterType(registration);
-        if (!registered) return fail(registered.GetStatus());
-    }
-
-    // Enum values are structural prerequisites for dependency-property
-    // default-value validation, so restore them before cloning properties.
-    for (const TypeInfo& type : storage_->types.Types()) {
-        for (const EnumValueInfo& value : type.EnumValues()) {
-            Base::Result<MemberId> registered =
-                registrations.RegisterEnumValue(type.Id(), {
-                    value.Name(), value.RawValue()});
-            if (!registered) return fail(registered.GetStatus());
-        }
-    }
-
-    // Value semantics are prerequisites for cloning any property default or
-    // behavior payload that stores a non-inline value.  Restore them before
-    // property registrations so a second registry candidate observes the
-    // same value codec domain as the committed registry.
-    for (const ValueTable::ValueSemanticsEntry* semantics :
-         storage_->valueRegistrations.valueSemantics_) {
-        if (semantics == nullptr) continue;
-        Base::Result<void> cloned =
-            candidate->valueRegistrations.RegisterValueSemantics(
-                semantics->type,
-                semantics->registration);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-    for (const TextValueConverterRegistration& converter :
-         storage_->valueRegistrations.textConverters_) {
-        Base::Result<void> cloned =
-            candidate->valueRegistrations.RegisterTextConverter(converter);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-
-    // Dependency properties create both their catalog entry and structural
-    // property descriptor, so they are cloned before ordinary members.
-    for (const Meta::DependencyProperty& property :
-         storage_->dependencyProperties.properties_) {
-        const Meta::DependencyProperty::MetadataEntry* ownerMetadata = nullptr;
-        for (const Meta::DependencyProperty::MetadataEntry& entry :
-             property.metadata_) {
-            if (entry.owner &&
-                entry.forType == property.registeredOwnerType_) {
-                ownerMetadata = &entry;
-                break;
-            }
-        }
-        if (ownerMetadata == nullptr) {
-            return fail(Base::Status::Failure(
-                Base::ErrorCode::InternalError,
-                "Dependency property clone is missing owner metadata"));
-        }
-        Base::Result<DependencyPropertyRegistrationResult> registered =
-            candidate->dependencyProperties.Register({
-                property.Name(),
-                property.registeredOwnerType_,
-                property.valueType_,
-                property.flags_,
-                ownerMetadata->metadata});
-        if (!registered) return fail(registered.GetStatus());
-        const DependencyPropertyHandle handle = registered.Value().property;
-        for (const Meta::DependencyProperty::MetadataEntry& entry :
-             property.metadata_) {
-            if (&entry == ownerMetadata) continue;
-            Base::Result<void> metadata = entry.owner
-                ? candidate->dependencyProperties.AddOwner(
-                      handle, entry.forType, entry.metadata)
-                : candidate->dependencyProperties.OverrideMetadata(
-                      handle, entry.forType, entry.metadata);
-            if (!metadata) return fail(metadata.GetStatus());
-        }
-    }
-
-    // Routed-event registration likewise owns the structural event record.
-    for (const RoutedEventTable::Definition& definition :
-         storage_->routedEvents.definitions_) {
-        Base::Result<RoutedEventHandle> registered =
-            candidate->routedEvents.Register({
-                definition.name.View(),
-                definition.ownerType,
-                definition.eventArgsType,
-                definition.strategy});
-        if (!registered) return fail(registered.GetStatus());
-    }
-
-    for (const TypeInfo& type : storage_->types.Types()) {
-        for (const PropertyInfo& property : type.Properties()) {
-            if (candidate->types.FindProperty(property.Id()) != nullptr) {
-                continue;
-            }
-            const PropertyAccessorRegistration* accessor =
-                storage_->behaviorRegistrations.FindPropertyAccessor(
-                    property.Id());
-            PropertyRegistration registration;
-            registration.name = property.Name();
-            registration.valueType = property.ValueType();
-            registration.flags = property.Flags();
-            if (accessor != nullptr) {
-                registration.access = accessor->access;
-                registration.get = accessor->get;
-                registration.set = accessor->set;
-                registration.provider = accessor->provider;
-                registration.context = accessor->context;
-            }
-            Base::Result<MemberId> registered =
-                registrations.RegisterProperty(type.Id(), registration);
-            if (!registered) return fail(registered.GetStatus());
-        }
-        for (const EventInfo& event : type.Events()) {
-            if (candidate->types.FindEvent(event.Id()) != nullptr) continue;
-            Base::Result<MemberId> registered =
-                registrations.RegisterEvent(type.Id(), {
-                    event.Name(), event.EventArgsType(), event.Flags()});
-            if (!registered) return fail(registered.GetStatus());
-        }
-        for (const EventHandlerDescriptor& handler : type.EventHandlers()) {
-            Base::Result<void> registered =
-                registrations.RegisterEventHandler(
-                    type.Id(), handler.name.View(), handler.thunk);
-            if (!registered) return fail(registered.GetStatus());
-        }
-        for (const TemplatePartDescriptor& part : type.TemplateParts()) {
-            Base::Result<void> registered =
-                registrations.RegisterTemplatePart(
-                    type.Id(), part.name.View(), part.partType);
-            if (!registered) return fail(registered.GetStatus());
-        }
-    }
-
-    for (const TypeInfo& type : storage_->types.Types()) {
-        if (type.ContentMember() == InvalidMemberId) continue;
-        Base::Result<void> content = registrations.SetContentMember(
-            type.Id(), type.ContentMember());
-        if (!content) return fail(content.GetStatus());
-    }
-    for (const ContentAccessorRegistration& content :
-         storage_->behaviorRegistrations.contentAccessors_) {
-        Base::Result<void> cloned =
-            registrations.SetContentAccessor(content);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-    for (const PropertyChangeNotificationRegistration& notification :
-         storage_->behaviorRegistrations.propertyChangeNotifications_) {
-        Base::Result<void> cloned =
-            registrations.RegisterPropertyChangeNotification(notification);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-    for (const CollectionChangeNotificationRegistration& notification :
-         storage_->behaviorRegistrations.collectionChangeNotifications_) {
-        Base::Result<void> cloned =
-            registrations.RegisterCollectionChangeNotification(
-                notification);
-        if (!cloned) return fail(cloned.GetStatus());
-    }
-
-    for (const Storage::ModuleRecord& source : storage_->modules) {
-        Storage::ModuleRecord record;
-        record.id = source.id;
-        record.schemaVersion = source.schemaVersion;
-        Base::Result<void> assigned = record.name.Assign(source.name.View());
-        if (!assigned) return fail(assigned.GetStatus());
-        candidate->modules.PushBack(std::move(record));
-    }
-
-    auto applyAndAppend = [candidate](
-        const MetadataModuleRegistration& registration) noexcept
-        -> Base::Result<void> {
-        ::Aero::RegistrationState contextState{
-            &candidate->types,
-            &candidate->behaviorRegistrations,
-            &candidate->valueRegistrations,
-            &candidate->dependencyProperties,
-            &candidate->routedEvents};
-        Registration context(&contextState);
-        Base::Result<void> applied = registration.registerModule != nullptr
-            ? registration.registerModule(context)
-            : registration.registerModuleWithContext(
-                  context, registration.context);
-        if (!applied) return applied.GetStatus();
-
-        Storage::ModuleRecord record;
-        record.id = registration.id;
-        record.schemaVersion = registration.schemaVersion;
-        Base::Result<void> assigned = record.name.Assign(registration.name);
-        if (!assigned) return assigned.GetStatus();
-        candidate->modules.PushBack(std::move(record));
-        return {};
-    };
-
-    if (extra != nullptr) {
-        Base::Result<void> applied = applyAndAppend(*extra);
-        if (!applied) return fail(applied.GetStatus());
-    }
-
-    if (seal) {
-        Base::Result<void> frozen = candidate->types.Freeze();
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->behaviorRegistrations.Freeze();
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->valueRegistrations.Freeze();
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->dependencyProperties.Freeze();
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->routedEvents.Freeze();
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->facets.Build(
-            candidate->types,
-            candidate->behaviorRegistrations,
-            candidate->dependencyProperties,
-            candidate->routedEvents);
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        frozen = candidate->facets.BuildValueFacets(
-            candidate->valueRegistrations,
-            candidate->types);
-        if (!frozen) {
-            return fail(frozen.GetStatus());
-        }
-        candidate->sealed = true;
-    }
-
-    return candidate;
-}
-
 Base::Result<void> Registry::RegisterModule(
     const MetadataModuleRegistration& registration) noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
@@ -3166,6 +3031,7 @@ Base::Result<void> Registry::Seal() noexcept {
     frozen = storage_->facets.BuildValueFacets(
         storage_->valueRegistrations, storage_->types);
     if (!frozen) return frozen.GetStatus();
+    storage_->behaviorRegistrations.ReleaseRegistrationTables();
     storage_->sealed = true;
     return {};
 }
@@ -3774,7 +3640,7 @@ bool Registry::IsRegisteredEnumValue(
 
 Base::Result<Value> Registry::ConvertEnumText(
     const TypeInfo& type,
-    Base::StringView input) const noexcept {
+    Base::StringView input) noexcept {
     Base::StringView remaining =
         ::Aero::Base::ValueConversion::Trim(input);
     if (remaining.Empty()) {

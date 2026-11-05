@@ -21,10 +21,18 @@ struct TemplateHandle {
     constexpr bool IsValid() const noexcept { return value != 0U; }
 };
 
+struct TemplateTriggerSetter {
+    Base::String targetName;
+    DependencyPropertyHandle property;
+    Meta::PropertyValue value;
+    std::int32_t targetPartIndex = -1;
+};
+
 struct VisualStateSetterPlan {
     Base::String targetName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
+    std::int32_t targetPartIndex = -1;
 };
 
 struct VisualStatePlan {
@@ -90,15 +98,11 @@ private:
 
 using TemplateFactoryCallback = Base::Result<void> (*)(TemplateBuilder& context, void* factoryContext) noexcept;
 
-struct TemplateNamespace {
-    Base::String prefix;
-    Base::String uri;
-};
-
 struct TemplateBindingPlan {
     Base::String targetName;
     DependencyPropertyHandle sourceProperty;
     DependencyPropertyHandle targetProperty;
+    std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateMetadataBindingPlan {
@@ -110,24 +114,21 @@ struct TemplateMetadataBindingPlan {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
     Base::Ref<Data::IValueConverter> converter;
     Meta::PropertyValue converterParameter;
+    std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateDynamicResourcePlan {
     Base::String targetName;
     Base::String key;
     DependencyPropertyHandle targetProperty;
-};
-
-struct TemplateTriggerSetter {
-    Base::String targetName;
-    DependencyPropertyHandle property;
-    Meta::PropertyValue value;
+    std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateTriggerCondition {
     Base::String sourceName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
+    std::int32_t sourcePartIndex = -1;
     // Per-condition eval (ToggleButton IsChecked null sentinel included).
     bool IsMet(
         DependencyObject& source,
@@ -152,14 +153,12 @@ struct TemplateProgram {
 
     Base::Result<void> Configure(TemplateFactoryCallback valueFactory, void* valueFactoryContext = nullptr, Base::Ref<Base::Object> valueFactoryOwner = {}) noexcept;
     void SetBaseUri(const Base::ResourceUri& value) noexcept;
-    Base::Result<void> AddNamespace(Base::StringView prefix, Base::StringView uri) noexcept;
     Base::Result<void> Seal() noexcept;
 
     TemplateFactoryCallback factory = nullptr;
     void* factoryContext = nullptr;
     Base::Ref<Base::Object> factoryOwner;
     Base::ResourceUri baseUri;
-    Base::Vector<TemplateNamespace> namespaces;
     Meta::TypeId targetType = Meta::InvalidTypeId;
     Base::Vector<TemplateBindingPlan> bindings;
     Base::Vector<TemplateMetadataBindingPlan> metadataBindings;
@@ -207,7 +206,7 @@ struct FrameworkTemplateState {
     static ::Aero::FrameworkTemplate* BasedOn(FrameworkTemplate& value) noexcept;
     static const ::Aero::FrameworkTemplate* BasedOn(const FrameworkTemplate& value) noexcept;
     static Base::Result<void> ConfigureFactory(FrameworkTemplate& value, TemplateFactoryCallback factory, void* context = nullptr, Base::Ref<Base::Object> owner = {}) noexcept;
-    static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty) noexcept;
+    static Base::Result<void> AddTemplateBinding(FrameworkTemplate& value, Base::StringView targetName, DependencyPropertyHandle sourceProperty, DependencyPropertyHandle targetProperty, std::int32_t targetPartIndex = -1) noexcept;
     static Base::Result<void> AddTemplatedParentBinding(FrameworkTemplate& value, Base::StringView targetName, Base::StringView path, Base::StringView stringFormat, DependencyPropertyHandle targetProperty, Data::BindingMode mode, UpdateSourceTrigger updateSourceTrigger, const Base::Ref<Data::IValueConverter>& converter = {}, const Meta::PropertyValue& converterParameter = {}) noexcept;
     static Base::Result<void> AddDynamicResource(FrameworkTemplate& value, Base::StringView targetName, Base::StringView key, DependencyPropertyHandle targetProperty) noexcept;
     static Base::Result<void> AddPropertyTrigger(FrameworkTemplate& value, TemplatePropertyTrigger trigger) noexcept;
@@ -231,8 +230,6 @@ struct FrameworkTemplateState {
     static const Base::Ref<Base::Object>& FactoryOwner(const FrameworkTemplate& value) noexcept;
     static const Base::ResourceUri& BaseUri(const FrameworkTemplate& value) noexcept;
     static void SetBaseUri(FrameworkTemplate& value, const Base::ResourceUri& uri) noexcept;
-    static Base::Result<void> AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept;
-    static Base::Span<const TemplateNamespace> Namespaces(const FrameworkTemplate& value) noexcept;
     static Base::Span<const TemplateBindingPlan> Bindings(const FrameworkTemplate& value) noexcept;
     static Base::Span<const TemplateMetadataBindingPlan> MetadataBindings(const FrameworkTemplate& value) noexcept;
     static Base::Span<const TemplateDynamicResourcePlan> DynamicResources(const FrameworkTemplate& value) noexcept;
@@ -283,11 +280,11 @@ struct FrameworkTemplateState {
         return VisualStateManagerExecution::CurrentState(manager, control, groupName);
     }
 
-    Meta::TypeId targetType = Meta::InvalidTypeId;
+    bool IsSealed() const noexcept { return program.sealed || deferredProgram.sealed; }
+
     TemplateProgram program;
     DeferredObjectProgram deferredProgram;
     ResourceDictionary resources;
-    Base::ResourceUri baseUri;
 
     // Optional inheritance link. When set, Seal() requires the base template
     // to be sealed first, inherits its factory when this template authors no
@@ -296,15 +293,11 @@ struct FrameworkTemplateState {
     ::Aero::FrameworkTemplate* basedOn = nullptr;
     Base::Ref<Base::Object> basedOnOwner;
 
-    Base::Ref<Base::Object> hierarchicalItemsSource;
-    Base::Ref<Base::Object> hierarchicalItemTemplate;
-
     Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
     Base::Ref<Base::Object> authoredVisualTree;
     Base::Vector<Base::Ref<Base::Object>> authoredVisualStateGroups;
     NameScope authoredNames;
     std::uint32_t generatedNameSequence = 0U;
-    bool sealed = false;
 };
 
 using DataTemplateState = FrameworkTemplateState;

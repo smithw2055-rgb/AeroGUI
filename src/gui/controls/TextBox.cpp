@@ -2021,7 +2021,7 @@ AERO_DESCRIBE(PasswordBox) {
         .Property<Base::String, &PasswordBox::GetPassword, &PasswordBox::SetPassword>("Password", PropertyFlags::None)
         .Property(PasswordBox::PasswordCharProperty, std::move(defaultPasswordChar), AffectsMeasure)
         .Property(PasswordBox::MaxLengthProperty, std::uint32_t{0}, AffectsMeasure)
-        .Property(PasswordBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
+        .AddOwner(PasswordBox::PlaceholderProperty, TextBox::PlaceholderProperty, Base::String{}, AffectsMeasure | AffectsRender)
         .Factory();
 }
 

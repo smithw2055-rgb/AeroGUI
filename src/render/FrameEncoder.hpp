@@ -434,6 +434,12 @@ public:
         const float uniforms[8],
         std::uint8_t wrapMode = 0U) noexcept;
 
+    void Downsample(
+        Texture* source,
+        const Rect& bounds,
+        const Size& sourceDimensions,
+        double opacity = 1.0) noexcept;
+
     void CompositeOffscreen(
         const RenderNodeSnapshot& node,
         RenderTarget* offscreen,
@@ -441,7 +447,10 @@ public:
         const ProjectiveTransform2D& nodeTransform,
         double nodeOpacity,
         double dpi,
-        const RenderFrame& frame) noexcept;
+        const RenderFrame& frame,
+        RenderTarget* currentTarget = nullptr,
+        std::uint32_t targetWidth = 0U,
+        std::uint32_t targetHeight = 0U) noexcept;
 
     void EmitMaskBrush(
         const RenderMaskSnapshot& mask,

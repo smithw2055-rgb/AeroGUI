@@ -334,6 +334,13 @@ public:
     AERO_DEPENDENCY_PROPERTY(Value, Header);
     AERO_DEPENDENCY_PROPERTY(Ref<DataTemplate>, HeaderTemplate);
 
+    static void PrepareHeaderedItemsControlContainer(
+        ItemsControl& owner,
+        FrameworkElement& container,
+        const Ref<Base::Object>& item) noexcept;
+    static void ClearHeaderedItemsControlContainer(
+        FrameworkElement& container) noexcept;
+
 protected:
     explicit HeaderedItemsControl(Meta::TypeId runtimeType) noexcept : ItemsControl(runtimeType) {}
 

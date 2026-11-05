@@ -17,6 +17,10 @@
 
 #include "gui/core/DependencyPropertyRegistry.hpp"
 
+namespace Aero {
+struct StoredValueEntry;
+} // namespace Aero
+
 namespace Aero::Meta {
 
 using ::Aero::Threading::Dispatcher;
@@ -107,6 +111,9 @@ public:
     // Processes only the queue snapshot that existed at entry. Changes queued by
     // inheritance propagation are deferred to the next PropertyChanges phase.
     Base::Result<std::uint32_t> Flush() noexcept;
+    Base::Result<void> FlushProperty(
+        DependencyObject& object,
+        DependencyPropertyHandle property) noexcept;
 
     Base::Result<EffectiveValueDiagnostics> Diagnostics(
         const DependencyObject& object,
@@ -116,6 +123,8 @@ public:
     // destruction unless the engine itself is destroyed first.
     Base::Result<void> DetachObject(
         DependencyObject& object) noexcept;
+    bool HasObjectState(
+        const DependencyObject& object) const noexcept;
 
     void Shutdown() noexcept;
 
@@ -140,6 +149,9 @@ private:
         DependencyObject* object = nullptr;
         DependencyPropertyHandle property;
         QueueLink* next = nullptr;
+        std::uint8_t inheritanceIndex = 0xFFU;
+        bool unmaterialized = false;
+        bool descendantsQueued = false;
     };
 
     Dispatcher* dispatcher_ = nullptr;
@@ -148,6 +160,8 @@ private:
     QueueLink* queueTail_ = nullptr;
     QueueLink* linkFree_ = nullptr;
     std::uint32_t queueCount_ = 0U;
+    DependencyObject* activePropagatingObject_ = nullptr;
+    DependencyPropertyHandle activePropagatingProperty_{};
     Base::HashMap<DependencyObject*, DependencyObject*> parents_;
     Base::HashMap<DependencyObject*, Base::Vector<DependencyObject*>> childrenByParent_;
     PropertyProviderOriginAllocator providerOrigins_;
@@ -157,6 +171,21 @@ private:
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
+    Base::Result<void> EnqueueStoredEntry(
+        DependencyObject& object,
+        DependencyPropertyHandle canonicalProperty,
+        ::Aero::StoredValueEntry& stored,
+        bool descendantsQueued = false) noexcept;
+    Base::Result<void> EnqueueUnmaterialized(
+        DependencyObject& object,
+        DependencyPropertyHandle canonicalProperty,
+        bool descendantsQueued = false,
+        std::uint8_t inheritanceIndex = 0xFFU) noexcept;
+    Base::Result<::Aero::StoredValueEntry*> EnsureAndQueueProperty(
+        DependencyObject& object,
+        DependencyPropertyHandle& inOutProperty,
+        const DependencyProperty** outRegistered = nullptr,
+        const PropertyMetadata** outMetadata = nullptr) noexcept;
     Base::Result<void> QueueObjectProperty(
         DependencyObject& object,
         DependencyPropertyHandle property) noexcept;

@@ -38,7 +38,10 @@ public:
         if (!item) { AERO_ASSERT(false); return; }
         EnsureItemHandler();
         T* retained = item.Get();
-        if (!retained->IsFrozen()) { retained->AddChangedHandler(itemChangedHandler_); }
+        if (!retained->IsFrozen()) {
+            retained->AddChangedHandler(itemChangedHandler_);
+            (void)retained->AttachConsumer(*this, {});
+        }
         items_.PushBack(std::move(item));
         if (!changed_.Empty()) {
             changed_.Invoke({
@@ -133,7 +136,10 @@ private:
     void DetachHandlers() noexcept {
         if (itemChangedHandler_.Empty()) return;
         for (Ref<T>& item : items_) {
-            if (item && !item->IsFrozen()) { static_cast<void>(item->RemoveChangedHandler(itemChangedHandler_)); }
+            if (item && !item->IsFrozen()) {
+                static_cast<void>(item->RemoveChangedHandler(itemChangedHandler_));
+                item->DetachConsumer(*this, {});
+            }
         }
     }
     void OnItemChanged(Freezable&) noexcept { WritePostscript(); }

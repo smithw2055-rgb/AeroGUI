@@ -146,7 +146,7 @@ public:
     bool GetIsEmpty() const noexcept { return contributions_.Empty(); }
 
 private:
-    Base::Vector<PropertyProviderContribution> contributions_;
+    Base::BasicVector<PropertyProviderContribution, 2U> contributions_;
     // Cached index of the IsStronger-maximum element, or UINT32_MAX when
     // empty. Order-independent because Winner is defined by comparison.
     std::uint32_t winner_ = UINT32_MAX;

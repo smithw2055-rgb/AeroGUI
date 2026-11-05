@@ -215,7 +215,8 @@ private:
         DependencyPropertyHandle property,
         TypeId ownerType,
         PropertyMetadata metadata,
-        DependencyPropertyFlags flags = DependencyPropertyFlags::None) noexcept;
+        DependencyPropertyFlags flags = DependencyPropertyFlags::None,
+        Base::StringView aliasName = {}) noexcept;
     MetadataAuthoringSession& RoutedEvent(
         RoutedEventHandle declaredHandle,
         Base::StringView name,

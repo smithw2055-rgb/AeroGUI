@@ -108,7 +108,6 @@ public:
     bool TryPointToScreen(Base::Point point, Base::Point& screen) const noexcept;
     Base::Point PointFromScreen(Base::Point point) const noexcept;
     bool TryPointFromScreen(Base::Point point, Base::Point& local) const noexcept;
-    Ref<Base::Object> AcquireLifetime() noexcept;
     void InvalidateRenderDrawing() noexcept;
     void InvalidateRenderState() noexcept;
     RenderChildRange RenderChildren() const noexcept { return RenderChildRange(*this); }
@@ -201,7 +200,6 @@ private:
     Visual* firstVisualChild_ = nullptr;
     Visual* nextVisualSibling_ = nullptr;
     Visual* prevVisualSibling_ = nullptr;
-    Ref<Base::Object> lifetime_;
     Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;

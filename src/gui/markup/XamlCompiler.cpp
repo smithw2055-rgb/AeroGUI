@@ -2,27 +2,17 @@
 #include "gui/markup/XamlBytecode.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
 #include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
-#include "gui/core/PropertyStore.hpp"
-#include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/data/BindingEngine.hpp"
 #include "gui/data/BindingCommon.hpp"
 #include "gui/controls/ItemsContainers.hpp"
-#include "gui/styles/StyleEngine.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 #include "gui/templates/DataTemplateTriggerInstance.hpp"
 #include "gui/media/AnimationModel.hpp"
-#include "render/RenderTree.hpp"
 
-#include <Aero/Base/Assert.hpp>
 #include <Aero/Base/HashMap.hpp>
-#include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Utf8.hpp>
 #include <Aero/Base/Vector.hpp>
@@ -32,37 +22,22 @@
 #include <Aero/Data/Binding.hpp>
 #include <Aero/DataTemplate.hpp>
 #include <Aero/Diagnostics.hpp>
-#include <Aero/Documents.hpp>
 #include <Aero/FrameworkElement.hpp>
-#include <Aero/Layout.hpp>
-#include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation.hpp>
-#include <Aero/Media/Brushes.hpp>
-#include <Aero/Media/Fonts.hpp>
-#include <Aero/Media/Geometries.hpp>
 #include <Aero/Media/Transform2D.hpp>
-#include <Aero/Resources.hpp>
-#include <Aero/Style.hpp>
-#include <Aero/TextProperties.hpp>
 #include <Aero/Triggers.hpp>
 #include <Aero/TryCast.hpp>
 #include <Aero/Value.hpp>
 #include <Aero/VisualStateManager.hpp>
 
-
-#include <algorithm>
-#include <cctype>
-#include <cerrno>
-#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <new>
 #include <utility>
+
 
 // ============================================================================
 // SECTION: XamlParser / XmlTokenizer / NodeReader
@@ -2019,13 +1994,30 @@ Base::Result<void> BindCompiledValue(
     const Schema& schema,
     Node& node,
     Meta::TypeId valueType) noexcept {
+    if (node.HasCompiledValue() &&
+        node.CompiledValue().Type() == valueType) {
+        return {};
+    }
     Base::StringView literal;
     if (valueType == Meta::InvalidTypeId ||
         !TryGetCompiledLiteral(node.Value(), literal)) {
         return {};
     }
+    if (valueType != Meta::TypeOf<Meta::Value>() &&
+        valueType != Meta::TypeOf<Base::String>() &&
+        !IsPersistableCompiledCustomType(valueType)) {
+        if (const Meta::TypeInfo* typeInfo =
+                schema.Types().FindType(valueType)) {
+            const Meta::MetadataTypeKind kind = typeInfo->Kind();
+            if (kind == Meta::MetadataTypeKind::Object ||
+                kind == Meta::MetadataTypeKind::Interface ||
+                kind == Meta::MetadataTypeKind::Struct) {
+                return {};
+            }
+        }
+    }
     Base::Result<Meta::Value> converted =
-        schema.ConvertText( valueType, literal);
+        schema.ConvertText(valueType, literal);
     if (converted &&
         IsPersistableCompiledValue(converted.Value())) {
         node.BindCompiledValue(
@@ -2038,6 +2030,10 @@ Base::Result<void> BindCompiledValue(
     const SchemaManifest&,
     Node& node,
     Meta::TypeId valueType) noexcept {
+    if (node.HasCompiledValue() &&
+        node.CompiledValue().Type() == valueType) {
+        return {};
+    }
     Base::StringView literal;
     if (valueType == Meta::InvalidTypeId ||
         !TryGetCompiledLiteral(node.Value(), literal)) {
@@ -2069,7 +2065,7 @@ CompiledMemberBinding BuildCompiledMemberBinding(
     const Schema& schema,
     const ResolvedMember& member) noexcept {
     const MemberWritePolicy policy =
-        schema.ResolveMemberWritePolicy( member);
+        schema.ResolveMemberWritePolicy(member);
     CompiledMemberBinding binding;
     binding.id = member.id;
     binding.kind = member.kind;
@@ -2157,6 +2153,24 @@ Base::Result<void> ValidateSchemaCore(
     struct Frame {
         FrameKind kind = FrameKind::Object;
         Meta::TypeId type = Meta::InvalidTypeId;
+        Meta::TypeId contentValueType = Meta::InvalidTypeId;
+        Base::Status contentStatus{};
+        bool hasKnownContent = false;
+    };
+    auto ensureFrameContent = [&schema](Frame& frame) noexcept -> Base::Status {
+        if (!frame.hasKnownContent) {
+            frame.hasKnownContent = true;
+            Base::Result<ResolvedMember> content =
+                schema.ResolveContentMember(frame.type);
+            if (content) {
+                frame.contentValueType = content.Value().valueType;
+                frame.contentStatus = Base::Status::Ok();
+            } else {
+                frame.contentValueType = Meta::InvalidTypeId;
+                frame.contentStatus = content.GetStatus();
+            }
+        }
+        return frame.contentStatus;
     };
     Base::Vector<Frame> frames;
     bool rootSeen = false;
@@ -2170,17 +2184,15 @@ Base::Result<void> ValidateSchemaCore(
                  IsWhitespaceOnly(node.Value()))) {
                 break;
             }
-            const Frame& frame = frames.Back();
+            Frame& frame = frames.Back();
             Meta::TypeId valueType = Meta::InvalidTypeId;
             if (frame.kind == FrameKind::Member ||
                 frame.kind == FrameKind::PropertyElement ||
                 frame.kind == FrameKind::ValueObject) {
                 valueType = frame.type;
             } else if (frame.kind == FrameKind::Object) {
-                Base::Result<ResolvedMember> content =
-                    schema.ResolveContentMember(frame.type);
-                if (content) {
-                    valueType = content.Value().valueType;
+                if (ensureFrameContent(frame).IsOk()) {
+                    valueType = frame.contentValueType;
                 }
             }
             Base::Result<void> bound = BindCompiledValue(
@@ -2245,9 +2257,11 @@ Base::Result<void> ValidateSchemaCore(
             }
             if (!frames.Empty() &&
                 frames.Back().kind == FrameKind::Object) {
-                Base::Result<ResolvedMember> content =
-                    schema.ResolveContentMember(frames.Back().type);
-                if (!content) return content.GetStatus();
+                const Base::Status contentStatus =
+                    ensureFrameContent(frames.Back());
+                if (!contentStatus.IsOk()) {
+                    return contentStatus;
+                }
             } else if (!frames.Empty() &&
                 frames.Back().kind != FrameKind::Member &&
                 frames.Back().kind != FrameKind::PropertyElement) {
@@ -2262,13 +2276,29 @@ Base::Result<void> ValidateSchemaCore(
                 }
                 rootSeen = true;
             }
-            frames.PushBack({
-                Meta::HasTypeFlag(
-                    type.Value().flags,
-                    Meta::TypeFlags::ValueType)
-                    ? FrameKind::ValueObject
-                    : FrameKind::Object,
-                type.Value().id});
+            Frame nextFrame{};
+            nextFrame.kind = Meta::HasTypeFlag(
+                type.Value().flags,
+                Meta::TypeFlags::ValueType)
+                ? FrameKind::ValueObject
+                : FrameKind::Object;
+            nextFrame.type = type.Value().id;
+            if constexpr (std::is_same_v<TSchema, Schema>) {
+                if (bindInstructions && node.HasCompiledTypeBinding()) {
+                    nextFrame.hasKnownContent = true;
+                    if (node.CompiledType().HasContentMember()) {
+                        nextFrame.contentValueType =
+                            node.CompiledType().contentMember.valueType;
+                        nextFrame.contentStatus = Base::Status::Ok();
+                    } else {
+                        nextFrame.contentValueType = Meta::InvalidTypeId;
+                        nextFrame.contentStatus = Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "XAML type has no content property");
+                    }
+                }
+            }
+            frames.PushBack(nextFrame);
             break;
         }
         case NodeKind::EndObject:
@@ -2367,6 +2397,39 @@ Base::Result<void> ValidateSchemaCore(
         "Compiled XAML has no end-of-document node");
 }
 
+void PrewarmCompiledDocumentBytecode(
+    const CompiledDocument& document,
+    const Schema& schema) noexcept {
+    if (document.BytecodeProgram()) {
+        return;
+    }
+    if (!Meta::HasObjectFactory()) {
+        return;
+    }
+    const Meta::ObjectFactoryState factory =
+        Meta::CurrentObjectFactory();
+    if (!factory.IsValid() ||
+        schema.Metadata() == nullptr ||
+        (factory.metadata != nullptr &&
+         factory.metadata != schema.Metadata()) ||
+        factory.dependencyProperties !=
+            &schema.Metadata()->DependencyProperties()) {
+        return;
+    }
+    const Base::Ref<Meta::RegistryLifetime>& lifetime =
+        factory.dependencyProperties->Lifetime();
+    if (lifetime && !lifetime->isAlive) {
+        return;
+    }
+
+    Base::Result<const XamlBytecodeProgram*> compiled =
+        EnsureDocumentBytecode(document, schema);
+    if (!compiled || compiled.Value() == nullptr ||
+        !compiled.Value()->IsValid() || !document.BytecodeProgram()) {
+        document.SetBytecodeProgram({});
+    }
+}
+
 } // namespace
 
 Base::Result<CompiledDocument> CompiledDocument::Compile(
@@ -2382,10 +2445,6 @@ Base::Result<CompiledDocument> CompiledDocument::Compile(
     Base::Result<CompiledDocument> compiled =
         Compile(reader, schema.Domain(), originUri);
     if (!compiled) return compiled.GetStatus();
-    Base::Result<CompiledCacheIdentity> identity =
-        BuildCompiledCacheIdentity(schema.Domain());
-    if (!identity) return identity.GetStatus();
-    compiled.Value().identity_ = identity.Value();
     Base::Result<void> valid = compiled.Value().BindSchema(schema);
     if (!valid) return valid.GetStatus();
     return std::move(compiled).Value();
@@ -2431,7 +2490,11 @@ Base::Result<void> CompiledDocument::BindSchema(
             Base::ErrorCode::InvalidState,
             "AXB2 binding requires a frozen runtime schema");
     }
-    return ValidateSchemaCore(*this, schema, true);
+    bytecodeProgram_.Reset();
+    Base::Result<void> valid = ValidateSchemaCore(*this, schema, true);
+    if (!valid) return valid.GetStatus();
+    PrewarmCompiledDocumentBytecode(*this, schema);
+    return {};
 }
 
 Base::Result<void> CompiledDocument::ValidateSchema(
@@ -2463,6 +2526,7 @@ Base::Result<void> CompiledDocument::BindSchema(
             Base::ErrorCode::ValidationFailed,
             "AXB2 identity does not match the schema manifest");
     }
+    bytecodeProgram_.Reset();
     return ValidateSchemaCore(*this, manifest, true);
 }
 
@@ -2618,19 +2682,6 @@ float UnpackFloat(
         : static_cast<std::uint32_t>(payload);
     return CopyValueBits<float>(bits);
 }
-
-template<class T>
-Base::Result<Meta::Value> MakeStoredCustomValue(
-    Meta::TypeId type,
-    const T& value) noexcept {
-    static const Meta::ValueTypeRegistration s_reg =
-        Meta::MakeValueTypeRegistration<T>();
-    return Meta::Value::TryFromCustom(
-        type, &value, &s_reg);
-}
-
-
-
 
 Base::Result<void> AppendPosition(
     Base::Vector<std::uint8_t>& output,
@@ -3034,7 +3085,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                  value < 0.0)) {
                 break;
             }
-            return MakeStoredCustomValue(
+            return MakeManifestCustomValue(
                 type,
                 record.payload[1] != 0U
                     ? ::Aero::Length::Auto()
@@ -3048,7 +3099,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 UnpackFloat(record.payload[1], false),
                 UnpackFloat(record.payload[1], true)};
             if (!::Aero::IsFinite(value)) break;
-            return MakeStoredCustomValue(type, value);
+            return MakeManifestCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::CornerRadius>() &&
             requirePayloads(2U)) {
@@ -3063,7 +3114,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 !std::isfinite(value.bottomLeft)) {
                 break;
             }
-            return MakeStoredCustomValue(type, value);
+            return MakeManifestCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::Color>() &&
             requirePayloads(2U)) {
@@ -3079,7 +3130,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 value.alpha < 0.0F || value.alpha > 1.0F) {
                 break;
             }
-            return MakeStoredCustomValue(type, value);
+            return MakeManifestCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::Point>() &&
             requirePayloads(1U)) {
@@ -3087,7 +3138,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 UnpackFloat(record.payload[0], false),
                 UnpackFloat(record.payload[0], true)};
             if (!::Aero::IsFinite(value)) break;
-            return MakeStoredCustomValue(type, value);
+            return MakeManifestCustomValue(type, value);
         }
         if (type == Meta::TypeOf<Base::Transform2D>() &&
             requirePayloads(6U)) {
@@ -3099,7 +3150,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                 CopyValueBits<double>(record.payload[4]),
                 CopyValueBits<double>(record.payload[5])};
             if (!Base::IsFiniteTransform(value)) break;
-            return MakeStoredCustomValue(type, value);
+            return MakeManifestCustomValue(type, value);
         }
         if (type == Meta::TypeOf<::Aero::GridLength>() &&
             requirePayloads(2U)) {
@@ -3113,7 +3164,7 @@ Base::Result<Meta::Value> DecodeCompiledValue(
                         ::Aero::GridUnitType::Star)) {
                 break;
             }
-            return MakeStoredCustomValue(
+            return MakeManifestCustomValue(
                 type,
                 ::Aero::GridLength{
                     static_cast<float>(value),
@@ -3279,6 +3330,215 @@ Base::Result<void> AssignInternedString(
     return destination.Assign(strings[index].View());
 }
 
+Base::Result<void> ReconstructInstructionName(
+    NodeKind nodeKind,
+    bool fromAttribute,
+    Base::String& localName,
+    Base::String& namespaceUri,
+    const ::Aero::Meta::Registry& domain,
+    Meta::TypeId typeId,
+    const CompiledMemberBinding* member) noexcept {
+    if (nodeKind == NodeKind::StartObject &&
+        typeId != Meta::InvalidTypeId) {
+        if (const Meta::TypeInfo* typeInfo =
+                domain.Types().FindType(typeId)) {
+            Base::Result<void> assigned =
+                localName.Assign(typeInfo->Name());
+            if (!assigned) return assigned.GetStatus();
+            return namespaceUri.Assign(
+                typeInfo->XamlNamespace());
+        }
+        return {};
+    }
+    if ((nodeKind == NodeKind::StartObject ||
+         nodeKind == NodeKind::StartMember) &&
+        member != nullptr) {
+        const Meta::TypeInfo* ownerType =
+            domain.Types().FindType(member->ownerType);
+        Base::StringView memberName;
+        if (member->kind == Meta::MemberKind::Property) {
+            if (const Meta::PropertyInfo* prop =
+                    domain.Types().FindProperty(member->id)) {
+                memberName = prop->Name();
+            }
+        } else if (member->kind == Meta::MemberKind::Event) {
+            if (const Meta::EventInfo* evt =
+                    domain.Types().FindEvent(member->id)) {
+                memberName = evt->Name();
+            }
+        }
+        if (memberName.Empty()) {
+            return {};
+        }
+        if (nodeKind == NodeKind::StartObject ||
+            member->attached) {
+            if (ownerType == nullptr) {
+                return {};
+            }
+            Base::Result<void> assigned =
+                localName.Assign(ownerType->Name());
+            if (!assigned) return assigned.GetStatus();
+            assigned = localName.Append(".");
+            if (!assigned) return assigned.GetStatus();
+            assigned = localName.Append(memberName);
+            if (!assigned) return assigned.GetStatus();
+            return namespaceUri.Assign(
+                ownerType->XamlNamespace());
+        }
+        Base::Result<void> assigned =
+            localName.Assign(memberName);
+        if (!assigned) return assigned.GetStatus();
+        if (!fromAttribute && ownerType != nullptr) {
+            return namespaceUri.Assign(
+                ownerType->XamlNamespace());
+        }
+    }
+    return {};
+}
+
+Base::Result<void> FormatDecodedCompiledValueText(
+    Base::String& destination,
+    const AxbValueRecord& record,
+    const ::Aero::Meta::Registry& domain,
+    Base::Span<const Meta::TypeId> types,
+    Base::Span<const Base::String> strings) noexcept {
+    if (record.kind != AxbValueKind::Text &&
+        record.typeIndex >= types.Size()) {
+        return {};
+    }
+    const Meta::TypeId type =
+        record.kind != AxbValueKind::Text
+        ? types[record.typeIndex]
+        : Meta::InvalidTypeId;
+    char buf[160]{};
+    const auto assignFormatted =
+        [&destination, &buf](int len) noexcept -> Base::Result<void> {
+            if (len <= 0 ||
+                static_cast<std::size_t>(len) >= sizeof(buf)) {
+                return {};
+            }
+            return destination.Assign(
+                Base::StringView(
+                    buf,
+                    static_cast<std::uint32_t>(len)));
+        };
+    switch (record.kind) {
+    case AxbValueKind::Boolean:
+        return destination.Assign(
+            record.payload[0] != 0U
+                ? Base::StringView("True")
+                : Base::StringView("False"));
+    case AxbValueKind::SignedInteger:
+        return assignFormatted(std::snprintf(
+            buf,
+            sizeof(buf),
+            "%lld",
+            static_cast<long long>(
+                CopyValueBits<std::int64_t>(record.payload[0]))));
+    case AxbValueKind::UnsignedInteger:
+        if (const Meta::EnumValueInfo* enumVal =
+                domain.Types().FindEnumValue(type, record.payload[0])) {
+            return destination.Assign(enumVal->Name());
+        }
+        return assignFormatted(std::snprintf(
+            buf,
+            sizeof(buf),
+            "%llu",
+            static_cast<unsigned long long>(record.payload[0])));
+    case AxbValueKind::Double:
+        return assignFormatted(std::snprintf(
+            buf,
+            sizeof(buf),
+            "%.17g",
+            CopyValueBits<double>(record.payload[0])));
+    case AxbValueKind::String:
+        return AssignInternedString(
+            destination,
+            strings,
+            static_cast<std::uint32_t>(record.payload[0]));
+    case AxbValueKind::Custom:
+        if (type == Meta::TypeOf<::Aero::Length>()) {
+            if (record.payload[1] != 0U) {
+                return destination.Assign("Auto");
+            }
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "%.9g",
+                CopyValueBits<double>(record.payload[0])));
+        }
+        if (type == Meta::TypeOf<Base::Thickness>() ||
+            type == Meta::TypeOf<Base::CornerRadius>()) {
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "%.9g,%.9g,%.9g,%.9g",
+                static_cast<double>(UnpackFloat(record.payload[0], false)),
+                static_cast<double>(UnpackFloat(record.payload[0], true)),
+                static_cast<double>(UnpackFloat(record.payload[1], false)),
+                static_cast<double>(UnpackFloat(record.payload[1], true))));
+        }
+        if (type == Meta::TypeOf<Base::Color>()) {
+            const auto toByte = [](float c) noexcept -> unsigned int {
+                const float clamped =
+                    c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
+                return static_cast<unsigned int>(clamped * 255.0f + 0.5f);
+            };
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "#%02X%02X%02X%02X",
+                toByte(UnpackFloat(record.payload[1], true)),
+                toByte(UnpackFloat(record.payload[0], false)),
+                toByte(UnpackFloat(record.payload[0], true)),
+                toByte(UnpackFloat(record.payload[1], false))));
+        }
+        if (type == Meta::TypeOf<Base::Point>()) {
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "%.9g,%.9g",
+                static_cast<double>(UnpackFloat(record.payload[0], false)),
+                static_cast<double>(UnpackFloat(record.payload[0], true))));
+        }
+        if (type == Meta::TypeOf<Base::Transform2D>()) {
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g",
+                CopyValueBits<double>(record.payload[0]),
+                CopyValueBits<double>(record.payload[1]),
+                CopyValueBits<double>(record.payload[2]),
+                CopyValueBits<double>(record.payload[3]),
+                CopyValueBits<double>(record.payload[4]),
+                CopyValueBits<double>(record.payload[5])));
+        }
+        if (type == Meta::TypeOf<::Aero::GridLength>()) {
+            const auto unit =
+                static_cast<::Aero::GridUnitType>(record.payload[1]);
+            if (unit == ::Aero::GridUnitType::Auto) {
+                return destination.Assign("Auto");
+            }
+            if (unit == ::Aero::GridUnitType::Star) {
+                return assignFormatted(std::snprintf(
+                    buf,
+                    sizeof(buf),
+                    "%.9g*",
+                    CopyValueBits<double>(record.payload[0])));
+            }
+            return assignFormatted(std::snprintf(
+                buf,
+                sizeof(buf),
+                "%.9g",
+                CopyValueBits<double>(record.payload[0])));
+        }
+        return {};
+    case AxbValueKind::Text:
+        return {};
+    }
+    return {};
+}
+
 } // namespace
 
 Base::Result<CompiledDocument>
@@ -3368,11 +3628,9 @@ CompiledDocument::CompileWithIdentity(
     while (true) {
         Base::Result<NodeKind> read = reader.Read(node);
         if (!read) return read.GetStatus();
-        Base::Result<Node> cloned = Node::Clone(node);
-        if (!cloned) return cloned.GetStatus();
-        document.nodes_.PushBack(
-            std::move(cloned).Value());
-        if (read.Value() == NodeKind::EndOfDocument) break;
+        const NodeKind kind = read.Value();
+        document.nodes_.PushBack(std::move(node));
+        if (kind == NodeKind::EndOfDocument) break;
     }
     return document;
 }
@@ -4309,6 +4567,20 @@ CompiledDocument::Deserialize(
                 strings.AsSpan(),
                 qualifiedName[2]);
             if (!assigned) return assigned.GetStatus();
+        } else {
+            assigned = ReconstructInstructionName(
+                node.kind_,
+                node.fromAttribute_,
+                node.name_.localName_,
+                node.name_.namespaceUri_,
+                domain,
+                typeIndex != InvalidTableIndex
+                    ? types[typeIndex]
+                    : Meta::InvalidTypeId,
+                memberIndex != InvalidTableIndex
+                    ? &members[memberIndex]
+                    : nullptr);
+            if (!assigned) return assigned.GetStatus();
         }
         if (namespacePair[0] != InvalidTableIndex) {
             assigned = AssignInternedString(
@@ -4340,6 +4612,15 @@ CompiledDocument::Deserialize(
                         strings.AsSpan());
                 if (!decoded) {
                     return decoded.GetStatus();
+                }
+                assigned = FormatDecodedCompiledValueText(
+                    node.value_,
+                    stored,
+                    domain,
+                    types.AsSpan(),
+                    strings.AsSpan());
+                if (!assigned) {
+                    return assigned.GetStatus();
                 }
                 node.BindCompiledValue(
                     std::move(decoded).Value());
@@ -4380,1739 +4661,3 @@ CompiledDocument::Deserialize(
 
 } // namespace Aero::Markup
 
-
-
-// ============================================================================
-// SECTION: TemplateCompiler / Blueprints / TriggerPlans
-// Source: src/gui/markup/TemplateCompiler.cpp
-// ============================================================================
-
-// ===== TemplateCompiler =====
-
-
-
-
-
-
-namespace Aero::Markup {
-namespace {
-
-using namespace Aero::Meta;
-using namespace Aero::Threading;
-using namespace Aero::Controls;
-using namespace Aero::Media;
-using Controls::Primitives::Selector;
-using namespace Data;
-using Documents::Inline; // not Documents:: -- avoid Span collision with Aero::Span
-using namespace Media::Animation;
-
-Base::Status InvalidTemplateCompiler(
-    const char* message) noexcept {
-    return Base::Status::Failure(
-        Base::ErrorCode::ValidationFailed,
-        message);
-}
-
-Visual* WalkTemplateAncestor(
-    Visual* start,
-    Base::StringView ancestorType,
-    std::uint32_t level,
-    const Meta::TypeRegistry& types) noexcept {
-    return ::Aero::Data::FindTemplateAncestor(start, ancestorType, level, types);
-}
-
-Base::Object* ResolveTemplateBindingAncestor(
-    const TemplatePrototypeBinding& binding,
-    Base::Object& target,
-    Meta::Registry& runtime) noexcept {
-    if (binding.relativeAncestorType.Empty() ||
-        binding.relativeAncestorLevel == 0U ||
-        !runtime.Types().IsDerivedFrom(
-            target.RuntimeType(), Visual::StaticTypeId())) {
-        return nullptr;
-    }
-    return WalkTemplateAncestor(
-        static_cast<Visual*>(&target),
-        binding.relativeAncestorType.View(),
-        binding.relativeAncestorLevel,
-        runtime.Types());
-}
-
-struct PendingPrototypeNode {
-    Base::Ref<Base::Object> object;
-    std::uint32_t parent = UINT32_MAX;
-    MemberId contentMember = InvalidMemberId;
-};
-
-bool RequiresPrototypeObject(
-    Base::Span<const DeferredBindingEdge> bindings,
-    const Base::Object* object) noexcept {
-    for (const DeferredBindingEdge& binding : bindings) {
-        if (binding.target == object ||
-            binding.source == object) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool HasContentEdges(
-    Base::Span<const DeferredContentEdge> edges,
-    const Base::Object* object) noexcept {
-    for (const DeferredContentEdge& edge : edges) {
-        if (edge.parent == object) {
-            return true;
-        }
-    }
-    return false;
-}
-
-Base::Result<Value> ConvertTemplateTextValue(
-    Meta::Registry& runtime,
-    const DependencyProperty& property,
-    Base::StringView text) noexcept {
-    // WPF uses -1 for no selection. Internally selection keeps UINT32_MAX;
-    // translate only the standard selection properties at the XAML boundary.
-    if ((property.Handle() == Selector::SelectedIndexProperty.Handle() ||
-         property.Handle() == TabControl::SelectedIndexProperty.Handle()) &&
-        text == Base::StringView("-1")) {
-        return ValueCodec<std::uint32_t>::Encode(UINT32_MAX);
-    }
-    if (property.ValueType() == Meta::TypeOf<Base::Object>()) {
-        Base::Result<Value> strVal =
-            Value::TryFromString(Meta::TypeOf<Base::String>(), text);
-        if (!strVal) return strVal.GetStatus();
-        Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
-            Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
-        if (!boxed) return boxed.GetStatus();
-        return Value::FromObject(
-            property.ValueType(),
-            Base::Ref<Base::Object>(std::move(boxed).Value()));
-    }
-    if (property.ValueType() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
-        if (text == Base::StringView("True") || text == Base::StringView("true")) {
-            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{true});
-        }
-        if (text == Base::StringView("False") || text == Base::StringView("false")) {
-            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{false});
-        }
-        if (text == Base::StringView("{x:Null}") || text == Base::StringView("Null") || text == Base::StringView("null")) {
-            return ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
-        }
-    }
-    return runtime.TryConvertText(property.ValueType(), text);
-}
-
-inline const DependencyProperty* ResolveTemplateProperty(
-    const DependencyPropertyRegistry& properties,
-    TypeId targetType,
-    Base::StringView name) noexcept {
-    return ResolveXamlDependencyProperty(properties, targetType, name);
-}
-
-std::uint32_t FindPrototypeObject(
-    const Base::Vector<PendingPrototypeNode>& pending,
-    const Base::Object* object) noexcept {
-    for (std::uint32_t index = 0U;
-         index < pending.Size();
-         ++index) {
-        if (pending[index].object.Get() == object) {
-            return index;
-        }
-    }
-    return UINT32_MAX;
-}
-
-bool IsGradientStopObject(
-    Meta::Registry& runtime,
-    const Base::Object& object) noexcept {
-    return runtime.Types().IsDerivedFrom(
-        object.RuntimeType(),
-        GradientStop::StaticTypeId());
-}
-
-
-Base::Status MissingTemplateProperty(
-    const char* roleName,
-    Base::StringView propertyName,
-    TypeId targetType,
-    const TypeRegistry& types) noexcept;
-
-struct PrototypeNodeRecord {
-    Meta::TypeId type = Meta::InvalidTypeId;
-    Base::String name;
-    std::uint32_t parent = UINT32_MAX;
-    Meta::MemberId contentMember = Meta::InvalidMemberId;
-    Base::Vector<TemplatePrototypeProperty> properties;
-    Base::Vector<::Aero::GridLength> gridColumns;
-    Base::Vector<::Aero::GridLength> gridRows;
-    Base::String streamGeometryData;
-    Base::Vector<TemplatePrototypeGradientStop> gradientStops;
-    Base::Vector<Base::Ref<Base::Object>> authoredBehaviors;
-    Base::Vector<Base::Ref<Base::Object>> authoredTriggers;
-};
-
-static Base::Result<void>
-CompileTemplateToBytecode(
-    const Base::Ref<Base::Object>& visualTree,
-    const NameScope* names,
-    Base::Span<const DeferredContentEdge> edges,
-    Base::Span<const DeferredBindingEdge> bindings,
-    Base::Span<const TemplateMetadataBindingPlan> metadataBindings,
-    Base::Span<const TemplateDynamicResourcePlan> dynamicResources,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties,
-    XamlBytecodeProgram& outProgram,
-    Meta::TypeId controlTargetType = Meta::InvalidTypeId,
-    Base::Vector<Controls::TemplateBindingPlan>* outContentSourceBindings = nullptr) noexcept {
-    if (!visualTree) {
-        return InvalidTemplateCompiler("Template requires a VisualTree");
-    }
-
-    Base::Vector<PrototypeNodeRecord> nodes;
-    Base::Vector<TemplatePrototypeBinding> blueprintBindings;
-    std::uint32_t contentPresenterSlot = UINT32_MAX;
-
-    Base::Vector<PendingPrototypeNode> pending;
-    Base::Result<void> appended{};
-    pending.PushBack({
-        visualTree,
-        UINT32_MAX,
-        InvalidMemberId});
-
-    auto preInsertNamedTarget = [&](Base::StringView targetName, const char* targetTypeDesc) -> Base::Result<void> {
-        if (targetName.Empty() || names == nullptr) return {};
-        Base::Object* target = names->Find(targetName);
-        if (target == nullptr ||
-            IsGradientStopObject(runtime, *target) ||
-            runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), Visual::StaticTypeId()) ||
-            runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), Transform::StaticTypeId())) {
-            return {};
-        }
-        if (!runtime.Types().IsDerivedFrom(
-                target->RuntimeType(), DependencyObject::StaticTypeId())) {
-            thread_local char message[128];
-            std::snprintf(message, sizeof(message), "%s target is not a DependencyObject", targetTypeDesc);
-            return InvalidTemplateCompiler(message);
-        }
-        if (FindPrototypeObject(pending, target) != UINT32_MAX) return {};
-        pending.PushBack({
-            Base::Ref<Base::Object>::FromBorrowed(*target),
-            UINT32_MAX,
-            InvalidMemberId});
-        return {};
-    };
-
-    for (const TemplateMetadataBindingPlan& binding : metadataBindings) {
-        Base::Result<void> res = preInsertNamedTarget(binding.targetName.View(), "TemplatedParent Binding");
-        if (!res) return res.GetStatus();
-    }
-    for (const TemplateDynamicResourcePlan& resource : dynamicResources) {
-        Base::Result<void> res = preInsertNamedTarget(resource.targetName.View(), "DynamicResource");
-        if (!res) return res.GetStatus();
-    }
-
-    for (std::uint32_t index = 0U; index < pending.Size(); ++index) {
-        const PendingPrototypeNode& source = pending[index];
-        Base::Object* object = source.object.Get();
-        if (object == nullptr ||
-            !runtime.Types().IsDerivedFrom(
-                object->RuntimeType(),
-                DependencyObject::StaticTypeId())) {
-            return InvalidTemplateCompiler("Template graph contains a non-dependency object");
-        }
-        const bool visual = runtime.Types().IsDerivedFrom(
-            object->RuntimeType(), Visual::StaticTypeId());
-        if (index == 0U && !visual) {
-            return InvalidTemplateCompiler("Template VisualTree root must be a Visual object");
-        }
-
-        PrototypeNodeRecord node;
-        node.type = object->RuntimeType();
-        node.parent = source.parent;
-        node.contentMember = source.contentMember;
-        const Base::StringView name = names != nullptr ? names->NameOf(*object) : Base::StringView{};
-        Base::Result<void> named = node.name.Assign(name);
-        if (!named) return named.GetStatus();
-
-        if (auto* framework = ::Aero::TryCast<FrameworkElement>(object)) {
-            for (const auto& b : FrameworkElementSeams::AuthoredBehaviors(*framework)) {
-                node.authoredBehaviors.PushBack(b);
-            }
-            for (const auto& t : FrameworkElementSeams::AuthoredTriggers(*framework)) {
-                node.authoredTriggers.PushBack(t);
-            }
-        }
-
-        auto& dependencyObject = static_cast<DependencyObject&>(*object);
-        const PropertyStore* store = DependencyObjectAccess::Store(dependencyObject);
-        if (store != nullptr) {
-            for (const auto& entry : store->entries) {
-                if (!entry.Value().HasLocal()) continue;
-                const DependencyProperty* property = properties.Find(DependencyPropertyHandle{entry.Key()});
-                if (property == nullptr || property->MetadataFor(node.type) == nullptr) continue;
-                Base::Result<Value> local = dependencyObject.ReadLocalValue(property->Handle());
-                if (!local) return local.GetStatus();
-                if (local.Value().IsUnset()) continue;
-                TemplatePrototypeProperty prototypeProperty;
-                prototypeProperty.property = property->Handle();
-                prototypeProperty.value = local.Value();
-                if (local.Value().Kind() == ValueKind::Object &&
-                    !local.Value().IsNullObject() &&
-                    local.Value().AsObject() &&
-                    runtime.Types().IsDerivedFrom(
-                        local.Value().AsObject()->RuntimeType(),
-                        DependencyObject::StaticTypeId())) {
-                    prototypeProperty.objectNode = FindPrototypeObject(
-                        pending, local.Value().AsObject().Get());
-                    const bool hasEdges = HasContentEdges(edges, local.Value().AsObject().Get());
-                    const bool isFreezable = runtime.Types().IsDerivedFrom(
-                        local.Value().AsObject()->RuntimeType(),
-                        Freezable::StaticTypeId());
-                    const bool requiresClone =
-                        prototypeProperty.objectNode != UINT32_MAX ||
-                        RequiresPrototypeObject(bindings, local.Value().AsObject().Get()) ||
-                        hasEdges ||
-                        isFreezable;
-                    if (requiresClone && prototypeProperty.objectNode == UINT32_MAX) {
-                        prototypeProperty.objectNode = pending.Size();
-                        pending.PushBack({
-                            local.Value().AsObject(),
-                            UINT32_MAX,
-                            InvalidMemberId});
-                    }
-                }
-                node.properties.PushBack(std::move(prototypeProperty));
-            }
-        }
-
-        if (runtime.Types().IsDerivedFrom(node.type, Grid::StaticTypeId())) {
-            const auto& grid = static_cast<const Grid&>(*object);
-            node.gridColumns.Assign(grid.GetColumnDefinitions());
-            node.gridRows.Assign(grid.GetRowDefinitions());
-        }
-
-        if (runtime.Types().IsDerivedFrom(node.type, StreamGeometry::StaticTypeId())) {
-            const auto& geom = static_cast<const StreamGeometry&>(*object);
-            appended = node.streamGeometryData.Assign(geom.GetData());
-            if (!appended) return appended.GetStatus();
-        }
-
-        if (runtime.Types().IsDerivedFrom(node.type, GradientBrush::StaticTypeId())) {
-            const auto& gradient = static_cast<const GradientBrush&>(*object);
-            for (const Base::Ref<GradientStop>& stop : gradient.GetGradientStops()) {
-                if (!stop) continue;
-                TemplatePrototypeGradientStop record;
-                record.offset = stop->GetOffset();
-                record.color = stop->GetColor();
-                if (names != nullptr) {
-                    appended = record.name.Assign(names->NameOf(*stop));
-                    if (!appended) return appended.GetStatus();
-                }
-                node.gradientStops.PushBack(std::move(record));
-            }
-        }
-
-        const bool contentPresenterCandidate =
-            runtime.Types().IsDerivedFrom(node.type, ContentPresenter::StaticTypeId()) ||
-            runtime.Types().IsDerivedFrom(node.type, ScrollContentPresenter::StaticTypeId());
-        if (contentPresenterCandidate) {
-            constexpr Base::StringView ScrollPresenterPart("PART_ScrollContentPresenter");
-            constexpr Base::StringView HeaderSource("Header");
-            Base::StringView contentSource;
-            for (const TemplatePrototypeProperty& property : node.properties) {
-                if (property.property == ContentPresenter::ContentSourceProperty.Handle() &&
-                    property.value.Kind() == ValueKind::String) {
-                    contentSource = property.value.AsString();
-                    break;
-                }
-            }
-            const bool headerPresenter = contentSource == HeaderSource;
-            const bool explicitScrollPresenter = node.name.View() == ScrollPresenterPart;
-            const bool exactScrollPresenter = node.type == ScrollContentPresenter::StaticTypeId();
-            if (!headerPresenter || explicitScrollPresenter || exactScrollPresenter) {
-                bool replace = contentPresenterSlot == UINT32_MAX;
-                if (!replace && contentPresenterSlot < nodes.Size()) {
-                    const PrototypeNodeRecord& selected = nodes[contentPresenterSlot];
-                    const bool selectedExplicit = selected.name.View() == ScrollPresenterPart;
-                    const bool selectedExact = selected.type == ScrollContentPresenter::StaticTypeId();
-                    replace = explicitScrollPresenter ||
-                        (!selectedExplicit && exactScrollPresenter && !selectedExact);
-                }
-                if (replace) {
-                    contentPresenterSlot = index;
-                }
-            }
-        }
-
-        nodes.PushBack(std::move(node));
-
-        for (const DeferredContentEdge& edge : edges) {
-            if (edge.parent != object) continue;
-            if (!edge.child) {
-                return InvalidTemplateCompiler("ControlTemplate visual content contains a null child");
-            }
-            if (IsGradientStopObject(runtime, *edge.child)) continue;
-            const std::uint32_t existing = FindPrototypeObject(pending, edge.child.Get());
-            if (existing != UINT32_MAX) {
-                if (existing == index) {
-                    return InvalidTemplateCompiler("ControlTemplate visual content contains a cycle");
-                }
-                PendingPrototypeNode& existingNode = pending[existing];
-                if (existingNode.parent == UINT32_MAX) {
-                    existingNode.parent = index;
-                    existingNode.contentMember = edge.member;
-                    if (existing < nodes.Size()) {
-                        nodes[existing].parent = index;
-                        nodes[existing].contentMember = edge.member;
-                    }
-                    continue;
-                }
-                if (existingNode.parent == index && existingNode.contentMember == edge.member) {
-                    continue;
-                }
-                return InvalidTemplateCompiler("ControlTemplate visual content contains a duplicate child");
-            }
-            pending.PushBack({
-                edge.child,
-                index,
-                edge.member});
-        }
-
-        const bool isTextBlock = runtime.Types().IsDerivedFrom(object->RuntimeType(), TextBlock::StaticTypeId());
-        const bool isSpan = !isTextBlock && runtime.Types().IsDerivedFrom(object->RuntimeType(), Documents::Span::StaticTypeId());
-        if (isTextBlock || isSpan) {
-            const Meta::PropertyInfo* inlinesProperty = runtime.Types().FindProperty(
-                object->RuntimeType(), Base::StringView("Inlines"), true);
-            const MemberId inlinesMember = inlinesProperty != nullptr ? inlinesProperty->Id() : InvalidMemberId;
-            Documents::InlineCollection inlines = isTextBlock
-                ? static_cast<TextBlock&>(*object).GetInlines()
-                : static_cast<Documents::Span&>(*object).GetInlines();
-            const std::uint32_t inlineCount = inlines.GetCount();
-            for (std::uint32_t inlineIndex = 0U; inlineIndex < inlineCount; ++inlineIndex) {
-                Inline* inlineValue = inlines.GetItem(inlineIndex);
-                if (inlineValue == nullptr) continue;
-                const std::uint32_t existing = FindPrototypeObject(pending, inlineValue);
-                if (existing != UINT32_MAX) {
-                    PendingPrototypeNode& existingNode = pending[existing];
-                    if (existingNode.parent == UINT32_MAX) {
-                        existingNode.parent = index;
-                        existingNode.contentMember = inlinesMember;
-                        if (existing < nodes.Size()) {
-                            nodes[existing].parent = index;
-                            nodes[existing].contentMember = inlinesMember;
-                        }
-                    }
-                    continue;
-                }
-                pending.PushBack({
-                    Base::Ref<Base::Object>::FromBorrowed(*inlineValue),
-                    index,
-                    inlinesMember});
-            }
-        }
-    }
-
-    auto assignGeneratedTargetName = [&](Base::StringView targetName) -> Base::Result<void> {
-        if (targetName.Empty() || names == nullptr) return {};
-        Base::Object* target = names->Find(targetName);
-        if (target == nullptr) return {};
-        const std::uint32_t targetIndex = FindPrototypeObject(pending, target);
-        if (targetIndex == UINT32_MAX || targetIndex >= nodes.Size()) return {};
-        if (!nodes[targetIndex].name.Empty()) return {};
-        return nodes[targetIndex].name.Assign(targetName);
-    };
-
-    for (const TemplateMetadataBindingPlan& binding : metadataBindings) {
-        Base::Result<void> named = assignGeneratedTargetName(binding.targetName.View());
-        if (!named) return named.GetStatus();
-    }
-    for (const TemplateDynamicResourcePlan& resource : dynamicResources) {
-        Base::Result<void> named = assignGeneratedTargetName(resource.targetName.View());
-        if (!named) return named.GetStatus();
-    }
-
-    for (const DeferredBindingEdge& source : bindings) {
-        const std::uint32_t target = FindPrototypeObject(pending, source.target);
-        Base::Object* resolvedSource = source.source;
-        if (resolvedSource == nullptr && !source.sourceName.Empty() && names != nullptr) {
-            resolvedSource = names->Find(source.sourceName.View());
-        }
-        const std::uint32_t bindingSource = resolvedSource != nullptr
-            ? FindPrototypeObject(pending, resolvedSource)
-            : UINT32_MAX;
-        const bool externalElementName = resolvedSource == nullptr && !source.sourceName.Empty();
-        if (target == UINT32_MAX || (source.source != nullptr && bindingSource == UINT32_MAX) || source.metadata == nullptr) {
-            return InvalidTemplateCompiler("Deferred template Binding target or source is outside its VisualTree");
-        }
-        TemplatePrototypeBinding binding;
-        binding.target = target;
-        binding.source = bindingSource;
-        binding.metadata = source.metadata;
-        binding.targetProperty = source.targetProperty;
-        binding.dataContextProperty = source.dataContextProperty;
-        binding.bindsToSource = source.bindsToSource;
-        binding.mode = source.mode;
-        binding.updateSourceTrigger = source.updateSourceTrigger;
-        binding.converter = source.converter;
-        binding.converterParameter = source.converterParameter;
-        if (externalElementName) {
-            Base::Result<void> sourceName = binding.sourceName.Assign(source.sourceName.View());
-            if (!sourceName) return sourceName.GetStatus();
-        }
-        Base::Result<void> assigned = binding.relativeAncestorType.Assign(source.relativeAncestorType.View());
-        if (!assigned) return assigned.GetStatus();
-        binding.relativeAncestorLevel = source.relativeAncestorLevel;
-        assigned = binding.path.Assign(source.path.View());
-        if (!assigned) return assigned.GetStatus();
-        assigned = binding.stringFormat.Assign(source.stringFormat.View());
-        if (!assigned) return assigned.GetStatus();
-        blueprintBindings.PushBack(std::move(binding));
-    }
-
-    // Process ContentPresenter bindings for ControlTemplates if requested
-    if (outContentSourceBindings != nullptr && controlTargetType != Meta::InvalidTypeId) {
-        for (std::uint32_t nodeIndex = 0U; nodeIndex < nodes.Size(); ++nodeIndex) {
-            PrototypeNodeRecord& node = nodes[nodeIndex];
-            if (!runtime.Types().IsDerivedFrom(node.type, ContentPresenter::StaticTypeId())) {
-                continue;
-            }
-            const DependencyProperty* contentSourceProperty =
-                properties.Find(ContentPresenter::ContentSourceProperty.Handle());
-            const DependencyProperty* contentProperty =
-                properties.Find(ContentPresenter::ContentProperty.Handle());
-            const DependencyProperty* contentTemplateProperty =
-                properties.Find(ContentPresenter::ContentTemplateProperty.Handle());
-            if (contentSourceProperty == nullptr || contentProperty == nullptr) {
-                return InvalidTemplateCompiler("ContentPresenter content properties were not registered");
-            }
-            Base::StringView contentSource;
-            bool hasContentProperty = false;
-            bool hasContentTemplateProperty = false;
-            for (const TemplatePrototypeProperty& property : node.properties) {
-                if (property.property == contentSourceProperty->Handle() &&
-                    property.value.Kind() == ValueKind::String) {
-                    contentSource = property.value.AsString();
-                }
-                if (property.property == contentProperty->Handle()) {
-                    hasContentProperty = true;
-                }
-                if (contentTemplateProperty != nullptr &&
-                    property.property == contentTemplateProperty->Handle()) {
-                    hasContentTemplateProperty = true;
-                }
-            }
-            if (hasContentProperty) {
-                continue;
-            }
-            const bool defaultedContent = contentSource.Empty();
-            if (defaultedContent) {
-                contentSource = Base::StringView("Content");
-            }
-            if (node.name.Empty()) {
-                char generatedName[48];
-                const int written = std::snprintf(
-                    generatedName, sizeof(generatedName),
-                    "__ContentSource%u", nodeIndex);
-                if (written <= 0 || static_cast<std::size_t>(written) >= sizeof(generatedName)) {
-                    return InvalidTemplateCompiler("ContentPresenter generated template name is invalid");
-                }
-                Base::Result<void> named = node.name.Assign(
-                    Base::StringView(generatedName, static_cast<std::uint32_t>(written)));
-                if (!named) return named.GetStatus();
-            }
-            const DependencyProperty* source = properties.Find(controlTargetType, contentSource);
-            if (source == nullptr) {
-                if (defaultedContent) continue;
-                return MissingTemplateProperty(
-                    "ContentSource property", contentSource, controlTargetType, runtime.Types());
-            }
-            TemplateBindingPlan binding;
-            Base::Result<void> assigned = binding.targetName.Assign(node.name.View());
-            if (!assigned) return assigned.GetStatus();
-            binding.sourceProperty = source->Handle();
-            binding.targetProperty = contentProperty->Handle();
-            outContentSourceBindings->PushBack(std::move(binding));
-
-            if (!hasContentTemplateProperty && contentTemplateProperty != nullptr) {
-                char templatePropName[64];
-                std::snprintf(templatePropName, sizeof(templatePropName), "%.*sTemplate",
-                    static_cast<int>(contentSource.SizeBytes()), contentSource.Data());
-                const DependencyProperty* sourceTemplate = properties.Find(
-                    controlTargetType, Base::StringView(templatePropName));
-                if (sourceTemplate == nullptr && contentSource == Base::StringView("SelectedContent")) {
-                    sourceTemplate = properties.Find(controlTargetType, Base::StringView("ContentTemplate"));
-                }
-                if (sourceTemplate != nullptr) {
-                    TemplateBindingPlan tplBinding;
-                    if (tplBinding.targetName.Assign(node.name.View())) {
-                        tplBinding.sourceProperty = sourceTemplate->Handle();
-                        tplBinding.targetProperty = contentTemplateProperty->Handle();
-                        outContentSourceBindings->PushBack(std::move(tplBinding));
-                    }
-                }
-            }
-        }
-    }
-
-    // Direct single-pass bytecode generation
-    outProgram.Clear();
-    outProgram.slotCount = nodes.Size();
-    if (nodes.Empty()) {
-        return {};
-    }
-
-    XamlBytecodeBuilder builder;
-    builder.SetSlotCount(nodes.Size());
-
-    // 1. Create all objects
-    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
-        builder.EmitCreateObject(slot, nodes[slot].type);
-    }
-
-    // 2A. Set value properties, grids, geometries, stops, behaviors/triggers
-    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
-        const PrototypeNodeRecord& node = nodes[slot];
-        for (const TemplatePrototypeProperty& prop : node.properties) {
-            if (prop.objectNode == UINT32_MAX) {
-                builder.EmitSetPropertyValue(slot, prop.property, prop.value);
-            }
-        }
-        if (!node.gridColumns.Empty() || !node.gridRows.Empty()) {
-            builder.EmitSetGridDefinitions(
-                slot, node.gridColumns.AsSpan(), node.gridRows.AsSpan());
-        }
-        if (!node.streamGeometryData.Empty()) {
-            const Meta::MemberId dataMember = Meta::MakeMemberId(
-                Media::StreamGeometry::StaticTypeId(),
-                Meta::MemberKind::Property,
-                "Data");
-            builder.EmitSetPropertyValue(
-                slot,
-                Meta::DependencyPropertyHandle{dataMember},
-                Meta::Value(node.streamGeometryData.View()));
-        }
-        if (!node.gradientStops.Empty()) {
-            builder.EmitSetGradientStops(slot, node.gradientStops.AsSpan());
-        }
-        if (!node.authoredBehaviors.Empty() || !node.authoredTriggers.Empty()) {
-            builder.EmitAttachBehaviorsAndTriggers(
-                slot, node.authoredBehaviors.AsSpan(), node.authoredTriggers.AsSpan());
-        }
-    }
-
-    // 2B. Bottom-up connect object properties (ensure child Freezables/resources are fully initialized)
-    for (std::uint32_t i = nodes.Size(); i > 0U; --i) {
-        const auto slot = static_cast<std::uint16_t>(i - 1U);
-        const PrototypeNodeRecord& node = nodes[slot];
-        for (const TemplatePrototypeProperty& prop : node.properties) {
-            if (prop.objectNode != UINT32_MAX) {
-                builder.EmitSetPropertyObject(
-                    slot, prop.property, prop.value.Type(), static_cast<std::uint16_t>(prop.objectNode));
-            }
-        }
-    }
-
-    // 3. Set parent-child structural/content edges
-    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
-        const PrototypeNodeRecord& node = nodes[slot];
-        if (node.parent == UINT32_MAX) continue;
-        const PropertyInfo* structuralProperty = runtime.Types().FindProperty(node.contentMember);
-        const bool propertyEdge = structuralProperty != nullptr &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Structural)) != 0U &&
-            (static_cast<std::uint32_t>(structuralProperty->Flags()) &
-             static_cast<std::uint32_t>(PropertyFlags::Collection)) == 0U &&
-            runtime.CanWriteProperty(node.contentMember);
-        const Meta::TypeId valueType = structuralProperty != nullptr
-            ? structuralProperty->ValueType()
-            : Meta::InvalidTypeId;
-        builder.EmitSetPropertyContent(
-            static_cast<std::uint16_t>(node.parent),
-            node.contentMember,
-            slot,
-            valueType,
-            propertyEdge);
-    }
-
-    // 4. Register visual tree structure and named parts
-    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
-        const PrototypeNodeRecord& node = nodes[slot];
-        const bool isVisual = runtime.Types().IsDerivedFrom(node.type, Visual::StaticTypeId());
-        if (!isVisual) {
-            if (!node.name.Empty()) {
-                builder.EmitAddObjectPart(slot, node.name.View());
-            }
-            continue;
-        }
-        if (node.parent == UINT32_MAX) {
-            builder.EmitSetRootVisual(slot, node.name.View());
-        } else {
-            builder.EmitAddVisualChild(
-                static_cast<std::uint16_t>(node.parent), slot, node.name.View());
-        }
-    }
-
-    // 5. Presenters
-    if (contentPresenterSlot != UINT32_MAX) {
-        builder.EmitProjectContent(static_cast<std::uint16_t>(contentPresenterSlot));
-    }
-    for (std::uint16_t slot = 0U; slot < nodes.Size(); ++slot) {
-        const PrototypeNodeRecord& node = nodes[slot];
-        if (runtime.Types().IsDerivedFrom(node.type, Aero::Controls::ContentPresenter::StaticTypeId())) {
-            builder.EmitPopulateContentPresenter(slot);
-        } else if (runtime.Types().IsDerivedFrom(node.type, Aero::Controls::ItemsPresenter::StaticTypeId())) {
-            builder.EmitPopulateItemsPresenter(slot);
-        }
-    }
-
-    // 6. Terminate & Finish
-    builder.EmitEnd();
-    builder.Finish(outProgram);
-
-    outProgram.blueprintBindings = std::move(blueprintBindings);
-    outProgram.contentPresenterSlot = contentPresenterSlot;
-    outProgram.runtime = &runtime;
-    outProgram.properties = &properties;
-    outProgram.slotNames.Clear();
-    outProgram.slotTypes.Clear();
-    outProgram.slotNames.Reserve(nodes.Size());
-    outProgram.slotTypes.Reserve(nodes.Size());
-    for (const auto& node : nodes) {
-        Base::String nameCopy;
-        static_cast<void>(nameCopy.Assign(node.name.View()));
-        outProgram.slotNames.PushBack(std::move(nameCopy));
-        outProgram.slotTypes.PushBack(node.type);
-    }
-
-    return {};
-}
-
-
-
-Base::Result<Value> ConvertAndValidateTemplateValue(
-    Value value,
-    TypeId targetType,
-    const DependencyProperty& property,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties,
-    const char* roleName) noexcept {
-    if (value.IsUnset()) {
-        thread_local char message[128];
-        std::snprintf(message, sizeof(message), "%s requires Value", roleName);
-        return InvalidTemplateCompiler(message);
-    }
-    if (value.Kind() == ValueKind::Object &&
-        !value.IsNullObject() &&
-        value.Type() == Binding::StaticTypeId()) {
-        return value;
-    }
-    if (value.IsDynamicResource()) {
-        return value;
-    }
-    if (property.AcceptsAnyValue()) {
-        return value;
-    }
-    if (value.Kind() == ValueKind::String &&
-        value.Type() != property.ValueType()) {
-        Base::Result<Value> converted =
-            ConvertTemplateTextValue(
-                runtime, property, value.AsString());
-        if (!converted) {
-            return converted.GetStatus();
-        }
-        value = std::move(converted).Value();
-    }
-    Base::Result<Value> coerced = CoerceXamlValueForProperty(
-        property, value, runtime.Types());
-    if (!coerced) return coerced.GetStatus();
-    value = std::move(coerced).Value();
-
-    const bool objectCompatible =
-        value.Kind() == ValueKind::Object &&
-        (value.IsNullObject() ||
-         runtime.Types().IsDerivedFrom(
-             value.Type(),
-             property.ValueType()));
-    if (value.Type() != property.ValueType() &&
-        !objectCompatible) {
-        thread_local char message[256];
-        const TypeInfo* expected = runtime.Types().FindType(
-            property.ValueType());
-        const TypeInfo* actual = runtime.Types().FindType(value.Type());
-        std::snprintf(
-            message, sizeof(message),
-            "%s '%.*s' expects '%.*s' but received '%.*s'",
-            roleName,
-            static_cast<int>(property.Name().SizeBytes()), property.Name().Data(),
-            expected != nullptr ? static_cast<int>(expected->Name().SizeBytes()) : 9,
-            expected != nullptr ? expected->Name().Data() : "<unknown>",
-            actual != nullptr ? static_cast<int>(actual->Name().SizeBytes()) : 9,
-            actual != nullptr ? actual->Name().Data() : "<unknown>");
-        return InvalidTemplateCompiler(message);
-    }
-    Base::Result<void> valid =
-        properties.ValidateValueFor(
-            property.Handle(),
-            targetType,
-            value);
-    return valid
-        ? Base::Result<Value>(value)
-        : Base::Result<Value>(
-              valid.GetStatus());
-}
-
-Base::Result<Value> ConvertSetterValue(
-    const Setter& setter,
-    TypeId targetType,
-    const DependencyProperty& property,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    return ConvertAndValidateTemplateValue(
-        setter.GetAuthoredValue(), targetType, property, runtime, properties, "Setter");
-}
-
-Base::Status MissingTemplateProperty(
-    const char* role,
-    Base::StringView property,
-    TypeId targetType,
-    const TypeRegistry& types) noexcept {
-    thread_local char message[384];
-    const TypeInfo* target =
-        types.FindType(targetType);
-    const Base::StringView typeName =
-        target != nullptr
-        ? target->Name()
-        : Base::StringView("<unknown>");
-    std::snprintf(
-        message,
-        sizeof(message),
-        "ControlTemplate %s '%.*s' was not found on TargetType '%.*s'",
-        role,
-        static_cast<int>(property.SizeBytes()),
-        property.Data(),
-        static_cast<int>(typeName.SizeBytes()),
-        typeName.Data());
-    return InvalidTemplateCompiler(message);
-}
-
-Base::Result<Value> ConvertTriggerValue(
-    Value value,
-    TypeId targetType,
-    const DependencyProperty& property,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    return ConvertAndValidateTemplateValue(
-        value, targetType, property, runtime, properties, "Template Trigger");
-}
-
-} // namespace
-
-Base::Result<Base::Vector<TemplatePropertyTrigger>>
-CompilePropertyTriggers(
-    ControlTemplate& controlTemplate,
-    const XamlBytecodeProgram& program,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    Base::Vector<TemplatePropertyTrigger> compiled;
-    auto addCondition = [&controlTemplate, &program, &runtime, &properties](
-        Base::StringView propertyName,
-        Base::StringView sourceName,
-        const Value& authoredValue,
-        TemplatePropertyTrigger& trigger) -> Base::Result<void> {
-        if (propertyName.Empty() || authoredValue.IsUnset()) {
-            return InvalidTemplateCompiler(
-                "ControlTemplate Trigger condition requires Property and Value");
-        }
-        TypeId targetType = controlTemplate.GetTargetType();
-        if (!sourceName.Empty()) {
-            const std::uint32_t slot = program.FindSlotByName(sourceName);
-            if (slot == UINT32_MAX) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate Trigger source was not found");
-            }
-            targetType = program.GetSlotType(slot);
-        }
-        const DependencyProperty* property =
-            ResolveTemplateProperty(properties, targetType, propertyName);
-        if (property == nullptr) {
-            return MissingTemplateProperty(
-                "Trigger property", propertyName, targetType, runtime.Types());
-        }
-        Base::Result<Value> value = ConvertTriggerValue(
-            authoredValue, targetType, *property, runtime, properties);
-        if (!value) return value.GetStatus();
-        TemplateTriggerCondition condition;
-        Base::Result<void> assigned =
-            condition.sourceName.Assign(sourceName);
-        if (!assigned) return assigned.GetStatus();
-        condition.property = property->Handle();
-        condition.value = std::move(value).Value();
-        trigger.conditions.PushBack(std::move(condition));
-        return {};
-    };
-    auto appendSetters = [&controlTemplate, &program, &runtime, &properties](
-        Base::Span<const Base::Ref<Setter>> setters,
-        TemplatePropertyTrigger& trigger) -> Base::Result<void> {
-        for (const Base::Ref<Setter>& setterObject : setters) {
-            if (!setterObject || setterObject->GetPropertyName().Empty()) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate Trigger Setter requires Property");
-            }
-            const Base::StringView targetName = setterObject->GetTargetName();
-            TypeId targetType = controlTemplate.GetTargetType();
-            if (!targetName.Empty()) {
-                const std::uint32_t slot = program.FindSlotByName(targetName);
-                if (slot == UINT32_MAX) {
-                    // RowDefinition/ColumnDefinition and similar named
-                    // declaration objects do not belong to the visual clone
-                    // graph. They remain represented by the owning Grid's
-                    // serialized definition vectors; their trigger mutation
-                    // is deferred until that declaration-object runtime is
-                    // materialized.
-                    if (FrameworkTemplateState::AuthoredNames(controlTemplate).Find(
-                            targetName) != nullptr) {
-                        continue;
-                    }
-                    return InvalidTemplateCompiler(
-                        "ControlTemplate Trigger Setter target was not found");
-                }
-                targetType = program.GetSlotType(slot);
-            }
-            const DependencyProperty* property = ResolveTemplateProperty(
-                properties, targetType, setterObject->GetPropertyName());
-            if (property == nullptr) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate Trigger Setter property was not found");
-            }
-            Base::Result<Value> value = ConvertSetterValue(
-                *setterObject,
-                targetType,
-                *property, runtime, properties);
-            if (!value) return value.GetStatus();
-            TemplateTriggerSetter setter;
-            Base::Result<void> assigned = setter.targetName.Assign(targetName);
-            if (!assigned) return assigned.GetStatus();
-            setter.property = property->Handle();
-            setter.value = std::move(value).Value();
-            trigger.setters.PushBack(std::move(setter));
-        }
-        return {};
-    };
-    for (const Base::Ref<Base::Object>& object :
-         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
-        TemplatePropertyTrigger trigger;
-        Base::Result<void> configured;
-        if (object && object->RuntimeType() == Trigger::StaticTypeId()) {
-            const auto& source = static_cast<const Trigger&>(*object);
-            configured = addCondition(source.GetPropertyName(), source.GetSourceName(),
-                source.GetAuthoredValue(), trigger);
-            if (configured) configured = appendSetters(source.GetAuthoredSetters(), trigger);
-        } else if (object && object->RuntimeType() == MultiTrigger::StaticTypeId()) {
-            const auto& source = static_cast<const MultiTrigger&>(*object);
-            for (const Base::Ref<Condition>& condition : source.GetConditions()) {
-                if (!condition) return InvalidTemplateCompiler(
-                    "MultiTrigger contains a null Condition");
-                configured = addCondition(condition->GetPropertyName(), condition->GetSourceName(),
-                    condition->GetAuthoredValue(), trigger);
-                if (!configured) return configured.GetStatus();
-            }
-            configured = appendSetters(source.GetAuthoredSetters(), trigger);
-        } else {
-            // Data and event triggers are compiled into the instance runtime
-            // plan below. They cannot be represented by the dependency-
-            // property trigger table used by TemplateEngine.
-            continue;
-        }
-        if (!configured) return configured.GetStatus();
-        compiled.PushBack(
-                std::move(trigger));
-    }
-    return compiled;
-}
-
-Base::Result<Base::Vector<VisualStateGroupPlan>>
-CompileVisualStates(
-    ControlTemplate& controlTemplate,
-    const XamlBytecodeProgram& program,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    Base::Vector<VisualStateGroupPlan> groups;
-    auto compileGroup = [&groups, &program, &runtime, &properties](
-        const Base::Ref<Base::Object>& groupObject)
-        -> Base::Result<void> {
-        if (!groupObject ||
-            groupObject->RuntimeType() !=
-                VisualStateGroup::
-                    StaticTypeId()) {
-            return InvalidTemplateCompiler(
-                "ControlTemplate VisualStateGroups contains an invalid object");
-        }
-        const auto& sourceGroup =
-            static_cast<
-                const VisualStateGroup&>(
-                    *groupObject);
-        if (sourceGroup.GetName().Empty()) {
-            return InvalidTemplateCompiler(
-                "VisualStateGroup requires Name");
-        }
-        VisualStateGroupPlan group;
-        Base::Result<void> assigned =
-            group.name.Assign(
-                sourceGroup.GetName());
-        if (!assigned) return assigned.GetStatus();
-
-        for (const Base::Ref<VisualState>& stateObject :
-             sourceGroup.GetStates()) {
-            if (!stateObject ||
-                stateObject->RuntimeType() !=
-                    VisualState::
-                        StaticTypeId()) {
-                return InvalidTemplateCompiler(
-                    "VisualStateGroup contains an invalid VisualState");
-            }
-            const auto& sourceState =
-                static_cast<
-                const VisualState&>(
-                    *stateObject);
-            if (sourceState.GetName().Empty()) {
-                return InvalidTemplateCompiler(
-                    "VisualState requires Name");
-            }
-            VisualStatePlan state;
-            assigned = state.name.Assign(
-                sourceState.GetName());
-            if (!assigned) {
-                return assigned.GetStatus();
-            }
-            if (auto srcStoryboard = sourceState.GetStoryboard()) {
-                auto storyboardCopy = srcStoryboard->Clone();
-                if (!storyboardCopy) {
-                    storyboardCopy = Base::MakeRef<Storyboard>();
-                }
-                state.storyboard = std::move(storyboardCopy);
-            } else {
-                state.storyboard.Reset();
-            }
-
-            for (const Base::Ref<Base::Object>&
-                     setterObject :
-                 sourceState.GetSetters()) {
-                if (!setterObject ||
-                    setterObject->RuntimeType() !=
-                        Setter::StaticTypeId()) {
-                    return InvalidTemplateCompiler(
-                        "VisualState contains an invalid Setter");
-                }
-                const auto& sourceSetter =
-                    static_cast<const Setter&>(
-                        *setterObject);
-                if (sourceSetter.GetTargetName().Empty() ||
-                    sourceSetter.GetPropertyName().Empty()) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter requires TargetName and Property");
-                }
-                const std::uint32_t slot =
-                    program.FindSlotByName(
-                        sourceSetter.GetTargetName());
-                if (slot == UINT32_MAX) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter target was not found");
-                }
-                const TypeId targetType = program.GetSlotType(slot);
-                const DependencyProperty* property =
-                    ResolveTemplateProperty(
-                        properties, targetType,
-                        sourceSetter.GetPropertyName());
-                if (property == nullptr) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter property was not found");
-                }
-                Base::Result<Value> value =
-                    ConvertSetterValue(
-                        sourceSetter,
-                        targetType,
-                        *property,
-                        runtime,
-                        properties);
-                if (!value) {
-                    return value.GetStatus();
-                }
-
-                VisualStateSetterPlan setter;
-                assigned =
-                    setter.targetName.Assign(
-                        sourceSetter.GetTargetName());
-                if (!assigned) {
-                    return assigned.GetStatus();
-                }
-                setter.property = property->Handle();
-                setter.value =
-                    std::move(value).Value();
-                state.setters.PushBack(
-                        std::move(setter));
-            }
-            group.states.PushBack(
-                    std::move(state));
-        }
-        for (const Base::Ref<VisualTransition>&
-                  transitionObject :
-              sourceGroup.GetTransitions()) {
-            if (!transitionObject ||
-                transitionObject->RuntimeType() !=
-                    VisualTransition::
-                        StaticTypeId()) {
-                return InvalidTemplateCompiler(
-                    "VisualStateGroup contains an invalid VisualTransition");
-            }
-            const auto& sourceTransition =
-                static_cast<
-                const VisualTransition&>(
-                    *transitionObject);
-            if (sourceTransition.GetFrom().Empty() &&
-                sourceTransition.GetTo().Empty() &&
-                sourceTransition.GetGeneratedDuration().Empty() &&
-                !sourceTransition.GetStoryboard()) {
-                return InvalidTemplateCompiler(
-                    "VisualTransition must specify a duration or Storyboard");
-            }
-            if (!sourceTransition.GetFrom().Empty()) {
-                bool found = false;
-                for (const VisualStatePlan& state :
-                     group.states) {
-                    found = found ||
-                        state.name.View() ==
-                            sourceTransition.GetFrom();
-                }
-                if (!found) {
-                    return InvalidTemplateCompiler(
-                        "VisualTransition From state was not found");
-                }
-            }
-            if (!sourceTransition.GetTo().Empty()) {
-                bool found = false;
-                for (const VisualStatePlan& state :
-                     group.states) {
-                    found = found ||
-                        state.name.View() ==
-                            sourceTransition.GetTo();
-                }
-                if (!found) {
-                    return InvalidTemplateCompiler(
-                        "VisualTransition To state was not found");
-                }
-            }
-
-            VisualTransitionPlan transition;
-            assigned = transition.from.Assign(
-                sourceTransition.GetFrom());
-            if (assigned) {
-                assigned = transition.to.Assign(
-                    sourceTransition.GetTo());
-            }
-            if (!assigned) return assigned.GetStatus();
-            if (!sourceTransition.GetGeneratedDuration().Empty()) {
-                Storyboard duration;
-                duration.SetDuration(sourceTransition.GetGeneratedDuration());
-                transition.generatedDurationMicroseconds =
-                    Timing(duration).durationMicroseconds;
-            }
-            transition.generatedEasingFunction =
-                sourceTransition.GetGeneratedEasingFunction();
-            if (auto srcStoryboard = sourceTransition.GetStoryboard()) {
-                auto storyboardCopy =
-                    Base::MakeRef<Storyboard>();
-                if (!storyboardCopy) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
-                for (const auto& tl : srcStoryboard->GetTimelines()) {
-                    if (!tl) continue;
-                    storyboardCopy->AddTimeline(tl);
-                }
-                transition.storyboard = std::move(storyboardCopy);
-            } else {
-                transition.storyboard.Reset();
-            }
-            group.transitions.PushBack(
-                std::move(transition));
-        }
-        groups.PushBack(
-            std::move(group));
-        return {};
-    };
-    for (const Base::Ref<Base::Object>& groupObject :
-         FrameworkTemplateState::AuthoredVisualStateGroups(controlTemplate)) {
-        Base::Result<void> compiled = compileGroup(groupObject);
-        if (!compiled) return compiled.GetStatus();
-    }
-    Base::Ref<Base::Object> authoredRoot =
-        FrameworkTemplateState::AuthoredVisualTree(controlTemplate);
-    if (authoredRoot &&
-        runtime.Types().IsDerivedFrom(
-            authoredRoot->RuntimeType(),
-            DependencyObject::StaticTypeId())) {
-        auto& root = static_cast<DependencyObject&>(*authoredRoot);
-        Base::Ref<VisualStateGroupCollection> valueStore = root.GetValue(VisualStateManager::VisualStateGroupsProperty);
-        if (valueStore) {
-            for (const Base::Ref<VisualStateGroup>& groupObject :
-                 valueStore->GetItems()) {
-                Base::Result<void> compiled = compileGroup(
-                    Base::Ref<Base::Object>(groupObject));
-                if (!compiled) return compiled.GetStatus();
-            }
-        }
-    }
-    return groups;
-}
-
-Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
-    Base::Ref<Aero::TriggerBase> trigger,
-    const XamlBytecodeProgram& program,
-    ::Aero::Meta::Registry& runtime,
-    Meta::DependencyPropertyRegistry& properties) noexcept {
-    if (!trigger) {
-        return InvalidTemplateCompiler("Null trigger");
-    }
-    CompiledTriggerPlan plan;
-    plan.trigger = trigger;
-    Base::Span<const Base::Ref<Setter>> setters;
-    if (trigger->RuntimeType() == Trigger::StaticTypeId() ||
-        trigger->RuntimeType() == DataTrigger::StaticTypeId() ||
-        trigger->RuntimeType() == MultiDataTrigger::StaticTypeId()) {
-        setters = static_cast<const SetterTriggerBase&>(*trigger).GetAuthoredSetters();
-    }
-    for (const Base::Ref<Setter>& setter : setters) {
-        if (!setter) continue;
-        const std::uint32_t target = setter->GetTargetName().Empty()
-            ? 0U : program.FindSlotByName(setter->GetTargetName());
-        if (target >= program.slotNames.Size()) {
-            return InvalidTemplateCompiler(
-                "Template trigger Setter target was not found");
-        }
-        const TypeId targetType = program.GetSlotType(target);
-        const DependencyProperty* property = ResolveTemplateProperty(
-            properties, targetType, setter->GetPropertyName());
-        if (property == nullptr) {
-            return InvalidTemplateCompiler(
-                "Template trigger Setter property was not found");
-        }
-        Base::Result<Value> value = ConvertSetterValue(
-            *setter, targetType, *property, runtime, properties);
-        if (!value) return value.GetStatus();
-        CompiledTriggerSetter compiledSetter;
-        compiledSetter.target = target;
-        compiledSetter.property = property->Handle();
-        compiledSetter.value = std::move(value).Value();
-        plan.setters.PushBack(std::move(compiledSetter));
-    }
-    return plan;
-}
-
-Base::Result<CompiledTemplateDefinition>
-CompileControlTemplateDefinition(
-    Controls::ControlTemplate& controlTemplate,
-    Base::Span<const DeferredContentEdge> edges,
-    Base::Span<const DeferredBindingEdge> bindings,
-    ::Aero::Meta::Registry& runtime,
-    Meta::DependencyPropertyRegistry& properties) noexcept {
-    auto container = Base::MakeRef<XamlBytecodeContainer>();
-    if (!container) {
-        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
-    }
-
-    CompiledTemplateDefinition definition;
-    definition.targetType = controlTemplate.GetTargetType();
-
-    Base::Result<void> bytecoded = CompileTemplateToBytecode(
-        FrameworkTemplateState::AuthoredVisualTree(controlTemplate),
-        &FrameworkTemplateState::AuthoredNames(controlTemplate),
-        edges,
-        bindings,
-        FrameworkTemplateState::MetadataBindings(controlTemplate),
-        FrameworkTemplateState::DynamicResources(controlTemplate),
-        runtime,
-        properties,
-        container->program,
-        controlTemplate.GetTargetType(),
-        &definition.contentSourceBindings);
-    if (!bytecoded) {
-        return bytecoded.GetStatus();
-    }
-
-    Base::Result<Base::Vector<VisualStateGroupPlan>> groups = CompileVisualStates(
-        controlTemplate,
-        container->program,
-        runtime,
-        properties);
-    if (!groups) return groups.GetStatus();
-
-    Base::Result<Base::Vector<TemplatePropertyTrigger>> triggers = CompilePropertyTriggers(
-        controlTemplate,
-        container->program,
-        runtime,
-        properties);
-    if (!triggers) return triggers.GetStatus();
-
-    for (const Base::Ref<Base::Object>& authored :
-         FrameworkTemplateState::AuthoredTriggers(controlTemplate)) {
-        if (!authored) continue;
-        if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
-            authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-            (authored->RuntimeType() == Trigger::StaticTypeId() &&
-             (!static_cast<const Trigger&>(*authored).GetEnterActions().Empty() ||
-              !static_cast<const Trigger&>(*authored).GetExitActions().Empty()))) {
-            Base::Ref<TriggerBase> retained =
-                Base::Ref<TriggerBase>::TryFromBorrowed(
-                    static_cast<TriggerBase&>(*authored));
-            if (!retained) {
-                return InvalidTemplateCompiler("ControlTemplate instance trigger cannot be retained");
-            }
-            Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                std::move(retained), container->program, runtime, properties);
-            if (!plan) return plan.GetStatus();
-            container->program.controlTemplateDataTriggers.PushBack(std::move(plan).Value());
-        } else if (runtime.Types().IsDerivedFrom(
-                       authored->RuntimeType(),
-                       EventTrigger::StaticTypeId())) {
-            Base::Ref<EventTrigger> retained =
-                Base::Ref<EventTrigger>::TryFromBorrowed(
-                    static_cast<EventTrigger&>(*authored));
-            if (!retained) {
-                return InvalidTemplateCompiler("ControlTemplate EventTrigger cannot be retained");
-            }
-            container->program.controlTemplateEventTriggers.PushBack(std::move(retained));
-        }
-    }
-
-    definition.program = &container->program;
-    definition.programOwner = std::move(container);
-    definition.propertyTriggers = std::move(triggers).Value();
-    definition.visualStateGroups = std::move(groups).Value();
-    return definition;
-}
-
-// Compiles a derived ControlTemplate that inherits its visual tree from a
-// sealed XAML-compiled base template (BasedOn without own VisualTree).
-// Derived-authored property triggers and visual states resolve
-// TargetName/SourceName against the BASE program, i.e. the shared tree.
-// Action-bearing Trigger/DataTrigger/EventTrigger declarations cannot be
-// represented in the property-trigger table; they must live in a template
-// that authors its own VisualTree.
-Base::Result<void>
-CompileInheritedControlTemplate(
-    ControlTemplate& derivedTemplate,
-    const XamlBytecodeProgram& baseProgram,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties) noexcept {
-    for (const Base::Ref<Base::Object>& object :
-        FrameworkTemplateState::AuthoredTriggers(derivedTemplate)) {
-        if (!object) {
-            continue;
-        }
-        const Meta::TypeId kind = object->RuntimeType();
-        if (kind == EventTrigger::StaticTypeId() ||
-            kind == DataTrigger::StaticTypeId() ||
-            kind == MultiDataTrigger::StaticTypeId()) {
-            return InvalidTemplateCompiler(
-                "Inherited ControlTemplate authoring an EventTrigger or DataTrigger requires its own VisualTree");
-        }
-        if (kind == Trigger::StaticTypeId()) {
-            const auto& source = static_cast<const Trigger&>(*object);
-            if (!source.GetEnterActions().Empty() ||
-                !source.GetExitActions().Empty()) {
-                return InvalidTemplateCompiler(
-                    "Inherited ControlTemplate Trigger with Enter/ExitActions requires its own VisualTree");
-            }
-        }
-    }
-    Base::Result<Base::Vector<TemplatePropertyTrigger>> triggers =
-        CompilePropertyTriggers(
-            derivedTemplate, baseProgram, runtime, properties);
-    if (!triggers) {
-        return triggers.GetStatus();
-    }
-    for (TemplatePropertyTrigger& trigger : triggers.Value()) {
-        Base::Result<void> added =
-            FrameworkTemplateState::AddPropertyTrigger(
-                derivedTemplate, std::move(trigger));
-        if (!added) {
-            return added.GetStatus();
-        }
-    }
-    Base::Result<Base::Vector<VisualStateGroupPlan>> groups =
-        CompileVisualStates(
-            derivedTemplate, baseProgram, runtime, properties);
-    if (!groups) {
-        return groups.GetStatus();
-    }
-    for (VisualStateGroupPlan& group : groups.Value()) {
-        Base::Result<void> added =
-            FrameworkTemplateState::AddVisualStateGroup(
-                derivedTemplate, std::move(group));
-        if (!added) {
-            return added.GetStatus();
-        }
-    }
-    return {};
-}
-
-Base::Result<void>
-CompileDeferredTemplateToBytecode(
-    const Base::Ref<Base::Object>& visualTree,
-    const NameScope* names,
-    Base::Span<const DeferredContentEdge> edges,
-    Base::Span<const DeferredBindingEdge> bindings,
-    Meta::Registry& runtime,
-    DependencyPropertyRegistry& properties,
-    XamlBytecodeProgram& outProgram) noexcept {
-    return CompileTemplateToBytecode(
-        visualTree,
-        names,
-        edges,
-        bindings,
-        {},
-        {},
-        runtime,
-        properties,
-        outProgram);
-}
-
-static Base::Result<void> AttachCompiledTemplateBindings(
-    const XamlBytecodeProgram& program,
-    const Base::Vector<Base::Ref<Base::Object>>& objects,
-    BindingEngine& bindings,
-    FrameworkElement* templatedParent,
-    const Base::Ref<Base::Object>& payload) noexcept {
-    for (const TemplatePrototypeBinding& binding : program.blueprintBindings) {
-        if (binding.metadata == nullptr ||
-            binding.target >= objects.Size() ||
-            (binding.source != UINT32_MAX &&
-             binding.source >= objects.Size())) {
-            return InvalidTemplateCompiler(
-                "Compiled template Binding declaration is invalid");
-        }
-        MetadataBindingDescriptor descriptor;
-        descriptor.metadata = binding.metadata;
-        descriptor.source =
-            binding.source != UINT32_MAX
-            ? objects[binding.source].Get()
-            : nullptr;
-        if (descriptor.source == nullptr &&
-            !binding.sourceName.Empty()) {
-            if (templatedParent != nullptr) {
-                descriptor.source = templatedParent->FindName(
-                    binding.sourceName.View());
-                if (descriptor.source == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "ControlTemplate Binding ElementName was not found in the outer NameScope");
-                }
-            } else {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "DataTemplate Binding cannot resolve an ElementName outside its template NameScope");
-            }
-        }
-        if (descriptor.source == nullptr &&
-            !binding.relativeAncestorType.Empty()) {
-            descriptor.source = ResolveTemplateBindingAncestor(
-                binding,
-                *objects[binding.target],
-                *program.runtime);
-            if (descriptor.source == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Template Binding ancestor was not found");
-            }
-        }
-        descriptor.target =
-            static_cast<DependencyObject*>(
-                objects[binding.target].Get());
-        descriptor.targetProperty =
-            binding.targetProperty;
-        descriptor.dataContextProperty =
-            binding.dataContextProperty;
-        descriptor.dataContextOwner =
-            descriptor.target != nullptr
-            ? descriptor.target
-            : (!objects.Empty() ? static_cast<DependencyObject*>(objects[0].Get()) : nullptr);
-        descriptor.path = binding.path.View();
-        descriptor.stringFormat =
-            binding.stringFormat.View();
-        descriptor.bindsToSource =
-            binding.bindsToSource;
-        descriptor.mode = binding.mode;
-        descriptor.updateSourceTrigger =
-            binding.updateSourceTrigger;
-        descriptor.converterResource = binding.converter;
-        descriptor.converterParameter = binding.converterParameter;
-        Base::Result<void> queued =
-            bindings.QueueDeferred(descriptor);
-        if (!queued) return queued.GetStatus();
-
-        if (payload &&
-            templatedParent == nullptr &&
-            binding.source == UINT32_MAX &&
-            binding.sourceName.Empty() &&
-            binding.relativeAncestorType.Empty()) {
-            Base::Result<void> activated =
-                bindings.ActivateDeferredWhenReady(*descriptor.target);
-            if (!activated) return activated.GetStatus();
-        }
-    }
-    return {};
-}
-
-static Base::Result<void> AttachCompiledTemplateTriggers(
-    const XamlBytecodeProgram& program,
-    const Base::Vector<Base::Ref<Base::Object>>& objects,
-    const Base::Vector<CompiledTriggerPlan>& triggers,
-    const Base::Vector<Base::Ref<EventTrigger>>& eventTriggers,
-    FrameworkElement* templatedParent,
-    const Base::Ref<Base::Object>& payload,
-    bool registerNamesInRoot) noexcept {
-    if (triggers.Empty() && eventTriggers.Empty()) {
-        return {};
-    }
-    if (objects.Empty() ||
-        !program.runtime->Types().IsDerivedFrom(
-            objects[0U]->RuntimeType(),
-            FrameworkElement::StaticTypeId())) {
-        return InvalidTemplateCompiler(
-            "Template root does not support runtime triggers");
-    }
-    Base::Result<Base::Ref<DataTemplateTriggerInstance>> created =
-        Base::MakeRef<DataTemplateTriggerInstance>();
-    if (!created) return created.GetStatus();
-    Base::Ref<DataTemplateTriggerInstance> triggerContext =
-        std::move(created).Value();
-    auto* root = static_cast<FrameworkElement*>(objects[0U].Get());
-    triggerContext->root = root;
-
-    for (std::uint32_t index = 0U; index < objects.Size(); ++index) {
-        if (index >= program.slotNames.Size() || program.slotNames[index].Empty()) continue;
-        DataTemplateTriggerInstance::NamedObject named;
-        Base::Result<void> namedAssigned = named.name.Assign(
-            program.slotNames[index].View());
-        if (!namedAssigned) return namedAssigned.GetStatus();
-        named.object = Base::WeakRef<Base::Object>(
-            Base::Ref<Base::Object>::FromBorrowed(*objects[index]));
-        triggerContext->names.PushBack(std::move(named));
-        if (registerNamesInRoot) {
-            static_cast<void>(root->RegisterName(
-                program.slotNames[index].View(),
-                *objects[index]));
-        }
-    }
-
-    auto sourceFor = [&](const Binding& binding) noexcept -> Base::Object* {
-        if (!binding.GetElementName().Empty()) {
-            return triggerContext->FindName(binding.GetElementName());
-        }
-        if (templatedParent != nullptr) {
-            const Base::Ref<RelativeSource> relative =
-                binding.GetRelativeSource();
-            if (!relative) {
-                return templatedParent;
-            }
-            if (relative->GetMode() == RelativeSourceMode::FindAncestor) {
-                return WalkTemplateAncestor(
-                    templatedParent,
-                    relative->GetAncestorType(),
-                    relative->GetAncestorLevel(),
-                    program.runtime->Types());
-            }
-            return templatedParent;
-        }
-        return payload.Get();
-    };
-
-    for (const CompiledTriggerPlan& plan : triggers) {
-        const Base::Ref<TriggerBase>& authored = plan.trigger;
-        if (!authored) continue;
-        DataTemplatePropertyTrigger runtimeTrigger;
-        if (authored->RuntimeType() == Trigger::StaticTypeId()) {
-            const auto& property = static_cast<const Trigger&>(*authored);
-            Base::Object* source = nullptr;
-            if (templatedParent != nullptr) {
-                source = property.GetSourceName().Empty()
-                    ? static_cast<Base::Object*>(templatedParent)
-                    : triggerContext->FindName(property.GetSourceName());
-            } else {
-                source = root;
-            }
-            if (source == nullptr ||
-                !program.runtime->Types().IsDerivedFrom(
-                    source->RuntimeType(),
-                    DependencyObject::StaticTypeId())) {
-                return InvalidTemplateCompiler(
-                    "Template action trigger source was not found");
-            }
-            const TypeId sourceType = source->RuntimeType();
-            const DependencyProperty* sourceProperty =
-                ResolveTemplateProperty(
-                    *program.properties,
-                    sourceType,
-                    property.GetPropertyName());
-            if (sourceProperty == nullptr) {
-                return MissingTemplateProperty(
-                    "Template action trigger property",
-                    property.GetPropertyName(), sourceType,
-                    program.runtime->Types());
-            }
-            DataTemplateTriggerCondition condition;
-            condition.source = Base::WeakRef<Base::Object>(
-                Base::Ref<Base::Object>::FromBorrowed(*source));
-            condition.dependencySource =
-                Base::WeakRef<DependencyObject>(
-                    Base::Ref<DependencyObject>::FromBorrowed(
-                        *static_cast<DependencyObject*>(source)));
-            condition.property = sourceProperty->Handle();
-            Base::Result<Value> converted = ConvertTriggerValue(
-                property.GetAuthoredValue(), sourceType, *sourceProperty,
-                *program.runtime, *program.properties);
-            if (!converted) return converted.GetStatus();
-            condition.value = std::move(converted).Value();
-            runtimeTrigger.conditions.PushBack(std::move(condition));
-        } else if (authored->RuntimeType() == DataTrigger::StaticTypeId()) {
-            const auto& data = static_cast<const DataTrigger&>(*authored);
-            if (!data.GetBinding()) return InvalidTemplateCompiler(
-                "Template DataTrigger requires Binding");
-            DataTemplateTriggerCondition condition;
-            Base::Object* source = sourceFor(*data.GetBinding());
-            if (source != nullptr) {
-                condition.source =
-                    Base::WeakRef<Base::Object>(
-                        Base::Ref<Base::Object>::FromBorrowed(*source));
-            }
-            condition.usesDataContext =
-                data.GetBinding()->GetElementName().Empty() &&
-                !data.GetBinding()->GetRelativeSource();
-            condition.binding = data.GetBinding();
-            condition.value = data.GetAuthoredValue();
-            runtimeTrigger.conditions.PushBack(std::move(condition));
-        } else if (authored->RuntimeType() == MultiDataTrigger::StaticTypeId()) {
-            const auto& multi = static_cast<const MultiDataTrigger&>(*authored);
-            for (const Base::Ref<Condition>& authoredCondition : multi.GetConditions()) {
-                if (!authoredCondition || !authoredCondition->GetBinding()) {
-                    return InvalidTemplateCompiler(
-                        "Template MultiDataTrigger requires complete Conditions");
-                }
-                DataTemplateTriggerCondition condition;
-                Base::Object* source = sourceFor(*authoredCondition->GetBinding());
-                if (source != nullptr) {
-                    condition.source =
-                        Base::WeakRef<Base::Object>(
-                            Base::Ref<Base::Object>::FromBorrowed(*source));
-                }
-                condition.usesDataContext =
-                    authoredCondition->GetBinding()->GetElementName().Empty() &&
-                    !authoredCondition->GetBinding()->GetRelativeSource();
-                condition.binding = authoredCondition->GetBinding();
-                condition.value = authoredCondition->GetAuthoredValue();
-                runtimeTrigger.conditions.PushBack(std::move(condition));
-            }
-        } else {
-            continue;
-        }
-        if (templatedParent == nullptr || authored->RuntimeType() != Trigger::StaticTypeId()) {
-            for (const CompiledTriggerSetter& cs : plan.setters) {
-                DataTemplateTriggerSetter runtimeSetter;
-                runtimeSetter.target =
-                    Base::WeakRef<DependencyObject>(
-                        Base::Ref<DependencyObject>::FromBorrowed(
-                            *static_cast<DependencyObject*>(objects[cs.target].Get())));
-                runtimeSetter.property = cs.property;
-                runtimeSetter.value = cs.value;
-                runtimeTrigger.setters.PushBack(std::move(runtimeSetter));
-            }
-        }
-        runtimeTrigger.enterActions.Append(authored->GetEnterActions());
-        runtimeTrigger.exitActions.Append(authored->GetExitActions());
-        triggerContext->triggers.PushBack(std::move(runtimeTrigger));
-    }
-    for (const Base::Ref<EventTrigger>& eventTrigger : eventTriggers) {
-        if (!eventTrigger) continue;
-        triggerContext->eventTriggers.PushBack(eventTrigger);
-    }
-    FrameworkElement* const triggerRoot = triggerContext->root;
-    Base::Ref<Base::Object> triggerOwner(triggerContext);
-    FrameworkElementSeams::AddAuthoredTrigger(*triggerRoot, std::move(triggerOwner));
-    return {};
-}
-
-Base::Result<void> BuildCompiledTemplate(
-    TemplateBuilder& context,
-    void* factoryContext) noexcept {
-    const auto* program =
-        static_cast<const XamlBytecodeProgram*>(
-            factoryContext);
-    if (program == nullptr || !program->IsValid()) {
-        return InvalidTemplateCompiler(
-            "Compiled template bytecode is invalid");
-    }
-
-    Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> executed = XamlVM::Execute(
-        *program, *program->runtime, &context, objects, nullptr);
-    if (!executed) return executed.GetStatus();
-
-    Base::Result<void> bound = AttachCompiledTemplateBindings(
-        *program, objects, context.Bindings(), &context.TemplatedParent(), {});
-    if (!bound) return bound.GetStatus();
-
-    return AttachCompiledTemplateTriggers(
-        *program, objects,
-        program->controlTemplateDataTriggers,
-        program->controlTemplateEventTriggers,
-        &context.TemplatedParent(), {}, false);
-}
-
-Base::Result<Base::Ref<Base::Object>>
-BuildCompiledDeferredTemplate(
-    const Base::Ref<Base::Object>& payload,
-    void* factoryContext,
-    BindingEngine* bindings) noexcept {
-    const auto* program =
-        static_cast<const XamlBytecodeProgram*>(
-            factoryContext);
-    if (program == nullptr || !program->IsValid()) {
-        return InvalidTemplateCompiler(
-            "Deferred template bytecode is invalid");
-    }
-
-    if (bindings == nullptr && !program->blueprintBindings.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "DataTemplate Binding requires a mounted View binding engine");
-    }
-
-    XamlVMContext vmContext;
-    vmContext.runtime = program->runtime;
-    vmContext.dataItemPayload = payload;
-    vmContext.bindings = bindings;
-
-    Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> executed = XamlVM::Execute(
-        *program, vmContext, objects, nullptr);
-    if (!executed) return executed.GetStatus();
-
-    Base::Ref<Base::Object> root = objects[0U];
-
-    if (bindings != nullptr) {
-        Base::Result<void> bound = AttachCompiledTemplateBindings(
-            *program, objects, *bindings, nullptr, payload);
-        if (!bound) return bound.GetStatus();
-    }
-
-    static const Base::Vector<Base::Ref<EventTrigger>> noEventTriggers;
-    Base::Result<void> triggered = AttachCompiledTemplateTriggers(
-        *program, objects,
-        program->dataTemplateTriggers,
-        noEventTriggers, nullptr, payload, true);
-    if (!triggered) return triggered.GetStatus();
-
-    return root;
-}
-
-} // namespace Aero::Markup

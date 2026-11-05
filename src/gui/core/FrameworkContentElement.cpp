@@ -1,5 +1,7 @@
 // Auto-relocated base-class method definitions (WPF semantic kernel).
 #include <Aero/FrameworkContentElement.hpp>
+#include <Aero/UIElement.hpp>
+#include <Aero/FrameworkElement.hpp>
 #include "gui/styles/StyleEngine.hpp"
 #include "gui/media/AnimationModel.hpp"
 #include <Aero/Base/Assert.hpp>
@@ -100,14 +102,16 @@ void FrameworkContentElement::AddAuthoredTrigger(
 
 AERO_DESCRIBE(FrameworkContentElement) {
     using namespace Aero::Meta;
+    DescribeHook<UIElement>::Run(context);
+    DescribeHook<FrameworkElement>::Run(context);
     Register<FrameworkContentElement>(context, TypeFlags::Abstract)
         .Property<Base::Ref<ResourceDictionary>, &FrameworkContentElement::SetResources>("Resources", PropertyFlags::Structural)
-        .Property(FrameworkContentElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
-        .Property(FrameworkContentElement::StyleProperty, Base::Ref<Style>{})
-        .Property(FrameworkContentElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
-        .Property(FrameworkContentElement::IsEnabledProperty, true, Inherits)
+        .AddOwner(FrameworkContentElement::DataContextProperty, FrameworkElement::DataContextProperty, Value::NullObject(TypeOf<Base::Object>()), Inherits)
+        .AddOwner(FrameworkContentElement::StyleProperty, FrameworkElement::StyleProperty, Base::Ref<Style>{})
+        .AddOwner(FrameworkContentElement::TagProperty, FrameworkElement::TagProperty, Value::NullObject(TypeOf<Base::Object>()))
+        .AddOwner(FrameworkContentElement::IsEnabledProperty, UIElement::IsEnabledProperty, true, Inherits)
         .Property(FrameworkContentElement::IsMouseOverProperty, false)
-        .Property(FrameworkContentElement::CursorProperty, Base::String{}, Inherits)
+        .AddOwner(FrameworkContentElement::CursorProperty, FrameworkElement::CursorProperty, Base::String{}, Inherits)
         .Property(FrameworkContentElement::OverridesDefaultStyleProperty, false);
 }
 

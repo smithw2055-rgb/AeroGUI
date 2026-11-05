@@ -24,6 +24,7 @@ struct TextRendererState {
     Base::Vector<Ref<Texture>> pageTextures;
     Base::Vector<std::uint32_t> pageIds;
     Base::Vector<RenderGlyphRunId> glyphRuns;
+    Base::Vector<RenderGlyphRunId> freeGlyphRunIds;
     Text::TextLayout layout;
     Base::Vector<RenderGlyphQuad> quads;
     std::uint64_t nextRunId = 1U;
@@ -37,6 +38,7 @@ struct TextRendererState {
           pageTextures(allocator),
           pageIds(allocator),
           glyphRuns(allocator),
+          freeGlyphRunIds(allocator),
           layout(allocator),
           quads(allocator) {}
 };

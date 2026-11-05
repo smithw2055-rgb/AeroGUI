@@ -14,6 +14,7 @@
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include "gui/media/AnimationModel.hpp"
+#include "gui/media/AnimationEngineCommon.hpp"
 #include "gui/triggers/VisualStateManagerExecution.hpp"
 #include <algorithm>
 #include <new>
@@ -370,7 +371,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target = setter.targetName.Empty()
             ? static_cast<DependencyObject*>(&control)
-            : templates_->FindName(handle, setter.targetName.View());
+            : templates_->FindName(handle, setter.targetName.View(), setter.targetPartIndex);
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -387,7 +388,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target = setter.targetName.Empty()
             ? static_cast<DependencyObject*>(&control)
-            : templates_->FindName(handle, setter.targetName.View());
+            : templates_->FindName(handle, setter.targetName.View(), setter.targetPartIndex);
         const PropertyProviderToken token{
             PropertyValueRank::VisualState,
             active.providerOrigin,
@@ -416,7 +417,7 @@ Base::Result<void> VisualStateManagerState::ClearStateValues(
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target = setter.targetName.Empty()
             ? static_cast<DependencyObject*>(&control)
-            : templates_->FindName(handle, setter.targetName.View());
+            : templates_->FindName(handle, setter.targetName.View(), setter.targetPartIndex);
         if (target == nullptr) continue;
 
         bool alreadyCleared = false;
@@ -570,7 +571,8 @@ Base::Result<void> VisualStateManagerState::CaptureTransitionValues(
             ? static_cast<DependencyObject*>(&control)
             : templates_->FindName(
                 handle,
-                setter.targetName.View());
+                setter.targetName.View(),
+                setter.targetPartIndex);
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -860,18 +862,22 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 if (fromDouble.Value() == toDouble.Value()) {
                     continue;
                 }
-                DoubleAnimation animation;
-                animation.from = fromDouble.Value();
-                animation.to = toDouble.Value();
-                animation.timing.durationMicroseconds =
+                auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
+                authored->SetFrom(fromDouble.Value());
+                authored->SetTo(toDouble.Value());
+                if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
+                    authored->SetEasingFunction(std::move(ease));
+                }
+                Media::Animation::Model::TimelineTiming timing;
+                timing.durationMicroseconds =
                     transition.generatedDurationMicroseconds;
-                animation.timing.fillBehavior =
+                timing.fillBehavior =
                     FillBehavior::HoldEnd;
-                animation.easing = easing;
-                started = animations_->Begin(
+                started = animations_->BeginTimeline(
                     *value.target,
                     value.property,
-                    animation);
+                    *authored,
+                    timing);
             }
         } else if (value.from.Type() == Meta::TypeOf<Base::Color>()) {
             Base::Result<Base::Color> fromColor =
@@ -886,18 +892,22 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             if (fromColor.Value() == toColor.Value()) {
                 continue;
             }
-            ColorAnimation animation;
-            animation.from = fromColor.Value();
-            animation.to = toColor.Value();
-            animation.timing.durationMicroseconds =
+            auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
+            authored->SetFrom(fromColor.Value());
+            authored->SetTo(toColor.Value());
+            if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
+                authored->SetEasingFunction(std::move(ease));
+            }
+            Media::Animation::Model::TimelineTiming timing;
+            timing.durationMicroseconds =
                 transition.generatedDurationMicroseconds;
-            animation.timing.fillBehavior =
+            timing.fillBehavior =
                 FillBehavior::HoldEnd;
-            animation.easing = easing;
-            started = animations_->Begin(
+            started = animations_->BeginTimeline(
                 *value.target,
                 value.property,
-                animation);
+                *authored,
+                timing);
         } else if (value.from.Type() == Meta::TypeOf<Base::Point>()) {
             Base::Result<Base::Point> fromPoint =
                 ValueCodec<Base::Point>::Decode(
@@ -912,18 +922,22 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 fromPoint.Value().y == toPoint.Value().y) {
                 continue;
             }
-            PointAnimation animation;
-            animation.from = fromPoint.Value();
-            animation.to = toPoint.Value();
-            animation.timing.durationMicroseconds =
+            auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
+            authored->SetFrom(fromPoint.Value());
+            authored->SetTo(toPoint.Value());
+            if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
+                authored->SetEasingFunction(std::move(ease));
+            }
+            Media::Animation::Model::TimelineTiming timing;
+            timing.durationMicroseconds =
                 transition.generatedDurationMicroseconds;
-            animation.timing.fillBehavior =
+            timing.fillBehavior =
                 FillBehavior::HoldEnd;
-            animation.easing = easing;
-            started = animations_->Begin(
+            started = animations_->BeginTimeline(
                 *value.target,
                 value.property,
-                animation);
+                *authored,
+                timing);
         } else {
             continue;
         }

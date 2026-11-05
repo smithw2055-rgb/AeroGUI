@@ -94,7 +94,8 @@ public:
         Control& control) noexcept;
     DependencyObject* FindName(
         TemplateHandle handle,
-        Base::StringView name) const noexcept;
+        Base::StringView name,
+        std::int32_t partIndex = -1) const noexcept;
     DependencyObject* FindPart(
         TemplateHandle handle,
         TypeId type) const noexcept;
@@ -122,6 +123,10 @@ private:
         Base::Vector<Data::BindingHandle>
             metadataBindings;
         Base::Vector<DependencyObject*> dynamicResourceTargets;
+        std::uint64_t bindingPropertyMask = 0ULL;
+        std::uint64_t parentTriggerPropertyMask = 0ULL;
+        std::uint64_t childTriggerPropertyMask = 0ULL;
+        Base::Vector<std::uint8_t> triggerStates;
     };
 
     ElementTree* tree_ = nullptr;
@@ -147,7 +152,8 @@ private:
         const Control& control) const noexcept;
     DependencyObject* FindTarget(
         const Instance& instance,
-        Base::StringView name) const noexcept;
+        Base::StringView name,
+        std::int32_t partIndex = -1) const noexcept;
     Base::Result<void> Subscribe(
         Instance& instance) noexcept;
     void Unsubscribe(Instance& instance) noexcept;

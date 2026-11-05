@@ -70,7 +70,7 @@ inline Base::Result<void> AssignResourceDictionary(
             Base::ErrorCode::AlreadyExists,
             alreadyAssignedMessage);
     }
-    target = std::move(*source);
+    target = source->Share();
     return {};
 }
 

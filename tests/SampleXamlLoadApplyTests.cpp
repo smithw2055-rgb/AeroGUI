@@ -17,7 +17,6 @@
 #include <Aero/LogicalTreeHelper.hpp>
 #include <Aero/Markup/MarkupExtension.hpp>
 #include <Aero/Markup/XamlReader.hpp>
-#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Media/Animation.hpp>
 #include <Aero/Media/Brushes.hpp>
 #include <Aero/Media/Images.hpp>
@@ -2154,6 +2153,7 @@ bool TestControlTemplateBasedOn() {
     auto* toggle = live->sampleDocument
         .Root<Aero::Controls::Primitives::ToggleButton>();
     SAMPLE_CHECK(toggle != nullptr);
+
     // GetTemplateChild is protected (WPF parity); walk the visual tree.
     Aero::Controls::Border* border = nullptr;
     if (VisualTreeHelper::GetChildrenCount(*toggle) > 0U) {

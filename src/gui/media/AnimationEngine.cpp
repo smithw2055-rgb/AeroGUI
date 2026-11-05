@@ -68,6 +68,7 @@ AnimationEngine::AddTrack(
     // previous HoldEnd fill (QuestLog Close → Intro). Leaving the filling
     // Close clock active keeps Opacity at 0 and the window rendering.
     if (target != nullptr && property.IsValid()) {
+        bool clearedAny = false;
         for (std::uint32_t index = 0U; index < trackCount_; ++index) {
             Track& existing = tracks_[index];
             if (existing.target != target ||
@@ -76,7 +77,11 @@ AnimationEngine::AddTrack(
                 continue;
             }
             existing.state = AnimationState::Stopped;
+            clearedAny = clearedAny || existing.valueApplied;
             ClearTrackValue(existing);
+        }
+        if (clearedAny && !values_->IsFlushing()) {
+            static_cast<void>(values_->Flush());
         }
     }
     if (!initialized_) {
@@ -122,138 +127,7 @@ AnimationEngine::AddTrack(
     return track;
 }
 
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const DoubleAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    authored->SetAccelerationRatio(animation.accelerationRatio);
-    authored->SetDecelerationRatio(animation.decelerationRatio);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
 
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const CustomDoubleAnimation& animation) noexcept {
-    if (!animation.animation) {
-        return InvalidAnimation("Custom DoubleAnimation has null animation");
-    }
-    return BeginTimeline(target, property, *animation.animation, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const ColorAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const PointAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const RectAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::RectAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const ThicknessAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::ThicknessAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const IntegerAnimation& animation) noexcept {
-    switch (animation.width) {
-    case IntegerAnimationWidth::Int16: {
-        auto authored = Base::MakeRef<Media::Animation::Int16Animation>();
-        authored->SetFrom(static_cast<std::int16_t>(animation.from));
-        authored->SetTo(static_cast<std::int16_t>(animation.to));
-        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
-        return BeginTimeline(target, property, *authored, animation.timing);
-    }
-    case IntegerAnimationWidth::Int64: {
-        auto authored = Base::MakeRef<Media::Animation::Int64Animation>();
-        authored->SetFrom(animation.from);
-        authored->SetTo(animation.to);
-        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
-        return BeginTimeline(target, property, *authored, animation.timing);
-    }
-    case IntegerAnimationWidth::Int32:
-    default: {
-        auto authored = Base::MakeRef<Media::Animation::Int32Animation>();
-        authored->SetFrom(static_cast<std::int32_t>(animation.from));
-        authored->SetTo(static_cast<std::int32_t>(animation.to));
-        if (auto ease = MakeEasingFunction(animation.easing)) authored->SetEasingFunction(std::move(ease));
-        return BeginTimeline(target, property, *authored, animation.timing);
-    }
-    }
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const SizeAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::SizeAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
-
-Base::Result<AnimationHandle> AnimationEngine::Begin(
-    ::Aero::DependencyObject& target,
-    Meta::DependencyPropertyHandle property,
-    const MatrixAnimation& animation) noexcept {
-    auto authored = Base::MakeRef<Media::Animation::MatrixAnimation>();
-    authored->SetFrom(animation.from);
-    authored->SetTo(animation.to);
-    if (auto ease = MakeEasingFunction(animation.easing)) {
-        authored->SetEasingFunction(std::move(ease));
-    }
-    return BeginTimeline(target, property, *authored, animation.timing);
-}
 
 AnimationEngine::Track* AnimationEngine::FindTrack(
     AnimationHandle handle) noexcept {
@@ -331,40 +205,6 @@ void AnimationEngine::ClearTrackValue(
         static_cast<void>(values_->ClearAnimationValue(
             *track.target, track.property));
         track.valueApplied = false;
-
-        if (UIElement* element = TryCast<UIElement>(track.target)) {
-            if (track.property == UIElement::OpacityProperty.Handle()) {
-                element->SetAnimatedOpacity(static_cast<float>(element->GetValue(UIElement::OpacityProperty)));
-                element->InvalidateVisual();
-            } else if (track.property == UIElement::VisibilityProperty.Handle()) {
-                element->SetAnimatedVisibility(element->GetValue(UIElement::VisibilityProperty));
-                element->InvalidateMeasure();
-            }
-        }
-        if (FrameworkElement* framework = TryCast<FrameworkElement>(track.target)) {
-            if (track.property == FrameworkElement::WidthProperty.Handle()) {
-                framework->SetAnimatedWidth(framework->GetValue(FrameworkElement::WidthProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::HeightProperty.Handle()) {
-                framework->SetAnimatedHeight(framework->GetValue(FrameworkElement::HeightProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::MinWidthProperty.Handle()) {
-                framework->SetAnimatedMinWidth(framework->GetValue(FrameworkElement::MinWidthProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::MinHeightProperty.Handle()) {
-                framework->SetAnimatedMinHeight(framework->GetValue(FrameworkElement::MinHeightProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::MaxWidthProperty.Handle()) {
-                framework->SetAnimatedMaxWidth(framework->GetValue(FrameworkElement::MaxWidthProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::MaxHeightProperty.Handle()) {
-                framework->SetAnimatedMaxHeight(framework->GetValue(FrameworkElement::MaxHeightProperty));
-                framework->InvalidateMeasure();
-            } else if (track.property == FrameworkElement::MarginProperty.Handle()) {
-                framework->SetAnimatedMargin(framework->GetValue(FrameworkElement::MarginProperty));
-                framework->InvalidateMeasure();
-            }
-        }
     }
 }
 
@@ -392,8 +232,20 @@ bool AnimationEngine::Remove(
     return true;
 }
 
+bool AnimationEngine::HasTarget(
+    const ::Aero::DependencyObject& target) const noexcept {
+    for (std::uint32_t index = 0U; index < trackCount_; ++index) {
+        if (tracks_[index].target == &target &&
+            tracks_[index].state != AnimationState::Stopped) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::uint32_t AnimationEngine::RemoveTarget(
     ::Aero::DependencyObject& target) noexcept {
+    if (trackCount_ == 0U) return 0U;
     if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return 0U;
     std::uint32_t removed = 0U;
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
@@ -404,8 +256,8 @@ std::uint32_t AnimationEngine::RemoveTarget(
         track.target = nullptr;
         ++removed;
     }
-    CompactStopped();
     if (removed != 0U) {
+        CompactStopped();
         static_cast<void>(values_->Flush());
     }
     return removed;

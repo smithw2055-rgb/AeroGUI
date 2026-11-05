@@ -32,6 +32,8 @@
 #include <Aero/Data/IValueConverter.hpp>
 #include <cctype>
 #include <cstdlib>
+#include <Aero/Collections.hpp>
+#include <Aero/PropertyPath.hpp>
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
@@ -117,12 +119,15 @@ void BindingEngine::Shutdown() noexcept {
     while (!bindings_.Empty()) {
         RemoveAt(bindings_.Size() - 1U);
     }
-    deferredBindings_.Clear();
+    deferredByTarget_.Clear();
     pendingDeferredActivations_.Clear();
     multiBindings_.Clear();
     sourceToBindings_.Clear();
     targetToBindings_.Clear();
     dataContextBindings_.Clear();
+    dirtyQueue_.Clear();
+    pollingQueue_.Clear();
+    workQueue_.Clear();
     flushing_ = false;
     hasDirtyBindings_ = true;
     pollingBindingCount_ = 0U;
@@ -130,9 +135,68 @@ void BindingEngine::Shutdown() noexcept {
     initialized_ = false;
 }
 
+void BindingEngine::EnqueueDirtyRecord(BindingRecord& record) noexcept {
+    hasDirtyBindings_ = true;
+    if (!record.inDirtyQueue && record.handle.value != 0U) {
+        record.inDirtyQueue = true;
+        dirtyQueue_.PushBack(record.handle);
+    }
+}
 
+void BindingEngine::UpdatePollingRegistration(BindingRecord& record) noexcept {
+    if (record.handle.value == 0U) {
+        RemovePollingHandle(record.handle);
+        return;
+    }
+    if (record.sourceKind == BindingSourceKind::DataContext &&
+        !record.bindsToSource &&
+        !record.pathPlan.HasTokenizeAttempt() &&
+        !record.pathPlan.IsValid()) {
+        (void)record.pathPlan.PrecompileTokens(record.path.View());
+    }
+    const bool metadataPath =
+        record.sourceKind != BindingSourceKind::DependencyProperty;
+    const bool hasNotify =
+        record.notificationSubscription != 0U ||
+        record.sourceDependencyProperty.IsValid();
+    const bool unresolvedDataContext =
+        record.sourceKind == BindingSourceKind::DataContext &&
+        (!record.applied || record.metadataSource == nullptr ||
+         (!record.bindsToSource && !record.pathPlan.IsValid()));
+    const bool pollMetadata =
+        (metadataPath && !hasNotify) || unresolvedDataContext;
 
+    if (pollMetadata) {
+        if (!record.inPollingQueue) {
+            record.inPollingQueue = true;
+            pollingQueue_.PushBack(record.handle);
+            ++pollingBindingCount_;
+        }
+    } else {
+        if (record.inPollingQueue) {
+            RemovePollingHandle(record.handle);
+        }
+    }
+}
 
+void BindingEngine::RemovePollingHandle(BindingHandle handle) noexcept {
+    for (std::uint32_t i = 0U; i < pollingQueue_.Size(); ++i) {
+        if (pollingQueue_[i].value == handle.value) {
+            BindingRecord* rec = FindRecord(handle);
+            if (rec != nullptr) {
+                rec->inPollingQueue = false;
+            }
+            if (pollingBindingCount_ > 0U) {
+                --pollingBindingCount_;
+            }
+            if (i + 1U < pollingQueue_.Size()) {
+                pollingQueue_[i] = pollingQueue_.Back();
+            }
+            pollingQueue_.PopBack();
+            return;
+        }
+    }
+}
 
 Base::Result<void> BindingEngine::QueueDeferred(
     const MetadataBindingDescriptor& descriptor) noexcept {
@@ -150,83 +214,48 @@ Base::Result<void> BindingEngine::QueueDeferred(
             "Deferred DataContext Binding requires a DataContext property");
     }
     DeferredBindingRecord record;
-    record.metadata = descriptor.metadata;
-    record.source = descriptor.source;
-    record.target = descriptor.target;
-    record.targetProperty = descriptor.targetProperty;
-    record.dataContextProperty =
-        descriptor.dataContextProperty;
-    record.dataContextOwner = descriptor.dataContextOwner != nullptr
-        ? descriptor.dataContextOwner
-        : descriptor.target;
-    record.mode = descriptor.mode;
-    record.updateSourceTrigger =
-        descriptor.updateSourceTrigger;
-    record.bindsToSource = descriptor.bindsToSource;
-    record.convert = descriptor.convert;
-    record.convertBack = descriptor.convertBack;
-    record.converterResource = descriptor.converterResource;
-    record.converterParameter = descriptor.converterParameter;
-    record.validate = descriptor.validate;
-    record.validateBack = descriptor.validateBack;
-    record.conversionContext =
-        descriptor.conversionContext;
-    record.fallbackValue = descriptor.fallbackValue;
-    record.targetNullValue =
-        descriptor.targetNullValue;
-    record.diagnostic = descriptor.diagnostic;
-    record.diagnosticContext =
-        descriptor.diagnosticContext;
+    static_cast<Data::BindingCommonOptions&>(record) = descriptor;
+    if (record.dataContextOwner == nullptr) {
+        record.dataContextOwner = descriptor.target;
+    }
     Base::Result<void> assigned =
         record.path.Assign(descriptor.path);
     if (!assigned) return assigned.GetStatus();
     assigned = record.stringFormat.Assign(
         descriptor.stringFormat);
     if (!assigned) return assigned.GetStatus();
-    deferredBindings_.PushBack(
-        std::move(record));
+    auto* bucket = deferredByTarget_.Find(descriptor.target);
+    if (bucket != nullptr) {
+        bucket->PushBack(std::move(record));
+    } else {
+        Base::Vector<DeferredBindingRecord> vec;
+        vec.PushBack(std::move(record));
+        static_cast<void>(
+            deferredByTarget_.Insert(descriptor.target, std::move(vec)));
+    }
     return {};
 }
 
 Base::Result<std::uint32_t>
 BindingEngine::ActivateDeferred(
     DependencyObject& target) noexcept {
+    if (deferredByTarget_.Empty()) {
+        return std::uint32_t{0U};
+    }
+    auto* found = deferredByTarget_.Find(&target);
+    if (found == nullptr) {
+        return std::uint32_t{0U};
+    }
+    Base::Vector<DeferredBindingRecord> targetRecords = std::move(*found);
+    deferredByTarget_.Erase(&target);
     hasDirtyBindings_ = true;
     std::uint32_t activated = 0U;
-    std::uint32_t writeIndex = 0U;
-    const std::uint32_t initialSize = deferredBindings_.Size();
-    for (std::uint32_t readIndex = 0U; readIndex < initialSize; ++readIndex) {
-        DeferredBindingRecord& record = deferredBindings_[readIndex];
-        if (record.target != &target) {
-            if (writeIndex != readIndex) {
-                deferredBindings_[writeIndex] = std::move(record);
-            }
-            ++writeIndex;
-            continue;
-        }
+    for (std::uint32_t index = 0U; index < targetRecords.Size(); ++index) {
+        DeferredBindingRecord& record = targetRecords[index];
         MetadataBindingDescriptor descriptor;
-        descriptor.metadata = record.metadata;
-        descriptor.source = record.source;
-        descriptor.target = record.target;
-        descriptor.targetProperty = record.targetProperty;
-        descriptor.dataContextProperty = record.dataContextProperty;
-        descriptor.dataContextOwner = record.dataContextOwner;
+        static_cast<Data::BindingCommonOptions&>(descriptor) = record;
         descriptor.path = record.path.View();
         descriptor.stringFormat = record.stringFormat.View();
-        descriptor.bindsToSource = record.bindsToSource;
-        descriptor.mode = record.mode;
-        descriptor.updateSourceTrigger = record.updateSourceTrigger;
-        descriptor.convert = record.convert;
-        descriptor.convertBack = record.convertBack;
-        descriptor.converterResource = record.converterResource;
-        descriptor.converterParameter = record.converterParameter;
-        descriptor.validate = record.validate;
-        descriptor.validateBack = record.validateBack;
-        descriptor.conversionContext = record.conversionContext;
-        descriptor.fallbackValue = record.fallbackValue;
-        descriptor.targetNullValue = record.targetNullValue;
-        descriptor.diagnostic = record.diagnostic;
-        descriptor.diagnosticContext = record.diagnosticContext;
 
         Base::Result<BindingHandle> attached = Attach(descriptor);
         if (!attached) {
@@ -235,17 +264,14 @@ BindingEngine::ActivateDeferred(
             ++activated;
         }
     }
-    if (writeIndex < initialSize) {
-        for (std::uint32_t tail = initialSize; tail < deferredBindings_.Size(); ++tail) {
-            deferredBindings_[writeIndex++] = std::move(deferredBindings_[tail]);
-        }
-        (void)deferredBindings_.Resize(writeIndex);
-    }
     return activated;
 }
 
 Base::Result<void> BindingEngine::ActivateDeferredWhenReady(
     DependencyObject& target) noexcept {
+    if (deferredByTarget_.Empty() || deferredByTarget_.Find(&target) == nullptr) {
+        return {};
+    }
     hasDirtyBindings_ = true;
     if (!flushing_) {
         Base::Result<std::uint32_t> activated =
@@ -516,14 +542,23 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
     if (!dispatcher_->CheckAccess()) {
         return dispatcher_->VerifyAccess().GetStatus();
     }
+    const auto* targetList = targetToBindings_.Find(&object);
+    const auto* sourceList = sourceToBindings_.Find(&object);
+    if (targetList == nullptr &&
+        sourceList == nullptr &&
+        deferredByTarget_.Empty() &&
+        pendingDeferredActivations_.Empty() &&
+        multiBindings_.Empty()) {
+        return std::uint32_t{0U};
+    }
     std::uint32_t detached = 0U;
-    Base::Vector<BindingHandle> handlesToDetach;
-    if (const auto* targetList = targetToBindings_.Find(&object)) {
+    Base::BasicVector<BindingHandle, 8U> handlesToDetach;
+    if (targetList != nullptr) {
         for (BindingHandle h : *targetList) {
             handlesToDetach.PushBack(h);
         }
     }
-    if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+    if (sourceList != nullptr) {
         for (BindingHandle h : *sourceList) {
             bool found = false;
             for (BindingHandle existing : handlesToDetach) {
@@ -548,34 +583,118 @@ Base::Result<std::uint32_t> BindingEngine::DetachObject(
             ++detached;
         }
     }
-    std::uint32_t writeIndex = 0U;
-    for (std::uint32_t readIndex = 0U; readIndex < deferredBindings_.Size(); ++readIndex) {
-        DeferredBindingRecord& record = deferredBindings_[readIndex];
-        if (record.source != &object &&
-            record.target != &object &&
-            record.dataContextOwner != &object) {
-            if (writeIndex != readIndex) {
-                deferredBindings_[writeIndex] = std::move(record);
+    if (!deferredByTarget_.Empty()) {
+        if (auto* targetDeferred = deferredByTarget_.Find(&object)) {
+            detached += targetDeferred->Size();
+            deferredByTarget_.Erase(&object);
+        }
+        if (!deferredByTarget_.Empty()) {
+            Base::BasicVector<const DependencyObject*, 4U> emptyTargets;
+            for (auto& entry : deferredByTarget_) {
+                auto& records = entry.Value();
+                std::uint32_t writeIndex = 0U;
+                for (std::uint32_t readIndex = 0U; readIndex < records.Size(); ++readIndex) {
+                    DeferredBindingRecord& record = records[readIndex];
+                    if (record.source != &object &&
+                        record.dataContextOwner != &object) {
+                        if (writeIndex != readIndex) {
+                            records[writeIndex] = std::move(record);
+                        }
+                        ++writeIndex;
+                    } else {
+                        ++detached;
+                    }
+                }
+                (void)records.Resize(writeIndex);
+                if (records.Empty()) {
+                    emptyTargets.PushBack(entry.Key());
+                }
             }
-            ++writeIndex;
-        } else {
-            ++detached;
+            for (const DependencyObject* emptyTarget : emptyTargets) {
+                deferredByTarget_.Erase(emptyTarget);
+            }
         }
     }
-    (void)deferredBindings_.Resize(writeIndex);
 
-    std::uint32_t writePending = 0U;
-    for (std::uint32_t readIndex = 0U; readIndex < pendingDeferredActivations_.Size(); ++readIndex) {
-        if (pendingDeferredActivations_[readIndex] != &object) {
-            if (writePending != readIndex) {
-                pendingDeferredActivations_[writePending] = pendingDeferredActivations_[readIndex];
+    if (!pendingDeferredActivations_.Empty()) {
+        std::uint32_t writePending = 0U;
+        for (std::uint32_t readIndex = 0U; readIndex < pendingDeferredActivations_.Size(); ++readIndex) {
+            if (pendingDeferredActivations_[readIndex] != &object) {
+                if (writePending != readIndex) {
+                    pendingDeferredActivations_[writePending] = pendingDeferredActivations_[readIndex];
+                }
+                ++writePending;
             }
-            ++writePending;
+        }
+        (void)pendingDeferredActivations_.Resize(writePending);
+    }
+    if (!multiBindings_.Empty()) {
+        (void)ClearMultiBinding(object);
+    }
+    return detached;
+}
+
+bool BindingEngine::HasAnyObjectReference(
+    const DependencyObject& object) const noexcept {
+    if (targetToBindings_.Find(&object) != nullptr ||
+        sourceToBindings_.Find(&object) != nullptr ||
+        deferredByTarget_.Find(&object) != nullptr) {
+        return true;
+    }
+    if (!deferredByTarget_.Empty()) {
+        for (const auto& entry : deferredByTarget_) {
+            for (const DeferredBindingRecord& record : entry.Value()) {
+                if (record.source == &object || record.dataContextOwner == &object) {
+                    return true;
+                }
+            }
         }
     }
-    (void)pendingDeferredActivations_.Resize(writePending);
-    (void)ClearMultiBinding(object);
-    return detached;
+    for (const MultiBindingGroup& group : multiBindings_) {
+        if (group.target == &object) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool BindingEngine::HasActiveBindingsOutside(
+    const DependencyObject& object,
+    const Base::HashSet<DependencyObject*>& detachedSet) const noexcept {
+    const auto isDetached = [&](const DependencyObject* candidate) noexcept {
+        if (candidate == nullptr || candidate == &object) return true;
+        if (detachedSet.Contains(const_cast<DependencyObject*>(candidate))) {
+            return true;
+        }
+        if (const auto* vis = ::Aero::TryCast<::Aero::Media::Visual>(candidate)) {
+            if (ElementTree::Of(*vis) == nullptr) return true;
+        }
+        if (const auto* freezable = ::Aero::TryCast<Freezable>(candidate)) {
+            if (!freezable->HasActiveConsumersOutside(detachedSet)) return true;
+        }
+        return false;
+    };
+    if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+        for (BindingHandle h : *sourceList) {
+            const BindingRecord* rec = FindRecord(h);
+            if (rec == nullptr || rec->handle.value == 0U) continue;
+            if (!isDetached(rec->descriptor.target)) {
+                return true;
+            }
+        }
+    }
+    if (!deferredByTarget_.Empty()) {
+        for (const auto& entry : deferredByTarget_) {
+            for (const DeferredBindingRecord& record : entry.Value()) {
+                if (record.source == &object || record.dataContextOwner == &object) {
+                    if (!isDetached(record.target)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
 }
 
 
@@ -1020,7 +1139,15 @@ Base::Result<Base::String> FormatBindingString(
     // the placeholder as nested markup. WPF stores StringFormat without those
     // slashes ("Orbit: {0:F2} AU"). Unescape before looking up {0:...}.
     Base::String unescapedFormat;
-    if (!format.Empty()) {
+    Base::StringView activeFormat = format;
+    bool hasBackslash = false;
+    for (std::uint32_t index = 0U; index < format.SizeBytes(); ++index) {
+        if (format[index] == '\\') {
+            hasBackslash = true;
+            break;
+        }
+    }
+    if (hasBackslash) {
         unescapedFormat.Reserve(format.SizeBytes());
         for (std::uint32_t index = 0U;
              index < format.SizeBytes();
@@ -1034,8 +1161,8 @@ Base::Result<Base::String> FormatBindingString(
                 Base::StringView(&character, 1U));
             if (!appended) return appended.GetStatus();
         }
+        activeFormat = unescapedFormat.View();
     }
-    Base::StringView activeFormat = unescapedFormat.View();
     if (activeFormat.SizeBytes() >= 2U &&
         activeFormat[0] == '{' &&
         activeFormat[1] == '}') {
@@ -1409,7 +1536,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (flushing_) {
         return std::uint32_t{0U};
     }
-    if (!hasDirtyBindings_ && pollingBindingCount_ == 0U && pendingDeferredActivations_.Empty()) {
+    if (!hasDirtyBindings_ && dirtyQueue_.Empty() && pollingQueue_.Empty()) {
         return std::uint32_t{0U};
     }
 
@@ -1418,50 +1545,68 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     std::uint32_t updated = 0U;
 
     for (std::uint32_t iteration = 0U; iteration < 4U; ++iteration) {
-        const std::uint32_t currentCount = bindings_.Size();
+
+        for (std::uint32_t i = 0U; i < pollingQueue_.Size(); ++i) {
+            BindingRecord* rec = FindRecord(pollingQueue_[i]);
+            if (rec != nullptr && rec->handle.value != 0U) {
+                EnqueueDirtyRecord(*rec);
+            }
+        }
+
+        if (dirtyQueue_.Empty()) {
+            break;
+        }
+
+        workQueue_ = std::move(dirtyQueue_);
+        dirtyQueue_.Clear();
+
         std::uint32_t iterationUpdated = 0U;
         // Equip slots author DataContext="{Binding Player.Slots[i]}" plus
         // Content="{Binding}". Apply DataContext writes first so empty-path
         // Content bindings in the same Flush see the slot object.
         const std::uint32_t startPass = (writesDataContextCount_ > 0U) ? 0U : 1U;
         for (std::uint32_t pass = startPass; pass < 2U; ++pass) {
-            for (std::uint32_t index = 0U; index < currentCount; ++index) {
-                if (index >= bindings_.Size() || bindings_[index].handle.value == 0U) {
+            for (std::uint32_t w = 0U; w < workQueue_.Size(); ++w) {
+                BindingHandle handle = workQueue_[w];
+                BindingRecord* rec = FindRecord(handle);
+                if (rec == nullptr || rec->handle.value == 0U) {
                     continue;
                 }
                 const bool writesDataContext =
-                    bindings_[index].dataContextProperty.IsValid() &&
-                    bindings_[index].descriptor.targetProperty == bindings_[index].dataContextProperty;
+                    rec->dataContextProperty.IsValid() &&
+                    rec->descriptor.targetProperty == rec->dataContextProperty;
                 if (pass == 0U && !writesDataContext) {
                     continue;
                 }
                 if (pass == 1U && writesDataContext) {
                     continue;
                 }
-                if (bindings_[index].descriptor.mode == BindingMode::OneTime && bindings_[index].applied) {
-                    bindings_[index].sourceDirty = false;
-                    bindings_[index].targetDirty = false;
+                rec->inDirtyQueue = false;
+
+                if (rec->descriptor.mode == BindingMode::OneTime && rec->applied) {
+                    rec->sourceDirty = false;
+                    rec->targetDirty = false;
                     continue;
                 }
                 const bool metadataPath =
-                    bindings_[index].sourceKind != BindingSourceKind::DependencyProperty;
+                    rec->sourceKind != BindingSourceKind::DependencyProperty;
                 const bool hasNotify =
-                    bindings_[index].notificationSubscription != 0U ||
-                    bindings_[index].sourceDependencyProperty.IsValid();
+                    rec->notificationSubscription != 0U ||
+                    rec->sourceDependencyProperty.IsValid();
                 const bool unresolvedDataContext =
-                    bindings_[index].sourceKind == BindingSourceKind::DataContext &&
-                    (!bindings_[index].applied || bindings_[index].metadataSource == nullptr ||
-                     (!bindings_[index].bindsToSource && !bindings_[index].pathPlan.IsValid()));
+                    rec->sourceKind == BindingSourceKind::DataContext &&
+                    (!rec->applied || rec->metadataSource == nullptr ||
+                     (!rec->bindsToSource && !rec->pathPlan.IsValid()));
                 const bool pollMetadata =
                     (metadataPath && !hasNotify) || unresolvedDataContext;
-                if (bindings_[index].applied && !bindings_[index].sourceDirty &&
-                    !bindings_[index].targetDirty && !pollMetadata) {
+                if (rec->applied && !rec->sourceDirty &&
+                    !rec->targetDirty && !pollMetadata) {
                     continue;
                 }
-                if (pollMetadata && !bindings_[index].pollHintEmitted) {
-                    bindings_[index].pollHintEmitted = true;
+                if (pollMetadata && !rec->pollHintEmitted) {
+                    rec->pollHintEmitted = true;
                     ReportDiagnostic(
-                        bindings_[index],
+                        *rec,
                         BindingDiagnosticStage::ResolveSource,
                         Base::Status::Failure(
                             Base::ErrorCode::Unsupported,
@@ -1469,63 +1614,63 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                             "polling metadata path every frame"));
                 }
 
-                Base::Result<PropertyValue> source = ReadSource(bindings_[index]);
+                Base::Result<PropertyValue> source = ReadSource(*rec);
                 bool usedFallback = false;
                 if (!source) {
                     const BindingDiagnosticStage stage =
-                        bindings_[index].sourceKind == BindingSourceKind::DataContext &&
+                        rec->sourceKind == BindingSourceKind::DataContext &&
                         source.GetStatus().code == Base::ErrorCode::NotFound
                             ? BindingDiagnosticStage::ResolveSource
                             : BindingDiagnosticStage::ReadSource;
-                    ReportDiagnostic(bindings_[index], stage, source.GetStatus());
-                    if (bindings_[index].descriptor.fallbackValue.IsUnset()) {
-                        bindings_[index].applied = false;
-                        bindings_[index].sourceDirty = true;
+                    ReportDiagnostic(*rec, stage, source.GetStatus());
+                    if (rec->descriptor.fallbackValue.IsUnset()) {
+                        rec->applied = false;
+                        rec->sourceDirty = true;
                         continue;
                     }
-                    source = bindings_[index].descriptor.fallbackValue;
+                    source = rec->descriptor.fallbackValue;
                     usedFallback = true;
                 }
                 Base::Result<PropertyValue> target =
-                    bindings_[index].descriptor.target->GetValue(bindings_[index].descriptor.targetProperty);
+                    rec->descriptor.target->GetValue(rec->descriptor.targetProperty);
                 if (!target) {
                     ReportDiagnostic(
-                        bindings_[index],
+                        *rec,
                         BindingDiagnosticStage::WriteTarget,
                         target.GetStatus());
                     continue;
                 }
 
-                const BindingMode mode = bindings_[index].descriptor.mode;
+                const BindingMode mode = rec->descriptor.mode;
                 const bool canReadSource = (mode != BindingMode::OneWayToSource);
                 const bool canWriteSource = (mode != BindingMode::OneWay && mode != BindingMode::OneTime);
-                const bool sourceChanged = canReadSource && (!bindings_[index].applied ||
-                    bindings_[index].sourceDirty ||
+                const bool sourceChanged = canReadSource && (!rec->applied ||
+                    rec->sourceDirty ||
                     usedFallback ||
                     (pollMetadata &&
-                     source.Value() != bindings_[index].lastSourceValue));
+                     source.Value() != rec->lastSourceValue));
                 const bool targetChanged = canWriteSource &&
-                    ((bindings_[index].descriptor.updateSourceTrigger ==
+                    ((rec->descriptor.updateSourceTrigger ==
                             UpdateSourceTrigger::Explicit ||
-                        bindings_[index].descriptor.updateSourceTrigger ==
+                        rec->descriptor.updateSourceTrigger ==
                             UpdateSourceTrigger::LostFocus)
-                    ? bindings_[index].forceSourceUpdate
-                    : (!bindings_[index].applied || bindings_[index].targetDirty));
+                    ? rec->forceSourceUpdate
+                    : (!rec->applied || rec->targetDirty));
                 if (!canReadSource) {
-                    bindings_[index].sourceDirty = false;
+                    rec->sourceDirty = false;
                 }
                 if (!canWriteSource &&
-                    bindings_[index].descriptor.updateSourceTrigger != UpdateSourceTrigger::LostFocus &&
-                    bindings_[index].descriptor.updateSourceTrigger != UpdateSourceTrigger::Explicit) {
-                    bindings_[index].targetDirty = false;
+                    rec->descriptor.updateSourceTrigger != UpdateSourceTrigger::LostFocus &&
+                    rec->descriptor.updateSourceTrigger != UpdateSourceTrigger::Explicit) {
+                    rec->targetDirty = false;
                 }
                 if (!sourceChanged && !targetChanged) {
-                    bindings_[index].sourceDirty = false;
-                    if (bindings_[index].descriptor.updateSourceTrigger !=
+                    rec->sourceDirty = false;
+                    if (rec->descriptor.updateSourceTrigger !=
                             UpdateSourceTrigger::LostFocus &&
-                        bindings_[index].descriptor.updateSourceTrigger !=
+                        rec->descriptor.updateSourceTrigger !=
                             UpdateSourceTrigger::Explicit) {
-                        bindings_[index].targetDirty = false;
+                        rec->targetDirty = false;
                     }
                     continue;
                 }
@@ -1533,11 +1678,11 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     Base::Status::Failure(
                         Base::ErrorCode::InvalidState,
                         "Binding update was not attempted");
-                switch (bindings_[index].descriptor.mode) {
+                switch (rec->descriptor.mode) {
                 case BindingMode::OneTime:
-                    if (!bindings_[index].applied) {
+                    if (!rec->applied) {
                         applied = ApplySourceToTarget(
-                            bindings_[index],
+                            *rec,
                             source.Value(),
                             usedFallback,
                             target.Value());
@@ -1548,7 +1693,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                 case BindingMode::OneWay:
                     if (sourceChanged) {
                         applied = ApplySourceToTarget(
-                            bindings_[index],
+                            *rec,
                             source.Value(),
                             usedFallback,
                             target.Value());
@@ -1558,91 +1703,64 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                 case BindingMode::OneWayToSource:
                     if (targetChanged) {
                         applied = ApplyTargetToSource(
-                            bindings_[index],
+                            *rec,
                             target.Value(),
                             source.Value());
                         if (applied) ++iterationUpdated;
                     }
                     break;
                 case BindingMode::TwoWay:
-                    // A target edit (ToggleButton click) must write back even when
-                    // metadata-path polling reports a unchanged source as "changed".
-                    // Source still wins when the source property itself is dirty.
-                    if (targetChanged && !bindings_[index].sourceDirty) {
+                    if (targetChanged && !rec->sourceDirty) {
                         applied = ApplyTargetToSource(
-                            bindings_[index],
+                            *rec,
                             target.Value(),
                             source.Value());
                         if (applied) ++iterationUpdated;
                     } else if (sourceChanged) {
                         applied = ApplySourceToTarget(
-                            bindings_[index],
+                            *rec,
                             source.Value(),
                             usedFallback,
                             target.Value());
                         if (applied) ++iterationUpdated;
                     } else if (targetChanged) {
                         applied = ApplyTargetToSource(
-                            bindings_[index],
+                            *rec,
                             target.Value(),
                             source.Value());
                         if (applied) ++iterationUpdated;
                     }
                     break;
                 }
-                if (index >= bindings_.Size() || bindings_[index].handle.value == 0U) {
+                rec = FindRecord(handle);
+                if (rec == nullptr || rec->handle.value == 0U) {
                     continue;
                 }
                 if (!applied && (sourceChanged || targetChanged)) {
                     if (canReadSource && sourceChanged) {
-                        bindings_[index].sourceDirty = true;
+                        rec->sourceDirty = true;
                     }
                     if (canWriteSource && targetChanged) {
-                        bindings_[index].targetDirty = true;
+                        rec->targetDirty = true;
                     }
                     continue;
                 }
-                bindings_[index].lastSourceValue = source.Value();
-                bindings_[index].lastTargetValue = target.Value();
-                bindings_[index].applied = true;
-                bindings_[index].lastStatus = {};
-                bindings_[index].sourceDirty = false;
-                bindings_[index].targetDirty = false;
-                bindings_[index].forceSourceUpdate = false;
+                rec->lastSourceValue = source.Value();
+                rec->lastTargetValue = target.Value();
+                rec->applied = true;
+                rec->lastStatus = {};
+                rec->sourceDirty = false;
+                rec->targetDirty = false;
+                rec->forceSourceUpdate = false;
+                UpdatePollingRegistration(*rec);
             }
         }
         updated += iterationUpdated;
-        if (iterationUpdated == 0U && bindings_.Size() == currentCount) {
+        if (iterationUpdated == 0U && dirtyQueue_.Empty()) {
             break;
         }
     }
     flushing_ = false;
-    std::uint32_t pollCount = 0U;
-    bool anyDirty = false;
-    for (std::uint32_t index = 0U; index < bindings_.Size(); ++index) {
-        if (bindings_[index].handle.value == 0U) continue;
-        const bool metadataPath =
-            bindings_[index].sourceKind != BindingSourceKind::DependencyProperty;
-        const bool hasNotify =
-            bindings_[index].notificationSubscription != 0U ||
-            bindings_[index].sourceDependencyProperty.IsValid();
-        const bool unresolvedDataContext =
-            bindings_[index].sourceKind == BindingSourceKind::DataContext &&
-            (!bindings_[index].applied || bindings_[index].metadataSource == nullptr ||
-             (!bindings_[index].bindsToSource && !bindings_[index].pathPlan.IsValid()));
-        const bool pollMetadata =
-            (metadataPath && !hasNotify) || unresolvedDataContext;
-        if (pollMetadata) {
-            ++pollCount;
-        }
-        const bool isOneTimeApplied =
-            bindings_[index].descriptor.mode == BindingMode::OneTime && bindings_[index].applied;
-        if (!isOneTimeApplied && (!bindings_[index].applied || bindings_[index].sourceDirty || bindings_[index].targetDirty)) {
-            anyDirty = true;
-        }
-    }
-    pollingBindingCount_ = pollCount;
-    hasDirtyBindings_ = anyDirty;
 
     if (hasPendingDetaches_) {
         hasPendingDetaches_ = false;
@@ -1658,6 +1776,8 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         }
         bindings_.Resize(writeIndex);
     }
+    hasDirtyBindings_ = !dirtyQueue_.Empty();
+    pollingBindingCount_ = pollingQueue_.Size();
     return updated;
 }
 
@@ -1750,7 +1870,6 @@ void BindingEngine::DataBindHook(void* context) noexcept {
 void BindingEngine::OnPropertyChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept {
-    hasDirtyBindings_ = true;
     bool lostFocusFlush = false;
 
     if (const auto* targetList = targetToBindings_.Find(&object)) {
@@ -1759,6 +1878,7 @@ void BindingEngine::OnPropertyChanged(
             if (record == nullptr) continue;
             if (record->descriptor.targetProperty == args.GetProperty()) {
                 record->targetDirty = true;
+                EnqueueDirtyRecord(*record);
             }
             if (record->lostFocusSubscribed &&
                 record->descriptor.target == &object &&
@@ -1770,6 +1890,7 @@ void BindingEngine::OnPropertyChanged(
                 if (!focused) {
                     record->forceSourceUpdate = true;
                     record->targetDirty = true;
+                    EnqueueDirtyRecord(*record);
                     lostFocusFlush = true;
                 }
             }
@@ -1777,27 +1898,44 @@ void BindingEngine::OnPropertyChanged(
     }
 
     if (const auto* sourceList = sourceToBindings_.Find(&object)) {
+        Base::BasicVector<BindingHandle, 16U> sourceHandles;
         for (BindingHandle handle : *sourceList) {
+            bool duplicate = false;
+            for (BindingHandle existing : sourceHandles) {
+                if (existing.value == handle.value) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                sourceHandles.PushBack(handle);
+            }
+        }
+        for (BindingHandle handle : sourceHandles) {
             BindingRecord* record = FindRecord(handle);
             if (record == nullptr) continue;
             if (record->sourceKind == BindingSourceKind::DependencyProperty &&
                 record->descriptor.source == &object &&
                 record->descriptor.sourceProperty == args.GetProperty()) {
                 record->sourceDirty = true;
+                EnqueueDirtyRecord(*record);
             }
             if (record->sourceDependencyProperty.IsValid() &&
                 record->metadataSource == &object &&
                 record->sourceDependencyProperty == args.GetProperty()) {
                 record->sourceDirty = true;
+                EnqueueDirtyRecord(*record);
             }
             if (record->sourceKind == BindingSourceKind::DataContext &&
                 record->dataContextProperty == args.GetProperty() &&
                 record->dataContextOwner == &object) {
                 ReleaseMetadataSource(*record);
                 record->metadataSource = nullptr;
-                record->pathPlan = {};
+                record->pathPlan.InvalidateResolution();
                 record->sourceDirty = true;
                 record->applied = false;
+                EnqueueDirtyRecord(*record);
+                UpdatePollingRegistration(*record);
             }
         }
     }
@@ -1812,9 +1950,11 @@ void BindingEngine::OnPropertyChanged(
                 BindingOwnerSeesDataContextChange(record->dataContextOwner, object)) {
                 ReleaseMetadataSource(*record);
                 record->metadataSource = nullptr;
-                record->pathPlan = {};
+                record->pathPlan.InvalidateResolution();
                 record->sourceDirty = true;
                 record->applied = false;
+                EnqueueDirtyRecord(*record);
+                UpdatePollingRegistration(*record);
             }
         }
     }
@@ -1827,7 +1967,6 @@ void BindingEngine::OnPropertyChanged(
 void BindingEngine::OnMetadataPropertyChanged(
     Base::Object& object,
     MemberId property) noexcept {
-    hasDirtyBindings_ = true;
     if (const auto* sourceList = sourceToBindings_.Find(&object)) {
         for (BindingHandle handle : *sourceList) {
             BindingRecord* record = FindRecord(handle);
@@ -1835,15 +1974,16 @@ void BindingEngine::OnMetadataPropertyChanged(
             if (record->sourceKind == BindingSourceKind::DependencyProperty ||
                 record->metadataSource != &object ||
                 !record->pathPlan.IsValid() ||
-                record->pathPlan.Segments().Empty()) {
+                record->pathPlan.Steps().Empty()) {
                 continue;
             }
-            const BindingPathSegment& first =
-                record->pathPlan.Segments()[0];
+            const CompiledPathStep& first =
+                record->pathPlan.Steps()[0];
             if (property == InvalidMemberId ||
                 first.member == property ||
                 first.dynamic) {
                 record->sourceDirty = true;
+                EnqueueDirtyRecord(*record);
             }
         }
     }
@@ -1984,7 +2124,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     if (record.dataContextOwner == nullptr) {
         ReleaseMetadataSource(record);
         record.metadataSource = nullptr;
-        record.pathPlan = {};
+        record.pathPlan.InvalidateResolution();
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Binding target has no DataContext object");
@@ -2019,7 +2159,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
         dataContext.Value().IsNullObject()) {
         ReleaseMetadataSource(record);
         record.metadataSource = nullptr;
-        record.pathPlan = {};
+        record.pathPlan.InvalidateResolution();
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Binding target has no DataContext object");
@@ -2032,7 +2172,7 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     }
     ReleaseMetadataSource(record);
     record.metadataSource = nullptr;
-    record.pathPlan = {};
+    record.pathPlan.InvalidateResolution();
 
     if (record.bindsToSource) {
         const DependencyProperty* targetProperty =
@@ -2065,13 +2205,17 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
         return {};
     }
 
-    BindingPathCompileError compileError;
-    Base::Result<BindingPathPlan> compiled =
-        BindingPathPlan::Compile(
-            *record.metadata,
-            source->RuntimeType(),
-            record.path.View(),
-            &compileError);
+    if (record.pathPlan.IsTargetValidatedFor(
+            *record.metadata, source->RuntimeType())) {
+        record.pathPlan.ActivateCachedRoot();
+    } else {
+        BindingPathCompileError compileError;
+        Base::Result<void> compiled =
+            record.pathPlan.BindToRoot(
+                *record.metadata,
+                source->RuntimeType(),
+                record.path.View(),
+                &compileError);
         if (!compiled) {
             return BindingPathFailure(
                 record.metadata->Types(),
@@ -2079,56 +2223,60 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
                 compileError,
                 compiled.GetStatus());
         }
-    const DependencyProperty* targetProperty =
-        DependencyObjectAccess::PropertyRegistry(record.descriptor.target).Find(
-            record.descriptor.targetProperty);
-    if (targetProperty == nullptr ||
-        (record.descriptor.convert == nullptr &&
-         !record.descriptor.converterResource &&
-         !TargetAcceptsPathResult(
-             record.metadata->Types(),
-             targetProperty,
-             compiled.Value().ResultType(),
-             compiled.Value().HasDynamicResult()))) {
-        return BindingTypeMismatch(
-            record.metadata->Types(),
-            record.path.View(),
-            compiled.Value().ResultType(),
-            *record.descriptor.target,
-            targetProperty);
-    }
-    if ((record.descriptor.mode == BindingMode::TwoWay ||
-         record.descriptor.mode == BindingMode::OneWayToSource) &&
-        !compiled.Value().CanWrite()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ReadOnly,
-            "Binding source path is not writable");
-    }
-    if ((record.descriptor.mode == BindingMode::TwoWay ||
-         record.descriptor.mode == BindingMode::OneWayToSource) &&
-        !compiled.Value().HasDynamicResult() &&
-        targetProperty->ValueType() != compiled.Value().ResultType() &&
-        record.descriptor.convertBack == nullptr &&
-        !record.descriptor.converterResource &&
-        !HasDefaultTargetConversion(
-            targetProperty->ValueType(),
-            compiled.Value().ResultType()) &&
-        !CanRoundTripObjectValue(
-            record.metadata->Types(),
-            compiled.Value().ResultType(),
-            targetProperty->ValueType())) {
-        return InvalidArgument(
-            "Binding requires ConvertBack for different source and target types");
+        const DependencyProperty* targetProperty =
+            DependencyObjectAccess::PropertyRegistry(record.descriptor.target).Find(
+                record.descriptor.targetProperty);
+        if (targetProperty == nullptr ||
+            (record.descriptor.convert == nullptr &&
+             !record.descriptor.converterResource &&
+             !TargetAcceptsPathResult(
+                 record.metadata->Types(),
+                 targetProperty,
+                 record.pathPlan.ResultType(),
+                 record.pathPlan.HasDynamicResult()))) {
+            record.pathPlan.InvalidateResolution();
+            return BindingTypeMismatch(
+                record.metadata->Types(),
+                record.path.View(),
+                record.pathPlan.ResultType(),
+                *record.descriptor.target,
+                targetProperty);
+        }
+        if ((record.descriptor.mode == BindingMode::TwoWay ||
+             record.descriptor.mode == BindingMode::OneWayToSource) &&
+            !record.pathPlan.CanWrite()) {
+            record.pathPlan.InvalidateResolution();
+            return Base::Status::Failure(
+                Base::ErrorCode::ReadOnly,
+                "Binding source path is not writable");
+        }
+        if ((record.descriptor.mode == BindingMode::TwoWay ||
+             record.descriptor.mode == BindingMode::OneWayToSource) &&
+            !record.pathPlan.HasDynamicResult() &&
+            targetProperty->ValueType() != record.pathPlan.ResultType() &&
+            record.descriptor.convertBack == nullptr &&
+            !record.descriptor.converterResource &&
+            !HasDefaultTargetConversion(
+                targetProperty->ValueType(),
+                record.pathPlan.ResultType()) &&
+            !CanRoundTripObjectValue(
+                record.metadata->Types(),
+                record.pathPlan.ResultType(),
+                targetProperty->ValueType())) {
+            record.pathPlan.InvalidateResolution();
+            return InvalidArgument(
+                "Binding requires ConvertBack for different source and target types");
+        }
+        record.pathPlan.MarkTargetValidated();
     }
     record.metadataSource = source;
-    record.pathPlan = std::move(compiled).Value();
     AddSourceBinding(record.metadataSource, record.handle);
     Base::Result<void> subscribed =
         SubscribeMetadataSource(record);
     if (!subscribed) {
         RemoveSourceBinding(record.metadataSource, record.handle);
         record.metadataSource = nullptr;
-        record.pathPlan = {};
+        record.pathPlan.InvalidateResolution();
         return subscribed.GetStatus();
     }
     record.sourceDirty = true;
@@ -2165,6 +2313,7 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
         return InvalidArgument(
             "Binding metadata source subscription is incomplete");
     }
+    record.pathPlan.WarmCache(*record.metadata);
     Base::Result<std::uint64_t> subscribed =
         record.metadata->SubscribePropertyChanged(
         *record.metadataSource,
@@ -2174,19 +2323,26 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
     record.notificationSubscription = subscribed.Value();
     record.sourceDependencyProperty = {};
     if (!record.bindsToSource &&
-        !record.pathPlan.Segments().Empty()) {
+        !record.pathPlan.Steps().Empty()) {
         if (auto* sourceObject =
                 ::Aero::TryCast<::Aero::DependencyObject>(
                     record.metadataSource)) {
-            const BindingPathSegment& first =
-                record.pathPlan.Segments()[0];
-            if (!first.dynamic && first.member != InvalidMemberId) {
+            const CompiledPathStep& first =
+                record.pathPlan.Steps()[0];
+            if (!first.dynamic && first.dependencyProperty != nullptr) {
+                DependencyPropertyHandle handle =
+                    first.dependencyProperty->Handle();
+                sourceObject->AddValueChangedHandler(
+                    handle, propertyChangedHandler_);
+                record.sourceDependencyProperty = handle;
+            } else if (!first.dynamic && first.member != InvalidMemberId) {
                 DependencyPropertyHandle handle{first.member};
-                if (DependencyObjectAccess::PropertyRegistry(sourceObject).Find(handle) !=
-                    nullptr) {
+                if (const Meta::DependencyProperty* dp =
+                        DependencyObjectAccess::PropertyRegistry(sourceObject).Find(handle)) {
+                    const DependencyPropertyHandle canonicalHandle = dp->Handle();
                     sourceObject->AddValueChangedHandler(
-                        handle, propertyChangedHandler_);
-                    record.sourceDependencyProperty = handle;
+                        canonicalHandle, propertyChangedHandler_);
+                    record.sourceDependencyProperty = canonicalHandle;
                 }
             }
         }
@@ -2256,6 +2412,7 @@ void BindingEngine::CleanupRecord(BindingRecord& record) noexcept {
 
 void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     if (index >= bindings_.Size()) return;
+    RemovePollingHandle(bindings_[index].handle);
     if (bindings_[index].dataContextProperty.IsValid() &&
         bindings_[index].descriptor.targetProperty == bindings_[index].dataContextProperty &&
         writesDataContextCount_ > 0U) {
@@ -2274,6 +2431,9 @@ void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHand
     if (target == nullptr || handle.value == 0U) return;
     auto* found = targetToBindings_.Find(target);
     if (found != nullptr) {
+        for (BindingHandle existing : *found) {
+            if (existing.value == handle.value) return;
+        }
         found->PushBack(handle);
     } else {
         Base::Vector<BindingHandle> vec;
@@ -2302,6 +2462,9 @@ void BindingEngine::AddSourceBinding(const Base::Object* source, BindingHandle h
     if (source == nullptr || handle.value == 0U) return;
     auto* found = sourceToBindings_.Find(source);
     if (found != nullptr) {
+        for (BindingHandle existing : *found) {
+            if (existing.value == handle.value) return;
+        }
         found->PushBack(handle);
     } else {
         Base::Vector<BindingHandle> vec;

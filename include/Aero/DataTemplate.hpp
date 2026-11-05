@@ -38,6 +38,10 @@ public:
     void SetItemsSource(Ref<Base::Object> value) noexcept;
     Ref<Base::Object> GetItemTemplate() const noexcept;
     void SetItemTemplate(Ref<Base::Object> value) noexcept;
+
+private:
+    Ref<Base::Object> itemsSource_;
+    Ref<Base::Object> itemTemplate_;
 };
 
 class DependencyObject;

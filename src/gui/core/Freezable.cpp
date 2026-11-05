@@ -1,5 +1,8 @@
 #include <Aero/Freezable.hpp>
+#include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/TryCast.hpp>
+#include <Aero/Visual.hpp>
 
 #include "gui/core/DependencyPropertyRegistry.hpp"
 #include "gui/core/PropertyStore.hpp"
@@ -391,8 +394,8 @@ void Freezable::OnChanged() noexcept {
             ? retained.Get()
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
-        if (consumer != nullptr) {
-            (*consumer).InvalidateSubProperty( property);
+        if (consumer != nullptr && property.IsValid()) {
+            (*consumer).InvalidateSubProperty(property);
         }
     }
     for (std::uint32_t index = 0U;
@@ -424,7 +427,7 @@ Base::Result<void> Freezable::AttachConsumer(
     DependencyObject& object,
     Meta::DependencyPropertyHandle property) noexcept {
     Freezable& value = *this;
-    if (value.IsFrozen() || !property.IsValid()) return {};
+    if (value.IsFrozen()) return {};
     if (!value.EnsureState()) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
@@ -492,6 +495,32 @@ DependencyObject* Freezable::Parent() const noexcept {
         if (consumer.unmanagedObject != nullptr) return consumer.unmanagedObject;
     }
     return nullptr;
+}
+
+bool Freezable::HasActiveConsumersOutside(
+    const Base::HashSet<DependencyObject*>& detachedSet,
+    std::uint32_t depth) const noexcept {
+    if (depth >= 16U || state_ == nullptr || state_->consumers.Empty()) return false;
+    for (const Freezable::State::ConsumerRecord& record : state_->consumers) {
+        Base::Ref<DependencyObject> retained = record.object.Lock();
+        DependencyObject* consumer = retained
+            ? retained.Get()
+            : record.unmanagedObject;
+        if (consumer == nullptr) continue;
+        if (detachedSet.Contains(consumer)) continue;
+        if (const auto* vis = ::Aero::TryCast<::Aero::Media::Visual>(consumer)) {
+            if (ElementTree::Of(*vis) == nullptr) continue;
+            return true;
+        }
+        if (const auto* parentFreezable = ::Aero::TryCast<Freezable>(consumer)) {
+            if (parentFreezable->HasActiveConsumersOutside(detachedSet, depth + 1U)) {
+                return true;
+            }
+            continue;
+        }
+        return true;
+    }
+    return false;
 }
 
 bool DependencyObject::HasUnfreezableValueState() const noexcept {

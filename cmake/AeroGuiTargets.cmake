@@ -105,6 +105,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/ControlsEnumsDescribe.cpp)
 
 set(_aero_gui_markup_sources
+    src/gui/markup/XamlBytecode.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
     src/gui/markup/XamlCompiler.cpp
     src/gui/markup/XamlSchema.cpp

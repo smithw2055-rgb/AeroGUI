@@ -108,10 +108,8 @@ Base::Result<long double> ReadConstantBindingNumberImpl(
 Base::Result<Meta::Value> ConvertConstantBindingValueImpl(
     const Meta::Value& value,
     Meta::TypeId targetType) noexcept {
-    if (targetType == Meta::InvalidTypeId) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Binding constant target type is invalid");
+    if (targetType == Meta::InvalidTypeId || targetType == Meta::TypeOf<Meta::Value>()) {
+        return value;
     }
     if (value.Type() == targetType) return value;
 
@@ -1025,8 +1023,7 @@ Base::Result<ProvidedValue> CreateMultiBindingValueImpl(
     const ExtensionServices& services) noexcept {
     if (services.schema == nullptr ||
         services.targetObject == nullptr ||
-        services.targetMember == Meta::InvalidMemberId ||
-        services.nameScope == nullptr) {
+        services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "MultiBinding has no target service context");
@@ -1183,7 +1180,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     const ExtensionServices& services,
     void* context) noexcept {
     if (services.schema == nullptr || services.targetObject == nullptr ||
-        services.nameScope == nullptr ||
         services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1321,7 +1317,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         targetMember->Name() == Base::StringView("Value");
     const bool authoredHierarchicalItemsSource =
         targetMember != nullptr &&
-        targetMember->OwnerType() == DataTemplate::StaticTypeId() &&
+        (targetMember->OwnerType() == HierarchicalDataTemplate::StaticTypeId() ||
+         targetMember->OwnerType() == DataTemplate::StaticTypeId()) &&
         targetMember->Name() == Base::StringView("ItemsSource");
     const bool authoredLaunchPath =
         targetMember != nullptr &&
@@ -1489,7 +1486,8 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             RelativeSourceKind::TemplatedParent &&
         services.deferredContentOwner != nullptr &&
         services.deferredContentOwner->RuntimeType() ==
-            Controls::ControlTemplate::StaticTypeId()) {
+            Controls::ControlTemplate::StaticTypeId() &&
+        !static_cast<const Controls::ControlTemplate*>(services.deferredContentOwner)->GetIsSealed()) {
         auto& controlTemplate =
             static_cast<Controls::ControlTemplate&>(
                 *services.deferredContentOwner);
@@ -1547,6 +1545,11 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
         }
         source = resource.Value().AsObject().Get();
     } else if (!elementName.Empty()) {
+        if (services.nameScope == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "Binding ElementName requires an active name scope");
+        }
         // ElementName may legally refer forward in the same NameScope. Resolve
         // what is already available now and prepare unresolved references once
         // the object writer has completed the document scope.
@@ -1619,6 +1622,7 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
             "Deferred Binding allocation failed");
     }
     auto* state = new (memory) DeferredBindingState();
+    state->allocator = &allocator;
     state->metadata = services.schema->Metadata();
     state->source = source;
     if (relativeSource == RelativeSourceKind::Ancestor) {
@@ -1657,7 +1661,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
     state->bindsToSource = path.Empty();
     state->updateSourceTrigger = updateSourceTrigger;
     state->converter = std::move(converter);
-    state->allocator = &allocator;
     if (!converterParameter.Empty()) {
         Base::Result<Meta::PropertyValue> parameter =
             Meta::PropertyValue::TryFromString(
@@ -2198,6 +2201,71 @@ void NotifyAllDynamicResourcesChanged() noexcept {
     }
 }
 
+static Base::StringView ExtractResourceKeyArgument(Base::StringView arguments) noexcept {
+    Base::StringView key = TrimAscii(arguments);
+    constexpr Base::StringView ResourceKeyPrefix("ResourceKey");
+    if (key.SizeBytes() >= ResourceKeyPrefix.SizeBytes() &&
+        key.Substr(0U, ResourceKeyPrefix.SizeBytes()) == ResourceKeyPrefix) {
+        Base::StringView rest = TrimAscii(key.Substr(
+            ResourceKeyPrefix.SizeBytes(),
+            key.SizeBytes() - ResourceKeyPrefix.SizeBytes()));
+        if (!rest.Empty() && rest[0] == '=') {
+            key = TrimAscii(rest.Substr(1U, rest.SizeBytes() - 1U));
+        }
+    }
+    if (key.SizeBytes() >= 2U &&
+        ((key[0] == '\'' && key[key.SizeBytes() - 1U] == '\'') ||
+         (key[0] == '"' && key[key.SizeBytes() - 1U] == '"'))) {
+        key = key.Substr(1U, key.SizeBytes() - 2U);
+    }
+    return key;
+}
+
+static Base::Result<Aero::ResourceValue> LookupResourceKeyInDictionary(
+    const ResourceDictionary* dict,
+    Base::StringView key,
+    const Schema* schema) noexcept {
+    if (dict == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::NotFound, "null dict");
+    }
+    Base::StringView typeName = key;
+    bool isTypeKey = false;
+    if (key.SizeBytes() >= 2U && key[0] == '{' && key[key.SizeBytes() - 1U] == '}') {
+        Base::StringView inner = TrimAscii(key.Substr(1U, key.SizeBytes() - 2U));
+        if (inner.SizeBytes() >= 7U && inner.Substr(0U, 7U) == "x:Type ") {
+            typeName = TrimAscii(inner.Substr(7U, inner.SizeBytes() - 7U));
+            isTypeKey = true;
+        } else if (inner.SizeBytes() >= 5U && inner.Substr(0U, 5U) == "Type ") {
+            typeName = TrimAscii(inner.Substr(5U, inner.SizeBytes() - 5U));
+            isTypeKey = true;
+        }
+    }
+    if (isTypeKey && schema != nullptr) {
+        Base::StringView localName = typeName;
+        for (std::uint32_t i = 0U; i < typeName.SizeBytes(); ++i) {
+            if (typeName[i] == ':') {
+                localName = TrimAscii(typeName.Substr(i + 1U, typeName.SizeBytes() - i - 1U));
+                break;
+            }
+        }
+        Base::Result<const Meta::TypeInfo*> resolved = schema->ResolveType(Meta::AeroNamespaceUri(), localName);
+        if (!resolved) {
+            resolved = schema->ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), localName);
+        }
+        if (resolved && resolved.Value() != nullptr) {
+            Aero::ResourceValue val = dict->Lookup(resolved.Value()->Id());
+            if (val.Kind() != Meta::ValueKind::Unset) return val;
+        }
+    }
+    Aero::ResourceValue val = dict->Lookup(key);
+    if (val.Kind() != Meta::ValueKind::Unset) return val;
+    if (isTypeKey) {
+        val = dict->Lookup(typeName);
+        if (val.Kind() != Meta::ValueKind::Unset) return val;
+    }
+    return Base::Status::Failure(Base::ErrorCode::NotFound, "not found");
+}
+
 DynamicResourceExtension::DynamicResourceExtension(
     const DynamicResourceExtensionOptions& options) noexcept
     : options_(options) {}
@@ -2221,15 +2289,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             Base::ErrorCode::InvalidState,
             "DynamicResource markup extension has no target service context");
     }
-    Base::StringView key = TrimAscii(arguments);
-    constexpr Base::StringView ResourceKeyPrefix("ResourceKey=");
-    if (key.SizeBytes() > ResourceKeyPrefix.SizeBytes() &&
-        key.Substr(0U, ResourceKeyPrefix.SizeBytes()) ==
-            ResourceKeyPrefix) {
-        key = TrimAscii(key.Substr(
-            ResourceKeyPrefix.SizeBytes(),
-            key.SizeBytes() - ResourceKeyPrefix.SizeBytes()));
-    }
+    const Base::StringView key = ExtractResourceKeyArgument(arguments);
     if (key.Empty() || key.Data() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -2302,13 +2362,26 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     if (!initialResource && fallbackResources != nullptr) {
         initialResource = fallbackResources->Lookup(key);
     }
+    if (!initialResource && services.resources.IsAvailable()) {
+        initialResource = services.resources.Lookup(key);
+    }
     if (initialResource) {
         const Meta::DependencyProperty* descriptor =
             DependencyObjectAccess::PropertyRegistry((*target)).Find(property);
         Base::Result<Meta::PropertyValue> converted =
             ConvertLookedUpDynamicResource(initialResource.Value(), descriptor);
         if (converted) {
-            static_cast<void>(target->SetValue(property, std::move(converted).Value()));
+            if (services.templatedParent != nullptr) {
+                if (auto* fe = ::Aero::TryCast<FrameworkElement>(target)) {
+                    static_cast<void>(fe->SetTemplateValue(property, std::move(converted).Value()));
+                } else if (auto* fce = ::Aero::TryCast<FrameworkContentElement>(target)) {
+                    static_cast<void>(fce->SetTemplateValue(property, std::move(converted).Value()));
+                } else {
+                    static_cast<void>(target->SetValue(property, std::move(converted).Value()));
+                }
+            } else {
+                static_cast<void>(target->SetValue(property, std::move(converted).Value()));
+            }
         }
     }
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
@@ -2322,6 +2395,7 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
             "Deferred DynamicResource allocation failed");
     }
     auto* state = new (memory) DeferredDynamicResourceState();
+    state->allocator = &allocator;
     state->engine = effectiveValues;
     state->targetOwner =
         Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target);
@@ -2337,7 +2411,6 @@ Base::Result<ProvidedValue> DynamicResourceExtension::ProvideValue(
     state->property = descriptor != nullptr
         ? descriptor->Handle()
         : property;
-    state->allocator = &allocator;
     Base::Result<void> reserved{};
     if (matchedResource != nullptr) {
         state->resources.Reserve(1U);
@@ -2416,15 +2489,7 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             Base::ErrorCode::InvalidState,
             "StaticResource markup extension has no target service context");
     }
-    Base::StringView key = TrimAscii(arguments);
-    constexpr Base::StringView ResourceKeyPrefix("ResourceKey=");
-    if (key.SizeBytes() > ResourceKeyPrefix.SizeBytes() &&
-        key.Substr(0U, ResourceKeyPrefix.SizeBytes()) ==
-            ResourceKeyPrefix) {
-        key = TrimAscii(key.Substr(
-            ResourceKeyPrefix.SizeBytes(),
-            key.SizeBytes() - ResourceKeyPrefix.SizeBytes()));
-    }
+    const Base::StringView key = ExtractResourceKeyArgument(arguments);
     if (key.Empty() || key.Data() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -2449,55 +2514,11 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
                 return ProvidedValue::FromValue(std::move(res).Value());
             }
         }
-        Base::StringView typeName = key;
-        bool isTypeKey = false;
-        if (key.SizeBytes() >= 2U && key[0] == '{' && key[key.SizeBytes() - 1U] == '}') {
-            Base::StringView inner = TrimAscii(key.Substr(1U, key.SizeBytes() - 2U));
-            if (inner.SizeBytes() >= 7U && inner.Substr(0U, 7U) == "x:Type ") {
-                typeName = TrimAscii(inner.Substr(7U, inner.SizeBytes() - 7U));
-                isTypeKey = true;
-            } else if (inner.SizeBytes() >= 5U && inner.Substr(0U, 5U) == "Type ") {
-                typeName = TrimAscii(inner.Substr(5U, inner.SizeBytes() - 5U));
-                isTypeKey = true;
-            }
-        }
-        Meta::TypeId resolvedTypeId = Meta::InvalidTypeId;
-        if (isTypeKey && services.schema != nullptr) {
-            Base::StringView localName = typeName;
-            for (std::uint32_t i = 0U; i < typeName.SizeBytes(); ++i) {
-                if (typeName[i] == ':') {
-                    localName = TrimAscii(typeName.Substr(i + 1U, typeName.SizeBytes() - i - 1U));
-                    break;
-                }
-            }
-            Base::Result<const Meta::TypeInfo*> resolved = services.schema->ResolveType(Meta::AeroNamespaceUri(), localName);
-            if (!resolved) {
-                resolved = services.schema->ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), localName);
-            }
-            if (resolved && resolved.Value() != nullptr) {
-                resolvedTypeId = resolved.Value()->Id();
-            }
-        }
-
-        auto lookupInDict = [&](const ResourceDictionary* dict) -> Base::Result<Aero::ResourceValue> {
-            if (dict == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound, "null dict");
-            if (resolvedTypeId != Meta::InvalidTypeId) {
-                Aero::ResourceValue val = dict->Lookup(resolvedTypeId);
-                if (val.Kind() != Meta::ValueKind::Unset) return val;
-            }
-            Aero::ResourceValue val = dict->Lookup(key);
-            if (val.Kind() != Meta::ValueKind::Unset) return val;
-            if (isTypeKey) {
-                val = dict->Lookup(typeName);
-                if (val.Kind() != Meta::ValueKind::Unset) return val;
-            }
-            return Base::Status::Failure(Base::ErrorCode::NotFound, "not found");
-        };
-
         for (const ResourceDictionary* resources :
              services.ambientResourceChain) {
             if (resources == nullptr) continue;
-            Base::Result<Aero::ResourceValue> resource = lookupInDict(resources);
+            Base::Result<Aero::ResourceValue> resource =
+                LookupResourceKeyInDictionary(resources, key, services.schema);
             if (resource) {
                 return ProvidedValue::FromValue(
                     std::move(resource).Value());
@@ -2508,7 +2529,8 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
             }
         }
         if (services.fallbackResources != nullptr) {
-            Base::Result<Aero::ResourceValue> resource = lookupInDict(services.fallbackResources);
+            Base::Result<Aero::ResourceValue> resource =
+                LookupResourceKeyInDictionary(services.fallbackResources, key, services.schema);
             if (resource) {
                 return ProvidedValue::FromValue(
                     std::move(resource).Value());
@@ -2554,6 +2576,17 @@ Base::Result<ProvidedValue> StaticResourceExtension::ProvideValue(
     }
     const Meta::DependencyProperty* descriptor =
         DependencyObjectAccess::PropertyRegistry(target).Find(property);
+    if (services.resources.IsAvailable()) {
+        Base::Result<Aero::ResourceValue> res = services.resources.Lookup(key);
+        if (res) {
+            Base::Result<Meta::PropertyValue> converted =
+                ConvertLookedUpDynamicResource(res.Value(), descriptor);
+            if (converted) {
+                return ProvidedValue::FromValue(std::move(converted).Value());
+            }
+            return ProvidedValue::FromValue(std::move(res).Value());
+        }
+    }
     auto resolveFrom =
         [&](const ResourceDictionary* resources)
             -> Base::Result<Meta::PropertyValue> {
@@ -3001,15 +3034,10 @@ TemplateBindingExtension::ProvideValue(
     if (context != nullptr ||
         services.schema == nullptr ||
         services.targetObject == nullptr ||
-        services.deferredContentOwner == nullptr ||
-        services.nameScope == nullptr ||
-        services.targetMember ==
-            Meta::InvalidMemberId ||
-        services.deferredContentOwner->RuntimeType() !=
-            Controls::ControlTemplate::StaticTypeId()) {
+        services.targetMember == Meta::InvalidMemberId) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "TemplateBinding requires an active ControlTemplate target");
+            "TemplateBinding requires an active target");
     }
 
     const Base::StringView propertyName =
@@ -3018,6 +3046,59 @@ TemplateBindingExtension::ProvideValue(
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "TemplateBinding requires a source property");
+    }
+
+    if (services.templatedParent != nullptr) {
+        Base::Result<::Aero::DependencyObject*> target =
+            services.schema->ResolvePropertyTarget(
+                *services.targetObject);
+        if (!target) return target.GetStatus();
+
+        const Meta::DependencyProperty* source =
+            DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
+                services.templatedParent->RuntimeType(),
+                propertyName);
+        if (source == nullptr) {
+            source = DependencyObjectAccess::PropertyRegistry(target.Value()).Find(
+                Controls::Control::StaticTypeId(),
+                propertyName);
+        }
+        if (source == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                MissingPropertyMessage(propertyName, true));
+        }
+
+        Base::IAllocator& allocator = Base::GetDefaultAllocator();
+        void* memory = allocator.Allocate({
+            sizeof(DeferredBindingState),
+            alignof(DeferredBindingState),
+            Base::MemoryTag::Markup});
+        if (memory == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Deferred Binding allocation failed");
+        }
+        auto* state = new (memory) DeferredBindingState();
+        state->allocator = &allocator;
+        state->metadata = services.schema->Metadata();
+        state->source = services.templatedParent;
+        state->targetOwner = Base::Ref<::Aero::DependencyObject>::TryFromBorrowed(*target.Value());
+        state->target = target.Value();
+        state->targetProperty = Meta::DependencyPropertyHandle{services.targetMember};
+        state->path.Assign(propertyName);
+        state->mode = Data::BindingMode::OneWay;
+        state->bindsToSource = false;
+        return ProvidedValue::Deferred(
+            state, &CommitBinding, &RollbackBinding, &CleanupBinding,
+            &PrepareBinding, &BindBindingRuntime);
+    }
+
+    if (services.deferredContentOwner == nullptr ||
+        services.nameScope == nullptr ||
+        services.deferredContentOwner->RuntimeType() !=
+            Controls::ControlTemplate::StaticTypeId()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "TemplateBinding requires an active ControlTemplate target");
     }
 
     auto& controlTemplate =

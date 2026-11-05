@@ -163,6 +163,7 @@ struct ImageCache::Record {
     std::uint32_t width = 0U;
     std::uint32_t height = 0U;
     Base::Rect sourceRect;
+    bool loaded = false;
 
     explicit Record(
         Base::IAllocator* allocator = nullptr) noexcept
@@ -198,7 +199,11 @@ bool ImageCache::Invalidate(
         record.pixels.Clear();
         record.width = 0U;
         record.height = 0U;
+        record.loaded = false;
         changed = true;
+    }
+    if (changed) {
+        lastImageRevision_ = 0U;
     }
     return changed;
 }
@@ -210,6 +215,19 @@ Base::Result<bool> ImageCache::Synchronize(
     Media::TextureProvider* textureProvider,
     ImageResources* backend,
     bool backendGenerationChanged) noexcept {
+    const std::uint64_t currentImageRev = GetImageSourceRevision();
+    const ElementTree* tree = root != nullptr ? ElementTree::Of(*root) : nullptr;
+    const std::uint64_t currentTreeVer = tree != nullptr ? tree->Version() : UINT64_MAX;
+
+    if (!backendGenerationChanged &&
+        root == lastRoot_ &&
+        currentTreeVer != UINT64_MAX &&
+        currentTreeVer == lastTreeVersion_ &&
+        currentImageRev == lastImageRevision_ &&
+        documentUri == lastDocumentUri_) {
+        return false;
+    }
+
     ++epoch_;
     if (epoch_ == 0U) ++epoch_;
     bool changed = false;
@@ -219,6 +237,7 @@ Base::Result<bool> ImageCache::Synchronize(
             record.renderImage =
                 Render::InvalidRenderImageId;
             record.backendGeneration = 0U;
+            record.loaded = false;
         }
     }
 
@@ -395,9 +414,11 @@ Base::Result<bool> ImageCache::Synchronize(
         }
         record->seenEpoch = epoch_;
 
-        if (record->resolvedUri !=
-                resolved.Value() ||
-            record->pixels.Empty()) {
+        const bool needsLoad =
+            !record->loaded ||
+            record->resolvedUri != resolved.Value() ||
+            (backend != nullptr && record->backendGeneration != backend->generation && record->pixels.Empty());
+        if (needsLoad) {
             if (record->renderImage !=
                     Render::InvalidRenderImageId &&
                 backend != nullptr &&
@@ -474,46 +495,9 @@ Base::Result<bool> ImageCache::Synchronize(
                 ClearImageTarget(imageControl, imageBrush);
                 continue;
             }
-            const std::uint32_t byteCount =
-                static_cast<std::uint32_t>(
-                    static_cast<std::uint64_t>(
-                        width) *
-                    static_cast<std::uint64_t>(
-                        height) * 4U);
-            record->pixels.Resize(
-                    byteCount);
             const std::uint8_t* src = decoded;
-            std::uint8_t* dst = record->pixels.Data();
-            for (std::uint32_t index = 0U; index + 3U < byteCount; index += 4U) {
-                const std::uint32_t alpha = src[index + 3U];
-                if (alpha == 255U) {
-                    dst[index + 0U] = src[index + 0U];
-                    dst[index + 1U] = src[index + 1U];
-                    dst[index + 2U] = src[index + 2U];
-                    dst[index + 3U] = 255U;
-                } else if (alpha == 0U) {
-                    dst[index + 0U] = 0U;
-                    dst[index + 1U] = 0U;
-                    dst[index + 2U] = 0U;
-                    dst[index + 3U] = 0U;
-                } else {
-                    dst[index + 0U] = static_cast<std::uint8_t>(
-                        (static_cast<std::uint32_t>(src[index + 0U]) * alpha + 127U) / 255U);
-                    dst[index + 1U] = static_cast<std::uint8_t>(
-                        (static_cast<std::uint32_t>(src[index + 1U]) * alpha + 127U) / 255U);
-                    dst[index + 2U] = static_cast<std::uint8_t>(
-                        (static_cast<std::uint32_t>(src[index + 2U]) * alpha + 127U) / 255U);
-                    dst[index + 3U] = static_cast<std::uint8_t>(alpha);
-                }
-            }
-            stbi_image_free(decoded);
-            record->width =
-                static_cast<std::uint32_t>(width);
-            record->height =
-                static_cast<std::uint32_t>(height);
-            record->resolvedUri =
-                resolved.Value();
-
+            const std::uint32_t imgWidth = static_cast<std::uint32_t>(width);
+            const std::uint32_t imgHeight = static_cast<std::uint32_t>(height);
             if (sourceRect.width > 0.0 &&
                 sourceRect.height > 0.0) {
                 const std::uint32_t cropX =
@@ -530,39 +514,83 @@ Base::Result<bool> ImageCache::Synchronize(
                         std::max(0.0f, sourceRect.height));
                 if (cropWidth == 0U ||
                     cropHeight == 0U ||
-                    cropX >= record->width ||
-                    cropY >= record->height ||
-                    cropWidth >
-                        record->width - cropX ||
-                    cropHeight >
-                        record->height - cropY) {
+                    cropX >= imgWidth ||
+                    cropY >= imgHeight ||
+                    cropWidth > imgWidth - cropX ||
+                    cropHeight > imgHeight - cropY) {
+                    stbi_image_free(decoded);
                     ClearImageTarget(imageControl, imageBrush);
                     continue;
                 }
                 const std::uint32_t cropBytes =
                     cropWidth * cropHeight * 4U;
-                Base::Vector<std::uint8_t> cropped(
-                    allocator_);
-                cropped.Resize(cropBytes);
-                for (std::uint32_t row = 0U;
-                     row < cropHeight; ++row) {
-                    const std::uint32_t sourceOffset =
-                        ((cropY + row) * record->width +
-                            cropX) * 4U;
-                    const std::uint32_t targetOffset =
+                record->pixels.Resize(cropBytes);
+                std::uint8_t* dst = record->pixels.Data();
+                for (std::uint32_t row = 0U; row < cropHeight; ++row) {
+                    const std::uint32_t srcRowOffset =
+                        ((cropY + row) * imgWidth + cropX) * 4U;
+                    const std::uint32_t dstRowOffset =
                         row * cropWidth * 4U;
-                    for (std::uint32_t pixel = 0U;
-                         pixel < cropWidth * 4U;
-                         ++pixel) {
-                        cropped[targetOffset + pixel] =
-                            record->pixels[
-                                sourceOffset + pixel];
+                    for (std::uint32_t col = 0U; col < cropWidth; ++col) {
+                        const std::uint32_t sIdx = srcRowOffset + col * 4U;
+                        const std::uint32_t dIdx = dstRowOffset + col * 4U;
+                        const std::uint32_t alpha = src[sIdx + 3U];
+                        if (alpha == 255U) {
+                            dst[dIdx + 0U] = src[sIdx + 0U];
+                            dst[dIdx + 1U] = src[sIdx + 1U];
+                            dst[dIdx + 2U] = src[sIdx + 2U];
+                            dst[dIdx + 3U] = 255U;
+                        } else if (alpha == 0U) {
+                            dst[dIdx + 0U] = 0U;
+                            dst[dIdx + 1U] = 0U;
+                            dst[dIdx + 2U] = 0U;
+                            dst[dIdx + 3U] = 0U;
+                        } else {
+                            dst[dIdx + 0U] = static_cast<std::uint8_t>(
+                                (static_cast<std::uint32_t>(src[sIdx + 0U]) * alpha + 127U) / 255U);
+                            dst[dIdx + 1U] = static_cast<std::uint8_t>(
+                                (static_cast<std::uint32_t>(src[sIdx + 1U]) * alpha + 127U) / 255U);
+                            dst[dIdx + 2U] = static_cast<std::uint8_t>(
+                                (static_cast<std::uint32_t>(src[sIdx + 2U]) * alpha + 127U) / 255U);
+                            dst[dIdx + 3U] = static_cast<std::uint8_t>(alpha);
+                        }
                     }
                 }
-                record->pixels = std::move(cropped);
                 record->width = cropWidth;
                 record->height = cropHeight;
+            } else {
+                const std::uint32_t byteCount = imgWidth * imgHeight * 4U;
+                record->pixels.Resize(byteCount);
+                std::uint8_t* dst = record->pixels.Data();
+                for (std::uint32_t index = 0U; index + 3U < byteCount; index += 4U) {
+                    const std::uint32_t alpha = src[index + 3U];
+                    if (alpha == 255U) {
+                        dst[index + 0U] = src[index + 0U];
+                        dst[index + 1U] = src[index + 1U];
+                        dst[index + 2U] = src[index + 2U];
+                        dst[index + 3U] = 255U;
+                    } else if (alpha == 0U) {
+                        dst[index + 0U] = 0U;
+                        dst[index + 1U] = 0U;
+                        dst[index + 2U] = 0U;
+                        dst[index + 3U] = 0U;
+                    } else {
+                        dst[index + 0U] = static_cast<std::uint8_t>(
+                            (static_cast<std::uint32_t>(src[index + 0U]) * alpha + 127U) / 255U);
+                        dst[index + 1U] = static_cast<std::uint8_t>(
+                            (static_cast<std::uint32_t>(src[index + 1U]) * alpha + 127U) / 255U);
+                        dst[index + 2U] = static_cast<std::uint8_t>(
+                            (static_cast<std::uint32_t>(src[index + 2U]) * alpha + 127U) / 255U);
+                        dst[index + 3U] = static_cast<std::uint8_t>(alpha);
+                    }
+                }
+                record->width = imgWidth;
+                record->height = imgHeight;
             }
+            stbi_image_free(decoded);
+            record->resolvedUri =
+                resolved.Value();
+            record->loaded = true;
             changed = true;
         }
 
@@ -591,6 +619,7 @@ Base::Result<bool> ImageCache::Synchronize(
                     uploaded.Value();
                 record->backendGeneration =
                     backend->generation;
+                record->pixels.Clear();
                 changed = true;
             }
         } else if (
@@ -604,6 +633,7 @@ Base::Result<bool> ImageCache::Synchronize(
             }
             record->renderImage =
                 nextHeadlessImage_++;
+            record->pixels.Clear();
             changed = true;
         }
         if (imageControl != nullptr) {
@@ -643,6 +673,10 @@ Base::Result<bool> ImageCache::Synchronize(
         records_.PopBack();
         changed = true;
     }
+    lastRoot_ = root;
+    lastTreeVersion_ = currentTreeVer;
+    lastImageRevision_ = currentImageRev;
+    lastDocumentUri_ = documentUri;
     return changed;
 }
 
@@ -662,6 +696,7 @@ void ImageCache::ReleaseBackendResources(
         record.renderImage =
             Render::InvalidRenderImageId;
         record.backendGeneration = 0U;
+        record.loaded = false;
     }
 }
 
@@ -669,6 +704,10 @@ void ImageCache::Shutdown(
     ImageResources* backend) noexcept {
     ReleaseBackendResources(backend);
     records_.Clear();
+    lastRoot_ = nullptr;
+    lastTreeVersion_ = UINT64_MAX;
+    lastImageRevision_ = 0U;
+    lastDocumentUri_ = {};
 }
 
 } // namespace Aero::Media

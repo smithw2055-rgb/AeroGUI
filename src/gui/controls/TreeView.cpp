@@ -829,6 +829,20 @@ TreeView::GetContainerForItemOverride() const noexcept {
     return Base::MakeRef<TreeViewItem>();
 }
 
+void TreeView::PrepareContainerForItemOverride(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    ItemsControl::PrepareContainerForItemOverride(container, item, index);
+    HeaderedItemsControl::PrepareHeaderedItemsControlContainer(*this, container, item);
+}
+
+void TreeView::ClearContainerForItemOverride(
+    FrameworkElement& container) noexcept {
+    ItemsControl::ClearContainerForItemOverride(container);
+    HeaderedItemsControl::ClearHeaderedItemsControlContainer(container);
+}
+
 bool TreeView::SelectItem(
     TreeViewItem* item) noexcept {
     auto* states = static_cast<Aero::VisualStateManager*>(

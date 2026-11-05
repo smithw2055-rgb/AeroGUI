@@ -122,15 +122,20 @@ private:
     // validate without touching DependencyPropertyRegistry internals.
     virtual void OnSeal() noexcept {}
 
+    Program& GetProgram() noexcept {
+        return *reinterpret_cast<Program*>(programStorage_);
+    }
+    const Program& GetProgram() const noexcept {
+        return *reinterpret_cast<const Program*>(programStorage_);
+    }
+
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Ref<Base::Object> basedOnOwner_;
     Base::Vector<Ref<SetterBase>> authoredSetterObjects_;
     Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
-    Base::IAllocator* implAllocator_ = nullptr;
-    Program* program_ = nullptr;
-    alignas(alignof(std::uint64_t)) std::uint8_t programStorage_[128]{};
+    alignas(alignof(std::uint64_t)) std::uint8_t programStorage_[80]{};
     ResourceDictionary resources_;
     bool sealed_ = false;
 };

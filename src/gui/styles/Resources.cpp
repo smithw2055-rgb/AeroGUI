@@ -96,11 +96,6 @@ Base::Object* NameScope::Find(
             return entries_[*found].object;
         }
     }
-    for (const Entry& entry : entries_) {
-        if (entry.name.View() == name) {
-            return entry.object;
-        }
-    }
     return nullptr;
 }
 
@@ -240,10 +235,30 @@ ResourceDictionary::DictionaryState::Entry* FindLocal(
             }
         }
     }
-    for (ResourceDictionary::DictionaryState::Entry& entry :
-         impl.entries) {
-        if (entry.key == key) {
-            return &entry;
+    return nullptr;
+}
+
+const ResourceDictionary::DictionaryState::Entry* FindLocal(
+    const ResourceDictionary::DictionaryState& impl,
+    Base::StringView key) noexcept {
+    if (auto* idx = impl.stringIndex.Find(key)) {
+        if (*idx < impl.entries.Size() &&
+            impl.entries[*idx].key.Kind() == ResourceKeyKind::String &&
+            impl.entries[*idx].key.StringValue() == key) {
+            return &impl.entries[*idx];
+        }
+    }
+    return nullptr;
+}
+
+const ResourceDictionary::DictionaryState::Entry* FindLocal(
+    const ResourceDictionary::DictionaryState& impl,
+    Meta::TypeId key) noexcept {
+    if (auto* idx = impl.typeIndex.Find(key)) {
+        if (*idx < impl.entries.Size() &&
+            impl.entries[*idx].key.Kind() == ResourceKeyKind::Type &&
+            impl.entries[*idx].key.TypeValue() == key) {
+            return &impl.entries[*idx];
         }
     }
     return nullptr;
@@ -253,23 +268,10 @@ const ResourceDictionary::DictionaryState::Entry* FindLocal(
     const ResourceDictionary::DictionaryState& impl,
     const ResourceKey& key) noexcept {
     if (key.Kind() == ResourceKeyKind::String) {
-        if (auto* idx = impl.stringIndex.Find(key.StringValue())) {
-            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
-                return &impl.entries[*idx];
-            }
-        }
-    } else if (key.Kind() == ResourceKeyKind::Type) {
-        if (auto* idx = impl.typeIndex.Find(key.TypeValue())) {
-            if (*idx < impl.entries.Size() && impl.entries[*idx].key == key) {
-                return &impl.entries[*idx];
-            }
-        }
+        return FindLocal(impl, key.StringValue());
     }
-    for (const ResourceDictionary::DictionaryState::Entry& entry :
-         impl.entries) {
-        if (entry.key == key) {
-            return &entry;
-        }
+    if (key.Kind() == ResourceKeyKind::Type) {
+        return FindLocal(impl, key.TypeValue());
     }
     return nullptr;
 }
@@ -302,10 +304,11 @@ void Notify(
     }
 }
 
+template<class KeyT, std::size_t InlineCapacity>
 Base::Result<ResourceValue> LookupImpl(
     const ResourceDictionary::DictionaryState& impl,
-    const ResourceKey& key,
-    Base::Vector<const ResourceDictionary::DictionaryState*>& visited) noexcept {
+    const KeyT& key,
+    Base::BasicVector<const ResourceDictionary::DictionaryState*, InlineCapacity>& visited) noexcept {
     for (const ResourceDictionary::DictionaryState* active : visited) {
         if (active == &impl) {
             return Base::Status::Failure(
@@ -313,14 +316,17 @@ Base::Result<ResourceValue> LookupImpl(
                 "ResourceDictionary merge cycle was detected");
         }
     }
-    visited.PushBack(&impl);
     const ResourceDictionary::DictionaryState::Entry* local =
         FindLocal(impl, key);
     if (local != nullptr) {
-        ResourceValue value = local->value;
-        visited.PopBack();
-        return value;
+        return local->value;
     }
+    if (impl.merged.Empty()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            MessageResourceNotFound);
+    }
+    visited.PushBack(&impl);
     for (std::uint32_t index = impl.merged.Size();
          index > 0U;
          --index) {
@@ -347,10 +353,11 @@ Base::Result<ResourceValue> LookupImpl(
         MessageResourceNotFound);
 }
 
+template<std::size_t InlineCapacity>
 bool DependsOn(
     const ResourceDictionary::DictionaryState& root,
     const ResourceDictionary::DictionaryState& candidate,
-    Base::Vector<const ResourceDictionary::DictionaryState*>& visited) noexcept {
+    Base::BasicVector<const ResourceDictionary::DictionaryState*, InlineCapacity>& visited) noexcept {
     if (&root == &candidate) {
         return true;
     }
@@ -696,38 +703,48 @@ bool ResourceDictionary::Remove(
     if (!key.IsValid() || state_ == nullptr || state_->sealed) {
         return false;
     }
-    for (std::uint32_t index = 0U;
-         index < state_->entries.Size();
-         ++index) {
-        if (state_->entries[index].key != key) {
-            continue;
+    std::uint32_t index = UINT32_MAX;
+    if (key.Kind() == ResourceKeyKind::String) {
+        if (auto* found = state_->stringIndex.Find(key.StringValue())) {
+            index = *found;
         }
-        if (key.Kind() == ResourceKeyKind::String) {
-            static_cast<void>(state_->stringIndex.Erase(key.StringValue()));
-        } else if (key.Kind() == ResourceKeyKind::Type) {
-            static_cast<void>(state_->typeIndex.Erase(key.TypeValue()));
+    } else if (key.Kind() == ResourceKeyKind::Type) {
+        if (auto* found = state_->typeIndex.Find(key.TypeValue())) {
+            index = *found;
         }
-        if (index + 1U != state_->entries.Size()) {
-            state_->entries[index] =
-                std::move(state_->entries.Back());
-            const ResourceKey& movedKey = state_->entries[index].key;
-            if (movedKey.Kind() == ResourceKeyKind::String) {
-                static_cast<void>(state_->stringIndex.Erase(movedKey.StringValue()));
-                static_cast<void>(state_->stringIndex.Insert(movedKey.StringValue(), index));
-            } else if (movedKey.Kind() == ResourceKeyKind::Type) {
-                if (std::uint32_t* found = state_->typeIndex.Find(movedKey.TypeValue())) {
-                    *found = index;
-                }
-            }
-        }
-        state_->entries.PopBack();
-        Notify(
-            *state_,
-            CallbackKey(key),
-            ResourceChangeKind::Removed);
-        return true;
     }
-    return false;
+    if (index >= state_->entries.Size() || state_->entries[index].key != key) {
+        return false;
+    }
+
+    if (key.Kind() == ResourceKeyKind::String) {
+        static_cast<void>(state_->stringIndex.Erase(key.StringValue()));
+    } else if (key.Kind() == ResourceKeyKind::Type) {
+        static_cast<void>(state_->typeIndex.Erase(key.TypeValue()));
+    }
+
+    if (index + 1U != state_->entries.Size()) {
+        const ResourceKey& backKey = state_->entries.Back().key;
+        if (backKey.Kind() == ResourceKeyKind::String) {
+            static_cast<void>(state_->stringIndex.Erase(backKey.StringValue()));
+        } else if (backKey.Kind() == ResourceKeyKind::Type) {
+            static_cast<void>(state_->typeIndex.Erase(backKey.TypeValue()));
+        }
+        state_->entries[index] =
+            std::move(state_->entries.Back());
+        const ResourceKey& movedKey = state_->entries[index].key;
+        if (movedKey.Kind() == ResourceKeyKind::String) {
+            static_cast<void>(state_->stringIndex.Insert(movedKey.StringValue(), index));
+        } else if (movedKey.Kind() == ResourceKeyKind::Type) {
+            static_cast<void>(state_->typeIndex.Insert(movedKey.TypeValue(), index));
+        }
+    }
+    state_->entries.PopBack();
+    Notify(
+        *state_,
+        CallbackKey(key),
+        ResourceChangeKind::Removed);
+    return true;
 }
 
 bool ResourceDictionary::Remove(
@@ -750,7 +767,11 @@ ResourceValue ResourceDictionary::Lookup(
     if (!key.IsValid() || state_ == nullptr) {
         return ResourceValue{};
     }
-    Base::Vector<const Access*> visited;
+    if (state_->merged.Empty()) {
+        const Access::Entry* local = FindLocal(*state_, key);
+        return local != nullptr ? local->value : ResourceValue{};
+    }
+    Base::BasicVector<const Access*, 8U> visited;
     Base::Result<ResourceValue> result =
         LookupImpl(*state_, key, visited);
     return result ? result.Value() : ResourceValue{};
@@ -758,17 +779,32 @@ ResourceValue ResourceDictionary::Lookup(
 
 ResourceValue ResourceDictionary::Lookup(
     Base::StringView key) const noexcept {
-    Base::Result<ResourceKey> resourceKey =
-        ResourceKey::FromString(key);
-    if (!resourceKey) {
+    if (key.Empty() || key.Data() == nullptr || state_ == nullptr) {
         return ResourceValue{};
     }
-    return Lookup(resourceKey.Value());
+    if (state_->merged.Empty()) {
+        const Access::Entry* local = FindLocal(*state_, key);
+        return local != nullptr ? local->value : ResourceValue{};
+    }
+    Base::BasicVector<const Access*, 8U> visited;
+    Base::Result<ResourceValue> result =
+        LookupImpl(*state_, key, visited);
+    return result ? result.Value() : ResourceValue{};
 }
 
 ResourceValue ResourceDictionary::Lookup(
     Meta::TypeId key) const noexcept {
-    return Lookup(ResourceKey::FromType(key));
+    if (key == Meta::InvalidTypeId || state_ == nullptr) {
+        return ResourceValue{};
+    }
+    if (state_->merged.Empty()) {
+        const Access::Entry* local = FindLocal(*state_, key);
+        return local != nullptr ? local->value : ResourceValue{};
+    }
+    Base::BasicVector<const Access*, 8U> visited;
+    Base::Result<ResourceValue> result =
+        LookupImpl(*state_, key, visited);
+    return result ? result.Value() : ResourceValue{};
 }
 
 bool ResourceDictionary::Contains(
@@ -776,20 +812,35 @@ bool ResourceDictionary::Contains(
     if (!key.IsValid() || state_ == nullptr) {
         return false;
     }
-    Base::Vector<const Access*> visited;
+    if (state_->merged.Empty()) {
+        return FindLocal(*state_, key) != nullptr;
+    }
+    Base::BasicVector<const Access*, 8U> visited;
     return static_cast<bool>(LookupImpl(*state_, key, visited));
 }
 
 bool ResourceDictionary::Contains(
     Base::StringView key) const noexcept {
-    Base::Result<ResourceKey> resourceKey =
-        ResourceKey::FromString(key);
-    return resourceKey ? Contains(resourceKey.Value()) : false;
+    if (key.Empty() || key.Data() == nullptr || state_ == nullptr) {
+        return false;
+    }
+    if (state_->merged.Empty()) {
+        return FindLocal(*state_, key) != nullptr;
+    }
+    Base::BasicVector<const Access*, 8U> visited;
+    return static_cast<bool>(LookupImpl(*state_, key, visited));
 }
 
 bool ResourceDictionary::Contains(
     Meta::TypeId key) const noexcept {
-    return Contains(ResourceKey::FromType(key));
+    if (key == Meta::InvalidTypeId || state_ == nullptr) {
+        return false;
+    }
+    if (state_->merged.Empty()) {
+        return FindLocal(*state_, key) != nullptr;
+    }
+    Base::BasicVector<const Access*, 8U> visited;
+    return static_cast<bool>(LookupImpl(*state_, key, visited));
 }
 
 ::Aero::Diagnostics::SourceSpan ResourceDictionary::SourceOf(
@@ -806,10 +857,13 @@ bool ResourceDictionary::Contains(
 
 ::Aero::Diagnostics::SourceSpan ResourceDictionary::SourceOf(
     Base::StringView key) const noexcept {
-    Base::Result<ResourceKey> resourceKey =
-        ResourceKey::FromString(key);
-    return resourceKey
-        ? SourceOf(resourceKey.Value())
+    if (state_ == nullptr || key.Empty() || key.Data() == nullptr) {
+        return {};
+    }
+    const Access::Entry* entry =
+        FindLocal(*state_, key);
+    return entry != nullptr
+        ? entry->source
         : ::Aero::Diagnostics::SourceSpan{};
 }
 
@@ -832,7 +886,7 @@ void ResourceDictionary::AddMerged(
             return;
         }
     }
-    Base::Vector<const Access*> visited;
+    Base::BasicVector<const Access*, 8U> visited;
     if (DependsOn(
             *child,
             *owner,

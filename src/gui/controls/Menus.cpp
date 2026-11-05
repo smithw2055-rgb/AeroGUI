@@ -435,6 +435,20 @@ MenuBase::GetContainerForItemOverride() const noexcept {
     return Base::MakeRef<MenuItem>();
 }
 
+void MenuBase::PrepareContainerForItemOverride(
+    FrameworkElement& container,
+    const Base::Ref<Base::Object>& item,
+    std::uint32_t index) noexcept {
+    ItemsControl::PrepareContainerForItemOverride(container, item, index);
+    HeaderedItemsControl::PrepareHeaderedItemsControlContainer(*this, container, item);
+}
+
+void MenuBase::ClearContainerForItemOverride(
+    FrameworkElement& container) noexcept {
+    ItemsControl::ClearContainerForItemOverride(container);
+    HeaderedItemsControl::ClearHeaderedItemsControlContainer(container);
+}
+
 ContextMenu::ContextMenu() noexcept
     : MenuBase(StaticTypeId()) {
     SetOverlayHostFlag(true);
@@ -614,12 +628,12 @@ std::uint32_t ToolBar::GetOverflowItemCount()
 }
 
 void ToolBar::OnContainersChanged() noexcept {
-    ItemsControl::OnContainersChanged();
+    HeaderedItemsControl::OnContainersChanged();
     SynchronizeToolBar();
 }
 
 void ToolBar::OnApplyTemplate() noexcept {
-    ItemsControl::OnApplyTemplate();
+    HeaderedItemsControl::OnApplyTemplate();
     headerText_ = TryCast<TextBlock>(
         GetTemplateChild(Base::StringView("PART_Header")));
     overflowGlyph_ = TryCast<TextBlock>(
@@ -630,7 +644,7 @@ void ToolBar::OnApplyTemplate() noexcept {
 void ToolBar::OnTemplateDetached() noexcept {
     headerText_ = nullptr;
     overflowGlyph_ = nullptr;
-    ItemsControl::OnTemplateDetached();
+    HeaderedItemsControl::OnTemplateDetached();
 }
 
 void ToolBar::SynchronizeToolBar() noexcept {
@@ -690,7 +704,7 @@ void ToolBar::SynchronizeToolBar() noexcept {
 
 void ToolBar::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    ItemsControl::OnPropertyChanged(args);
+    HeaderedItemsControl::OnPropertyChanged(args);
     if (args.GetProperty() == HeaderProperty.Handle() ||
         args.GetProperty() == OverflowCapacityProperty.Handle() ||
         args.GetProperty() == IsOverflowOpenProperty.Handle()) {

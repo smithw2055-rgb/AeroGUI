@@ -69,6 +69,43 @@ bool ViewFrame::HasAttachedRoot() const noexcept {
         return rootAttachment.IsAttached();
     }
 
+void ViewFrame::RefreshPendingMountEdges() noexcept {
+        for (const Aero::Markup::VisualEdge& edge :
+             loadedDocument.visualContent.mountEdges) {
+            if (edge.parent != nullptr && edge.child != nullptr &&
+                !edge.state.logicalAttached && !edge.state.layoutAttached) {
+                hasPendingMountEdges = true;
+                return;
+            }
+        }
+        hasPendingMountEdges = false;
+    }
+
+void ViewFrame::TrackItemsControl(Controls::ItemsControl& itemsControl) noexcept {
+        for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
+            if (trackedItemsControls[i] == &itemsControl) {
+                if (itemsControl.GetItemContainerGenerator() == nullptr) {
+                    hasUnattachedItemsControls = true;
+                }
+                return;
+            }
+        }
+        static_cast<void>(trackedItemsControls.PushBack(&itemsControl));
+        if (itemsControl.GetItemContainerGenerator() == nullptr) {
+            hasUnattachedItemsControls = true;
+        }
+    }
+
+void ViewFrame::UntrackVisualNode(const Aero::Media::Visual& node) noexcept {
+        for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
+            if (static_cast<const void*>(trackedItemsControls[i]) ==
+                static_cast<const void*>(&node)) {
+                trackedItemsControls.Erase(i);
+                break;
+            }
+        }
+    }
+
 Base::Result<void> ViewFrame::AttachVisualGraph(
         ::Aero::Media::Visual& rootVisual,
         UIElement& rootLayout,
@@ -86,6 +123,8 @@ Base::Result<void> ViewFrame::AttachVisualGraph(
         attachedRootLayout = &rootLayout;
         attachedRootRender = rootRender;
         imagesDirty = true;
+        RefreshPendingMountEdges();
+        completedMountEdgesTreeVersion = Tree()->Version();
         return {};
     }
 
@@ -95,8 +134,15 @@ Base::Result<void> ViewFrame::CompleteVisualEdges(
             return ViewInvalidState(
                 "Deferred visual edges require an attached root");
         }
-        imagesDirty = true;
-        return Tree()->CompleteVisualEdges(edges);
+        const std::uint64_t versionBefore = Tree()->Version();
+        Base::Result<void> completed = Tree()->CompleteVisualEdges(edges);
+        if (!completed) return completed.GetStatus();
+        if (Tree()->Version() != versionBefore) {
+            imagesDirty = true;
+        }
+        RefreshPendingMountEdges();
+        completedMountEdgesTreeVersion = Tree()->Version();
+        return {};
     }
 
 Base::Result<void> ViewFrame::ResizeVisualRoot(Size availableSize) noexcept {
@@ -122,6 +168,8 @@ Base::Result<void> ViewFrame::DetachVisualGraph(
         attachedRootVisual = nullptr;
         attachedRootLayout = nullptr;
         attachedRootRender = nullptr;
+        hasPendingMountEdges = false;
+        completedMountEdgesTreeVersion = 0U;
         return {};
     }
 
@@ -195,10 +243,14 @@ Aero::FrameworkElement* ViewFrame::ResolveFrameworkElement(
 
 template<class T>
 Base::Result<const T*> ResolveUiValue(
+    ViewFrame& state,
     Aero::FrameworkElement& element,
     Meta::DependencyPropertyHandle property,
     const Aero::ResourceEnvironment& resources,
     const char* incompatibleMessage) noexcept {
+    if (state.Values() != nullptr) {
+        static_cast<void>(state.Values()->FlushProperty(element, property));
+    }
     Base::Result<Meta::Value> explicitValue = element.GetValue(property);
     if (!explicitValue) return explicitValue.GetStatus();
     if (explicitValue.Value().Kind() == Meta::ValueKind::Object &&
@@ -267,7 +319,7 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
             if (element != nullptr) {
                 Base::Result<const Aero::Style*> resolved =
                     ResolveUiValue<Aero::Style>(
-                        *element, Aero::FrameworkElement::StyleProperty,
+                        state, *element, Aero::FrameworkElement::StyleProperty,
                         resources,
                         "FrameworkElement Style value is not a Style");
                 const Aero::Style* style =
@@ -290,15 +342,15 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
 
             const bool isControl = state.metadata->Types().IsDerivedFrom(
                 node->RuntimeType(), Controls::Control::StaticTypeId());
-            if (styleApplied || isControl) {
-                static_cast<void>(state.Values()->Flush());
-            }
-
             if (isControl) {
                 auto& control = *static_cast<Controls::Control*>(node);
+                if (styleApplied) {
+                    static_cast<void>(state.Values()->FlushProperty(
+                        control, Controls::ItemsControl::ItemsPanelProperty));
+                }
                 Base::Result<const Controls::ControlTemplate*> resolved =
                     ResolveUiValue<Controls::ControlTemplate>(
-                        control, Controls::Control::TemplateProperty, resources,
+                        state, control, Controls::Control::TemplateProperty, resources,
                         "Control Template value is not a ControlTemplate");
                 if (resolved) {
                     const Controls::ControlTemplate* controlTemplate =
@@ -383,10 +435,19 @@ void DetachViewUi(
             }
         }
 
-        Base::Vector<DependencyObject*> detachedPropertyObjects(state.allocator);
+        Base::HashSet<DependencyObject*> detachedPropertyObjects(state.allocator);
+        detachedPropertyObjects.Reserve(reachable.Size());
+        for (Aero::Media::Visual* node : reachable) {
+            if (node != nullptr) {
+                (void)detachedPropertyObjects.Insert(node);
+            }
+        }
         for (std::uint32_t index = reachable.Size(); index > 0U; --index) {
             Aero::Media::Visual* node = reachable[index - 1U];
             if (node == nullptr) continue;
+            if (state.Bindings() != nullptr) {
+                (void)state.Bindings()->DetachObject(*node);
+            }
             if (state.Tree() != nullptr) {
                 state.Tree()->DetachPropertyDependencyGraph(
                     *node, state.Animations(), detachedPropertyObjects);
@@ -398,12 +459,7 @@ void DetachViewUi(
                 if (auto* gen = itemsControl.GetItemContainerGenerator()) {
                     gen->Detach();
                 }
-                for (std::uint32_t i = 0U; i < state.trackedItemsControls.Size(); ++i) {
-                    if (state.trackedItemsControls[i] == &itemsControl) {
-                        state.trackedItemsControls.Erase(i);
-                        break;
-                    }
-                }
+                state.UntrackVisualNode(itemsControl);
             }
             if (state.Animations() != nullptr) {
                 state.Animations()->RemoveTarget(*node);
@@ -420,9 +476,6 @@ void DetachViewUi(
                     (void)state.Templates()->Clear(control);
                 }
             }
-            if (state.Bindings() != nullptr) {
-                (void)state.Bindings()->DetachObject(*node);
-            }
             Aero::FrameworkElement* element = ::Aero::TryCast<::Aero::FrameworkElement>(node);
             if (element != nullptr && state.Styles() != nullptr) {
                 if (state.Interactivity() != nullptr) {
@@ -434,7 +487,7 @@ void DetachViewUi(
                 (void)state.Values()->DetachObject(*node);
             }
             if (state.Tree() != nullptr) {
-                state.Tree()->InvalidateNodeHandle(*node);
+                state.Tree()->InvalidateNodeHandle(*node, detachedPropertyObjects);
             }
         }
     }
@@ -527,7 +580,11 @@ Base::Result<void> ViewFrame::GeneratedItemSubtreeChanged(
         if (!attached) {
             return {};
         }
-        static_cast<void>(runtime->Bindings()->Flush());
+        if (!runtime->pendingGeneratedVisuals.Empty()) {
+            static_cast<void>(runtime->FlushGeneratedVisuals());
+        } else if (runtime->Bindings() != nullptr) {
+            static_cast<void>(runtime->Bindings()->Flush());
+        }
         runtime->imagesDirty = true;
         if (runtime->Storyboards() != nullptr) {
             static_cast<void>(runtime->Storyboards()->StartLoadedAnimations(&root));
@@ -588,19 +645,24 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
                 itemsControl.GetItemContainerGenerator();
             Controls::Panel* host = itemsControl.GetItemsHost();
             if (generator == nullptr || host == nullptr) return {};
+            if (itemsControl.GetCount() == generator->GetGeneratedCount()) {
+                return {};
+            }
             if (metadata->Types().IsDerivedFrom(
                     host->RuntimeType(),
                     Controls::VirtualizingPanel::StaticTypeId())) {
                 return {};
             }
-            if (itemsControl.GetCount() == generator->GetGeneratedCount()) {
-                return {};
-            }
+            const std::uint32_t pendingBefore = pendingGeneratedVisuals.Size();
             if (!generator->Refresh()) {
+                pendingGeneratedVisuals.Resize(pendingBefore);
                 return {};
             }
             Base::Result<void> generatedUiApplied = ApplyViewUi(*this, *host);
-            if (!generatedUiApplied) return generatedUiApplied.GetStatus();
+            if (!generatedUiApplied) {
+                pendingGeneratedVisuals.Resize(pendingBefore);
+                return generatedUiApplied.GetStatus();
+            }
             return {};
         }
         Controls::Panel* host = itemsControl.GetItemsHost();
@@ -624,6 +686,7 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
                 Base::ErrorCode::OutOfMemory,
                 "Failed to allocate ItemContainerGenerator");
         }
+        const std::uint32_t pendingBefore = pendingGeneratedVisuals.Size();
         bool attached = false;
         if (metadata->Types().IsDerivedFrom(
                 host->RuntimeType(),
@@ -635,12 +698,14 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             attached = generator->Attach(itemsControl, *host);
         }
         if (!attached) {
+            pendingGeneratedVisuals.Resize(pendingBefore);
             delete generator;
             return {};
         }
 
         Base::Result<void> generatedUiApplied = ApplyViewUi(*this, *host);
         if (!generatedUiApplied) {
+            pendingGeneratedVisuals.Resize(pendingBefore);
             DetachViewUi(*this, host, {});
             generator->Detach();
             delete generator;
@@ -652,12 +717,28 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
 
 Base::Result<void> ViewFrame::AttachPendingItemGenerators(
         Aero::Media::Visual& /*rootVisual*/) noexcept {
+        struct DeferActivationScope {
+            bool& flag;
+            bool previous;
+            DeferActivationScope(bool& target) noexcept
+                : flag(target), previous(target) {
+                flag = true;
+            }
+            ~DeferActivationScope() { flag = previous; }
+        };
+
+        DeferActivationScope deferScope(deferGeneratedActivation);
+        bool anyUnattached = false;
         for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
             Controls::ItemsControl* ic = trackedItemsControls[i];
             if (ic == nullptr) continue;
             Base::Result<void> attached = AttachItemGenerator(*ic);
             if (!attached) return attached.GetStatus();
+            if (ic->GetItemContainerGenerator() == nullptr) {
+                anyUnattached = true;
+            }
         }
+        hasUnattachedItemsControls = anyUnattached;
         return {};
     }
 
@@ -683,22 +764,19 @@ Base::Result<void> ViewFrame::VisitAndAttach(
                     type,
                     Controls::ItemsControl::StaticTypeId())) {
                 auto* ic = static_cast<Controls::ItemsControl*>(node);
-                bool alreadyTracked = false;
-                for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
-                    if (trackedItemsControls[i] == ic) {
-                        alreadyTracked = true;
-                        break;
-                    }
-                }
-                if (!alreadyTracked) {
-                    (void)trackedItemsControls.PushBack(ic);
-                }
+                TrackItemsControl(*ic);
                 Base::Result<void> attached = AttachItemGenerator(*ic);
                 if (!attached) return attached.GetStatus();
             }
             ForEachVisualAndLogicalChild(*node, [&stack](Aero::Media::Visual* child) {
                 stack.PushBack(child);
             });
+        }
+        if (hasPendingMountEdges) {
+            RefreshPendingMountEdges();
+            if (!hasPendingMountEdges) {
+                completedMountEdgesTreeVersion = 0U;
+            }
         }
         return {};
     }
@@ -756,9 +834,7 @@ Base::Result<void> SynchronizeFrameResources(ViewFrame& state) noexcept {
                 state.RenderTree()->Invalidate(
                     *rootVisual, Aero::Render::RenderInvalidation::All);
             }
-            if (state.Tree() != nullptr) {
-                state.Tree()->SetMeshResources(state.GetMeshResources());
-            }
+
             state.deviceGeneration = generation;
         }
     }
@@ -855,17 +931,17 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         Aero::BindingEngine::DataBindHook(state.Bindings());
     }
     {
-        Base::Result<void> generatedVisualsFlushed =
-            state.FlushGeneratedVisuals();
-        if (!generatedVisualsFlushed) {
-            return generatedVisualsFlushed.GetStatus();
-        }
         if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
             Base::Result<void> generators =
                 state.AttachPendingItemGenerators(*rootVisual);
             if (!generators) {
                 return generators.GetStatus();
             }
+        }
+        Base::Result<void> generatedVisualsFlushed =
+            state.FlushGeneratedVisuals();
+        if (!generatedVisualsFlushed) {
+            return generatedVisualsFlushed.GetStatus();
         }
         if (state.Styles() != nullptr) {
             state.Styles()->Flush();
@@ -923,8 +999,10 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
 
     // ---- Layout ----
     if (!skipUnsyncedVisualPhases) {
-        if (state.HasAttachedRoot() && state.Tree() != nullptr) {
-            Base::Result<void> completed = state.Tree()->CompleteVisualEdges({
+        if (state.hasPendingMountEdges && state.HasAttachedRoot() &&
+            state.Tree() != nullptr &&
+            state.Tree()->Version() != state.completedMountEdgesTreeVersion) {
+            Base::Result<void> completed = state.CompleteVisualEdges({
                 state.loadedDocument.visualContent.mountEdges.Data(),
                 state.loadedDocument.visualContent.mountEdges.Size()});
             if (!completed) {
@@ -937,14 +1015,28 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
                 return state.Layout()->LastFlushStatus();
             }
         }
-        if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
-            Base::Result<void> generators =
-                state.AttachPendingItemGenerators(*rootVisual);
-            if (!generators) return generators.GetStatus();
+        const bool layoutProgressed = state.Layout() != nullptr &&
+            (state.Layout()->Diagnostics().measuredCount != 0U ||
+             state.Layout()->Diagnostics().arrangedCount != 0U);
+        if (state.hasUnattachedItemsControls || layoutProgressed) {
+            if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
+                Base::Result<void> generators =
+                    state.AttachPendingItemGenerators(*rootVisual);
+                if (!generators) return generators.GetStatus();
+            }
+        }
+        const bool flushedGeneratedAfterLayout =
+            !state.pendingGeneratedVisuals.Empty();
+        if (flushedGeneratedAfterLayout) {
+            Base::Result<void> generatedVisualsFlushed =
+                state.FlushGeneratedVisuals();
+            if (!generatedVisualsFlushed) {
+                return generatedVisualsFlushed.GetStatus();
+            }
         }
         if (state.Layout() != nullptr &&
             state.Layout()->Diagnostics().arrangedCount != 0U) {
-            if (state.Bindings() != nullptr) {
+            if (!flushedGeneratedAfterLayout && state.Bindings() != nullptr) {
                 Base::Result<std::uint32_t> rebound =
                     state.Bindings()->Flush();
                 if (!rebound) return rebound.GetStatus();
@@ -953,10 +1045,13 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
                 Base::Result<void> loaded =
                     state.Storyboards()->FlushPendingLoadedTriggers();
                 if (!loaded) return loaded.GetStatus();
+                if (state.Animations() != nullptr) {
+                    Base::Result<std::uint32_t> initialValues =
+                        state.Animations()->ApplyPendingInitialValues();
+                    if (!initialValues) return initialValues.GetStatus();
+                    AddFrameCallbacks(callbackCount, initialValues.Value());
+                }
             }
-        }
-        if (state.Layout() != nullptr &&
-            state.Layout()->Diagnostics().arrangedCount != 0U) {
             if (state.Interactivity() != nullptr) {
                 state.Interactivity()->NotifyLayoutUpdated();
             }
@@ -1080,6 +1175,7 @@ void ViewFrame::FinishDestroyInteractions() noexcept {
             }
         }
         trackedItemsControls.Clear();
+        hasUnattachedItemsControls = false;
         if (Input() != nullptr) {
             Input()->SetRoot(nullptr);
         }

@@ -7,7 +7,6 @@
 #include <Aero/Controls/Panels.hpp>
 #include <Aero/Controls/Decorators.hpp>
 #include <Aero/Markup/XamlReader.hpp>
-#include <Aero/Markup/XamlReader.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -112,8 +111,6 @@ void ViewFrame::Shutdown() noexcept {
         Values()->Shutdown();
     }
     if (Tree() != nullptr) {
-        Tree()->SetTextLayout(nullptr);
-        Tree()->SetMeshResources(nullptr);
         Tree()->SetLifecycleHandler(nullptr);
     }
 
@@ -214,30 +211,15 @@ Base::Result<void> ViewFrame::Initialize(
                 options.automaticAnimationClock);
         }
         if (status) status = engines->tree.Initialize();
-        if (status) {
-            engines->tree.SetAnimations(&engines->animations);
-        }
         if (status) status = engines->layout.Initialize();
-        if (status) {
-            engines->tree.SetLayout(&engines->layout);
-        }
         if (status) status = engines->renderTree.Initialize();
-        if (status) {
-            engines->tree.SetRenderTree(&engines->renderTree);
-        }
         if (status) {
             status = engines->text.Initialize(
                 *device, nullptr, options.text);
         }
         if (status) status = engines->bindings.Initialize();
-        if (status) {
-            engines->tree.SetBindings(&engines->bindings);
-            engines->tree.SetEvents(&engines->events);
-            engines->tree.SetInput(&engines->input);
-        }
 
         if (status) {
-            engines->tree.SetTemplates(&engines->templates);
             engines->visualStates =
                 ::Aero::Controls::FrameworkTemplateState::CreateVisualStateManager(
                     engines->values,
@@ -248,17 +230,11 @@ Base::Result<void> ViewFrame::Initialize(
                 status = Base::Status::Failure(
                     Base::ErrorCode::OutOfMemory,
                     "VisualStateManager allocation failed");
-            } else {
-                engines->tree.SetVisualStates(engines->visualStates.Get());
             }
         }
         if (status) {
             engines->styles.SetTriggerActionHandler(
                 &InteractivityEngine::ExecuteStyleTriggerActions, &engines->interactivity);
-            engines->tree.SetStyles(&engines->styles);
-            engines->tree.SetTextLayout(engines->text.Layout());
-            engines->tree.SetMeshResources(GetMeshResources());
-            engines->tree.SetClipboard(options.clipboard);
             engines->tree.AttachResourceEnvironment(engines->resources.Environment());
             engines->tree.SetNameScope(this, &ViewFrame::FindNameForElement);
             engines->tree.SetViewState(this);
@@ -270,9 +246,6 @@ Base::Result<void> ViewFrame::Initialize(
             engines->focus.Bind();
             engines->resources.Bind();
             status = engines->resources.RebuildDynamicEnvironment();
-        }
-        if (status) {
-            engines->tree.AttachPresentation(Layout(), RenderTree());
         }
         if (!status) {
             Shutdown();

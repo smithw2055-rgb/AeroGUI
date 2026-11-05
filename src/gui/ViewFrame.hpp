@@ -263,6 +263,9 @@ struct ViewFrame {
     Base::Vector<Aero::VisualHandle>
         pendingGeneratedVisuals;
     bool deferGeneratedActivation = false;
+    bool hasPendingMountEdges = false;
+    bool hasUnattachedItemsControls = false;
+    std::uint64_t completedMountEdgesTreeVersion = 0U;
 
     Markup::LoaderResult loadedDocument;
     Markup::ReloadCoordinator* reloadCoordinator = nullptr;
@@ -271,6 +274,9 @@ struct ViewFrame {
     const Aero::NameScope* activeFragmentNames = nullptr;
 
     bool HasAttachedRoot() const noexcept;
+    void RefreshPendingMountEdges() noexcept;
+    void TrackItemsControl(Controls::ItemsControl& itemsControl) noexcept;
+    void UntrackVisualNode(const Aero::Media::Visual& node) noexcept;
 
     Base::Result<void> AttachVisualGraph(
         ::Aero::Media::Visual& rootVisual,

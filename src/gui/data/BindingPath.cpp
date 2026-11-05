@@ -1,31 +1,32 @@
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/data/BindingPath.hpp"
 
+#include <Aero/Base/HashMap.hpp>
 #include <Aero/Collections.hpp>
+#include <Aero/DependencyObject.hpp>
 #include <Aero/PropertyPath.hpp>
 #include <Aero/TryCast.hpp>
 
 #include <cstdio>
 #include <limits>
-#include <mutex>
+#include <utility>
 
-
-namespace Aero::Meta {
+namespace Aero::Data {
 namespace {
 
 using Aero::TryCast;
 using Aero::TryCastToInterface;
 
-constexpr std::uint32_t InvalidSegmentIndex = UINT32_MAX;
+constexpr std::uint32_t InvalidCompiledSegmentIndex = UINT32_MAX;
 
-bool HasPropertyFlag(
-    PropertyFlags value,
-    PropertyFlags flag) noexcept {
+bool HasCompiledPropertyFlag(
+    Meta::PropertyFlags value,
+    Meta::PropertyFlags flag) noexcept {
     return (static_cast<std::uint32_t>(value) &
         static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-Base::StringView TrimAscii(Base::StringView value) noexcept {
+Base::StringView TrimCompiledPathAscii(Base::StringView value) noexcept {
     std::uint32_t begin = 0U;
     std::uint32_t end = value.SizeBytes();
     while (begin < end &&
@@ -41,26 +42,26 @@ Base::StringView TrimAscii(Base::StringView value) noexcept {
     return value.Substr(begin, end - begin);
 }
 
-Base::Status InvalidPath(const char* message) noexcept {
+Base::Status InvalidCompiledPath(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::ValidationFailed, message);
 }
 
-Base::Status UnsupportedPath(const char* message) noexcept {
+Base::Status UnsupportedCompiledPath(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::Unsupported, message);
 }
 
-void ResetCompileError(BindingPathCompileError* error) noexcept {
+void ResetCompiledPathError(Meta::BindingPathCompileError* error) noexcept {
     if (error == nullptr) return;
-    error->segmentIndex = InvalidSegmentIndex;
-    error->inputType = InvalidTypeId;
+    error->segmentIndex = InvalidCompiledSegmentIndex;
+    error->inputType = Meta::InvalidTypeId;
     error->segment.Clear();
     error->status = {};
 }
 
-Base::Status RecordCompileError(
-    BindingPathCompileError* error,
+Base::Status RecordCompiledPathError(
+    Meta::BindingPathCompileError* error,
     std::uint32_t segmentIndex,
-    TypeId inputType,
+    Meta::TypeId inputType,
     Base::StringView segment,
     Base::Status status) noexcept {
     if (error != nullptr) {
@@ -73,29 +74,29 @@ Base::Status RecordCompileError(
     return status;
 }
 
-bool PropertyReadable(
-    const PropertyInfo& property,
+bool IsCompiledPropertyReadable(
+    const Meta::PropertyInfo& property,
     bool accessorReadable) noexcept {
     return accessorReadable &&
-        !HasPropertyFlag(
-            property.Flags(), PropertyFlags::WriteOnly);
+        !HasCompiledPropertyFlag(
+            property.Flags(), Meta::PropertyFlags::WriteOnly);
 }
 
-bool PropertyWritable(
-    const PropertyInfo& property,
+bool IsCompiledPropertyWritable(
+    const Meta::PropertyInfo& property,
     bool accessorWritable) noexcept {
     return accessorWritable &&
-        !HasPropertyFlag(
-            property.Flags(), PropertyFlags::ReadOnly);
+        !HasCompiledPropertyFlag(
+            property.Flags(), Meta::PropertyFlags::ReadOnly);
 }
 
-bool IsObjectLike(MetadataTypeKind kind) noexcept {
-    return kind == MetadataTypeKind::Object ||
-        kind == MetadataTypeKind::Interface;
+bool IsObjectLikeKind(Meta::MetadataTypeKind kind) noexcept {
+    return kind == Meta::MetadataTypeKind::Object ||
+        kind == Meta::MetadataTypeKind::Interface;
 }
 
-const PropertyInfo* FindAttachedProperty(
-    const TypeRegistry& descriptors,
+const Meta::PropertyInfo* FindCompiledAttachedProperty(
+    const Meta::TypeRegistry& descriptors,
     Base::StringView ownerName,
     Base::StringView propertyName) noexcept {
     for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
@@ -106,28 +107,41 @@ const PropertyInfo* FindAttachedProperty(
         }
     }
     if (ownerName.Empty() || propertyName.Empty()) return nullptr;
-    for (const TypeInfo& type : descriptors.Types()) {
+    for (const Meta::TypeInfo& type : descriptors.Types()) {
         if (type.Name() != ownerName) continue;
-        const PropertyInfo* property = descriptors.FindProperty(
+        const Meta::PropertyInfo* property = descriptors.FindProperty(
             type.Id(), propertyName, false);
         if (property != nullptr &&
-            HasPropertyFlag(property->Flags(), PropertyFlags::Attached)) {
+            HasCompiledPropertyFlag(
+                property->Flags(), Meta::PropertyFlags::Attached)) {
             return property;
         }
     }
     return nullptr;
 }
 
-// P5.3: global (domain, rootType, schemaHash, path) plan cache. Paths
-// recompile on every attach today while XAML trees repeat the same short
-// paths hundreds of times. The key pins the exact compilation inputs;
-// VerifyRuntime re-validates the schema on every use, so entries stay
-// correct across registries and registry teardown (key pointers are only
-// compared, never dereferenced; a reused address with an equal schema
-// hash resolves identically by construction).
+Base::Status DynamicPropertyNotFoundStatus(
+    const Meta::TypeRegistry& types,
+    Meta::TypeId runtimeType,
+    Base::StringView name) noexcept {
+    const Meta::TypeInfo* rt = types.FindType(runtimeType);
+    const Base::StringView rtName =
+        rt != nullptr ? rt->Name() : Base::StringView("<unknown>");
+    thread_local char message[384];
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Binding dynamic path property '%.*s' was not found on '%.*s'",
+        static_cast<int>(name.SizeBytes()),
+        name.Data(),
+        static_cast<int>(rtName.SizeBytes()),
+        rtName.Data());
+    return Base::Status::Failure(Base::ErrorCode::NotFound, message);
+}
+
 struct CompiledPathKey {
-    const Registry* domain = nullptr;
-    TypeId root = InvalidTypeId;
+    const Meta::Registry* domain = nullptr;
+    Meta::TypeId root = Meta::InvalidTypeId;
     Base::HashCode schema = 0U;
     Base::String path;
     bool operator==(const CompiledPathKey& other) const noexcept {
@@ -141,9 +155,9 @@ struct CompiledPathKeyHash {
     Base::HashCode operator()(
         const CompiledPathKey& key,
         Base::HashCode seed = 0U) const noexcept {
-        Base::HashCode hash = Base::DefaultHash<const Registry*>{}(
+        Base::HashCode hash = Base::DefaultHash<const Meta::Registry*>{}(
             key.domain, seed);
-        hash = Base::DefaultHash<TypeId>{}(key.root, hash);
+        hash = Base::DefaultHash<Meta::TypeId>{}(key.root, hash);
         hash = Base::DefaultHash<Base::HashCode>{}(key.schema, hash);
         return Base::DefaultHash<Base::String>{}(key.path, hash);
     }
@@ -151,7 +165,7 @@ struct CompiledPathKeyHash {
 
 struct CompiledPathCache {
     static constexpr std::uint32_t Capacity = 1024U;
-    Base::HashMap<CompiledPathKey, BindingPathPlan, CompiledPathKeyHash>
+    Base::HashMap<CompiledPathKey, CompiledBindingPath, CompiledPathKeyHash>
         plans;
 };
 
@@ -162,26 +176,26 @@ CompiledPathCache& PathPlanCache() noexcept {
 
 } // namespace
 
-Base::Result<BindingPathPlan> BindingPathPlan::Compile(
-    Meta::Registry& runtime,
-    TypeId rootType,
+Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
+    const Meta::Registry& runtime,
+    Meta::TypeId rootType,
     Base::StringView path,
-    BindingPathCompileError* error) noexcept {
-    ResetCompileError(error);
-    path = TrimAscii(path);
-    if (!runtime.IsReady() || rootType == InvalidTypeId || path.Empty()) {
-        return RecordCompileError(
+    Meta::BindingPathCompileError* error) noexcept {
+    ResetCompiledPathError(error);
+    path = TrimCompiledPathAscii(path);
+    if (!runtime.IsReady() || rootType == Meta::InvalidTypeId || path.Empty()) {
+        return RecordCompiledPathError(
             error,
-            InvalidSegmentIndex,
+            InvalidCompiledSegmentIndex,
             rootType,
             path,
-            InvalidPath(
+            InvalidCompiledPath(
                 "Binding path requires a frozen runtime, root type, and path"));
     }
 
-    const TypeRegistry& descriptors = runtime.Types();
+    const Meta::TypeRegistry& descriptors = runtime.Types();
     if (descriptors.FindType(rootType) == nullptr) {
-        return RecordCompileError(
+        return RecordCompiledPathError(
             error,
             0U,
             rootType,
@@ -190,249 +204,29 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
                 Base::ErrorCode::NotFound,
                 "Binding path root type descriptor was not found"));
     }
-    Base::Result<Base::HashCode> schemaHash =
-        runtime.ComputeSchemaHash();
-    if (!schemaHash) return schemaHash.GetStatus();
+    Base::Result<Base::HashCode> schemaHash = runtime.ComputeSchemaHash();
+    if (!schemaHash) {
+        return schemaHash.GetStatus();
+    }
 
-    BindingPathPlan plan;
-    plan.compiledDomain_ = &runtime;
-    plan.rootType_ = rootType;
-    plan.schemaHash_ = schemaHash.Value();
-
-    // P5.3: serve repeated paths from the global compile cache. The key
-    // uses the trimmed path; an uncacheable key (key-string OOM) simply
-    // parses uncached.
     CompiledPathKey cacheKey;
     cacheKey.domain = &runtime;
     cacheKey.root = rootType;
     cacheKey.schema = schemaHash.Value();
     const bool cacheable = static_cast<bool>(cacheKey.path.Assign(path));
     if (cacheable) {
-        if (BindingPathPlan* hit = PathPlanCache().plans.Find(cacheKey)) {
+        if (CompiledBindingPath* hit = PathPlanCache().plans.Find(cacheKey)) {
             return *hit;
         }
     }
 
-    Base::Vector<PropertyPathToken> tokens;
-    Base::Result<void> tokenized = PropertyPath::ParseTokens(path, tokens);
-    if (!tokenized) {
-        return RecordCompileError(
-            error,
-            InvalidSegmentIndex,
-            rootType,
-            path,
-            tokenized.GetStatus());
+    CompiledBindingPath plan;
+    Base::Result<void> bound = plan.BindToRoot(runtime, rootType, path, error);
+    if (!bound) {
+        return bound.GetStatus();
     }
-    if (tokens.Empty()) {
-        return RecordCompileError(
-            error,
-            InvalidSegmentIndex,
-            rootType,
-            path,
-            InvalidPath("Binding path contains an empty segment"));
-    }
+    plan.schemaHash_ = schemaHash.Value();
 
-    TypeId currentType = rootType;
-    std::uint32_t segmentIndex = 0U;
-    for (std::uint32_t tokenIndex = 0U; tokenIndex < tokens.Size(); ++tokenIndex) {
-        const PropertyPathToken& tok = tokens[tokenIndex];
-        const bool attachedSyntax = tok.isTypeQualified;
-        const Base::StringView name = tok.propertyName;
-        const bool hasCollectionIndex = tok.hasIndex;
-        const std::uint32_t collectionIndex = tok.collectionIndex;
-        const Base::StringView authoredName = tok.raw;
-
-        if (name.Empty()) {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                InvalidPath("Binding path contains an empty segment"));
-        }
-
-        const TypeInfo* input =
-            descriptors.FindType(currentType);
-        if (input == nullptr) {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Binding path input type descriptor was not found"));
-        }
-
-        BindingPathSegment segment;
-        segment.inputType = currentType;
-        if (IsObjectLike(input->Kind())) {
-            const PropertyInfo* property = attachedSyntax
-                ? FindAttachedProperty(descriptors, tok.typeQualifier, name)
-                : descriptors.FindProperty(currentType, name, true);
-            if (property == nullptr) {
-                // WPF resolves DataContext paths against the runtime object,
-                // not a closed compile-time type. Concrete CLR/Meta types
-                // (including DependencyObject view-models) still need a
-                // dynamic segment when the member is registered only on a
-                // more-derived runtime type.
-                const bool runtimePolymorphic =
-                    !attachedSyntax && IsObjectLike(input->Kind());
-                if (runtimePolymorphic) {
-                    Base::Result<void> storedName =
-                        segment.dynamicName.Assign(name);
-                    if (!storedName) return storedName.GetStatus();
-                    segment.kind =
-                        BindingPathSegmentKind::ObjectProperty;
-                    segment.outputType =
-                        Meta::TypeOf<Base::Object>();
-                    segment.readable = true;
-                    // Runtime object members (SelectedQuest on a ViewModel
-                    // typed only as Object at compile time) still write back
-                    // through SetProperty when the concrete setter exists.
-                    segment.writable = true;
-                    segment.dynamic = true;
-                    plan.hasDynamicResult_ = true;
-                } else {
-                thread_local char message[320];
-                std::snprintf(
-                    message,
-                    sizeof(message),
-                    "Binding path %s property '%.*s' was not found on type '%.*s'",
-                    attachedSyntax ? "attached" : "object",
-                    static_cast<int>(name.SizeBytes()),
-                    name.Data(),
-                    static_cast<int>(input->Name().SizeBytes()),
-                    input->Name().Data());
-                return RecordCompileError(
-                    error,
-                    segmentIndex,
-                    currentType,
-                    name,
-                    Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        message));
-                }
-            } else {
-                segment.kind = BindingPathSegmentKind::ObjectProperty;
-                segment.member = property->Id();
-                segment.outputType = property->ValueType();
-                segment.readable = PropertyReadable(
-                    *property,
-                    runtime.CanReadProperty(property->Id()));
-                segment.writable = PropertyWritable(
-                    *property,
-                    runtime.CanWriteProperty(property->Id()));
-            }
-        } else if (currentType == Meta::TypeOf<Meta::Value>()) {
-            // Any-valued dependency properties (Content, Header, selected
-            // item values, and similar WPF surfaces) carry their concrete
-            // runtime value inside Meta::Value. Compile the remaining member
-            // as a dynamic object segment and resolve it from that concrete
-            // object when the plan executes.
-            if (attachedSyntax) {
-                return RecordCompileError(
-                    error,
-                    segmentIndex,
-                    currentType,
-                    name,
-                    Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Binding path attached property cannot be resolved from Any"));
-            }
-            Base::Result<void> storedName =
-                segment.dynamicName.Assign(name);
-            if (!storedName) return storedName.GetStatus();
-            segment.kind = BindingPathSegmentKind::ObjectProperty;
-            segment.outputType = Meta::TypeOf<Base::Object>();
-            segment.readable = true;
-            segment.writable = true;
-            segment.dynamic = true;
-            plan.hasDynamicResult_ = true;
-        } else if (input->Kind() == MetadataTypeKind::Struct) {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "Binding path value fields are not supported"));
-        } else {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                UnsupportedPath(
-                    "Binding path cannot traverse this metadata type kind"));
-        }
-
-        const TypeInfo* output =
-            descriptors.FindType(segment.outputType);
-        if (output == nullptr) {
-            return RecordCompileError(
-                error,
-                segmentIndex,
-                currentType,
-                name,
-                Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Binding path output type descriptor was not found"));
-        }
-        const bool hasMore = (tokenIndex + 1U < tokens.Size());
-        if (segment.kind == BindingPathSegmentKind::ObjectProperty &&
-            (hasMore || hasCollectionIndex) &&
-            output->Kind() == MetadataTypeKind::Struct) {
-            segment.copyOnWrite = true;
-        }
-
-        const TypeId propertyOutputType = segment.outputType;
-        plan.segments_.PushBack(std::move(segment));
-        currentType = propertyOutputType;
-        ++segmentIndex;
-
-        if (hasCollectionIndex) {
-            if (!IsObjectLike(output->Kind()) &&
-                currentType != Meta::TypeOf<Meta::Value>()) {
-                return RecordCompileError(
-                    error,
-                    segmentIndex,
-                    currentType,
-                    authoredName,
-                    UnsupportedPath(
-                        "Binding collection index requires an object-valued collection"));
-            }
-            BindingPathSegment indexSegment;
-            indexSegment.kind = BindingPathSegmentKind::CollectionIndex;
-            indexSegment.inputType = currentType;
-            indexSegment.outputType = Meta::TypeOf<Base::Object>();
-            indexSegment.collectionIndex = collectionIndex;
-            indexSegment.readable = true;
-            indexSegment.writable = true;
-            plan.segments_.PushBack(std::move(indexSegment));
-            currentType = Meta::TypeOf<Base::Object>();
-            plan.hasDynamicResult_ = true;
-            ++segmentIndex;
-        }
-    }
-
-    plan.resultType_ = currentType;
-    plan.canRead_ = true;
-    plan.canWrite_ = true;
-    for (std::uint32_t index = 0U;
-         index < plan.segments_.Size();
-         ++index) {
-        const BindingPathSegment& segment = plan.segments_[index];
-        plan.canRead_ = plan.canRead_ && segment.readable;
-        const bool leaf = index + 1U == plan.segments_.Size();
-        if (leaf) {
-            plan.canWrite_ = plan.canWrite_ && segment.writable;
-        } else {
-            plan.canWrite_ = plan.canWrite_ && segment.readable &&
-                (!segment.copyOnWrite || segment.writable);
-        }
-    }
     if (cacheable) {
         CompiledPathCache& cache = PathPlanCache();
         if (cache.plans.Size() >= CompiledPathCache::Capacity) {
@@ -443,37 +237,755 @@ Base::Result<BindingPathPlan> BindingPathPlan::Compile(
     return plan;
 }
 
-Base::Result<void> BindingPathPlan::VerifyRuntime(
-    Meta::Registry& runtime) const noexcept {
-    if (!IsValid() || !runtime.IsReady()) {
+void CompiledBindingPath::ClearStepCache(CompiledPathStep& step) noexcept {
+    step.ownerType = Meta::InvalidTypeId;
+    step.member = Meta::InvalidMemberId;
+    step.propertyInfo = nullptr;
+    step.dependencyProperty = nullptr;
+    step.propertyGetter = nullptr;
+    step.propertySetter = nullptr;
+    step.accessorContext = nullptr;
+    step.accessorReadable = false;
+    step.accessorWritable = false;
+    step.cachedReadable = false;
+    step.cachedWritable = false;
+    step.ownerIsDependencyObject = false;
+    step.outputIsEnum = false;
+}
+
+void CompiledBindingPath::PopulateStepCache(
+    const Meta::Registry& runtime,
+    Meta::TypeId stepOwnerType,
+    const Meta::PropertyInfo* property,
+    CompiledPathStep& step) noexcept {
+    step.ownerType = stepOwnerType;
+    step.propertyInfo = property;
+    step.member = property->Id();
+    step.attached = step.attached ||
+        HasCompiledPropertyFlag(
+            property->Flags(), Meta::PropertyFlags::Attached);
+    step.propertyGetter = nullptr;
+    step.propertySetter = nullptr;
+    step.accessorContext = nullptr;
+    if (runtime.IsReady()) {
+        const ::Aero::PropertyAccessorFacet* accessor =
+            runtime.RuntimeData().FindPropertyAccessor(property->Id());
+        if (accessor != nullptr &&
+            accessor->access == Meta::PropertyAccessKind::Ordinary) {
+            step.propertyGetter = accessor->get;
+            step.propertySetter = accessor->set;
+            step.accessorContext = accessor->context;
+        }
+    }
+    step.accessorReadable =
+        step.propertyGetter != nullptr || runtime.CanReadProperty(property->Id());
+    step.accessorWritable =
+        step.propertySetter != nullptr || runtime.CanWriteProperty(property->Id());
+    step.cachedReadable = IsCompiledPropertyReadable(
+        *property,
+        step.accessorReadable);
+    step.cachedWritable = IsCompiledPropertyWritable(
+        *property,
+        step.accessorWritable);
+    step.dependencyProperty = runtime.DependencyProperties().Find(
+        Meta::DependencyPropertyHandle{property->Id()});
+    step.ownerIsDependencyObject =
+        step.dependencyProperty != nullptr &&
+        runtime.Types().IsAssignableFrom(
+            Meta::TypeOf<DependencyObject>(),
+            stepOwnerType);
+    const Meta::TypeInfo* outInfo =
+        runtime.Types().FindType(property->ValueType());
+    step.outputIsEnum =
+        outInfo != nullptr &&
+        outInfo->Kind() == Meta::MetadataTypeKind::Enum;
+}
+
+void CompiledBindingPath::WarmCache(
+    const Meta::Registry& runtime) noexcept {
+    if (cachedRuntime_ != nullptr && cachedRuntime_ != &runtime) {
+        for (std::uint32_t i = 0U; i < steps_.Size(); ++i) {
+            if (steps_[i].dynamic) {
+                ClearStepCache(steps_[i]);
+            } else {
+                steps_[i].ownerType = Meta::InvalidTypeId;
+                steps_[i].propertyInfo = nullptr;
+                steps_[i].dependencyProperty = nullptr;
+                steps_[i].propertyGetter = nullptr;
+                steps_[i].propertySetter = nullptr;
+                steps_[i].accessorContext = nullptr;
+            }
+        }
+    }
+    cachedRuntime_ = &runtime;
+    for (std::uint32_t i = 0U; i < steps_.Size(); ++i) {
+        CompiledPathStep& step = steps_[i];
+        if (step.kind != Meta::BindingPathSegmentKind::ObjectProperty) {
+            continue;
+        }
+        if (!step.dynamic &&
+            step.propertyInfo == nullptr &&
+            step.member != Meta::InvalidMemberId &&
+            step.inputType != Meta::InvalidTypeId) {
+            const Meta::PropertyInfo* property =
+                runtime.Types().FindProperty(step.member);
+            if (property != nullptr) {
+                if (step.propertyName.Empty()) {
+                    (void)step.propertyName.Assign(property->Name());
+                }
+                PopulateStepCache(runtime, step.inputType, property, step);
+            }
+        }
+    }
+}
+
+Base::Result<void> CompiledBindingPath::PrecompileTokens(
+    Base::StringView path) noexcept {
+    tokenizeAttempted_ = true;
+    if (tokenized_) {
+        return {};
+    }
+    steps_.Clear();
+    valid_ = false;
+    targetValidated_ = false;
+    path = TrimCompiledPathAscii(path);
+    if (path.Empty()) {
+        return InvalidCompiledPath(
+            "Binding path requires a frozen runtime, root type, and path");
+    }
+    Base::Vector<PropertyPathToken> tokens;
+    Base::Result<void> parsed = PropertyPath::ParseTokens(path, tokens);
+    if (!parsed) {
+        return parsed.GetStatus();
+    }
+    if (tokens.Empty()) {
+        return InvalidCompiledPath("Binding path contains an empty segment");
+    }
+    steps_.Reserve(tokens.Size());
+    for (std::uint32_t tokenIndex = 0U;
+         tokenIndex < tokens.Size();
+         ++tokenIndex) {
+        const PropertyPathToken& tok = tokens[tokenIndex];
+        CompiledPathStep propStep;
+        propStep.kind = Meta::BindingPathSegmentKind::ObjectProperty;
+        propStep.attached = tok.isTypeQualified;
+        propStep.hasCollectionIndexAfter = tok.hasIndex;
+        if (!tok.propertyName.Empty()) {
+            Base::Result<void> assigned =
+                propStep.propertyName.Assign(tok.propertyName);
+            if (!assigned) {
+                steps_.Clear();
+                return assigned.GetStatus();
+            }
+        }
+        if (tok.isTypeQualified && !tok.typeQualifier.Empty()) {
+            Base::Result<void> assigned =
+                propStep.attachedOwnerName.Assign(tok.typeQualifier);
+            if (!assigned) {
+                steps_.Clear();
+                return assigned.GetStatus();
+            }
+        }
+        if (!tok.raw.Empty()) {
+            Base::Result<void> assigned =
+                propStep.rawToken.Assign(tok.raw);
+            if (!assigned) {
+                steps_.Clear();
+                return assigned.GetStatus();
+            }
+        }
+        steps_.PushBack(std::move(propStep));
+
+        if (tok.hasIndex) {
+            CompiledPathStep indexStep;
+            indexStep.kind = Meta::BindingPathSegmentKind::CollectionIndex;
+            indexStep.collectionIndex = tok.collectionIndex;
+            indexStep.outputType = Meta::TypeOf<Base::Object>();
+            indexStep.readable = true;
+            indexStep.writable = true;
+            indexStep.accessorReadable = true;
+            indexStep.accessorWritable = true;
+            indexStep.cachedReadable = true;
+            indexStep.cachedWritable = true;
+            if (!tok.raw.Empty()) {
+                Base::Result<void> assigned =
+                    indexStep.rawToken.Assign(tok.raw);
+                if (!assigned) {
+                    steps_.Clear();
+                    return assigned.GetStatus();
+                }
+            }
+            steps_.PushBack(std::move(indexStep));
+        }
+    }
+    tokenized_ = true;
+    return {};
+}
+
+Base::Result<void> CompiledBindingPath::BindToRoot(
+    const Meta::Registry& runtime,
+    Meta::TypeId rootType,
+    Base::StringView path,
+    Meta::BindingPathCompileError* error) noexcept {
+    ResetCompiledPathError(error);
+    valid_ = false;
+    targetValidated_ = false;
+    path = TrimCompiledPathAscii(path);
+    if (!runtime.IsReady() || rootType == Meta::InvalidTypeId || path.Empty()) {
+        return RecordCompiledPathError(
+            error,
+            InvalidCompiledSegmentIndex,
+            rootType,
+            path,
+            InvalidCompiledPath(
+                "Binding path requires a frozen runtime, root type, and path"));
+    }
+
+    const Meta::TypeRegistry& descriptors = runtime.Types();
+    if (descriptors.FindType(rootType) == nullptr) {
+        return RecordCompiledPathError(
+            error,
+            0U,
+            rootType,
+            {},
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Binding path root type descriptor was not found"));
+    }
+
+    if (!tokenized_) {
+        Base::Result<void> precompiled = PrecompileTokens(path);
+        if (!precompiled) {
+            return RecordCompiledPathError(
+                error,
+                InvalidCompiledSegmentIndex,
+                rootType,
+                path,
+                precompiled.GetStatus());
+        }
+    }
+
+    if (cachedRuntime_ != nullptr && cachedRuntime_ != &runtime) {
+        for (std::uint32_t i = 0U; i < steps_.Size(); ++i) {
+            ClearStepCache(steps_[i]);
+        }
+    }
+
+    Meta::TypeId currentType = rootType;
+    bool hasDynamicResult = false;
+    for (std::uint32_t stepIndex = 0U;
+         stepIndex < steps_.Size();
+         ++stepIndex) {
+        CompiledPathStep& step = steps_[stepIndex];
+        if (step.kind == Meta::BindingPathSegmentKind::CollectionIndex) {
+            const Meta::TypeInfo* prevOutput =
+                descriptors.FindType(currentType);
+            if (prevOutput == nullptr ||
+                (!IsObjectLikeKind(prevOutput->Kind()) &&
+                 currentType != Meta::TypeOf<Meta::Value>())) {
+                return RecordCompiledPathError(
+                    error,
+                    stepIndex,
+                    currentType,
+                    step.rawToken.View(),
+                    UnsupportedCompiledPath(
+                        "Binding collection index requires an object-valued collection"));
+            }
+            step.inputType = currentType;
+            step.outputType = Meta::TypeOf<Base::Object>();
+            step.readable = true;
+            step.writable = true;
+            step.accessorReadable = true;
+            step.accessorWritable = true;
+            step.cachedReadable = true;
+            step.cachedWritable = true;
+            currentType = Meta::TypeOf<Base::Object>();
+            hasDynamicResult = true;
+            continue;
+        }
+
+        const Base::StringView name = step.propertyName.View();
+        if (name.Empty()) {
+            return RecordCompiledPathError(
+                error,
+                stepIndex,
+                currentType,
+                name,
+                InvalidCompiledPath("Binding path contains an empty segment"));
+        }
+
+        const Meta::TypeInfo* input = descriptors.FindType(currentType);
+        if (input == nullptr) {
+            return RecordCompiledPathError(
+                error,
+                stepIndex,
+                currentType,
+                name,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Binding path input type descriptor was not found"));
+        }
+
+        const Meta::TypeId previousInputType = step.inputType;
+        const bool wasDynamic = step.dynamic;
+        step.inputType = currentType;
+        step.copyOnWrite = false;
+        if (IsObjectLikeKind(input->Kind())) {
+            const Meta::PropertyInfo* property = nullptr;
+            if (cachedRuntime_ == &runtime &&
+                step.propertyInfo != nullptr &&
+                (step.ownerType == currentType ||
+                 (!wasDynamic &&
+                  (previousInputType == currentType || step.attached)))) {
+                property = step.propertyInfo;
+            } else {
+                property = step.attached
+                    ? FindCompiledAttachedProperty(
+                          descriptors,
+                          step.attachedOwnerName.View(),
+                          name)
+                    : descriptors.FindProperty(currentType, name, true);
+            }
+            if (property == nullptr) {
+                const bool runtimePolymorphic =
+                    !step.attached && IsObjectLikeKind(input->Kind());
+                if (runtimePolymorphic) {
+                    if (!wasDynamic) {
+                        ClearStepCache(step);
+                    }
+                    step.outputType = Meta::TypeOf<Base::Object>();
+                    step.readable = true;
+                    step.writable = true;
+                    step.dynamic = true;
+                    hasDynamicResult = true;
+                } else {
+                    thread_local char message[320];
+                    std::snprintf(
+                        message,
+                        sizeof(message),
+                        "Binding path %s property '%.*s' was not found on type '%.*s'",
+                        step.attached ? "attached" : "object",
+                        static_cast<int>(name.SizeBytes()),
+                        name.Data(),
+                        static_cast<int>(input->Name().SizeBytes()),
+                        input->Name().Data());
+                    return RecordCompiledPathError(
+                        error,
+                        stepIndex,
+                        currentType,
+                        name,
+                        Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            message));
+                }
+            } else {
+                const bool canKeepRuntimeOwner =
+                    cachedRuntime_ == &runtime &&
+                    step.propertyInfo == property &&
+                    step.ownerType != Meta::InvalidTypeId &&
+                    (step.ownerType == currentType ||
+                     step.attached ||
+                     descriptors.IsAssignableFrom(currentType, step.ownerType));
+                if (!canKeepRuntimeOwner) {
+                    PopulateStepCache(runtime, currentType, property, step);
+                }
+                step.dynamic = false;
+                step.outputType = property->ValueType();
+                step.readable = step.cachedReadable;
+                step.writable = step.cachedWritable;
+            }
+        } else if (currentType == Meta::TypeOf<Meta::Value>()) {
+            if (step.attached) {
+                return RecordCompiledPathError(
+                    error,
+                    stepIndex,
+                    currentType,
+                    name,
+                    Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "Binding path attached property cannot be resolved from Any"));
+            }
+            if (!wasDynamic) {
+                ClearStepCache(step);
+            }
+            step.outputType = Meta::TypeOf<Base::Object>();
+            step.readable = true;
+            step.writable = true;
+            step.dynamic = true;
+            hasDynamicResult = true;
+        } else if (input->Kind() == Meta::MetadataTypeKind::Struct) {
+            return RecordCompiledPathError(
+                error,
+                stepIndex,
+                currentType,
+                name,
+                Base::Status::Failure(
+                    Base::ErrorCode::Unsupported,
+                    "Binding path value fields are not supported"));
+        } else {
+            return RecordCompiledPathError(
+                error,
+                stepIndex,
+                currentType,
+                name,
+                UnsupportedCompiledPath(
+                    "Binding path cannot traverse this metadata type kind"));
+        }
+
+        const Meta::TypeInfo* output = descriptors.FindType(step.outputType);
+        if (output == nullptr) {
+            return RecordCompiledPathError(
+                error,
+                stepIndex,
+                currentType,
+                name,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Binding path output type descriptor was not found"));
+        }
+        const bool hasMoreSteps = (stepIndex + 1U < steps_.Size());
+        if (hasMoreSteps &&
+            output->Kind() == Meta::MetadataTypeKind::Struct) {
+            step.copyOnWrite = true;
+        }
+        currentType = step.outputType;
+    }
+
+    cachedRuntime_ = &runtime;
+    rootType_ = rootType;
+    resultType_ = currentType;
+    dynamicResult_ = hasDynamicResult;
+    readable_ = true;
+    writable_ = true;
+    for (std::uint32_t index = 0U; index < steps_.Size(); ++index) {
+        const CompiledPathStep& step = steps_[index];
+        readable_ = readable_ && step.readable;
+        const bool leaf = (index + 1U == steps_.Size());
+        if (leaf) {
+            writable_ = writable_ && step.writable;
+        } else {
+            writable_ = writable_ && step.readable &&
+                (!step.copyOnWrite || step.writable);
+        }
+    }
+    valid_ = true;
+    return {};
+}
+
+Base::Result<void> CompiledBindingPath::EnsureStepResolvedForRead(
+    const Meta::Registry& runtime,
+    Meta::TypeId currentType,
+    CompiledPathStep& step) noexcept {
+    if (step.propertyInfo != nullptr && step.ownerType == currentType) {
+        return {};
+    }
+    const Meta::PropertyInfo* property = nullptr;
+    if (!step.dynamic) {
+        property = step.propertyInfo;
+        if (property == nullptr && step.member != Meta::InvalidMemberId) {
+            property = runtime.Types().FindProperty(step.member);
+        }
+        if (property == nullptr && !step.propertyName.Empty()) {
+            property = step.attached
+                ? FindCompiledAttachedProperty(
+                      runtime.Types(),
+                      step.attachedOwnerName.View(),
+                      step.propertyName.View())
+                : runtime.Types().FindProperty(
+                      currentType, step.propertyName.View(), true);
+        }
+        if (property == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Metadata property descriptor was not found");
+        }
+        if (HasCompiledPropertyFlag(
+                property->Flags(), Meta::PropertyFlags::Attached)) {
+            if (currentType == Meta::InvalidTypeId ||
+                runtime.Types().FindType(currentType) == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Attached metadata property target has no type information");
+            }
+        } else if (
+            currentType != property->OwnerType() &&
+            !runtime.Types().IsAssignableFrom(
+                property->OwnerType(), currentType)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Object type is incompatible with the metadata property");
+        }
+        PopulateStepCache(runtime, currentType, property, step);
+        return {};
+    }
+
+    property = step.attached
+        ? FindCompiledAttachedProperty(
+              runtime.Types(),
+              step.attachedOwnerName.View(),
+              step.propertyName.View())
+        : runtime.Types().FindProperty(
+              currentType, step.propertyName.View(), true);
+    if (property == nullptr ||
+        !runtime.CanReadProperty(property->Id())) {
+        return DynamicPropertyNotFoundStatus(
+            runtime.Types(),
+            currentType,
+            step.propertyName.View());
+    }
+    PopulateStepCache(runtime, currentType, property, step);
+    return {};
+}
+
+Base::Result<void> CompiledBindingPath::EnsureStepResolvedForWrite(
+    const Meta::Registry& runtime,
+    Meta::TypeId currentType,
+    CompiledPathStep& step) noexcept {
+    if (step.propertyInfo != nullptr && step.ownerType == currentType) {
+        return {};
+    }
+    const Meta::PropertyInfo* property = nullptr;
+    if (!step.dynamic) {
+        property = step.propertyInfo;
+        if (property == nullptr && step.member != Meta::InvalidMemberId) {
+            property = runtime.Types().FindProperty(step.member);
+        }
+        if (property == nullptr && !step.propertyName.Empty()) {
+            property = step.attached
+                ? FindCompiledAttachedProperty(
+                      runtime.Types(),
+                      step.attachedOwnerName.View(),
+                      step.propertyName.View())
+                : runtime.Types().FindProperty(
+                      currentType, step.propertyName.View(), true);
+        }
+        if (property == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Metadata property descriptor was not found");
+        }
+        if (HasCompiledPropertyFlag(
+                property->Flags(), Meta::PropertyFlags::Attached)) {
+            if (currentType == Meta::InvalidTypeId ||
+                runtime.Types().FindType(currentType) == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Attached metadata property target has no type information");
+            }
+        } else if (
+            currentType != property->OwnerType() &&
+            !runtime.Types().IsAssignableFrom(
+                property->OwnerType(), currentType)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Object type is incompatible with the metadata property");
+        }
+        PopulateStepCache(runtime, currentType, property, step);
+        return {};
+    }
+
+    property = step.attached
+        ? FindCompiledAttachedProperty(
+              runtime.Types(),
+              step.attachedOwnerName.View(),
+              step.propertyName.View())
+        : runtime.Types().FindProperty(
+              currentType, step.propertyName.View(), true);
+    if (property == nullptr ||
+        !runtime.CanWriteProperty(property->Id())) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            "Binding dynamic path property is not writable");
+    }
+    PopulateStepCache(runtime, currentType, property, step);
+    return {};
+}
+
+Base::Result<Meta::PropertyValue> CompiledBindingPath::ReadSinglePropertyStep(
+    const Meta::Registry& runtime,
+    const Base::Object& object,
+    CompiledPathStep& step) noexcept {
+    if (step.propertyInfo == nullptr ||
+        object.RuntimeType() != step.ownerType) {
+        Base::Result<void> resolved =
+            EnsureStepResolvedForRead(runtime, object.RuntimeType(), step);
+        if (!resolved) {
+            return resolved.GetStatus();
+        }
+    }
+    if (!step.cachedReadable) {
+        if (step.dynamic && !step.accessorReadable) {
+            return DynamicPropertyNotFoundStatus(
+                runtime.Types(),
+                object.RuntimeType(),
+                step.propertyName.View());
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            HasCompiledPropertyFlag(
+                step.propertyInfo->Flags(),
+                Meta::PropertyFlags::WriteOnly)
+                ? "Write-only metadata property cannot be read"
+                : "Metadata property has no usable accessor");
+    }
+    if (step.dependencyProperty != nullptr &&
+        step.ownerIsDependencyObject) {
+        const auto& dependencyObject =
+            static_cast<const DependencyObject&>(object);
+        const Meta::PropertyValue value =
+            dependencyObject.GetValue(step.dependencyProperty->Handle());
+        const Meta::TypeId expectedType = step.propertyInfo->ValueType();
+        if (value.IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Metadata getter returned an incompatible value");
+        }
+        if (value.Type() == expectedType ||
+            HasCompiledPropertyFlag(
+                step.propertyInfo->Flags(),
+                Meta::PropertyFlags::AnyValue)) {
+            return value;
+        }
+        if (value.Kind() == Meta::ValueKind::Object &&
+            runtime.Types().IsAssignableFrom(
+                expectedType, value.Type())) {
+            return Meta::PropertyValue::FromObject(
+                expectedType,
+                value.AsObject());
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Metadata getter returned an incompatible value");
+    }
+    if (step.propertyGetter != nullptr) {
+        Base::Result<Meta::PropertyValue> value =
+            step.propertyGetter(object, step.accessorContext);
+        if (!value) {
+            return value.GetStatus();
+        }
+        const Meta::TypeId expectedType = step.propertyInfo->ValueType();
+        if (value.Value().IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Metadata getter returned an incompatible value");
+        }
+        if (value.Value().Type() == expectedType ||
+            HasCompiledPropertyFlag(
+                step.propertyInfo->Flags(),
+                Meta::PropertyFlags::AnyValue)) {
+            return value;
+        }
+        if (value.Value().Kind() == Meta::ValueKind::Object &&
+            runtime.Types().IsAssignableFrom(
+                expectedType, value.Value().Type())) {
+            return Meta::PropertyValue::FromObject(
+                expectedType,
+                value.Value().AsObject());
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Metadata getter returned an incompatible value");
+    }
+    return runtime.GetProperty(object, step.member);
+}
+
+Base::Result<void> CompiledBindingPath::WriteSinglePropertyStep(
+    Meta::Registry& runtime,
+    Base::Object& object,
+    CompiledPathStep& step,
+    const Meta::PropertyValue& value) noexcept {
+    if (step.propertyInfo == nullptr ||
+        object.RuntimeType() != step.ownerType) {
+        Base::Result<void> resolved =
+            EnsureStepResolvedForWrite(runtime, object.RuntimeType(), step);
+        if (!resolved) {
+            return resolved.GetStatus();
+        }
+    }
+    if (step.dynamic && !step.accessorWritable) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ReadOnly,
+            "Binding dynamic path property is not writable");
+    }
+    if (value.IsUnset()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Metadata property value is unset");
+    }
+    if (!step.cachedWritable) {
+        if (HasCompiledPropertyFlag(
+                step.propertyInfo->Flags(),
+                Meta::PropertyFlags::ReadOnly)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ReadOnly,
+                "Read-only metadata property cannot be written");
+        }
+        return Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "Metadata property has no usable accessor");
+    }
+    if (!step.outputIsEnum &&
+        ((step.dependencyProperty != nullptr && step.ownerIsDependencyObject) ||
+         step.propertySetter != nullptr)) {
+        const Meta::TypeId expectedType = step.propertyInfo->ValueType();
+        const bool acceptsAnyValue = HasCompiledPropertyFlag(
+            step.propertyInfo->Flags(), Meta::PropertyFlags::AnyValue);
+        if (!acceptsAnyValue && value.Type() != expectedType) {
+            const bool objectAssignment =
+                value.Kind() == Meta::ValueKind::Object &&
+                runtime.Types().IsAssignableFrom(expectedType, value.Type());
+            if (!objectAssignment) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Metadata property value type does not match the descriptor");
+            }
+        }
+        if (step.dependencyProperty != nullptr &&
+            step.ownerIsDependencyObject) {
+            auto& dependencyObject = static_cast<DependencyObject&>(object);
+            dependencyObject.SetValue(step.dependencyProperty->Handle(), value);
+            return {};
+        }
+        step.propertySetter(object, value, step.accessorContext);
+        return {};
+    }
+    return runtime.SetProperty(object, step.member, value);
+}
+
+Base::Result<void> CompiledBindingPath::VerifyRuntime(
+    const Meta::Registry& runtime) const noexcept {
+    if (!valid_ || !runtime.IsReady() || steps_.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Binding path plan or metadata program is not ready");
     }
-    if (&runtime == compiledDomain_) return {};
-    Base::Result<Base::HashCode> current =
-        runtime.ComputeSchemaHash();
-    if (!current) return current.GetStatus();
-    if (current.Value() != schemaHash_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed,
-            "Binding path schema hash does not match the runtime");
+    if (cachedRuntime_ != &runtime) {
+        if (schemaHash_ != 0U) {
+            Base::Result<Base::HashCode> current = runtime.ComputeSchemaHash();
+            if (!current) return current.GetStatus();
+            if (current.Value() != schemaHash_) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Binding path schema hash does not match the runtime");
+            }
+        }
+        const_cast<CompiledBindingPath*>(this)->WarmCache(runtime);
     }
     return {};
 }
 
-Base::Result<Value> BindingPathPlan::Get(
-    Meta::Registry& runtime,
+Base::Result<Meta::PropertyValue> CompiledBindingPath::Get(
+    const Meta::Registry& runtime,
     const Base::Object& root) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready.GetStatus();
-    if (!canRead_) {
+    if (!readable_) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Binding path is not readable");
     }
-    if (!runtime.Types().IsAssignableFrom(
-            rootType_, root.RuntimeType())) {
+    if (root.RuntimeType() != rootType_ &&
+        !runtime.Types().IsAssignableFrom(rootType_, root.RuntimeType())) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path root object type is incompatible");
@@ -481,17 +993,17 @@ Base::Result<Value> BindingPathPlan::Get(
     return GetObject(runtime, root, 0U);
 }
 
-Base::Result<Value> BindingPathPlan::Get(
-    Meta::Registry& runtime,
-    const Value& root) const noexcept {
+Base::Result<Meta::PropertyValue> CompiledBindingPath::Get(
+    const Meta::Registry& runtime,
+    const Meta::PropertyValue& root) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready.GetStatus();
-    if (!canRead_) {
+    if (!readable_) {
         return Base::Status::Failure(
             Base::ErrorCode::Unsupported,
             "Binding path is not readable");
     }
-    if (root.Kind() == ValueKind::Object) {
+    if (root.Kind() == Meta::ValueKind::Object) {
         if (root.IsNullObject()) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -507,12 +1019,12 @@ Base::Result<Value> BindingPathPlan::Get(
     return GetValue(runtime, root, 0U);
 }
 
-Base::Result<Value> BindingPathPlan::GetObject(
-    Meta::Registry& runtime,
+Base::Result<Meta::PropertyValue> CompiledBindingPath::GetObject(
+    const Meta::Registry& runtime,
     const Base::Object& object,
-    std::uint32_t segmentIndex) const noexcept {
-    const BindingPathSegment& segment = segments_[segmentIndex];
-    if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
+    std::uint32_t stepIndex) const noexcept {
+    CompiledPathStep& step = steps_[stepIndex];
+    if (step.kind == Meta::BindingPathSegmentKind::CollectionIndex) {
         const Collections::IItemsSource* items =
             TryCastToInterface<Collections::IItemsSource>(
                 const_cast<Base::Object*>(&object));
@@ -525,74 +1037,48 @@ Base::Result<Value> BindingPathPlan::GetObject(
                 "Binding collection index source does not implement IItemsSource");
         }
         Base::Ref<Base::Object> item =
-            items->GetItem(segment.collectionIndex);
+            items->GetItem(step.collectionIndex);
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "Binding collection index is outside the collection");
         }
-        Value current = Value::FromObject(
+        Meta::PropertyValue current = Meta::PropertyValue::FromObject(
             item->RuntimeType(), item);
-        if (segmentIndex + 1U == segments_.Size()) {
+        if (stepIndex + 1U == steps_.Size()) {
             return current;
         }
-        return GetValue(runtime, current, segmentIndex + 1U);
+        return GetValue(runtime, current, stepIndex + 1U);
     }
-    if (segment.kind != BindingPathSegmentKind::ObjectProperty) {
+    if (step.kind != Meta::BindingPathSegmentKind::ObjectProperty) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Binding path plan expected a value field on an object");
     }
-    MemberId member = segment.member;
-    if (segment.dynamic) {
-        const PropertyInfo* property =
-            runtime.Types().FindProperty(
-                object.RuntimeType(),
-                segment.dynamicName.View(),
-                true);
-        if (property == nullptr ||
-            !runtime.CanReadProperty(property->Id())) {
-            const TypeInfo* rt =
-                runtime.Types().FindType(object.RuntimeType());
-            const Base::StringView rtName =
-                rt != nullptr ? rt->Name() : Base::StringView("<unknown>");
-            thread_local char message[384];
-            std::snprintf(
-                message,
-                sizeof(message),
-                "Binding dynamic path property '%.*s' was not found on '%.*s'",
-                static_cast<int>(segment.dynamicName.View().SizeBytes()),
-                segment.dynamicName.View().Data(),
-                static_cast<int>(rtName.SizeBytes()),
-                rtName.Data());
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                message);
-        }
-        member = property->Id();
+    Base::Result<Meta::PropertyValue> current =
+        ReadSinglePropertyStep(runtime, object, step);
+    if (!current || stepIndex + 1U == steps_.Size()) {
+        return current;
     }
-    Base::Result<Value> current =
-        runtime.GetProperty(object, member);
-    if (!current || segmentIndex + 1U == segments_.Size()) return current;
-    return GetValue(runtime, current.Value(), segmentIndex + 1U);
+    return GetValue(runtime, current.Value(), stepIndex + 1U);
 }
 
-Base::Result<Value> BindingPathPlan::GetValue(
-    Meta::Registry& runtime,
-    const Value& value,
-    std::uint32_t segmentIndex) const noexcept {
-    if (value.Kind() == ValueKind::Object) {
-        if (value.IsNullObject()) {
+Base::Result<Meta::PropertyValue> CompiledBindingPath::GetValue(
+    const Meta::Registry& runtime,
+    const Meta::PropertyValue& current,
+    std::uint32_t stepIndex) const noexcept {
+    if (current.Kind() == Meta::ValueKind::Object) {
+        if (current.IsNullObject()) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Binding path reached a null object");
         }
-        return GetObject(runtime, *value.AsObject(), segmentIndex);
+        return GetObject(runtime, *current.AsObject(), stepIndex);
     }
-    const BindingPathSegment& segment = segments_[segmentIndex];
-    if (value.Kind() != ValueKind::Custom ||
-        segment.kind != BindingPathSegmentKind::ValueField ||
-        value.Type() != segment.inputType) {
+    const CompiledPathStep& step = steps_[stepIndex];
+    if (current.Kind() != Meta::ValueKind::Custom ||
+        step.kind != Meta::BindingPathSegmentKind::ValueField ||
+        current.Type() != step.inputType) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path value segment is incompatible");
@@ -602,20 +1088,20 @@ Base::Result<Value> BindingPathPlan::GetValue(
         "Binding path value fields are not supported");
 }
 
-Base::Result<void> BindingPathPlan::Set(
+Base::Result<void> CompiledBindingPath::Set(
     Meta::Registry& runtime,
     Base::Object& root,
-    const Value& value) const noexcept {
+    const Meta::PropertyValue& value) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready;
-    if (!canWrite_) {
+    if (!writable_) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "Binding path is not writable");
     }
     if (value.IsUnset() ||
-        !runtime.Types().IsAssignableFrom(
-            rootType_, root.RuntimeType())) {
+        (root.RuntimeType() != rootType_ &&
+         !runtime.Types().IsAssignableFrom(rootType_, root.RuntimeType()))) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path root or assigned value is incompatible");
@@ -623,13 +1109,13 @@ Base::Result<void> BindingPathPlan::Set(
     return SetObject(runtime, root, 0U, value);
 }
 
-Base::Result<void> BindingPathPlan::Set(
+Base::Result<void> CompiledBindingPath::Set(
     Meta::Registry& runtime,
-    Value& root,
-    const Value& value) const noexcept {
+    Meta::PropertyValue& root,
+    const Meta::PropertyValue& value) const noexcept {
     Base::Result<void> ready = VerifyRuntime(runtime);
     if (!ready) return ready;
-    if (!canWrite_) {
+    if (!writable_) {
         return Base::Status::Failure(
             Base::ErrorCode::ReadOnly,
             "Binding path is not writable");
@@ -639,7 +1125,7 @@ Base::Result<void> BindingPathPlan::Set(
             Base::ErrorCode::InvalidArgument,
             "Binding path assigned value is unset");
     }
-    if (root.Kind() == ValueKind::Object) {
+    if (root.Kind() == Meta::ValueKind::Object) {
         if (root.IsNullObject()) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -652,20 +1138,19 @@ Base::Result<void> BindingPathPlan::Set(
             Base::ErrorCode::InvalidArgument,
             "Binding path root value type is incompatible");
     }
-    Base::Result<bool> changed =
-        SetValue(runtime, root, 0U, value);
+    Base::Result<bool> changed = SetValue(runtime, root, 0U, value);
     return changed
         ? Base::Result<void>()
         : Base::Result<void>(changed.GetStatus());
 }
 
-Base::Result<void> BindingPathPlan::SetObject(
+Base::Result<void> CompiledBindingPath::SetObject(
     Meta::Registry& runtime,
     Base::Object& object,
-    std::uint32_t segmentIndex,
-    const Value& value) const noexcept {
-    const BindingPathSegment& segment = segments_[segmentIndex];
-    if (segment.kind == BindingPathSegmentKind::CollectionIndex) {
+    std::uint32_t stepIndex,
+    const Meta::PropertyValue& value) const noexcept {
+    CompiledPathStep& step = steps_[stepIndex];
+    if (step.kind == Meta::BindingPathSegmentKind::CollectionIndex) {
         Collections::IItemsSource* items =
             TryCastToInterface<Collections::IItemsSource>(&object);
         if (items == nullptr) {
@@ -678,20 +1163,20 @@ Base::Result<void> BindingPathPlan::SetObject(
                 Base::ErrorCode::InvalidArgument,
                 "Binding collection index assignment requires IItemsSource");
         }
-        if (segmentIndex + 1U == segments_.Size()) {
+        if (stepIndex + 1U == steps_.Size()) {
             if (writable == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Binding collection index assignment requires ObservableCollection");
             }
-            if (value.Kind() != ValueKind::Object ||
+            if (value.Kind() != Meta::ValueKind::Object ||
                 value.IsNullObject() || !value.AsObject()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Binding collection index assignment requires an object");
             }
             if (!writable->ReplaceItem(
-                    segment.collectionIndex,
+                    step.collectionIndex,
                     value.AsObject())) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidState,
@@ -701,76 +1186,61 @@ Base::Result<void> BindingPathPlan::SetObject(
         }
         Base::Ref<Base::Object> item =
             items != nullptr
-                ? items->GetItem(segment.collectionIndex)
-                : writable->GetItem(segment.collectionIndex);
+                ? items->GetItem(step.collectionIndex)
+                : writable->GetItem(step.collectionIndex);
         if (!item) {
             return Base::Status::Failure(
                 Base::ErrorCode::OutOfRange,
                 "Binding collection index is outside the collection");
         }
-        Value child = Value::FromObject(
+        Meta::PropertyValue child = Meta::PropertyValue::FromObject(
             item->RuntimeType(), item);
         Base::Result<bool> changed =
-            SetValue(runtime, child, segmentIndex + 1U, value);
+            SetValue(runtime, child, stepIndex + 1U, value);
         return changed
             ? Base::Result<void>()
             : Base::Result<void>(changed.GetStatus());
     }
-    if (segment.kind != BindingPathSegmentKind::ObjectProperty) {
+    if (step.kind != Meta::BindingPathSegmentKind::ObjectProperty) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Binding path plan expected a value field on an object");
     }
-    MemberId member = segment.member;
-    if (segment.dynamic) {
-        const PropertyInfo* property =
-            runtime.Types().FindProperty(
-                object.RuntimeType(),
-                segment.dynamicName.View(),
-                true);
-        if (property == nullptr ||
-            !runtime.CanWriteProperty(property->Id())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ReadOnly,
-                "Binding dynamic path property is not writable");
-        }
-        member = property->Id();
+    if (stepIndex + 1U == steps_.Size()) {
+        return WriteSinglePropertyStep(runtime, object, step, value);
     }
-    if (segmentIndex + 1U == segments_.Size()) {
-        return runtime.SetProperty(object, member, value);
-    }
-    Base::Result<Value> child =
-        runtime.GetProperty(object, member);
+    Base::Result<Meta::PropertyValue> child =
+        ReadSinglePropertyStep(runtime, object, step);
     if (!child) return child.GetStatus();
     Base::Result<bool> changed =
-        SetValue(runtime, child.Value(), segmentIndex + 1U, value);
+        SetValue(runtime, child.Value(), stepIndex + 1U, value);
     if (!changed) return changed.GetStatus();
     return changed.Value()
-        ? runtime.SetProperty(object, member, child.Value())
+        ? WriteSinglePropertyStep(runtime, object, step, child.Value())
         : Base::Result<void>();
 }
 
-Base::Result<bool> BindingPathPlan::SetValue(
+Base::Result<bool> CompiledBindingPath::SetValue(
     Meta::Registry& runtime,
-    Value& owner,
-    std::uint32_t segmentIndex,
-    const Value& value) const noexcept {
-    if (owner.Kind() == ValueKind::Object) {
-        if (owner.IsNullObject()) {
+    Meta::PropertyValue& current,
+    std::uint32_t stepIndex,
+    const Meta::PropertyValue& value) const noexcept {
+    if (current.Kind() == Meta::ValueKind::Object) {
+        if (current.IsNullObject()) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Binding path reached a null object");
         }
         Base::Result<void> result =
-            SetObject(runtime, *owner.AsObject(), segmentIndex, value);
+            SetObject(runtime, *current.AsObject(), stepIndex, value);
         return result
             ? Base::Result<bool>(false)
             : Base::Result<bool>(result.GetStatus());
     }
-    const BindingPathSegment& segment = segments_[segmentIndex];
-    if (owner.Kind() != ValueKind::Custom ||
-        segment.kind != BindingPathSegmentKind::ValueField ||
-        owner.Type() != segment.inputType) {
+    const CompiledPathStep& step = steps_[stepIndex];
+    if (current.Kind() != Meta::ValueKind::Custom ||
+        step.kind != Meta::BindingPathSegmentKind::ValueField ||
+        current.Type() != step.inputType) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path value segment is incompatible");
@@ -780,4 +1250,4 @@ Base::Result<bool> BindingPathPlan::SetValue(
         "Binding path value fields are not supported");
 }
 
-} // namespace Aero::Meta
+} // namespace Aero::Data

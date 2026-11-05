@@ -1160,7 +1160,11 @@ AERO_DESCRIBE(BeginStoryboard) {
     using namespace Aero::Meta;
     Register<BeginStoryboard>(context)
             .Property("Name", &BeginStoryboard::GetName, &BeginStoryboard::SetName)
-            .Content<Storyboard>("Storyboard", ContentKind::Single, &::Aero::MetadataSupport::SetBeginStoryboardContent, &::Aero::MetadataSupport::ClearBeginStoryboardContent)
+            .Property("Storyboard", &BeginStoryboard::GetStoryboard, &BeginStoryboard::SetStoryboard, PropertyFlags::Structural)
+            .ContentAccessor(MakeMemberId(BeginStoryboard::StaticTypeId(), MemberKind::Property, "Storyboard"),
+                             ContentKind::Single,
+                             &::Aero::MetadataSupport::SetBeginStoryboardContent,
+                             &::Aero::MetadataSupport::ClearBeginStoryboardContent)
             .Factory();
 }
 

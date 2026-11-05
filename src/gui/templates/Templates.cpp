@@ -235,10 +235,23 @@ TemplateBuilder::ProjectContentCore(
     }
     UIElement* content = (owner).GetContentElement();
     if (content == nullptr) return false;
+    if (presenter != nullptr &&
+        !presenter->GetContentSource().Empty() &&
+        presenter->GetContentSource() != Base::StringView("Content")) {
+        return false;
+    }
     if (owner.GetFallbackPresenter() != nullptr &&
         (content == owner.GetFallbackPresenter() ||
          content->GetVisualParent() == owner.GetFallbackPresenter())) {
         return false;
+    }
+    if (content->GetVisualParent() != nullptr &&
+        content->GetVisualParent() != &presenterVisual) {
+        for (const Aero::Controls::TemplatePart& part : state.parts) {
+            if (part.visual == content->GetVisualParent()) {
+                return false;
+            }
+        }
     }
 
     const ::Aero::Media::Visual* ancestor = &presenterVisual;
@@ -590,36 +603,6 @@ void TemplateProgram::SetBaseUri(
     baseUri = value;
 }
 
-Base::Result<void> TemplateProgram::AddNamespace(
-    Base::StringView prefix,
-    Base::StringView uri) noexcept {
-    if (sealed) {
-        return InvalidTemplate(
-            "Cannot modify a sealed TemplateProgram");
-    }
-    if (uri.Empty()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Template namespace URI is empty");
-    }
-    for (const TemplateNamespace& existing :
-         namespaces) {
-        if (existing.prefix.View() == prefix) {
-            return Base::Status::Failure(
-                Base::ErrorCode::AlreadyExists,
-                "Template namespace prefix is duplicated");
-        }
-    }
-    TemplateNamespace entry;
-    Base::Result<void> assigned =
-        entry.prefix.Assign(prefix);
-    if (!assigned) return assigned.GetStatus();
-    assigned = entry.uri.Assign(uri);
-    if (!assigned) return assigned.GetStatus();
-    namespaces.PushBack(std::move(entry));
-    return {};
-}
-
 Base::Result<void> TemplateProgram::Seal() noexcept {
     if (sealed) return {};
     if (factory == nullptr) {
@@ -704,18 +687,15 @@ FrameworkTemplate::~FrameworkTemplate() noexcept {
 
 Meta::TypeId FrameworkTemplate::GetTargetType() const noexcept {
     if (state_ == nullptr) return Meta::InvalidTypeId;
-    if (state_->targetType != Meta::InvalidTypeId) {
-        return state_->targetType;
-    }
     return state_->program.targetType;
 }
 
 bool FrameworkTemplate::GetIsSealed() const noexcept {
-    return state_ != nullptr && state_->sealed;
+    return state_ != nullptr && state_->IsSealed();
 }
 
 bool FrameworkTemplate::SetBasedOn(FrameworkTemplate* basedOn) noexcept {
-    if (state_ == nullptr || state_->sealed || basedOn == this) {
+    if (state_ == nullptr || state_->IsSealed() || basedOn == this) {
         return false;
     }
     state_->basedOn = basedOn;
@@ -790,10 +770,10 @@ TypeId DataTemplate::GetDataType() const noexcept {
 void DataTemplate::SetDataType(TypeId value) noexcept {
     Controls::FrameworkTemplateState* state = TemplateState();
     if (state == nullptr) return;
-    if (state->sealed || value == InvalidTypeId) {
+    if (state->IsSealed() || value == InvalidTypeId) {
         return;
     }
-    state->targetType = value;
+    state->program.targetType = value;
 }
 
 ResourceKey DataTemplate::GetImplicitKey() const noexcept {
@@ -801,27 +781,21 @@ ResourceKey DataTemplate::GetImplicitKey() const noexcept {
 }
 
 Ref<Base::Object> HierarchicalDataTemplate::GetItemsSource() const noexcept {
-    const Controls::FrameworkTemplateState* state = TemplateState();
-    return state != nullptr ? state->hierarchicalItemsSource
-                            : Base::Ref<Base::Object>{};
+    return itemsSource_;
 }
 
 void HierarchicalDataTemplate::SetItemsSource(
     Base::Ref<Base::Object> value) noexcept {
-    Controls::FrameworkTemplateState* state = TemplateState();
-    if (state != nullptr) state->hierarchicalItemsSource = std::move(value);
+    itemsSource_ = std::move(value);
 }
 
 Ref<Base::Object> HierarchicalDataTemplate::GetItemTemplate() const noexcept {
-    const Controls::FrameworkTemplateState* state = TemplateState();
-    return state != nullptr ? state->hierarchicalItemTemplate
-                            : Base::Ref<Base::Object>{};
+    return itemTemplate_;
 }
 
 void HierarchicalDataTemplate::SetItemTemplate(
     Base::Ref<Base::Object> value) noexcept {
-    Controls::FrameworkTemplateState* state = TemplateState();
-    if (state != nullptr) state->hierarchicalItemTemplate = std::move(value);
+    itemTemplate_ = std::move(value);
 }
 
 ItemsPanelTemplate::ItemsPanelTemplate() noexcept
@@ -854,11 +828,9 @@ Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
 Base::Result<void> FrameworkTemplateState::Seal(FrameworkTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    state->program.targetType = state->targetType;
     Base::Result<void> program = state->deferredProgram.Seal();
     if (!program) return program.GetStatus();
     state->resources.Seal();
-    state->sealed = true;
     return {};
 }
 
@@ -867,9 +839,9 @@ Base::Result<void> FrameworkTemplateState::SetTargetType(
     TypeId value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (value == InvalidTypeId) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "FrameworkTemplate TargetType is invalid");
-    state->targetType = value;
+    state->program.targetType = value;
     return {};
 }
 
@@ -878,7 +850,7 @@ Base::Result<void> FrameworkTemplateState::SetBasedOn(
     ::Aero::FrameworkTemplate* basedOn) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (basedOn == &templateValue) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "FrameworkTemplate BasedOn cannot reference itself");
     state->basedOn = basedOn;
     if (basedOn == nullptr) {
@@ -922,7 +894,7 @@ Base::Result<void> FrameworkTemplateState::ConfigureFactory(
     Base::Ref<Base::Object> factoryOwner) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     return state->program.Configure(factory, factoryContext, std::move(factoryOwner));
 }
 
@@ -930,16 +902,18 @@ Base::Result<void> FrameworkTemplateState::AddTemplateBinding(
     FrameworkTemplate& templateValue,
     Base::StringView targetName,
     DependencyPropertyHandle sourceProperty,
-    DependencyPropertyHandle targetProperty) noexcept {
+    DependencyPropertyHandle targetProperty,
+    std::int32_t targetPartIndex) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (!sourceProperty.IsValid() || !targetProperty.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "TemplateBinding requires source and target properties");
     TemplateBindingPlan binding;
     Base::Result<void> assigned = binding.targetName.Assign(targetName);
     if (!assigned) return assigned.GetStatus();
     binding.sourceProperty = sourceProperty;
     binding.targetProperty = targetProperty;
+    binding.targetPartIndex = targetPartIndex;
     state->program.bindings.PushBack(std::move(binding));
     return {};
 }
@@ -956,7 +930,7 @@ Base::Result<void> FrameworkTemplateState::AddTemplatedParentBinding(
     const Meta::PropertyValue& converterParameter) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (path.Empty() || !targetProperty.IsValid()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "TemplatedParent Binding requires a path and target property");
     TemplateMetadataBindingPlan binding;
     Base::Result<void> assigned = binding.targetName.Assign(targetName);
@@ -985,7 +959,7 @@ Base::Result<void> FrameworkTemplateState::AddDynamicResource(
             Base::ErrorCode::OutOfMemory,
             "FrameworkTemplate state allocation failed");
     }
-    if (state->sealed) {
+    if (state->IsSealed()) {
         return InvalidTemplate(
             "Cannot modify a sealed FrameworkTemplate");
     }
@@ -1007,7 +981,7 @@ void FrameworkTemplateState::SetAuthoredVisualTree(
     FrameworkTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state != nullptr && !state->sealed && value) {
+    if (state != nullptr && !state->IsSealed() && value) {
         state->authoredVisualTree = value;
     }
 }
@@ -1016,7 +990,7 @@ void FrameworkTemplateState::AddAuthoredVisualStateGroup(
     ControlTemplate& templateValue,
     const Base::Ref<Base::Object>& value) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state != nullptr && !state->sealed && value) {
+    if (state != nullptr && !state->IsSealed() && value) {
         state->authoredVisualStateGroups.PushBack(value);
     }
 }
@@ -1041,7 +1015,7 @@ Base::Result<void> FrameworkTemplateState::AddPropertyTrigger(
     TemplatePropertyTrigger trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
+    if (state->IsSealed()) return InvalidTemplate("Cannot modify a sealed FrameworkTemplate");
     if (trigger.conditions.Empty()) return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Template property trigger is incomplete");
     state->program.triggers.PushBack(std::move(trigger));
     return {};
@@ -1052,7 +1026,7 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
     VisualStateGroupPlan group) noexcept {
     FrameworkTemplateState* state = State(templateValue);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (state->sealed) {
+    if (state->IsSealed()) {
         return InvalidTemplate(
             "Cannot modify a sealed FrameworkTemplate");
     }
@@ -1070,8 +1044,8 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
     }
     for (std::uint32_t stateIndex = 0U;
         stateIndex < group.states.Size(); ++stateIndex) {
-        const VisualStatePlan& state = group.states[stateIndex];
-        if (state.name.Empty()) {
+        const VisualStatePlan& visualState = group.states[stateIndex];
+        if (visualState.name.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Visual state requires a name");
@@ -1079,16 +1053,16 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
         for (std::uint32_t previous = 0U;
             previous < stateIndex; ++previous) {
             if (group.states[previous].name.View() ==
-                state.name.View()) {
+                visualState.name.View()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::AlreadyExists,
                     "Visual state name is duplicated in its group");
             }
         }
         for (std::uint32_t setterIndex = 0U;
-            setterIndex < state.setters.Size(); ++setterIndex) {
+            setterIndex < visualState.setters.Size(); ++setterIndex) {
             const VisualStateSetterPlan& setter =
-                state.setters[setterIndex];
+                visualState.setters[setterIndex];
             if (!setter.property.IsValid() ||
                 setter.value.IsUnset()) {
                 return Base::Status::Failure(
@@ -1098,7 +1072,7 @@ Base::Result<void> FrameworkTemplateState::AddVisualStateGroup(
             for (std::uint32_t previous = 0U;
                 previous < setterIndex; ++previous) {
                 const VisualStateSetterPlan& candidate =
-                    state.setters[previous];
+                    visualState.setters[previous];
                 if (candidate.property == setter.property &&
                     candidate.targetName.View() ==
                         setter.targetName.View()) {
@@ -1221,7 +1195,7 @@ Base::Result<Base::String> FrameworkTemplateState::EnsureAuthoredName(
 void FrameworkTemplateState::AddAuthoredTrigger(
     FrameworkTemplate& templateValue, Base::Ref<Base::Object> trigger) noexcept {
     FrameworkTemplateState* state = State(templateValue);
-    if (state != nullptr && trigger && !state->sealed) {
+    if (state != nullptr && trigger && !state->IsSealed()) {
         state->authoredTriggers.PushBack(std::move(trigger));
     }
 }
@@ -1288,17 +1262,6 @@ void FrameworkTemplateState::SetBaseUri(FrameworkTemplate& value, const Base::Re
     }
 }
 
-Base::Result<void> FrameworkTemplateState::AddNamespace(FrameworkTemplate& value, Base::StringView prefix, Base::StringView uri) noexcept {
-    FrameworkTemplateState* state = State(value);
-    if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    return state->program.AddNamespace(prefix, uri);
-}
-
-Base::Span<const TemplateNamespace> FrameworkTemplateState::Namespaces(const FrameworkTemplate& value) noexcept {
-    const FrameworkTemplateState* state = State(value);
-    return state != nullptr ? Base::Span<const TemplateNamespace>(state->program.namespaces.Data(), state->program.namespaces.Size()) : Base::Span<const TemplateNamespace>{};
-}
-
 Base::Span<const TemplateBindingPlan> FrameworkTemplateState::Bindings(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr
@@ -1339,7 +1302,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
     const DependencyPropertyRegistry& properties) noexcept {
     FrameworkTemplateState* templateState = State(templateValue);
     if (templateState == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    if (templateState->sealed) return {};
+    if (templateState->IsSealed()) return {};
     // BasedOn inheritance (ControlTemplate only): the base template must be
     // sealed first so its compiled plans are complete. The derived template
     // inherits the base factory when it authors no VisualTree, inherits the
@@ -1362,15 +1325,15 @@ Base::Result<void> FrameworkTemplateState::Seal(
             ancestor = FrameworkTemplateState::BasedOn(*ancestor);
         }
         const Meta::TypeId baseTarget = baseTemplate->GetTargetType();
-        if (templateState->targetType == InvalidTypeId) {
+        if (templateState->program.targetType == InvalidTypeId) {
             if (baseTarget == InvalidTypeId) {
                 return InvalidTemplate(
                     "ControlTemplate BasedOn target type is invalid");
             }
-            templateState->targetType = baseTarget;
+            templateState->program.targetType = baseTarget;
         } else if (baseTarget == InvalidTypeId ||
             !IsTargetCompatible(
-                properties.Types(), templateState->targetType, baseTarget)) {
+                properties.Types(), templateState->program.targetType, baseTarget)) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
                 "Derived ControlTemplate target type is incompatible with BasedOn target type");
@@ -1394,50 +1357,47 @@ Base::Result<void> FrameworkTemplateState::Seal(
                     templateState->program.SetBaseUri(
                         FrameworkTemplateState::BaseUri(*baseTemplate));
                 }
-                for (const TemplateNamespace& space :
-                    FrameworkTemplateState::Namespaces(*baseTemplate)) {
-                    Base::Result<void> namespaced =
-                        templateState->program.AddNamespace(
-                            space.prefix.View(), space.uri.View());
-                    if (!namespaced) {
-                        // The derived template already declares this prefix;
-                        // its own declaration wins.
-                        continue;
-                    }
-                }
             }
         }
         if (!FrameworkTemplateState::Bindings(*baseTemplate).Empty()) {
+            const auto baseSpan = FrameworkTemplateState::Bindings(*baseTemplate);
             Base::Vector<TemplateBindingPlan> merged;
-            merged.Append(FrameworkTemplateState::Bindings(*baseTemplate));
+            merged.Reserve(baseSpan.Size() + templateState->program.bindings.Size());
+            merged.Append(baseSpan);
             merged.Append(
                 templateState->program.bindings.AsSpan());
             templateState->program.bindings = std::move(merged);
         }
         if (!FrameworkTemplateState::MetadataBindings(*baseTemplate).Empty()) {
+            const auto baseSpan = FrameworkTemplateState::MetadataBindings(*baseTemplate);
             Base::Vector<TemplateMetadataBindingPlan> merged;
-            merged.Append(FrameworkTemplateState::MetadataBindings(*baseTemplate));
+            merged.Reserve(baseSpan.Size() + templateState->program.metadataBindings.Size());
+            merged.Append(baseSpan);
             merged.Append(
                 templateState->program.metadataBindings.AsSpan());
             templateState->program.metadataBindings = std::move(merged);
         }
         if (!FrameworkTemplateState::DynamicResources(*baseTemplate).Empty()) {
+            const auto baseSpan = FrameworkTemplateState::DynamicResources(*baseTemplate);
             Base::Vector<TemplateDynamicResourcePlan> merged;
-            merged.Append(FrameworkTemplateState::DynamicResources(*baseTemplate));
+            merged.Reserve(baseSpan.Size() + templateState->program.dynamicResources.Size());
+            merged.Append(baseSpan);
             merged.Append(
                 templateState->program.dynamicResources.AsSpan());
             templateState->program.dynamicResources = std::move(merged);
         }
         if (!FrameworkTemplateState::Triggers(*baseTemplate).Empty()) {
+            const auto baseSpan = FrameworkTemplateState::Triggers(*baseTemplate);
             Base::Vector<TemplatePropertyTrigger> merged;
-            merged.Append(FrameworkTemplateState::Triggers(*baseTemplate));
+            merged.Reserve(baseSpan.Size() + templateState->program.triggers.Size());
+            merged.Append(baseSpan);
             merged.Append(
                 templateState->program.triggers.AsSpan());
             templateState->program.triggers = std::move(merged);
         }
         if (!FrameworkTemplateState::VisualStateGroups(*baseTemplate).Empty()) {
-            for (const VisualStateGroupPlan& baseGroup :
-                FrameworkTemplateState::VisualStateGroups(*baseTemplate)) {
+            const auto baseSpan = FrameworkTemplateState::VisualStateGroups(*baseTemplate);
+            for (const VisualStateGroupPlan& baseGroup : baseSpan) {
                 for (const VisualStateGroupPlan& ownGroup :
                     templateState->program.visualStateGroups) {
                     if (ownGroup.name.View() == baseGroup.name.View()) {
@@ -1448,7 +1408,8 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 }
             }
             Base::Vector<VisualStateGroupPlan> merged;
-            merged.Append(FrameworkTemplateState::VisualStateGroups(*baseTemplate));
+            merged.Reserve(baseSpan.Size() + templateState->program.visualStateGroups.Size());
+            merged.Append(baseSpan);
             merged.Append(
                 templateState->program.visualStateGroups.AsSpan());
             templateState->program.visualStateGroups = std::move(merged);
@@ -1464,9 +1425,9 @@ Base::Result<void> FrameworkTemplateState::Seal(
         }
     }
     if (!properties.IsFrozen() ||
-        templateState->targetType == InvalidTypeId ||
+        templateState->program.targetType == InvalidTypeId ||
         templateState->program.factory == nullptr ||
-        properties.Types().FindType(templateState->targetType) == nullptr) {
+        properties.Types().FindType(templateState->program.targetType) == nullptr) {
         return InvalidTemplate(
             "FrameworkTemplate requires a factory and registered target type");
     }
@@ -1476,7 +1437,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
         const DependencyProperty* target =
             properties.Find(binding.targetProperty);
         if (source == nullptr || target == nullptr ||
-            source->MetadataFor(templateState->targetType) == nullptr) {
+            source->MetadataFor(templateState->program.targetType) == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "TemplateBinding property was not found");
@@ -1507,14 +1468,14 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 properties.Find(triggerCondition.property);
             if (condition == nullptr ||
                 (triggerCondition.sourceName.Empty() &&
-                 condition->MetadataFor(templateState->targetType) == nullptr)) {
+                 condition->MetadataFor(templateState->program.targetType) == nullptr)) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
                     "Template trigger condition does not apply to TargetType");
             }
             if (triggerCondition.sourceName.Empty()) {
                 Base::Result<void> valid = properties.ValidateValueFor(
-                    triggerCondition.property, templateState->targetType, triggerCondition.value);
+                    triggerCondition.property, templateState->program.targetType, triggerCondition.value);
                 if (!valid) return valid.GetStatus();
             }
         }
@@ -1569,13 +1530,11 @@ Base::Result<void> FrameworkTemplateState::Seal(
             }
         }
     }
-    templateState->program.targetType = templateState->targetType;
     Base::Result<void> programSealed = templateState->program.Seal();
     if (!programSealed) {
         return programSealed.GetStatus();
     }
     templateState->resources.Seal();
-    templateState->sealed = true;
     templateState->authoredVisualTree.Reset();
     templateState->authoredTriggers.Clear();
     templateState->authoredVisualStateGroups.Clear();
@@ -1649,7 +1608,6 @@ namespace Aero::Controls {
 
 using namespace Aero::Meta;
 using namespace Aero::Threading;
-using namespace Aero::Controls;
 
 
 Base::Result<void> FrameworkTemplateState::Materialize(
@@ -1828,20 +1786,11 @@ bool TemplateEngine::Clear(
 
 DependencyObject* TemplateEngine::FindName(
     TemplateHandle handle,
-    Base::StringView name) const noexcept {
+    Base::StringView name,
+    std::int32_t partIndex) const noexcept {
     const std::uint32_t index = FindInstance(handle);
     if (index == UINT32_MAX) return nullptr;
-    Base::Object* found =
-        instances_[index].names.Find(name);
-    if (found != nullptr) {
-        for (const Aero::Controls::TemplatePart& part :
-             instances_[index].parts) {
-            if (part.owner.Get() == found) {
-                return part.object;
-            }
-        }
-    }
-    return FindTarget(instances_[index], name);
+    return FindTarget(instances_[index], name, partIndex);
 }
 
 DependencyObject* TemplateEngine::FindPart(
@@ -1909,10 +1858,16 @@ std::uint32_t TemplateEngine::FindInstance(
 
 DependencyObject* TemplateEngine::FindTarget(
     const Instance& instance,
-    Base::StringView name) const noexcept {
+    Base::StringView name,
+    std::int32_t partIndex) const noexcept {
     if (name.Empty()) return instance.parent;
-    for (const Aero::Controls::TemplatePart& part : instance.parts) {
-        if (part.name.View() == name) return part.object;
+    if (partIndex >= 0 &&
+        static_cast<std::uint32_t>(partIndex) < instance.parts.Size()) {
+        const Aero::Controls::TemplatePart& part =
+            instance.parts[static_cast<std::uint32_t>(partIndex)];
+        if (part.name.View() == name) {
+            return part.object;
+        }
     }
     Base::Object* named = instance.names.Find(name);
     if (named != nullptr &&
@@ -1922,21 +1877,43 @@ DependencyObject* TemplateEngine::FindTarget(
             DependencyObject::StaticTypeId())) {
         return static_cast<DependencyObject*>(named);
     }
+    for (const Aero::Controls::TemplatePart& part : instance.parts) {
+        if (part.name.View() == name) return part.object;
+    }
     return nullptr;
 }
 
 bool TemplateEngine::HasTemplateBinding(
     DependencyObject& target,
     DependencyPropertyHandle property) const noexcept {
-    for (const Instance& instance : instances_) {
-        if (instance.plan == nullptr) continue;
+    const auto instanceHasTargetBinding = [&](const Instance& instance) noexcept -> bool {
+        if (instance.plan == nullptr) return false;
         for (const TemplateBindingPlan& binding :
              Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
             if (binding.targetProperty != property) continue;
             DependencyObject* found =
-                FindTarget(instance, binding.targetName.View());
+                FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
             if (found == &target) return true;
         }
+        return false;
+    };
+    if (const auto* fe = TryCast<FrameworkElement>(&target)) {
+        if (auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
+            const std::uint32_t* idx = controlToInstance_.Find(templatedParent);
+            if (idx != nullptr && *idx < instances_.Size()) {
+                return instanceHasTargetBinding(instances_[*idx]);
+            }
+        }
+        if (const auto* ctrl = TryCast<Control>(fe)) {
+            const std::uint32_t* idx = controlToInstance_.Find(const_cast<Control*>(ctrl));
+            if (idx != nullptr && *idx < instances_.Size() &&
+                instanceHasTargetBinding(instances_[*idx])) {
+                return true;
+            }
+        }
+    }
+    for (const Instance& instance : instances_) {
+        if (instanceHasTargetBinding(instance)) return true;
     }
     return false;
 }
@@ -1944,20 +1921,35 @@ bool TemplateEngine::HasTemplateBinding(
 Base::Result<void> TemplateEngine::RefreshTemplateBinding(
     DependencyObject& target,
     DependencyPropertyHandle property) noexcept {
-    for (Instance& instance : instances_) {
-        if (instance.plan == nullptr) continue;
-        bool matches = false;
+    const auto instanceHasTargetBinding = [&](const Instance& instance) noexcept -> bool {
+        if (instance.plan == nullptr) return false;
         for (const TemplateBindingPlan& binding :
              Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
             if (binding.targetProperty != property) continue;
             DependencyObject* found =
-                FindTarget(instance, binding.targetName.View());
-            if (found == &target) {
-                matches = true;
-                break;
+                FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
+            if (found == &target) return true;
+        }
+        return false;
+    };
+    if (auto* fe = TryCast<FrameworkElement>(&target)) {
+        if (auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
+            const std::uint32_t* idx = controlToInstance_.Find(templatedParent);
+            if (idx != nullptr && *idx < instances_.Size() &&
+                instanceHasTargetBinding(instances_[*idx])) {
+                return ApplyBindings(instances_[*idx], property);
             }
         }
-        if (matches) {
+        if (auto* ctrl = TryCast<Control>(fe)) {
+            const std::uint32_t* idx = controlToInstance_.Find(ctrl);
+            if (idx != nullptr && *idx < instances_.Size() &&
+                instanceHasTargetBinding(instances_[*idx])) {
+                return ApplyBindings(instances_[*idx], property);
+            }
+        }
+    }
+    for (Instance& instance : instances_) {
+        if (instanceHasTargetBinding(instance)) {
             return ApplyBindings(instance, property);
         }
     }
@@ -1968,41 +1960,106 @@ Base::Result<void> TemplateEngine::RefreshTemplateBinding(
 
 Base::Result<void> TemplateEngine::Subscribe(
     Instance& instance) noexcept {
+    const Base::Span<const TemplateBindingPlan> bindings =
+        Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan);
+    const Base::Span<const TemplatePropertyTrigger> triggers =
+        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
+    instance.bindingPropertyMask = 0ULL;
+    instance.parentTriggerPropertyMask = 0ULL;
+    instance.childTriggerPropertyMask = 0ULL;
+    std::uint64_t subscribedParentMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan).Size();
+         index < bindings.Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[index].sourceProperty;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[previous].sourceProperty !=
-                    property;
+            bindings[index].sourceProperty;
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        instance.bindingPropertyMask |= propMask;
+        if ((subscribedParentMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    bindings[previous].sourceProperty != property;
+            }
+            if (!first) continue;
         }
-        if (first) {
-            instance.parent->AddValueChangedHandler(
-                property, propertyChangedHandler_);
-        }
+        subscribedParentMask |= propMask;
+        instance.parent->AddValueChangedHandler(
+            property, propertyChangedHandler_);
     }
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan).Size();
+         index < triggers.Size();
          ++index) {
-        for (const TemplateTriggerCondition& condition :
-             Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)[index].conditions) {
+        const TemplatePropertyTrigger& trigger = triggers[index];
+        for (std::uint32_t condIndex = 0U;
+             condIndex < trigger.conditions.Size();
+             ++condIndex) {
+            const TemplateTriggerCondition& condition =
+                trigger.conditions[condIndex];
             DependencyObject* source =
                 FindTarget(
                     instance,
-                    condition.sourceName.View());
+                    condition.sourceName.View(),
+                    condition.sourcePartIndex);
             if (source == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
                     "Template trigger source name was not found");
             }
-            if (source != instance.parent) {
+            const std::uint64_t propMask = PropertyTriggerMask(condition.property);
+            if (source == instance.parent) {
+                instance.parentTriggerPropertyMask |= propMask;
+                if ((subscribedParentMask & propMask) == propMask) {
+                    bool alreadySubscribed = false;
+                    for (const TemplateBindingPlan& b : bindings) {
+                        if (b.sourceProperty == condition.property) {
+                            alreadySubscribed = true;
+                            break;
+                        }
+                    }
+                    for (std::uint32_t prevTrigger = 0U;
+                         !alreadySubscribed && prevTrigger <= index;
+                         ++prevTrigger) {
+                        const auto& prevConds = triggers[prevTrigger].conditions;
+                        const std::uint32_t limit =
+                            prevTrigger == index ? condIndex : prevConds.Size();
+                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
+                            if (prevConds[prevCond].property == condition.property &&
+                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
+                                alreadySubscribed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (alreadySubscribed) continue;
+                }
+                subscribedParentMask |= propMask;
+            } else {
+                const bool mayCollide =
+                    (instance.childTriggerPropertyMask & propMask) == propMask;
+                instance.childTriggerPropertyMask |= propMask;
                 const std::uint32_t instanceIndex = static_cast<std::uint32_t>(&instance - instances_.Data());
                 static_cast<void>(triggerSourceToInstance_.Insert(source, instanceIndex));
+                if (mayCollide) {
+                    bool alreadySubscribed = false;
+                    for (std::uint32_t prevTrigger = 0U;
+                         !alreadySubscribed && prevTrigger <= index;
+                         ++prevTrigger) {
+                        const auto& prevConds = triggers[prevTrigger].conditions;
+                        const std::uint32_t limit =
+                            prevTrigger == index ? condIndex : prevConds.Size();
+                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
+                            if (prevConds[prevCond].property == condition.property &&
+                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
+                                alreadySubscribed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (alreadySubscribed) continue;
+                }
             }
             source->AddValueChangedHandler(
                 condition.property,
@@ -2014,41 +2071,99 @@ Base::Result<void> TemplateEngine::Subscribe(
 
 void TemplateEngine::Unsubscribe(
     Instance& instance) noexcept {
+    const Base::Span<const TemplateBindingPlan> bindings =
+        Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan);
+    const Base::Span<const TemplatePropertyTrigger> triggers =
+        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
+    std::uint64_t unsubscribedParentMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan).Size();
+         index < bindings.Size();
          ++index) {
         const DependencyPropertyHandle property =
-            Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[index].sourceProperty;
-        bool first = true;
-        for (std::uint32_t previous = 0U;
-             previous < index;
-             ++previous) {
-            first = first &&
-                Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)[previous].sourceProperty !=
-                    property;
+            bindings[index].sourceProperty;
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((unsubscribedParentMask & propMask) == propMask) {
+            bool first = true;
+            for (std::uint32_t previous = 0U;
+                 previous < index;
+                 ++previous) {
+                first = first &&
+                    bindings[previous].sourceProperty != property;
+            }
+            if (!first) continue;
         }
-        if (first) {
-            (void)instance.parent->RemoveValueChangedHandler(
-                property, propertyChangedHandler_);
-        }
+        unsubscribedParentMask |= propMask;
+        (void)instance.parent->RemoveValueChangedHandler(
+            property, propertyChangedHandler_);
     }
+    std::uint64_t unsubscribedChildMask = 0ULL;
     for (std::uint32_t index = 0U;
-         index < Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan).Size();
+         index < triggers.Size();
          ++index) {
-        for (const TemplateTriggerCondition& condition :
-             Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)[index].conditions) {
+        const TemplatePropertyTrigger& trigger = triggers[index];
+        for (std::uint32_t condIndex = 0U;
+             condIndex < trigger.conditions.Size();
+             ++condIndex) {
+            const TemplateTriggerCondition& condition =
+                trigger.conditions[condIndex];
             DependencyObject* source =
                 FindTarget(
                     instance,
-                    condition.sourceName.View());
-            if (source != nullptr) {
-                if (source != instance.parent) {
-                    triggerSourceToInstance_.Erase(source);
+                    condition.sourceName.View(),
+                    condition.sourcePartIndex);
+            if (source == nullptr) continue;
+            const std::uint64_t propMask = PropertyTriggerMask(condition.property);
+            if (source == instance.parent) {
+                if ((unsubscribedParentMask & propMask) == propMask) {
+                    bool alreadyUnsubscribed = false;
+                    for (const TemplateBindingPlan& b : bindings) {
+                        if (b.sourceProperty == condition.property) {
+                            alreadyUnsubscribed = true;
+                            break;
+                        }
+                    }
+                    for (std::uint32_t prevTrigger = 0U;
+                         !alreadyUnsubscribed && prevTrigger <= index;
+                         ++prevTrigger) {
+                        const auto& prevConds = triggers[prevTrigger].conditions;
+                        const std::uint32_t limit =
+                            prevTrigger == index ? condIndex : prevConds.Size();
+                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
+                            if (prevConds[prevCond].property == condition.property &&
+                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
+                                alreadyUnsubscribed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (alreadyUnsubscribed) continue;
                 }
-                (void)source->RemoveValueChangedHandler(
-                    condition.property,
-                    propertyChangedHandler_);
+                unsubscribedParentMask |= propMask;
+            } else {
+                triggerSourceToInstance_.Erase(source);
+                if ((unsubscribedChildMask & propMask) == propMask) {
+                    bool alreadyUnsubscribed = false;
+                    for (std::uint32_t prevTrigger = 0U;
+                         !alreadyUnsubscribed && prevTrigger <= index;
+                         ++prevTrigger) {
+                        const auto& prevConds = triggers[prevTrigger].conditions;
+                        const std::uint32_t limit =
+                            prevTrigger == index ? condIndex : prevConds.Size();
+                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
+                            if (prevConds[prevCond].property == condition.property &&
+                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
+                                alreadyUnsubscribed = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (alreadyUnsubscribed) continue;
+                }
+                unsubscribedChildMask |= propMask;
             }
+            (void)source->RemoveValueChangedHandler(
+                condition.property,
+                propertyChangedHandler_);
         }
     }
 }
@@ -2059,6 +2174,12 @@ void TemplateEngine::Unsubscribe(
 Base::Result<void> TemplateEngine::ApplyBindings(
     Instance& instance,
     DependencyPropertyHandle changed) noexcept {
+    if (changed.IsValid()) {
+        const std::uint64_t propMask = PropertyTriggerMask(changed);
+        if ((instance.bindingPropertyMask & propMask) != propMask) {
+            return {};
+        }
+    }
     for (const TemplateBindingPlan& binding :
          Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
         if (changed.IsValid() &&
@@ -2066,7 +2187,7 @@ Base::Result<void> TemplateEngine::ApplyBindings(
             continue;
         }
         DependencyObject* target =
-            FindTarget(instance, binding.targetName.View());
+            FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
         if (target == nullptr) {
             thread_local char message[384];
             const Base::StringView targetName =
@@ -2116,7 +2237,9 @@ Base::Result<void> TemplateEngine::ApplyBindings(
 // for TemplatedParent metadata bindings requiring continuous two-way or complex updates.
 Base::Result<void> TemplateEngine::AttachMetadataBindings(
     Instance& instance) noexcept {
-    if (Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Empty()) {
+    const Base::Span<const TemplateMetadataBindingPlan> metadataBindings =
+        Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan);
+    if (metadataBindings.Empty()) {
         return {};
     }
     if (metadata_ == nullptr || bindings_ == nullptr) {
@@ -2124,12 +2247,10 @@ Base::Result<void> TemplateEngine::AttachMetadataBindings(
             Base::ErrorCode::NotInitialized,
             "TemplatedParent Binding services are unavailable");
     }
-    instance.metadataBindings.Reserve(
-            Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan).Size());
-    for (const TemplateMetadataBindingPlan& binding :
-         Aero::Controls::FrameworkTemplateState::MetadataBindings(*instance.plan)) {
+    instance.metadataBindings.Reserve(metadataBindings.Size());
+    for (const TemplateMetadataBindingPlan& binding : metadataBindings) {
         DependencyObject* target =
-            FindTarget(instance, binding.targetName.View());
+            FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -2202,7 +2323,7 @@ Base::Result<void> TemplateEngine::AttachDynamicResources(
         &instance.plan->GetResources()};
     for (const TemplateDynamicResourcePlan& declaration : declarations) {
         DependencyObject* target =
-            FindTarget(instance, declaration.targetName.View());
+            FindTarget(instance, declaration.targetName.View(), declaration.targetPartIndex);
         if (target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
@@ -2246,33 +2367,62 @@ void TemplateEngine::DetachDynamicResources(
 
 Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
-    for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
-        for (const TemplateTriggerSetter& setter :
-             trigger.setters) {
-            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
-                continue;
+    const Base::Span<const TemplatePropertyTrigger> triggers =
+        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
+    const bool firstEval = instance.triggerStates.Size() != triggers.Size();
+    if (firstEval) {
+        instance.triggerStates.Resize(triggers.Size(), 0U);
+        for (const TemplatePropertyTrigger& trigger : triggers) {
+            for (const TemplateTriggerSetter& setter : trigger.setters) {
+                if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
+                    continue;
+                }
+                DependencyObject* target =
+                    FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
+                if (target == nullptr) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::NotFound,
+                        "Template trigger target name was not found");
+                }
             }
-            DependencyObject* target =
-                FindTarget(instance, setter.targetName.View());
-            if (target == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Template trigger target name was not found");
-            }
-            Base::Result<void> cleared =
-                values_->ClearTriggerValue(
-                    *target, setter.property);
-            if (!cleared) return cleared.GetStatus();
         }
     }
-    for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
+
+    if (triggers.Empty()) {
+        Base::Result<std::uint32_t> flushed = values_->Flush();
+        if (!flushed) return flushed.GetStatus();
+        return {};
+    }
+
+    std::uint64_t activeMask = 0ULL;
+    Base::Vector<std::uint8_t> activeStatesFallback;
+    if (triggers.Size() > 64U) {
+        activeStatesFallback.Resize(triggers.Size(), 0U);
+    }
+    auto setActive = [&](std::uint32_t idx, bool act) noexcept {
+        if (idx < 64U) {
+            if (act) {
+                activeMask |= (UINT64_C(1) << idx);
+            }
+        } else {
+            activeStatesFallback[idx] = act ? 1U : 0U;
+        }
+    };
+    auto getActive = [&](std::uint32_t idx) noexcept -> bool {
+        if (idx < 64U) {
+            return (activeMask & (UINT64_C(1) << idx)) != 0ULL;
+        }
+        return activeStatesFallback[idx] != 0U;
+    };
+
+    bool anyStateChanged = firstEval;
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        const TemplatePropertyTrigger& trigger = triggers[index];
         bool active = true;
         for (const TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
             DependencyObject* source = FindTarget(
-                instance, triggerCondition.sourceName.View());
+                instance, triggerCondition.sourceName.View(), triggerCondition.sourcePartIndex);
             if (source == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
@@ -2288,9 +2438,47 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
                 break;
             }
         }
-        if (!active) continue;
+        setActive(index, active);
+        const bool wasActive = instance.triggerStates[index] != 0U;
+        if (active != wasActive) {
+            anyStateChanged = true;
+        }
+    }
+
+    if (!anyStateChanged) {
+        return {};
+    }
+
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        if (instance.triggerStates[index] == 0U) {
+            continue;
+        }
+        const TemplatePropertyTrigger& trigger = triggers[index];
         for (const TemplateTriggerSetter& setter : trigger.setters) {
-            DependencyObject* target = FindTarget(instance, setter.targetName.View());
+            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
+                continue;
+            }
+            DependencyObject* target =
+                FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
+            if (target == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    "Template trigger target name was not found");
+            }
+            Base::Result<void> cleared =
+                values_->ClearTriggerValue(
+                    *target, setter.property);
+            if (!cleared) return cleared.GetStatus();
+        }
+        instance.triggerStates[index] = 0U;
+    }
+
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        const bool active = getActive(index);
+        if (!active) continue;
+        const TemplatePropertyTrigger& trigger = triggers[index];
+        for (const TemplateTriggerSetter& setter : trigger.setters) {
+            DependencyObject* target = FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
             if (target == nullptr) continue;
             PropertyValue setterValue;
             if (!ResolveTriggerSetterValue(*target, setter.property, setter.value, setterValue, instance.parent, resources_)) {
@@ -2299,9 +2487,13 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             Base::Result<void> applied = values_->SetTriggerValue(*target, setter.property, setterValue);
             if (!applied) return applied.GetStatus();
         }
+        instance.triggerStates[index] = 1U;
     }
     Base::Result<std::uint32_t> flushed = values_->Flush();
     if (!flushed) return flushed.GetStatus();
+    if (!firstEval) {
+        (void)ApplyBindings(instance, DependencyPropertyHandle{});
+    }
     return {};
 }
 
@@ -2310,7 +2502,7 @@ Base::Result<void> TemplateEngine::ClearProviders(
     for (const TemplateBindingPlan& binding :
          Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
         DependencyObject* target =
-            FindTarget(instance, binding.targetName.View());
+            FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
         if (target != nullptr) {
             Base::Result<void> cleared =
                 values_->ClearTemplateValue(
@@ -2318,15 +2510,21 @@ Base::Result<void> TemplateEngine::ClearProviders(
             if (!cleared) return cleared.GetStatus();
         }
     }
-    for (const TemplatePropertyTrigger& trigger :
-         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
+    const Base::Span<const TemplatePropertyTrigger> triggers =
+        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        if (index < instance.triggerStates.Size() &&
+            instance.triggerStates[index] == 0U) {
+            continue;
+        }
+        const TemplatePropertyTrigger& trigger = triggers[index];
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
             if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
                 continue;
             }
             DependencyObject* target =
-                FindTarget(instance, setter.targetName.View());
+                FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
             if (target != nullptr) {
                 Base::Result<void> cleared =
                     values_->ClearTriggerValue(
@@ -2395,6 +2593,7 @@ Base::Result<void> TemplateEngine::ClearAt(
     }
     if (instance.rootVisual != nullptr) {
         Base::Vector<Media::Visual*> templateVisuals;
+        templateVisuals.Reserve(instance.parts.Size());
         auto collectVisuals = [&templateVisuals](auto& self, Media::Visual* node) -> void {
             if (node == nullptr) return;
             templateVisuals.PushBack(node);
@@ -2429,7 +2628,8 @@ Base::Result<void> TemplateEngine::ClearAt(
             for (const TemplatePropertyTrigger& trigger :
                  Aero::Controls::FrameworkTemplateState::Triggers(*instances_[index].plan)) {
                 for (const TemplateTriggerCondition& condition : trigger.conditions) {
-                    DependencyObject* source = FindTarget(instances_[index], condition.sourceName.View());
+                    DependencyObject* source = FindTarget(
+                        instances_[index], condition.sourceName.View(), condition.sourcePartIndex);
                     if (source != nullptr && source != instances_[index].parent) {
                         static_cast<void>(triggerSourceToInstance_.Set(source, index));
                     }
@@ -2444,44 +2644,54 @@ Base::Result<void> TemplateEngine::ClearAt(
 void TemplateEngine::OnPropertyChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
+    const DependencyPropertyHandle changedProp = args.GetProperty();
+    const std::uint64_t propMask = PropertyTriggerMask(changedProp);
     if (auto* ctrl = TryCast<Control>(&object)) {
         const std::uint32_t* found = controlToInstance_.Find(ctrl);
         if (found != nullptr && *found < instances_.Size()) {
             Instance& instance = instances_[*found];
-            (void)ApplyBindings(instance, args.GetProperty());
-            bool triggerChanged = false;
-            for (const TemplatePropertyTrigger& trigger :
-                 Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
-                for (const TemplateTriggerCondition& triggerCondition :
-                     trigger.conditions) {
-                    if (triggerCondition.sourceName.Empty() &&
-                        triggerCondition.property == args.GetProperty()) {
-                        triggerChanged = true;
-                        break;
+            if ((instance.bindingPropertyMask & propMask) == propMask) {
+                (void)ApplyBindings(instance, changedProp);
+            }
+            if ((instance.parentTriggerPropertyMask & propMask) == propMask) {
+                bool triggerChanged = false;
+                for (const TemplatePropertyTrigger& trigger :
+                     Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
+                    for (const TemplateTriggerCondition& triggerCondition :
+                         trigger.conditions) {
+                        if (triggerCondition.sourceName.Empty() &&
+                            triggerCondition.property == changedProp) {
+                            triggerChanged = true;
+                            break;
+                        }
                     }
+                    if (triggerChanged) break;
                 }
-                if (triggerChanged) break;
+                if (triggerChanged) {
+                    (void)EvaluateTriggers(instance);
+                }
             }
-            if (triggerChanged) {
-                (void)EvaluateTriggers(instance);
-                (void)ApplyBindings(instance, DependencyPropertyHandle{});
+            if (ctrl->GetTemplatedParent() == nullptr) {
+                return;
             }
-            return;
         }
     }
 
     const std::uint32_t* triggerInstance = triggerSourceToInstance_.Find(&object);
     if (triggerInstance != nullptr && *triggerInstance < instances_.Size()) {
         Instance& instance = instances_[*triggerInstance];
+        if ((instance.childTriggerPropertyMask & propMask) != propMask) {
+            return;
+        }
         bool triggerChanged = false;
         for (const TemplatePropertyTrigger& trigger :
              Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan)) {
             for (const TemplateTriggerCondition& triggerCondition :
                  trigger.conditions) {
                 if (!triggerCondition.sourceName.Empty() &&
-                    triggerCondition.property == args.GetProperty()) {
+                    triggerCondition.property == changedProp) {
                     DependencyObject* source = FindTarget(
-                        instance, triggerCondition.sourceName.View());
+                        instance, triggerCondition.sourceName.View(), triggerCondition.sourcePartIndex);
                     if (source == &object) {
                         triggerChanged = true;
                         break;
@@ -2492,7 +2702,6 @@ void TemplateEngine::OnPropertyChanged(
         }
         if (triggerChanged) {
             (void)EvaluateTriggers(instance);
-            (void)ApplyBindings(instance, DependencyPropertyHandle{});
         }
         return;
     }

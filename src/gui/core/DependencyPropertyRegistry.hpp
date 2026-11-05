@@ -36,7 +36,7 @@ public:
         }
     }
 
-    Base::Ref<RegistryLifetime> Lifetime() const noexcept { return lifetime_; }
+    const Base::Ref<RegistryLifetime>& Lifetime() const noexcept { return lifetime_; }
 
     DependencyPropertyRegistry(const DependencyPropertyRegistry&) = delete;
     DependencyPropertyRegistry& operator=(
@@ -53,7 +53,8 @@ public:
         DependencyPropertyHandle property,
         TypeId ownerType,
         const PropertyMetadata& metadata,
-        DependencyPropertyFlags flags = DependencyPropertyFlags::None) noexcept;
+        DependencyPropertyFlags flags = DependencyPropertyFlags::None,
+        StringView aliasName = {}) noexcept;
 
     Result<void> OverrideMetadata(
         DependencyPropertyHandle property,

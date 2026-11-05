@@ -1941,6 +1941,7 @@ Base::Result<void> RenderTree::BuildSubtree(
         snapshot.payloadOffset = 0U;
         snapshot.payloadSize = 0U;
     }
+    snapshot.drawing = (visible && drawing != nullptr) ? drawing : nullptr;
     plan.nodes_.PushBack(snapshot);
 
     if (!visible) return {};
@@ -1997,6 +1998,7 @@ Base::Result<void> RenderTree::RefreshInPlace(
 
     std::uint32_t cursor = 0U;
     bool fallback = false;
+    bool needsCommandRepack = false;
     Base::Status fatal;
     auto refresh = [&](auto&& self,
                        ::Aero::Media::Visual& visual,
@@ -2052,44 +2054,38 @@ Base::Result<void> RenderTree::RefreshInPlace(
             return fatal;
         }
         if (skipped) return {};
-        if (clipped) {
-            // Geometry-clip ranges cannot be spliced in place.
-            fallback = true;
-            return {};
-        }
-        if (snapshot.commandCount != stored.commandCount) {
-            // Command-range resize shifts every later offset: full rebuild.
-            fallback = true;
-            return {};
-        }
-        // Ranges are fixed: patch fields in place, refresh the command
-        // bytes only when the drawing was actually re-recorded.
-        snapshot.commandOffset = stored.commandOffset;
-        snapshot.payloadOffset = stored.payloadOffset;
-        snapshot.payloadSize = stored.payloadSize;
-        if (snapshot.commandCount != 0U &&
-            (drawingDirty || sizeChanged)) {
-            const std::uint32_t newPayloadSize =
-                drawing != nullptr ? static_cast<std::uint32_t>(drawing->Payload().Size()) : 0U;
-            if (newPayloadSize != stored.payloadSize) {
-                fallback = true;
-                return {};
+        static_cast<void>(clipped);
+        snapshot.drawing = (visible && drawing != nullptr) ? drawing : nullptr;
+        const std::uint32_t newPayloadSize =
+            (snapshot.commandCount != 0U && drawing != nullptr)
+            ? static_cast<std::uint32_t>(drawing->Payload().Size())
+            : 0U;
+
+        if (snapshot.commandCount != stored.commandCount ||
+            newPayloadSize != stored.payloadSize) {
+            needsCommandRepack = true;
+            snapshot.payloadSize = newPayloadSize;
+        } else if (!needsCommandRepack) {
+            snapshot.commandOffset = stored.commandOffset;
+            snapshot.payloadOffset = stored.payloadOffset;
+            snapshot.payloadSize = stored.payloadSize;
+            if (snapshot.commandCount != 0U && (drawingDirty || sizeChanged)) {
+                if (newPayloadSize != 0U) {
+                    std::memcpy(
+                        currentFrame_.commandPayload_.Data() + stored.payloadOffset,
+                        drawing->Payload().Data(),
+                        newPayloadSize);
+                }
+                const auto fresh = drawing->Headers();
+                for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
+                    RenderCommandHeader h = fresh[i];
+                    h.payloadOffset += stored.payloadOffset;
+                    currentFrame_.commandHeaders_[stored.commandOffset + i] = h;
+                }
+                ResolveCommandGradients(
+                    currentFrame_, stored.commandOffset,
+                    snapshot.commandCount);
             }
-            if (newPayloadSize != 0U) {
-                std::memcpy(
-                    currentFrame_.commandPayload_.Data() + stored.payloadOffset,
-                    drawing->Payload().Data(),
-                    newPayloadSize);
-            }
-            const auto fresh = drawing->Headers();
-            for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
-                RenderCommandHeader h = fresh[i];
-                h.payloadOffset += stored.payloadOffset;
-                currentFrame_.commandHeaders_[stored.commandOffset + i] = h;
-            }
-            ResolveCommandGradients(
-                currentFrame_, stored.commandOffset,
-                snapshot.commandCount);
         }
         stored = snapshot;
         ++cursor;
@@ -2119,6 +2115,33 @@ Base::Result<void> RenderTree::RefreshInPlace(
     if (!walked) return walked.GetStatus();
     if (fallback || cursor != currentFrame_.nodes_.Size()) {
         return {};
+    }
+    if (needsCommandRepack) {
+        currentFrame_.commandHeaders_.Clear();
+        currentFrame_.commandPayload_.Clear();
+        for (std::uint32_t i = 0U; i < currentFrame_.nodes_.Size(); ++i) {
+            RenderNodeSnapshot& node = currentFrame_.nodes_[i];
+            const DisplayList* list = node.drawing;
+            node.commandOffset = currentFrame_.commandHeaders_.Size();
+            if (node.commandCount != 0U && list != nullptr) {
+                node.payloadOffset =
+                    static_cast<std::uint32_t>(currentFrame_.commandPayload_.Size());
+                node.payloadSize =
+                    static_cast<std::uint32_t>(list->Payload().Size());
+                for (const RenderCommandHeader& h : list->Headers()) {
+                    RenderCommandHeader shifted = h;
+                    shifted.payloadOffset += node.payloadOffset;
+                    currentFrame_.commandHeaders_.PushBack(shifted);
+                }
+                currentFrame_.commandPayload_.Append(list->Payload());
+                ResolveCommandGradients(
+                    currentFrame_, node.commandOffset, node.commandCount);
+            } else {
+                node.commandCount = 0U;
+                node.payloadOffset = 0U;
+                node.payloadSize = 0U;
+            }
+        }
     }
     currentFrame_.version_ = ++commitVersion_;
     currentFrame_.cachedHash_ = 0U;

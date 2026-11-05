@@ -805,26 +805,27 @@ void ScrollViewer::EnsureFallbackPresenter() noexcept {
 
 void ScrollViewer::ClearFallbackPresenter() noexcept {
     if (ownedPresenter_) {
-        if (GetTemplateRoot() == ownedPresenter_.Get()) {
-            SetTemplateChildCore(nullptr);
-        }
-        ownedPresenter_->ClearHostedContent();
-        if (ownedPresenter_->GetVisualParent() == this) {
+        ScrollContentPresenter* const presenter = ownedPresenter_.Get();
+        presenter->ClearHostedContent();
+        if (presenter->GetVisualParent() == this) {
             if (ElementTree* tree = VisualTree(this)) {
                 ::Aero::VisualAttachment state;
                 state.visualParent = this;
-                state.child = ownedPresenter_.Get();
+                state.child = presenter;
                 state.visualAttached = true;
-                state.layoutAttached = ownedPresenter_->GetIsLayoutAttached() && ownedPresenter_->LayoutParent() != nullptr;
+                state.layoutAttached = presenter->GetIsLayoutAttached() && presenter->LayoutParent() != nullptr;
                 state.renderAttached = false;
                 if (state.IsAttached()) {
                     static_cast<void>(tree->DetachVisual(state));
                 }
             } else {
-                RemoveVisualChild(ownedPresenter_.Get());
+                RemoveVisualChild(presenter);
             }
         }
-        if (contentPresenter_ == ownedPresenter_.Get()) {
+        if (GetTemplateRoot() == presenter) {
+            SetTemplateChildCore(nullptr);
+        }
+        if (contentPresenter_ == presenter) {
             contentPresenter_ = nullptr;
         }
         ownedPresenter_.Reset();

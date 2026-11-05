@@ -96,8 +96,10 @@ struct StoredValueEntry {
         QueuedBit = 1U << 5U,
         IsCoercedBit = 1U << 6U,
         IsCurrentValueBit = 1U << 7U,
-        RankShift = 8U,
-        RankMask = 0xFFU,
+        DescendantsQueuedBit = 1U << 8U,
+        HasInlineProviderBit = 1U << 9U,
+        RankShift = 10U,
+        RankMask = 0x3FU,
         OriginShift = 16U,
         OriginMask = 0xFFFFU
     };
@@ -105,22 +107,26 @@ struct StoredValueEntry {
     PropertyValue effectiveValue;
     StoredValueRare* rare = nullptr;
     std::uint32_t packedFlags = 0U;
+    std::uint32_t revision = 0U;
 
     StoredValueEntry() = default;
 
     StoredValueEntry(const StoredValueEntry& other)
         : effectiveValue(other.effectiveValue),
           rare(nullptr),
-          packedFlags(other.packedFlags) {
+          packedFlags(other.packedFlags),
+          revision(other.revision) {
         CopyRareFrom(other.rare);
     }
 
     StoredValueEntry(StoredValueEntry&& other) noexcept
         : effectiveValue(std::move(other.effectiveValue)),
           rare(other.rare),
-          packedFlags(other.packedFlags) {
+          packedFlags(other.packedFlags),
+          revision(other.revision) {
         other.rare = nullptr;
         other.packedFlags = 0U;
+        other.revision = 0U;
     }
 
     ~StoredValueEntry() noexcept {
@@ -134,6 +140,7 @@ struct StoredValueEntry {
         }
         effectiveValue = other.effectiveValue;
         packedFlags = other.packedFlags;
+        revision = other.revision;
         delete rare;
         rare = nullptr;
         CopyRareFrom(other.rare);
@@ -147,9 +154,11 @@ struct StoredValueEntry {
         delete rare;
         effectiveValue = std::move(other.effectiveValue);
         packedFlags = other.packedFlags;
+        revision = other.revision;
         rare = other.rare;
         other.rare = nullptr;
         other.packedFlags = 0U;
+        other.revision = 0U;
         return *this;
     }
 
@@ -159,6 +168,13 @@ struct StoredValueEntry {
     bool HasInherited() const noexcept { return Flag(HasInheritedBit); }
     bool HasAnimation() const noexcept { return Flag(HasAnimationBit); }
     bool Queued() const noexcept { return Flag(QueuedBit); }
+    bool DescendantsQueued() const noexcept { return Flag(DescendantsQueuedBit); }
+    bool HasInlineProvider() const noexcept { return Flag(HasInlineProviderBit); }
+
+    bool HasProviders() const noexcept {
+        return HasInlineProvider() ||
+            (rare != nullptr && !rare->baseProviders.GetIsEmpty());
+    }
 
     void SetHasLocal(bool value) noexcept { SetFlag(HasLocalBit, value); }
     void SetHasCurrent(bool value) noexcept { SetFlag(HasCurrentBit, value); }
@@ -172,6 +188,12 @@ struct StoredValueEntry {
         SetFlag(HasAnimationBit, value);
     }
     void SetQueued(bool value) noexcept { SetFlag(QueuedBit, value); }
+    void SetDescendantsQueued(bool value) noexcept {
+        SetFlag(DescendantsQueuedBit, value);
+    }
+    void SetHasInlineProvider(bool value) noexcept {
+        SetFlag(HasInlineProviderBit, value);
+    }
 
     // P2.4: rare blocks come from the owning Dispatcher's slab. The
     // parameterless overload is intentionally absent so new call sites
@@ -186,7 +208,17 @@ struct StoredValueEntry {
                 Base::ErrorCode::OutOfMemory,
                 "Dependency property uncommon-value block allocation failed");
         }
+        const PropertyValueSourceInfo existingInfo = SourceInfo();
         rare = new (memory) StoredValueRare();
+        rare->sourceInfo = existingInfo;
+        if (HasInlineProvider()) {
+            const Meta::PropertyProviderToken inlineToken{
+                PackedRank(), PackedOrigin(), 0U};
+            SetHasInlineProvider(false);
+            static_cast<void>(rare->baseProviders.Set(inlineToken, effectiveValue));
+        } else if (HasInherited() && !HasLocal()) {
+            rare->inheritedValue = effectiveValue;
+        }
         return rare;
     }
 
@@ -195,16 +227,51 @@ struct StoredValueEntry {
             return;
         }
         const PropertyValueSourceInfo& source = rare->sourceInfo;
-        if (HasCurrent() || HasExpression() || HasInherited() ||
-            HasAnimation() || Queued() ||
+        if (HasCurrent() || HasExpression() || HasAnimation() || Queued() ||
             !rare->localBackup.IsUnset() ||
-            !rare->baseProviders.GetIsEmpty() ||
+            source.isCoerced || source.isCurrentValue ||
+            source.isAnimated || source.hasExpression ||
             source.token.ordinal != 0U ||
-            source.expressionKind != Meta::PropertyExpressionKind::Custom) {
+            source.token.origin > OriginMask ||
+            source.expressionKind != Meta::PropertyExpressionKind::Custom ||
+            source.revision > UINT32_MAX) {
             return;
         }
-        delete rare;
-        rare = nullptr;
+        if (!HasInherited() && rare->baseProviders.GetIsEmpty() &&
+            (source.rank == Meta::PropertyValueRank::Local ||
+             source.rank == Meta::PropertyValueRank::Default)) {
+            PackOriginFlags(source);
+            revision = static_cast<std::uint32_t>(source.revision);
+            delete rare;
+            rare = nullptr;
+            return;
+        }
+        if (HasInherited() && !HasLocal() && rare->baseProviders.GetIsEmpty() &&
+            source.rank == Meta::PropertyValueRank::Inherited &&
+            effectiveValue == rare->inheritedValue) {
+            PackOriginFlags(source);
+            revision = static_cast<std::uint32_t>(source.revision);
+            delete rare;
+            rare = nullptr;
+            return;
+        }
+        if (!HasLocal() && !HasInherited() &&
+            rare->baseProviders.GetCount() == 1U) {
+            const Meta::PropertyProviderContribution* win =
+                rare->baseProviders.Winner();
+            if (win != nullptr &&
+                win->token.ordinal == 0U &&
+                win->token.origin <= OriginMask &&
+                source.rank == win->token.rank &&
+                source.token == win->token &&
+                effectiveValue == win->value) {
+                PackOriginFlags(source);
+                SetHasInlineProvider(true);
+                revision = static_cast<std::uint32_t>(source.revision);
+                delete rare;
+                rare = nullptr;
+            }
+        }
     }
 
     PropertyValue LocalValueOrUnset() const noexcept {
@@ -216,11 +283,14 @@ struct StoredValueEntry {
             : effectiveValue;
     }
 
-    // Single-slot local value store: when no animation/expression/coercion override is active,
+    // Single-slot local value store: when no animation/expression/coercion/provider override is active,
     // effectiveValue directly holds the local value.
     void SetLocalValue(const PropertyValue& value) noexcept {
         SetHasLocal(true);
-        if (rare != nullptr && (HasCurrent() || HasAnimation() || HasExpression() || Flag(IsCoercedBit))) {
+        if (rare != nullptr &&
+            (HasCurrent() || HasAnimation() || HasExpression() || Flag(IsCoercedBit) ||
+             PackedRank() != Meta::PropertyValueRank::Local ||
+             !rare->baseProviders.GetIsEmpty() || HasInherited())) {
             rare->localBackup = value;
         } else {
             effectiveValue = value;
@@ -239,14 +309,23 @@ struct StoredValueEntry {
     }
 
     PropertyValue InheritedValueOrUnset() const noexcept {
-        return (rare != nullptr && HasInherited())
-            ? rare->inheritedValue
-            : PropertyValue::Unset();
+        if (!HasInherited()) {
+            return PropertyValue::Unset();
+        }
+        return (rare != nullptr) ? rare->inheritedValue : effectiveValue;
     }
 
     Base::Result<void> SetInheritedValue(
         const PropertyValue& value,
         PropertySlab& slab) noexcept {
+        if (rare == nullptr &&
+            !HasLocal() && !HasInlineProvider() &&
+            !HasCurrent() && !HasExpression() && !HasAnimation() &&
+            !Flag(IsCoercedBit)) {
+            effectiveValue = value;
+            SetHasInherited(true);
+            return {};
+        }
         Base::Result<StoredValueRare*> block = EnsureRare(slab);
         if (!block) {
             return block.GetStatus();
@@ -305,6 +384,7 @@ struct StoredValueEntry {
         info.isAnimated = HasAnimation();
         info.isCoerced = Flag(IsCoercedBit);
         info.isCurrentValue = Flag(IsCurrentValueBit);
+        info.revision = revision;
         return info;
     }
 
@@ -312,9 +392,12 @@ struct StoredValueEntry {
         const PropertyValueSourceInfo& info,
         PropertySlab& slab) noexcept {
         PackOriginFlags(info);
+        revision = static_cast<std::uint32_t>(info.revision);
         if (rare == nullptr &&
             info.token.ordinal == 0U &&
-            info.expressionKind == Meta::PropertyExpressionKind::Custom) {
+            info.token.origin <= OriginMask &&
+            info.expressionKind == Meta::PropertyExpressionKind::Custom &&
+            info.revision <= UINT32_MAX) {
             return {};
         }
         Base::Result<StoredValueRare*> block = EnsureRare(slab);
@@ -323,6 +406,78 @@ struct StoredValueEntry {
         }
         block->sourceInfo = info;
         return {};
+    }
+
+    bool TryGetWinnerProvider(
+        Meta::PropertyProviderToken& outToken,
+        PropertyValue& outValue) const noexcept {
+        if (HasInlineProvider()) {
+            outToken = {PackedRank(), PackedOrigin(), 0U};
+            outValue = effectiveValue;
+            return true;
+        }
+        if (rare != nullptr) {
+            if (const Meta::PropertyProviderContribution* win =
+                    rare->baseProviders.Winner()) {
+                outToken = win->token;
+                outValue = win->value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void SetInlineProviderContribution(
+        Meta::PropertyProviderToken token,
+        const PropertyValue& value) noexcept {
+        packedFlags &= ~((RankMask << RankShift) | (OriginMask << OriginShift));
+        packedFlags |= (static_cast<std::uint32_t>(token.rank) & RankMask)
+            << RankShift;
+        packedFlags |= (token.origin & OriginMask) << OriginShift;
+        SetHasInlineProvider(true);
+        effectiveValue = value;
+    }
+
+    bool RemoveProviderToken(Meta::PropertyProviderToken token) noexcept {
+        if (HasInlineProvider()) {
+            const Meta::PropertyProviderToken inlineToken{
+                PackedRank(), PackedOrigin(), 0U};
+            if (inlineToken == token) {
+                SetHasInlineProvider(false);
+                return true;
+            }
+            return false;
+        }
+        if (rare != nullptr && rare->baseProviders.Remove(token)) {
+            DropRareIfUnused();
+            return true;
+        }
+        return false;
+    }
+
+    std::uint32_t RemoveProviderOrigin(std::uint32_t origin) noexcept {
+        if (HasInlineProvider()) {
+            if (PackedOrigin() == origin) {
+                SetHasInlineProvider(false);
+                return 1U;
+            }
+            return 0U;
+        }
+        if (rare != nullptr) {
+            const std::uint32_t removed = rare->baseProviders.RemoveOrigin(origin);
+            if (removed != 0U) {
+                DropRareIfUnused();
+            }
+            return removed;
+        }
+        return 0U;
+    }
+
+    void ClearAllProviders() noexcept {
+        SetHasInlineProvider(false);
+        if (rare != nullptr) {
+            rare->baseProviders.Clear();
+        }
     }
 
     const PropertyProviderSet& Providers() const noexcept {
@@ -460,19 +615,17 @@ struct PropertyStore {
         const PropertyStoreEntry* end() const noexcept { return data_ + size_; }
 
         StoredValueEntry* Find(MemberId key) noexcept {
-            for (std::uint32_t i = 0; i < size_; ++i) {
-                if (data_[i].key == key) {
-                    return &data_[i].value;
-                }
+            const std::uint32_t idx = LowerBound(key);
+            if (idx < size_ && data_[idx].key == key) {
+                return &data_[idx].value;
             }
             return nullptr;
         }
 
         const StoredValueEntry* Find(MemberId key) const noexcept {
-            for (std::uint32_t i = 0; i < size_; ++i) {
-                if (data_[i].key == key) {
-                    return &data_[i].value;
-                }
+            const std::uint32_t idx = LowerBound(key);
+            if (idx < size_ && data_[idx].key == key) {
+                return &data_[idx].value;
             }
             return nullptr;
         }
@@ -483,31 +636,34 @@ struct PropertyStore {
         };
 
         InsertResult Insert(MemberId key, StoredValueEntry entry) noexcept {
-            for (std::uint32_t i = 0; i < size_; ++i) {
-                if (data_[i].key == key) {
-                    data_[i].value = std::move(entry);
-                    return { &data_[i], false };
-                }
+            const std::uint32_t idx = LowerBound(key);
+            if (idx < size_ && data_[idx].key == key) {
+                data_[idx].value = std::move(entry);
+                return { &data_[idx], false };
             }
             if (size_ == capacity_) {
-                Grow();
+                if (!Grow()) {
+                    return { nullptr, false };
+                }
             }
-            PropertyStoreEntry* target = &data_[size_++];
+            for (std::uint32_t j = size_; j > idx; --j) {
+                data_[j] = std::move(data_[j - 1U]);
+            }
+            ++size_;
+            PropertyStoreEntry* target = &data_[idx];
             target->key = key;
             target->value = std::move(entry);
             return { target, true };
         }
 
         void Erase(MemberId key) noexcept {
-            for (std::uint32_t i = 0; i < size_; ++i) {
-                if (data_[i].key == key) {
-                    for (std::uint32_t j = i + 1; j < size_; ++j) {
-                        data_[j - 1] = std::move(data_[j]);
-                    }
-                    --size_;
-                    data_[size_] = PropertyStoreEntry{};
-                    return;
+            const std::uint32_t idx = LowerBound(key);
+            if (idx < size_ && data_[idx].key == key) {
+                for (std::uint32_t j = idx + 1U; j < size_; ++j) {
+                    data_[j - 1U] = std::move(data_[j]);
                 }
+                --size_;
+                data_[size_] = PropertyStoreEntry{};
             }
         }
 
@@ -524,10 +680,24 @@ struct PropertyStore {
         }
 
     private:
-        void Grow() noexcept {
+        std::uint32_t LowerBound(MemberId key) const noexcept {
+            std::uint32_t lo = 0U;
+            std::uint32_t hi = size_;
+            while (lo < hi) {
+                const std::uint32_t mid = lo + ((hi - lo) >> 1U);
+                if (data_[mid].key < key) {
+                    lo = mid + 1U;
+                } else {
+                    hi = mid;
+                }
+            }
+            return lo;
+        }
+
+        bool Grow() noexcept {
             std::uint32_t newCap = capacity_ * 2U;
             auto* newData = new (std::nothrow) PropertyStoreEntry[newCap];
-            if (newData == nullptr) return;
+            if (newData == nullptr) return false;
             for (std::uint32_t i = 0; i < size_; ++i) {
                 newData[i] = std::move(data_[i]);
             }
@@ -536,6 +706,7 @@ struct PropertyStore {
             }
             data_ = newData;
             capacity_ = newCap;
+            return true;
         }
     } entries;
 

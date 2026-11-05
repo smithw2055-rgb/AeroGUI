@@ -4,6 +4,10 @@
 
 namespace Aero {
 
+namespace Media {
+template<class T> class FreezableCollection;
+}
+
 class Freezable;
 class BindingEngine;
 
@@ -49,9 +53,12 @@ protected:
 private:
     friend class DependencyObject;
     friend class BindingEngine;
+    friend class ElementTree;
+    template<class T> friend class Media::FreezableCollection;
 
     bool CheckFreezeCore() noexcept;
     DependencyObject* Parent() const noexcept;
+    bool HasActiveConsumersOutside(const Base::HashSet<DependencyObject*>& detachedSet, std::uint32_t depth = 0U) const noexcept;
     Base::Result<void> AttachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
     void DetachConsumer(DependencyObject& object, Meta::DependencyPropertyHandle property) noexcept;
     static Base::Result<void> CheckFreezeNode(FreezeCheckContext& context, Freezable& value) noexcept;

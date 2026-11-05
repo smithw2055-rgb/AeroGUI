@@ -38,42 +38,6 @@ public:
     Base::Result<void> Initialize() noexcept;
     void Shutdown() noexcept;
 
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const DoubleAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const CustomDoubleAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const ColorAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const PointAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const RectAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const ThicknessAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const IntegerAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const SizeAnimation& animation) noexcept;
-    Base::Result<AnimationHandle> Begin(
-        ::Aero::DependencyObject& target,
-        Meta::DependencyPropertyHandle property,
-        const MatrixAnimation& animation) noexcept;
 
     Base::Result<AnimationHandle> BeginTimeline(
         ::Aero::DependencyObject& target,
@@ -89,6 +53,8 @@ public:
         AnimationTime offsetMicroseconds) noexcept;
     bool Stop(AnimationHandle handle) noexcept;
     bool Remove(AnimationHandle handle) noexcept;
+    bool HasTarget(
+        const ::Aero::DependencyObject& target) const noexcept;
     std::uint32_t RemoveTarget(
         ::Aero::DependencyObject& target) noexcept;
     void RemoveAll() noexcept;

@@ -38,6 +38,12 @@ inline uint32_t ColorToRGBA32(Color color, double opacity) noexcept {
 }
 
 inline Point TransformPoint(const ProjectiveTransform2D& t, double x, double y) noexcept {
+    if (t.m13 == 0.0 && t.m23 == 0.0 && t.m33 == 1.0) {
+        return Point{
+            static_cast<float>(x * t.m11 + y * t.m21 + t.m31),
+            static_cast<float>(x * t.m12 + y * t.m22 + t.m32)
+        };
+    }
     Point output{};
     if (!Base::TryTransformPoint(t, Point{x, y}, output)) {
         output.x = std::numeric_limits<double>::quiet_NaN();
@@ -673,6 +679,8 @@ void UiFrameEncoder::SetBatchImage(
          currentBatch_.pattern != nullptr ||
          currentBatch_.ramps != nullptr ||
          currentBatch_.glyphs != nullptr ||
+         currentBatch_.pixelUniforms[0].numDwords != 0U ||
+         currentBatch_.pixelUniforms[1].numDwords != 0U ||
          currentBatch_.renderState.f.colorEnable != 1U ||
          currentBatch_.renderState.f.blendMode !=
              static_cast<uint8_t>(currentBlendMode_))) {
@@ -893,7 +901,10 @@ void UiFrameEncoder::CompositeOffscreen(
     const ProjectiveTransform2D& nodeTransform,
     double nodeOpacity,
     double dpi,
-    const RenderFrame& frame) noexcept {
+    const RenderFrame& frame,
+    RenderTarget* currentTarget,
+    std::uint32_t targetWidth,
+    std::uint32_t targetHeight) noexcept {
     if (offscreen == nullptr) return;
     Texture* texture = offscreen->GetTexture();
     if (texture == nullptr) {
@@ -921,10 +932,68 @@ void UiFrameEncoder::CompositeOffscreen(
         maskTarget != nullptr &&
         maskTarget->GetTexture() != nullptr;
 
-    const double blurScale = std::max(1.0, effect.radius * dpi);
+    const double rawBlurScale = std::max(1.0, effect.radius * dpi);
+    double effectiveBlurScale = rawBlurScale;
+    RenderTarget* downsampledTarget = nullptr;
+
+    const bool wantsDownsample =
+        (effect.kind == RenderEffectKind::Blur || effect.kind == RenderEffectKind::DropShadow) &&
+        rawBlurScale >= 2.5 &&
+        texture->GetWidth() >= 4U &&
+        texture->GetHeight() >= 4U &&
+        clipDepth_ == 0U &&
+        currentTarget != nullptr;
+
+    if (wantsDownsample) {
+        const std::uint32_t halfW = std::max(1U, texture->GetWidth() / 2U);
+        const std::uint32_t halfH = std::max(1U, texture->GetHeight() / 2U);
+        downsampledTarget = GetOrCreateOffscreenTarget(
+            node.id ^ UINT64_C(0x444F574E534D504C), halfW, halfH, true);
+        if (downsampledTarget != nullptr && downsampledTarget->GetTexture() != nullptr) {
+            CommitBatches();
+            device_->SetRenderTarget(downsampledTarget);
+            device_->BeginOffscreenRender();
+            device_->BeginTile(downsampledTarget, Tile{0U, 0U, halfW, halfH});
+
+            paintUniforms_[0] = static_cast<float>(texture->GetWidth());
+            paintUniforms_[1] = static_cast<float>(texture->GetHeight());
+            paintUniforms_[2] = 0.0f;
+            paintUniforms_[3] = 0.0f;
+            currentBatch_.shader = Shader::Downsample;
+            currentBatch_.pattern = texture;
+            currentBatch_.image = nullptr;
+            currentBatch_.shadow = nullptr;
+            currentBatch_.glyphs = nullptr;
+            currentBatch_.ramps = nullptr;
+            currentBatch_.patternSampler.f.wrapMode = WrapMode::ClampToEdge;
+            currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
+            currentBatch_.pixelUniforms[0] = {paintUniforms_, 4U, 0U};
+            currentBatch_.pixelUniforms[1] = {};
+            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::Src));
+            AssignColorEnable(currentBatch_.renderState, 1U);
+            AssignStencilMode(currentBatch_.renderState, StencilMode::Disabled);
+
+            const Point dsPts[4] = {
+                {0.0, 0.0},
+                {static_cast<double>(halfW), 0.0},
+                {static_cast<double>(halfW), static_cast<double>(halfH)},
+                {0.0, static_cast<double>(halfH)}};
+            const Point dsUvs[4] = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+            EmitQuad(dsPts, dsUvs, Color{1.0F, 1.0F, 1.0F, 1.0F});
+            CommitBatches();
+            device_->EndTile(downsampledTarget);
+            device_->EndOffscreenRender();
+
+            device_->SetRenderTarget(currentTarget);
+            device_->BeginTile(currentTarget, Tile{0U, 0U, targetWidth, targetHeight});
+            texture = downsampledTarget->GetTexture();
+            effectiveBlurScale = std::max(1.0, rawBlurScale * 0.5);
+        }
+    }
+
     const float newOffscreenSize[2] = {
-        static_cast<float>(static_cast<double>(texture->GetWidth()) / blurScale),
-        static_cast<float>(static_cast<double>(texture->GetHeight()) / blurScale)
+        static_cast<float>(static_cast<double>(texture->GetWidth()) / effectiveBlurScale),
+        static_cast<float>(static_cast<double>(texture->GetHeight()) / effectiveBlurScale)
     };
 
     // Offscreen targets pad by twice the blur radius so the 3x3 kernel, which
@@ -1132,6 +1201,9 @@ void UiFrameEncoder::CompositeOffscreen(
     }
 
     static_cast<void>(frame);
+    if (downsampledTarget != nullptr) {
+        ReleaseOffscreenTarget(downsampledTarget);
+    }
 }
 
 void UiFrameEncoder::SetContentStencil() noexcept {
@@ -2540,7 +2612,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             default: currentBlendMode_ = BlendMode::SrcOver; break;
             }
 
-            CompositeOffscreen(node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi, frame);
+            CompositeOffscreen(node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi, frame, &currentTarget, targetWidth, targetHeight);
             ReleaseOffscreenTarget(offscreen);
             if (maskTarget != nullptr) {
                 ReleaseOffscreenTarget(maskTarget);
@@ -2569,6 +2641,53 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     currentFrame_ = nullptr;
 
     return {};
+}
+void UiFrameEncoder::Downsample(
+    Texture* source,
+    const Rect& bounds,
+    const Size& sourceDimensions,
+    double opacity) noexcept {
+    if (source == nullptr) return;
+    const bool batchActive = currentBatch_.numIndices > 0U;
+    if (batchActive &&
+        (currentBatch_.shader != Shader::Downsample ||
+         currentBatch_.pattern != source ||
+         currentBatch_.renderState.f.colorEnable != 1U ||
+         currentBatch_.renderState.f.blendMode !=
+             static_cast<uint8_t>(currentBlendMode_))) {
+        FlushBatch();
+    }
+    currentBatch_.shader = Shader::Downsample;
+    currentBatch_.pattern = source;
+    currentBatch_.image = nullptr;
+    currentBatch_.shadow = nullptr;
+    currentBatch_.glyphs = nullptr;
+    currentBatch_.ramps = nullptr;
+    currentBatch_.patternSampler.f.wrapMode = WrapMode::ClampToEdge;
+    currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
+    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+    AssignColorEnable(currentBatch_.renderState, 1U);
+
+    paintUniforms_[0] = static_cast<float>(sourceDimensions.width);
+    paintUniforms_[1] = static_cast<float>(sourceDimensions.height);
+    currentBatch_.pixelUniforms[0] = {paintUniforms_, 2U, 0U};
+    currentBatch_.pixelUniforms[1] = {};
+
+    const Point points[4] = {
+        {bounds.x, bounds.y},
+        {bounds.x + bounds.width, bounds.y},
+        {bounds.x + bounds.width, bounds.y + bounds.height},
+        {bounds.x, bounds.y + bounds.height}
+    };
+    const Point uvs[4] = {
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}
+    };
+    Color color{1.0f, 1.0f, 1.0f, static_cast<float>(std::clamp(opacity, 0.0, 1.0))};
+    SetContentStencil();
+    EmitQuad(points, uvs, color);
 }
 
 } // namespace Aero::Render

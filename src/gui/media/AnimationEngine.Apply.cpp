@@ -34,10 +34,7 @@ using namespace Aero::Media::Animation::EngineSupport;
 double AnimationEngine::Ease(
     double progress,
     const EasingFunction& easing) noexcept {
-    if (auto ease = MakeEasingFunction(easing)) {
-        return ease->Ease(progress);
-    }
-    return Clamp01(progress);
+    return EvaluateEasing(progress, easing);
 }
 
 bool AnimationEngine::ApplyTrack(
@@ -156,41 +153,6 @@ bool AnimationEngine::ApplyTrack(
                 Length::Pixels(*numeric));
         if (!length) return false;
         value = std::move(*length);
-    }
-    if (UIElement* element = TryCast<UIElement>(track.target)) {
-        if (track.property == UIElement::OpacityProperty.Handle()) {
-            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) element->SetAnimatedOpacity(*decoded);
-        } else if (track.property == UIElement::VisibilityProperty.Handle()) {
-            Base::Result<Visibility> decoded =
-                Meta::ValueCodec<Visibility>::Decode(value);
-            if (decoded) element->SetAnimatedVisibility(*decoded);
-        }
-    }
-    if (FrameworkElement* framework = TryCast<FrameworkElement>(track.target)) {
-        if (track.property == FrameworkElement::WidthProperty.Handle()) {
-            Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
-            if (decoded) framework->SetAnimatedWidth(*decoded);
-        } else if (track.property == FrameworkElement::HeightProperty.Handle()) {
-            Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(value);
-            if (decoded) framework->SetAnimatedHeight(*decoded);
-        } else if (track.property == FrameworkElement::MinWidthProperty.Handle()) {
-            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMinWidth(*decoded);
-        } else if (track.property == FrameworkElement::MinHeightProperty.Handle()) {
-            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMinHeight(*decoded);
-        } else if (track.property == FrameworkElement::MaxWidthProperty.Handle()) {
-            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMaxWidth(*decoded);
-        } else if (track.property == FrameworkElement::MaxHeightProperty.Handle()) {
-            Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(value);
-            if (decoded) framework->SetAnimatedMaxHeight(*decoded);
-        } else if (track.property == FrameworkElement::MarginProperty.Handle()) {
-            Base::Result<Thickness> decoded =
-                Meta::ValueCodec<Thickness>::Decode(value);
-            if (decoded) framework->SetAnimatedMargin(*decoded);
-        }
     }
     Base::Result<void> applied = values_->SetAnimationValue(
         *track.target, track.property, value);

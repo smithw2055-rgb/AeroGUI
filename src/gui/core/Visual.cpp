@@ -37,14 +37,6 @@ namespace Media {
 
 // from src/gui/core/ElementTree.cpp
 
-Base::Ref<Base::Object>
-Visual::AcquireLifetime() noexcept {
-    if (!lifetime_) {
-        lifetime_ = Base::MakeRef<Aero::VisualLifetime>(*this);
-    }
-    return lifetime_;
-}
-
 bool Visual::IsAncestorOf(const Visual& descendant) const noexcept {
     if (this == &descendant) {
         return false;

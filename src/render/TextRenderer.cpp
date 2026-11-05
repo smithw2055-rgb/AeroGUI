@@ -203,7 +203,13 @@ Base::Result<void> TextRenderer::ShapeAndPrepare(
     }
     state_->atlas.ClearPendingUploads();
 
-    const RenderGlyphRunId glyphRun = state_->nextRunId++;
+    RenderGlyphRunId glyphRun = Render::InvalidRenderGlyphRunId;
+    if (!state_->freeGlyphRunIds.Empty()) {
+        glyphRun = state_->freeGlyphRunIds.Back();
+        state_->freeGlyphRunIds.PopBack();
+    } else {
+        glyphRun = state_->nextRunId++;
+    }
     if (glyphRun == Render::InvalidRenderGlyphRunId) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
@@ -256,6 +262,7 @@ void TextRenderer::ReleaseGlyphRun(Render::RenderGlyphRunId glyphRun) noexcept {
                 }
                 static_cast<void>(
                     state_->glyphRuns.Resize(state_->glyphRuns.Size() - 1U));
+                state_->freeGlyphRunIds.PushBack(glyphRun);
                 break;
             }
         }

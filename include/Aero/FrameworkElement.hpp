@@ -213,7 +213,7 @@ protected:
     virtual std::uint32_t GetLogicalChildrenCount() const noexcept { return GetVisualChildrenCount(); }
     virtual DependencyObject* GetLogicalChild(std::uint32_t index) const noexcept { return GetVisualChild(index); }
     void OnPropertyInvalidated(PropertyInvalidationFlags flags) noexcept override;
-    void SyncLayoutScalars() noexcept;
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
     // NOTE: empty default kept intentionally. Viewbox spacer and other
     // non-visual FrameworkElements rely on zero desired size; UIElement's
     // default (return available) would inflate them. Panel/Control override.
@@ -269,13 +269,8 @@ private:
 
     FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
-    void SetAnimatedWidth(Length value) noexcept { layoutScalars_.width = value; }
-    void SetAnimatedHeight(Length value) noexcept { layoutScalars_.height = value; }
-    void SetAnimatedMinWidth(double value) noexcept { layoutScalars_.minWidth = value; }
-    void SetAnimatedMinHeight(double value) noexcept { layoutScalars_.minHeight = value; }
-    void SetAnimatedMaxWidth(double value) noexcept { layoutScalars_.maxWidth = value; }
-    void SetAnimatedMaxHeight(double value) noexcept { layoutScalars_.maxHeight = value; }
-    void SetAnimatedMargin(Thickness value) noexcept { layoutScalars_.margin = value; }
+    void SyncLayoutScalarProperty(DependencyPropertyHandle property, const Meta::PropertyValue& newValue) noexcept;
+    static void OnLayoutScalarChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
     void SetActualSize(double width, double height) noexcept {
         Meta::PropertyValue widthVal(width);
         Meta::PropertyValue heightVal(height);

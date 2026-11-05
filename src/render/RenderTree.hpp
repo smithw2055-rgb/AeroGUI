@@ -140,6 +140,7 @@ struct RenderNodeSnapshot {
     std::uint32_t payloadOffset = 0U;
     std::uint32_t payloadSize = 0U;
     std::uint64_t elementRevision = 0U;
+    const DisplayList* drawing = nullptr;
 };
 
 } // namespace Aero::Render

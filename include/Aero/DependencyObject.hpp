@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Aero/Base/HashSet.hpp>
 #include <Aero/DispatcherObject.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/TryCast.hpp>
@@ -156,7 +157,7 @@ private:
         BindingEngine* bindings,
         Meta::EffectiveValueEngine* values,
         AnimationEngine* animations,
-        Base::Vector<DependencyObject*>& visited) noexcept;
+        Base::HashSet<DependencyObject*>& visited) noexcept;
     StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) noexcept;
     const StoredValueEntry* FindStoredEntry(DependencyPropertyHandle property) const noexcept;
     Result<StoredValueEntry*> EnsureStoredEntry(DependencyPropertyHandle property) noexcept;
@@ -200,12 +201,12 @@ private:
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     Base::Ref<Meta::RegistryLifetime> registryLifetime_;
     TypeId runtimeType_ = InvalidTypeId;
-    bool objectServicesAvailable_ = false;
-    mutable bool typeVerified_ = false;
     void* valueStore_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
+    std::uint32_t unmaterializedQueueMask_ = 0U;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
-    std::uint64_t nextValueRevision_ = 1U;
+    bool objectServicesAvailable_ = false;
+    mutable bool typeVerified_ = false;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(

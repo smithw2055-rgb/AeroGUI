@@ -217,22 +217,49 @@ void FrameworkElement::ClearDataContext() noexcept {
     ClearValue(DataContextProperty);
 }
 
-void FrameworkElement::SyncLayoutScalars() noexcept {
-    layoutScalars_.width = GetValue(WidthProperty);
-    layoutScalars_.height = GetValue(HeightProperty);
-    layoutScalars_.minWidth = GetValue(MinWidthProperty);
-    layoutScalars_.maxWidth = GetValue(MaxWidthProperty);
-    layoutScalars_.minHeight = GetValue(MinHeightProperty);
-    layoutScalars_.maxHeight = GetValue(MaxHeightProperty);
-    layoutScalars_.margin = GetValue(MarginProperty);
+void FrameworkElement::SyncLayoutScalarProperty(
+    DependencyPropertyHandle property,
+    const Meta::PropertyValue& newValue) noexcept {
+    if (property == WidthProperty.Handle()) {
+        Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
+        if (decoded) layoutScalars_.width = decoded.Value();
+    } else if (property == HeightProperty.Handle()) {
+        Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
+        if (decoded) layoutScalars_.height = decoded.Value();
+    } else if (property == MinWidthProperty.Handle()) {
+        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
+        if (decoded) layoutScalars_.minWidth = decoded.Value();
+    } else if (property == MaxWidthProperty.Handle()) {
+        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
+        if (decoded) layoutScalars_.maxWidth = decoded.Value();
+    } else if (property == MinHeightProperty.Handle()) {
+        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
+        if (decoded) layoutScalars_.minHeight = decoded.Value();
+    } else if (property == MaxHeightProperty.Handle()) {
+        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
+        if (decoded) layoutScalars_.maxHeight = decoded.Value();
+    } else if (property == MarginProperty.Handle()) {
+        Base::Result<Thickness> decoded = Meta::ValueCodec<Thickness>::Decode(newValue);
+        if (decoded) layoutScalars_.margin = decoded.Value();
+    }
+}
+
+void FrameworkElement::OnLayoutScalarChanged(
+    DependencyObject& object,
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    static_cast<FrameworkElement&>(object).SyncLayoutScalarProperty(
+        args.GetProperty(), args.GetNewValue());
+}
+
+void FrameworkElement::OnPropertyChanged(
+    const DependencyPropertyChangedEventArgs& args) noexcept {
+    SyncLayoutScalarProperty(args.GetProperty(), args.GetNewValue());
+    UIElement::OnPropertyChanged(args);
 }
 
 void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     UIElement::OnPropertyInvalidated(flags);
-    if (HasFlag(flags, PropertyInvalidationFlags::Measure)) {
-        SyncLayoutScalars();
-    }
     if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
         InvalidateVisual();
     }
@@ -834,9 +861,15 @@ AERO_DESCRIBE(FrameworkElement) {
             Meta::Value::NullObject(
                 Meta::TypeOf<Base::Object>()))
         .Property(
-            FrameworkElement::WidthProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
+            FrameworkElement::WidthProperty,
+            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&ValidateLength))
         .Property(
-            FrameworkElement::HeightProperty, Length::Auto(), AffectsMeasure, &ValidateLength)
+            FrameworkElement::HeightProperty,
+            FrameworkPropertyMetadata(Length::Auto(), AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&ValidateLength))
         .Property(
             FrameworkElement::ActualWidthProperty,
             0.0)
@@ -844,15 +877,30 @@ AERO_DESCRIBE(FrameworkElement) {
             FrameworkElement::ActualHeightProperty,
             0.0)
         .Property(
-            FrameworkElement::MinWidthProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+            FrameworkElement::MinWidthProperty,
+            FrameworkPropertyMetadata(0.0, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
-            FrameworkElement::MaxWidthProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+            FrameworkElement::MaxWidthProperty,
+            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
-            FrameworkElement::MinHeightProperty, 0.0, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+            FrameworkElement::MinHeightProperty,
+            FrameworkPropertyMetadata(0.0, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
-            FrameworkElement::MaxHeightProperty, DefaultMaximum, AffectsMeasure, &::Aero::Base::Validate::NonNegative<double>)
+            FrameworkElement::MaxHeightProperty,
+            FrameworkPropertyMetadata(DefaultMaximum, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&::Aero::Base::Validate::NonNegative<double>))
         .Property(
-            FrameworkElement::MarginProperty, Thickness{}, AffectsMeasure, &ValidateMarginValue)
+            FrameworkElement::MarginProperty,
+            FrameworkPropertyMetadata(Thickness{}, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged)
+                .Validate(&ValidateMarginValue))
         .Property(
             FrameworkElement::HorizontalAlignmentProperty,
             HorizontalAlignment::Stretch, AffectsArrange)

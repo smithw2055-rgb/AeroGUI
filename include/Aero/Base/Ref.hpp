@@ -163,6 +163,12 @@ public:
 
     bool Expired() const noexcept { return WeakRefBase::Expired(); }
 
+    bool TryAttach(T& object) noexcept { return WeakRefBase::TryAttach(object); }
+
+    T* Peek() const noexcept {
+        return static_cast<T*>(WeakRefBase::PeekObject());
+    }
+
     Ref<T> Lock() const noexcept {
         Object* object = WeakRefBase::LockObject();
         if (object == nullptr) { return {}; }
@@ -194,13 +200,13 @@ template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocat
 
     T* object = new (memory) T(std::forward<Args>(args)...);
 
-    auto destroy = [](Object* base, IAllocator* objectAllocator, std::size_t size, std::size_t alignment) noexcept {
+    auto destroy = [](Object* base, IAllocator* objectAllocator) noexcept {
         T* typed = static_cast<T*>(base);
         typed->~T();
-        objectAllocator->Deallocate(typed, size, alignment, MemoryTag::Object);
+        objectAllocator->Deallocate(typed, sizeof(T), alignof(T), MemoryTag::Object);
     };
 
-    if (!object->AttachManagedLifetime(allocator, destroy, objectSize, objectAlignment)) {
+    if (!object->AttachManagedLifetime(allocator, destroy)) {
         object->~T();
         allocator.Deallocate(object, objectSize, objectAlignment, MemoryTag::Object);
         AERO_ASSERT(false && "Unable to allocate Aero object control block (Out of Memory)");

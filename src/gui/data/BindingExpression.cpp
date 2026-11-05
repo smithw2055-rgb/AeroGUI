@@ -433,10 +433,12 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         descriptor.updateSourceTrigger);
     const std::uint32_t newIndex = bindings_.Size();
     bindings_.PushBack(std::move(record));
-    hasDirtyBindings_ = true;
-    static_cast<void>(handleIndexMap_.Insert(bindings_.Back().handle.value, newIndex));
-    AddTargetBinding(descriptor.target, bindings_.Back().handle);
-    AddSourceBinding(descriptor.source, bindings_.Back().handle);
+    BindingRecord& stored = bindings_.Back();
+    EnqueueDirtyRecord(stored);
+    UpdatePollingRegistration(stored);
+    static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
+    AddTargetBinding(descriptor.target, stored.handle);
+    AddSourceBinding(descriptor.source, stored.handle);
     descriptor.source->AddValueChangedHandler(
         descriptor.sourceProperty, propertyChangedHandler_);
     descriptor.target->AddValueChangedHandler(
@@ -637,8 +639,9 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         ++writesDataContextCount_;
     }
     bindings_.PushBack(std::move(record));
-    hasDirtyBindings_ = true;
     BindingRecord& stored = bindings_.Back();
+    EnqueueDirtyRecord(stored);
+    UpdatePollingRegistration(stored);
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     AddTargetBinding(stored.descriptor.target, stored.handle);
     if (stored.sourceKind == BindingSourceKind::DataContext) {
@@ -678,6 +681,7 @@ bool BindingEngine::Detach(BindingHandle handle) noexcept {
     }
     const std::uint32_t* found = handleIndexMap_.Find(handle.value);
     if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
+        RemovePollingHandle(handle);
         if (flushing_) {
             const std::uint32_t index = *found;
             handleIndexMap_.Erase(handle.value);
@@ -706,7 +710,7 @@ bool BindingEngine::UpdateSource(BindingHandle handle) noexcept {
     }
     record->targetDirty = true;
     record->forceSourceUpdate = true;
-    hasDirtyBindings_ = true;
+    EnqueueDirtyRecord(*record);
     return true;
 }
 
@@ -717,7 +721,7 @@ bool BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
     BindingRecord* record = FindRecord(handle);
     if (record == nullptr) return false;
     record->sourceDirty = true;
-    hasDirtyBindings_ = true;
+    EnqueueDirtyRecord(*record);
     if (!flushing_) {
         Base::Result<std::uint32_t> flushed = Flush();
         if (!flushed) return false;
@@ -764,13 +768,16 @@ Base::Result<void> BindingEngine::ApplyTargetToSource(
             converted.GetStatus());
         return converted.GetStatus();
     }
+    const BindingHandle recordHandle = record.handle;
     Base::Result<void> written =
         WriteSource(record, converted.Value());
     if (!written) {
-        ReportDiagnostic(
-            record,
-            BindingDiagnosticStage::WriteSource,
-            written.GetStatus());
+        if (BindingRecord* current = FindRecord(recordHandle)) {
+            ReportDiagnostic(
+                *current,
+                BindingDiagnosticStage::WriteSource,
+                written.GetStatus());
+        }
         return written.GetStatus();
     }
     source = converted.Value();

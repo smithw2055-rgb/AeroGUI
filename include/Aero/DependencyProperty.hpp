@@ -263,9 +263,11 @@ public:
     bool IsAttached() const noexcept { return HasFlag(flags_, DependencyPropertyFlags::Attached); }
     bool AcceptsAnyValue() const noexcept { return HasFlag(flags_, DependencyPropertyFlags::AnyValue); }
     std::uint32_t MetadataCount() const noexcept { return metadata_.Size(); }
+    std::uint8_t InheritanceIndex() const noexcept { return inheritanceIndex_; }
 
     // Metadata addresses become stable when the owning registry is frozen.
     const PropertyMetadata* MetadataFor(TypeId forType) const noexcept;
+    const TypeRegistry* Types() const noexcept { return typeRegistry_; }
 
 private:
     friend class ::Aero::Meta::Registry;
@@ -276,6 +278,8 @@ private:
         TypeId forType = InvalidTypeId;
         bool owner = false;
         PropertyMetadata metadata;
+        Base::String aliasName;
+        DependencyPropertyFlags flags = DependencyPropertyFlags::None;
     };
 
     DependencyProperty() noexcept : name_(), metadata_() {}
@@ -293,6 +297,7 @@ private:
     TypeId valueType_ = InvalidTypeId;
     TypeId registeredOwnerType_ = InvalidTypeId;
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
+    std::uint8_t inheritanceIndex_ = 0xFFU;
     std::uint64_t readOnlySecret_ = 0U;
 
     struct MetadataCacheEntry {

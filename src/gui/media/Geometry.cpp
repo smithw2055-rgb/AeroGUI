@@ -1,4 +1,5 @@
 #include <Aero/Media/Geometries.hpp>
+#include <Aero/Layout.hpp>
 #include "gui/media/GeometryFlatten.hpp"
 
 #include <algorithm>

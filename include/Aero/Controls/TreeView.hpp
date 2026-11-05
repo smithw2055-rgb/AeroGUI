@@ -106,6 +106,9 @@ public:
 
 protected:
     Ref<FrameworkElement> GetContainerForItemOverride() const noexcept override;
+    void PrepareContainerForItemOverride(FrameworkElement& container,
+        const Ref<Base::Object>& item, std::uint32_t index) noexcept override;
+    void ClearContainerForItemOverride(FrameworkElement& container) noexcept override;
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnKeyDown(KeyEventArgs& args);
 

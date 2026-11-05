@@ -18,7 +18,7 @@ bool IsRuntimeTypeDerivedFrom(
         baseType == Base::InvalidMetaTypeId) {
         return false;
     }
-    if (runtimeType == baseType) {
+    if (runtimeType == baseType || baseType == Object::StaticTypeId()) {
         return true;
     }
     const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
@@ -32,10 +32,17 @@ bool IsRuntimeTypeDerivedFrom(
 bool IsRuntimeTypeDerivedFrom(
     const Object* object,
     Base::MetaTypeId baseType) noexcept {
-    if (object == nullptr) {
+    if (object == nullptr || baseType == Base::InvalidMetaTypeId) {
         return false;
     }
-    return IsRuntimeTypeDerivedFrom(object->RuntimeType(), baseType);
+    const Base::MetaTypeId runtimeType = object->RuntimeType();
+    if (runtimeType == Base::InvalidMetaTypeId) {
+        return false;
+    }
+    if (runtimeType == baseType || baseType == Object::StaticTypeId()) {
+        return true;
+    }
+    return IsRuntimeTypeDerivedFrom(runtimeType, baseType);
 }
 
 void* TryCastToInterface(
@@ -44,20 +51,10 @@ void* TryCastToInterface(
     if (object == nullptr || interfaceType == Base::InvalidMetaTypeId) {
         return nullptr;
     }
-    const Meta::TypeRegistry* types = nullptr;
     const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
     if (factory.dependencyProperties != nullptr) {
-        types = &factory.dependencyProperties->Types();
-    }
-    if (types != nullptr &&
-        types->IsDerivedFrom(
-            object->RuntimeType(), DependencyObject::StaticTypeId())) {
-        return DependencyObjectAccess::PropertyRegistry(static_cast<DependencyObject*>(object))
-            .Types()
-            .TryCastToInterface(*object, interfaceType);
-    }
-    if (types != nullptr) {
-        return types->TryCastToInterface(*object, interfaceType);
+        return factory.dependencyProperties->Types().TryCastToInterface(
+            *object, interfaceType);
     }
     return nullptr;
 }

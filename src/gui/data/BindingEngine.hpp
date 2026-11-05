@@ -2,14 +2,12 @@
 
 // Binding runtime. Property-path plans live in BindingPath.hpp.
 #include <cstdio>
+#include <cstdint>
 #include "gui/data/BindingPath.hpp"
 #include <Aero/Base/HashMap.hpp>
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
-#include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include <cstdint>
+#include <Aero/Base/HashSet.hpp>
+#include <Aero/DependencyObject.hpp>
+#include <Aero/Threading.hpp>
 
 #include <Aero/Data/Binding.hpp>
 #include <Aero/Data/BindingExpression.hpp>
@@ -112,20 +110,13 @@ struct BindingInspection {
 // DataContext property. Text is compiled once per concrete source type and the
 // resulting immutable BindingPathPlan is reused until the source changes.
 
-struct MetadataBindingDescriptor {
+struct BindingCommonOptions {
     Meta::Registry* metadata = nullptr;
     Base::Object* source = nullptr;
     DependencyObject* target = nullptr;
     DependencyPropertyHandle targetProperty;
     DependencyPropertyHandle dataContextProperty;
-    // Ordinarily this is the target itself. Non-visual Freezables (brushes,
-    // transforms, effects) have no inherited DataContext, so markup supplies
-    // their containing visual root as the owner instead.
     DependencyObject* dataContextOwner = nullptr;
-    Base::StringView path;
-    Base::StringView stringFormat;
-    // WPF permits an ElementName/Source binding with no Path; in that form the
-    // source object itself is assigned to the target property.
     bool bindsToSource = false;
     BindingMode mode = BindingMode::Default;
     UpdateSourceTrigger updateSourceTrigger =
@@ -141,6 +132,11 @@ struct MetadataBindingDescriptor {
     PropertyValue targetNullValue;
     BindingDiagnosticCallback diagnostic = nullptr;
     void* diagnosticContext = nullptr;
+};
+
+struct MetadataBindingDescriptor : public BindingCommonOptions {
+    Base::StringView path;
+    Base::StringView stringFormat;
 
     static MetadataBindingDescriptor FromBinding(
         const Data::Binding& binding,
@@ -274,6 +270,11 @@ public:
     // ownership code uses this before destroying a DependencyObject.
     Base::Result<std::uint32_t> DetachObject(
         DependencyObject& object) noexcept;
+    bool HasAnyObjectReference(
+        const DependencyObject& object) const noexcept;
+    bool HasActiveBindingsOutside(
+        const DependencyObject& object,
+        const Base::HashSet<DependencyObject*>& detachedSet) const noexcept;
 
     // Flush is also exposed for deterministic headless tests. Normal hosts
     // run it through the explicit DataBind phase driven by ViewFrame.
@@ -328,7 +329,7 @@ private:
         Base::String path;
         Base::String stringFormat;
         bool bindsToSource = false;
-        BindingPathPlan pathPlan;
+        CompiledBindingPath pathPlan;
         std::uint64_t notificationSubscription = 0U;
         DependencyPropertyHandle sourceDependencyProperty;
         PropertyValue lastSourceValue;
@@ -341,33 +342,14 @@ private:
         bool forceSourceUpdate = false;
         bool pollHintEmitted = false;
         bool lostFocusSubscribed = false;
+        bool inDirtyQueue = false;
+        bool inPollingQueue = false;
         Base::Status lastStatus{};
     };
 
-    struct DeferredBindingRecord {
-        Meta::Registry* metadata = nullptr;
-        Base::Object* source = nullptr;
-        DependencyObject* target = nullptr;
-        DependencyPropertyHandle targetProperty;
-        DependencyPropertyHandle dataContextProperty;
-        DependencyObject* dataContextOwner = nullptr;
+    struct DeferredBindingRecord : public Data::BindingCommonOptions {
         Base::String path;
         Base::String stringFormat;
-        bool bindsToSource = false;
-        BindingMode mode = BindingMode::Default;
-        UpdateSourceTrigger updateSourceTrigger =
-            UpdateSourceTrigger::PropertyChanged;
-        BindingConvertCallback convert = nullptr;
-        BindingConvertCallback convertBack = nullptr;
-        Base::Ref<IValueConverter> converterResource;
-        PropertyValue converterParameter;
-        BindingValidateCallback validate = nullptr;
-        BindingValidateCallback validateBack = nullptr;
-        void* conversionContext = nullptr;
-        PropertyValue fallbackValue;
-        PropertyValue targetNullValue;
-        BindingDiagnosticCallback diagnostic = nullptr;
-        void* diagnosticContext = nullptr;
     };
 
     struct MultiBindingGroup {
@@ -380,12 +362,15 @@ private:
     Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
     Base::HashMap<std::uint64_t, std::uint32_t> handleIndexMap_;
-    Base::Vector<DeferredBindingRecord> deferredBindings_;
+    Base::HashMap<const DependencyObject*, Base::Vector<DeferredBindingRecord>> deferredByTarget_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;
     Base::HashMap<const Base::Object*, Base::Vector<BindingHandle>> sourceToBindings_;
     Base::HashMap<const DependencyObject*, Base::Vector<BindingHandle>> targetToBindings_;
     Base::Vector<BindingHandle> dataContextBindings_;
+    Base::Vector<BindingHandle> dirtyQueue_;
+    Base::Vector<BindingHandle> pollingQueue_;
+    Base::Vector<BindingHandle> workQueue_;
     bool initialized_ = false;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
@@ -395,6 +380,10 @@ private:
     std::uint32_t writesDataContextCount_ = 0U;
     Base::Status lastError_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
+
+    void EnqueueDirtyRecord(BindingRecord& record) noexcept;
+    void UpdatePollingRegistration(BindingRecord& record) noexcept;
+    void RemovePollingHandle(BindingHandle handle) noexcept;
 
     Base::Result<std::uint32_t>
     ActivatePendingDeferred() noexcept;

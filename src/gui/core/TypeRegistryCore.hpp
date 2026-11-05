@@ -107,6 +107,8 @@ public:
         , enumValues_(std::move(other.enumValues_))
         , events_(std::move(other.events_))
         , contentMember_(other.contentMember_)
+        , ancestorChain_(std::move(other.ancestorChain_))
+        , ancestorIndices_(std::move(other.ancestorIndices_))
         , rare_(other.rare_) {
         other.rare_ = nullptr;
     }
@@ -125,6 +127,8 @@ public:
             enumValues_ = std::move(other.enumValues_);
             events_ = std::move(other.events_);
             contentMember_ = other.contentMember_;
+            ancestorChain_ = std::move(other.ancestorChain_);
+            ancestorIndices_ = std::move(other.ancestorIndices_);
             rare_ = other.rare_;
             other.rare_ = nullptr;
         }
@@ -165,7 +169,10 @@ public:
     }
     MemberId ContentMember() const noexcept { return contentMember_; }
     Base::Span<const TypeId> AncestorChain() const noexcept {
-        return {};
+        return {ancestorChain_.Data(), ancestorChain_.Size()};
+    }
+    Base::Span<const std::uint32_t> AncestorIndices() const noexcept {
+        return {ancestorIndices_.Data(), ancestorIndices_.Size()};
     }
 private:
     friend class TypeRegistry;
@@ -187,6 +194,8 @@ private:
     Base::Vector<EnumValueInfo> enumValues_;
     Base::Vector<EventInfo> events_;
     MemberId contentMember_ = InvalidMemberId;
+    Base::Vector<TypeId> ancestorChain_;
+    Base::Vector<std::uint32_t> ancestorIndices_;
     TypeRareData* rare_ = nullptr;
 };
 
@@ -477,13 +486,15 @@ public:
     DependencyPropertyRegistry& DependencyProperties() noexcept;
     void* RoutedEventState() noexcept;
     Base::Result<Base::HashCode> ComputeSchemaHash() const noexcept;
+    const ::Aero::MetaTable& RuntimeData() const noexcept;
+    static Base::Result<Value> ConvertEnumText(
+        const TypeInfo& type,
+        Base::StringView input) noexcept;
 
 private:
 
     struct Storage;
     Storage* storage_ = nullptr;
-
-    const ::Aero::MetaTable& RuntimeData() const noexcept;
 
     static Base::Status OutOfMemoryStatus() noexcept;
     static bool HasPropertyFlag(
@@ -494,9 +505,6 @@ private:
     bool IsRegisteredEnumValue(
         TypeId type,
         const Value& value) const noexcept;
-    Base::Result<Value> ConvertEnumText(
-        const TypeInfo& type,
-        Base::StringView input) const noexcept;
     Base::Result<void> ValidatePropertyTarget(
         const Base::Object& object,
         const PropertyInfo& property) const noexcept;
@@ -512,9 +520,6 @@ private:
 
     static Base::Result<void> ValidateRegistration(
         const MetadataModuleRegistration& registration) noexcept;
-    Base::Result<Storage*> BuildCandidate(
-        const MetadataModuleRegistration* extra,
-        bool seal) const noexcept;
 };
 
 
@@ -802,6 +807,17 @@ private:
     FindPropertyChangeNotification(TypeId type) const noexcept;
     const CollectionChangeNotificationRegistration*
     FindCollectionChangeNotification(TypeId type) const noexcept;
+    void ReleaseRegistrationTables() noexcept {
+        typeFactories_ = Base::Vector<TypeFactoryRegistration>();
+        contentAccessors_ = Base::Vector<ContentAccessorRegistration>();
+        propertyAccessors_ = Base::Vector<PropertyAccessorRegistration>();
+        valueMemberAccessors_ = Base::Vector<ValueMemberAccessorRegistration>();
+        methodInvokers_ = Base::Vector<MethodInvokerRegistration>();
+        propertyChangeNotifications_ =
+            Base::Vector<PropertyChangeNotificationRegistration>();
+        collectionChangeNotifications_ =
+            Base::Vector<CollectionChangeNotificationRegistration>();
+    }
 
     TypeRegistry* types_ = nullptr;
     Base::Vector<TypeFactoryRegistration> typeFactories_;
@@ -1342,7 +1358,7 @@ public:
     static void OnBlendingModeChanged(
         DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;
-    // XAML compatibility forwarder: aero:Element.Transform3D writes
+    // XAML compatibility alias: aero:Element.Transform3D aliases
     // UIElement::Transform3DProperty. Render/hit read the UIElement DP.
     inline static constexpr Meta::AttachedPropertyRef<
         Element, Base::Ref<Media::Transform3D>>
