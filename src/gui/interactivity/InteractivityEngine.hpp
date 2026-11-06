@@ -207,6 +207,18 @@ public:
         dataTemplateTriggerSubscriptions;
     Base::Status animationEventStatus;
 
+    struct CachedBindingPathPlan {
+        Meta::TypeId sourceType = Meta::InvalidTypeId;
+        Base::String path;
+        Meta::BindingPathPlan plan;
+    };
+    Base::HashMap<Base::HashCode, Base::Vector<CachedBindingPathPlan>>
+        compiledPathCache_;
+
+    Base::Result<const Meta::BindingPathPlan*> FindOrCompileBindingPath(
+        Meta::TypeId sourceType,
+        Base::StringView path) noexcept;
+
     bool DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
         Meta::PropertyValue expected) noexcept;

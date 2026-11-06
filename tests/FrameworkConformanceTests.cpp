@@ -1671,6 +1671,11 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(!leafText->GetIsEnabled());
         CHECK(leafText->GetFlowDirection() == Aero::FlowDirection::RightToLeft);
 
+        outer->SetIsEnabled(true);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(leafText->GetIsEnabled());
+
         childBox->SetVisibility(Visibility::Collapsed);
         live->viewTime += 0.016;
         Pump(*live->view, live->viewTime);
@@ -1815,6 +1820,72 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(std::abs(btn->GetWidth() - 140.0) < 1e-4);
         btn->SetWidth(-10.0);
         CHECK(std::abs(btn->GetWidth() - 140.0) < 1e-4);
+    }
+
+    // 16. Validate Round 2 optimizations: InteractivityEngine BindingPathPlan cache reuse,
+    // unified ResolveActionTargetObject, RemoveElementAction general TargetObject Binding,
+    // and ChangePropertyAction Nullable<bool> {x:Null} normalization.
+    {
+        constexpr const char* kRound2InteractivityXaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:b="http://schemas.microsoft.com/xaml/behaviors">
+    <StackPanel>
+        <TextBox x:Name="SourceBox" Text="Alpha"/>
+        <TextBlock x:Name="MirrorBlock" Text="Init">
+            <b:Interaction.Triggers>
+                <b:PropertyChangedTrigger Binding="{Binding Text, ElementName=SourceBox}">
+                    <b:ChangePropertyAction PropertyName="Text" Value="{Binding Text, ElementName=SourceBox}"/>
+                </b:PropertyChangedTrigger>
+                <b:DataTrigger Binding="{Binding Text, ElementName=SourceBox}" Value="Indeterminate">
+                    <b:ChangePropertyAction TargetName="TriCheck" PropertyName="IsChecked" Value="{x:Null}"/>
+                </b:DataTrigger>
+            </b:Interaction.Triggers>
+        </TextBlock>
+        <CheckBox x:Name="TriCheck" IsThreeState="True" IsChecked="True"/>
+        <ListBox x:Name="ItemHost">
+            <ListBoxItem x:Name="RemovableItem" Content="First"/>
+            <ListBoxItem x:Name="KeptItem" Content="Second">
+                <b:Interaction.Triggers>
+                    <b:DataTrigger Binding="{Binding Text, ElementName=SourceBox}" Value="RemoveFirst">
+                        <b:RemoveElementAction TargetObject="{Binding ElementName=RemovableItem}"/>
+                    </b:DataTrigger>
+                </b:Interaction.Triggers>
+            </ListBoxItem>
+        </ListBox>
+    </StackPanel>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kRound2InteractivityXaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        TextBox* sourceBox = doc.Value().FindName<TextBox>("SourceBox");
+        TextBlock* mirrorBlock = doc.Value().FindName<TextBlock>("MirrorBlock");
+         Aero::Controls::CheckBox* triCheck = doc.Value().FindName<Aero::Controls::CheckBox>("TriCheck");
+        ListBox* itemHost = doc.Value().FindName<ListBox>("ItemHost");
+        CHECK(sourceBox != nullptr && mirrorBlock != nullptr && triCheck != nullptr && itemHost != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        // Multiple updates exercise cached FindOrCompileBindingPath in InteractivityEngine
+        sourceBox->SetText("Beta");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(mirrorBlock->GetText() == "Beta");
+
+        sourceBox->SetText("Indeterminate");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(mirrorBlock->GetText() == "Indeterminate");
+        CHECK(!triCheck->GetIsChecked().GetHasValue());
+
+        // Exercise general TargetObject Binding on RemoveElementAction
+        CHECK(itemHost->GetCount() == 2U);
+        sourceBox->SetText("RemoveFirst");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(itemHost->GetCount() == 1U);
     }
 
     return true;

@@ -79,6 +79,7 @@ void ViewFrame::Shutdown() noexcept {
     BeginDestroyInteractions();
     DetachViewUi(*this);
     FinishDestroyInteractions();
+    static_cast<void>(UnmountAllFragments(*this));
     if (HasAttachedRoot()) {
         static_cast<void>(DetachVisualGraph({
             loadedDocument.visualContent.mountEdges.Data(),

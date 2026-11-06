@@ -96,6 +96,70 @@ static bool TargetsScaleTransform(
     return false;
 }
 
+static Base::Result<Base::Object*> ResolveActionTargetObject(
+    StoryboardHost& host,
+    const Base::Ref<Data::Binding>& targetBinding,
+    Base::StringView targetName,
+    FrameworkElement& owner,
+    Controls::DataTemplateTriggerInstance* dataTemplateContext,
+    const NameScope* names,
+    Base::Object* actionSelf) noexcept {
+    if (targetBinding) {
+        if (host.Interactivity() == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Interactivity engine is unavailable");
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            host.Interactivity()->EvaluateAuthoredBinding(
+                *targetBinding,
+                owner,
+                dataTemplateContext,
+                names,
+                actionSelf);
+        if (!evaluated) return evaluated.GetStatus();
+        if (evaluated.Value().Kind() == Meta::ValueKind::Object &&
+            !evaluated.Value().IsNullObject() &&
+            evaluated.Value().AsObject()) {
+            return evaluated.Value().AsObject().Get();
+        }
+        return nullptr;
+    }
+    if (targetName.Empty()) {
+        return static_cast<Base::Object*>(&owner);
+    }
+    if (dataTemplateContext != nullptr) {
+        if (Base::Object* found = dataTemplateContext->FindName(targetName)) {
+            return found;
+        }
+    }
+    if (names != nullptr) {
+        if (Base::Object* found = names->Find(targetName)) {
+            return found;
+        }
+    }
+    if (Base::Object* found = owner.FindName(targetName)) {
+        return found;
+    }
+    if (Controls::TemplateEngine* templates = ElementTree::TemplatesOf(owner)) {
+        const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&owner);
+        if (control == nullptr) {
+            control = ::Aero::TryCast<Controls::Control>(owner.GetTemplatedParent());
+        }
+        if (control != nullptr) {
+            const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
+            if (handle.IsValid()) {
+                if (Base::Object* found = templates->FindName(handle, targetName)) {
+                    return found;
+                }
+            }
+        }
+    }
+    return host.view != nullptr
+        ? host.view->loadedDocument.names.Find(targetName)
+        : nullptr;
+}
+
 Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
     Interactivity::TriggerAction& action,
@@ -111,35 +175,17 @@ StoryboardHost::ExecuteAnimationAction(
         auto& change =
             static_cast<Interactivity::ChangePropertyAction&>(
                 action);
-        Meta::PropertyValue targetValue;
-        Base::Object* targetObject = nullptr;
-        if (Base::Ref<Data::Binding> targetBinding =
-                change.GetTargetObject()) {
-            Base::Result<Meta::PropertyValue> evaluated =
-                Interactivity()->EvaluateAuthoredBinding(
-                    *targetBinding,
-                    owner,
-                    dataTemplateContext,
-                    names,
-                    &action);
-            if (!evaluated) return evaluated.GetStatus();
-            targetValue = std::move(evaluated).Value();
-            if (targetValue.Kind() == Meta::ValueKind::Object &&
-                !targetValue.IsNullObject() &&
-                targetValue.AsObject()) {
-                targetObject = targetValue.AsObject().Get();
-            }
-        } else {
-            targetObject = change.GetTargetName().Empty()
-                ? static_cast<Base::Object*>(&owner)
-                : dataTemplateContext != nullptr
-                    ? dataTemplateContext->FindName(
-                          change.GetTargetName())
-                    : names != nullptr
-                        ? names->Find(change.GetTargetName())
-                        : view->loadedDocument.names.Find(
-                              change.GetTargetName());
-        }
+        Base::Result<Base::Object*> resolvedTarget =
+            ResolveActionTargetObject(
+                *this,
+                change.GetTargetObject(),
+                change.GetTargetName(),
+                owner,
+                dataTemplateContext,
+                names,
+                &action);
+        if (!resolvedTarget) return resolvedTarget.GetStatus();
+        Base::Object* targetObject = resolvedTarget.Value();
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
@@ -182,18 +228,6 @@ StoryboardHost::ExecuteAnimationAction(
                     &action);
             if (!evaluated) return evaluated.GetStatus();
             value = std::move(evaluated).Value();
-        }
-        if (value.IsNullObject() &&
-            propertyHandle ==
-                Controls::Primitives::ToggleButton::
-                    IsCheckedProperty.Handle() &&
-            Metadata()->Types().IsDerivedFrom(
-                propertyTarget.RuntimeType(),
-                Controls::Primitives::ToggleButton::
-                    StaticTypeId())) {
-            static_cast<Controls::Primitives::ToggleButton&>(
-                propertyTarget).SetIsChecked(Nullable<bool>{});
-            return {};
         }
         Base::Result<Meta::PropertyValue> coerced =
             NormalizeValueForProperty(
@@ -281,56 +315,17 @@ StoryboardHost::ExecuteAnimationAction(
     if (type == Interactivity::SetFocusAction::StaticTypeId()) {
         auto& setFocus = static_cast<Interactivity::SetFocusAction&>(action);
         if (!setFocus.GetEngage() || Input() == nullptr) return {};
-        Meta::PropertyValue targetValue;
-        Base::Object* targetObject = nullptr;
-        if (Base::Ref<Data::Binding> targetBinding =
-                setFocus.GetTargetObject()) {
-            Base::Result<Meta::PropertyValue> evaluated =
-                Interactivity()->EvaluateAuthoredBinding(
-                    *targetBinding,
-                    owner,
-                    dataTemplateContext,
-                    names,
-                    &action);
-            if (!evaluated) return evaluated.GetStatus();
-            targetValue = std::move(evaluated).Value();
-            if (targetValue.Kind() == Meta::ValueKind::Object &&
-                !targetValue.IsNullObject() &&
-                targetValue.AsObject()) {
-                targetObject = targetValue.AsObject().Get();
-            }
-        } else {
-            if (setFocus.GetTargetName().Empty()) {
-                targetObject = static_cast<Base::Object*>(&owner);
-            } else if (dataTemplateContext != nullptr) {
-                targetObject = dataTemplateContext->FindName(
-                    setFocus.GetTargetName());
-            }
-            if (targetObject == nullptr) {
-                targetObject = owner.FindName(setFocus.GetTargetName());
-            }
-            if (targetObject == nullptr) {
-                if (Controls::TemplateEngine* templates = ElementTree::TemplatesOf(owner)) {
-                    const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&owner);
-                    if (control == nullptr) {
-                        control = ::Aero::TryCast<Controls::Control>(owner.GetTemplatedParent());
-                    }
-                    if (control != nullptr) {
-                        const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
-                        if (handle.IsValid()) {
-                            targetObject = templates->FindName(handle, setFocus.GetTargetName());
-                        }
-                    }
-                }
-            }
-            if (targetObject == nullptr && names != nullptr) {
-                targetObject = names->Find(setFocus.GetTargetName());
-            }
-            if (targetObject == nullptr) {
-                targetObject = view->loadedDocument.names.Find(
-                    setFocus.GetTargetName());
-            }
-        }
+        Base::Result<Base::Object*> resolvedTarget =
+            ResolveActionTargetObject(
+                *this,
+                setFocus.GetTargetObject(),
+                setFocus.GetTargetName(),
+                owner,
+                dataTemplateContext,
+                names,
+                &action);
+        if (!resolvedTarget) return resolvedTarget.GetStatus();
+        Base::Object* targetObject = resolvedTarget.Value();
         UIElement* target =
             targetObject != nullptr && Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(), UIElement::StaticTypeId())
@@ -415,38 +410,17 @@ StoryboardHost::ExecuteAnimationAction(
 
     if (type == Interactivity::RemoveElementAction::StaticTypeId()) {
         auto& remove = static_cast<Interactivity::RemoveElementAction&>(action);
-        Base::Object* targetObject = static_cast<Base::Object*>(&owner);
-        Base::Ref<Data::Binding> targetBinding =
-            remove.GetTargetObject();
-        if (targetBinding) {
-            const Base::Ref<Data::RelativeSource> relative = targetBinding->GetRelativeSource();
-            if (!relative || relative->GetMode() != Data::RelativeSourceMode::FindAncestor ||
-                relative->GetAncestorType() != Base::StringView("ContextMenu") ||
-                targetBinding->GetPath().GetPath() != Base::StringView("PlacementTarget")) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "RemoveElementAction TargetObject binding is not supported");
-            }
-            Media::Visual* current = &owner;
-            Controls::ContextMenu* contextMenu = nullptr;
-            while (current != nullptr) {
-                if (Metadata()->Types().IsDerivedFrom(
-                        current->RuntimeType(),
-                        Controls::ContextMenu::StaticTypeId())) {
-                    contextMenu = static_cast<Controls::ContextMenu*>(
-                        current);
-                    break;
-                }
-                current = TryCast<Media::Visual>(current->GetLogicalParent()) != nullptr ? TryCast<Media::Visual>(current->GetLogicalParent()) : current->GetVisualParent();
-            }
-            if (contextMenu == nullptr ||
-                !contextMenu->GetPlacementTarget()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "RemoveElementAction ContextMenu PlacementTarget was not found");
-            }
-            targetObject = contextMenu->GetPlacementTarget().Get();
-        }
+        Base::Result<Base::Object*> resolvedTarget =
+            ResolveActionTargetObject(
+                *this,
+                remove.GetTargetObject(),
+                {},
+                owner,
+                dataTemplateContext,
+                names,
+                &action);
+        if (!resolvedTarget) return resolvedTarget.GetStatus();
+        Base::Object* targetObject = resolvedTarget.Value();
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
@@ -639,11 +613,10 @@ StoryboardHost::ExecuteAnimationAction(
                       .GetTargetName()
                 : static_cast<StopMediaAction&>(action)
                       .GetTargetName();
-        Base::Object* targetObject = targetName.Empty()
-            ? static_cast<Base::Object*>(&owner)
-            : names != nullptr
-                ? names->Find(targetName)
-                : view->loadedDocument.names.Find(targetName);
+        Base::Result<Base::Object*> resolvedMediaTarget =
+            ResolveActionTargetObject(
+                *this, {}, targetName, owner, dataTemplateContext, names, &action);
+        Base::Object* targetObject = resolvedMediaTarget ? resolvedMediaTarget.Value() : nullptr;
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),

@@ -179,7 +179,9 @@ Base::Result<void> ValueTable::RegisterValueSemantics(
             Base::ErrorCode::OutOfMemory,
             "Value type semantics allocation failed");
     }
+    const std::uint32_t entryIndex = valueSemantics_.Size();
     valueSemantics_.PushBack(entry);
+    static_cast<void>(valueSemanticsIndex_.Insert(type, entryIndex));
     return {};
 }
 
@@ -197,7 +199,9 @@ Base::Result<void> ValueTable::RegisterTextConverter(
             Base::ErrorCode::AlreadyExists,
             "Text value converter is already registered");
     }
+    const std::uint32_t converterIndex = textConverters_.Size();
     textConverters_.PushBack(registration);
+    static_cast<void>(textConvertersIndex_.Insert(registration.type, converterIndex));
     return {};
 }
 
@@ -214,6 +218,11 @@ Base::Result<void> ValueTable::Freeze() noexcept {
 
 const ValueTypeRegistration*
 ValueTable::FindValueSemantics(TypeId type) const noexcept {
+    if (const std::uint32_t* idx = valueSemanticsIndex_.Find(type)) {
+        if (*idx < valueSemantics_.Size() && valueSemantics_[*idx] != nullptr) {
+            return &valueSemantics_[*idx]->registration;
+        }
+    }
     for (const ValueSemanticsEntry* entry : valueSemantics_) {
         if (entry != nullptr && entry->type == type) return &entry->registration;
     }
@@ -222,8 +231,10 @@ ValueTable::FindValueSemantics(TypeId type) const noexcept {
 
 const TextValueConverterRegistration*
 ValueTable::FindTextConverter(TypeId type) const noexcept {
-    for (const TextValueConverterRegistration& entry : textConverters_) {
-        if (entry.type == type) return &entry;
+    if (const std::uint32_t* idx = textConvertersIndex_.Find(type)) {
+        if (*idx < textConverters_.Size()) {
+            return &textConverters_[*idx];
+        }
     }
     return nullptr;
 }

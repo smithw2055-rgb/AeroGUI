@@ -817,6 +817,11 @@ private:
             Base::Vector<PropertyChangeNotificationRegistration>();
         collectionChangeNotifications_ =
             Base::Vector<CollectionChangeNotificationRegistration>();
+        typeFactoriesIndex_ = Base::HashMap<TypeId, std::uint32_t>();
+        contentAccessorsIndex_ = Base::HashMap<MemberId, std::uint32_t>();
+        propertyAccessorsIndex_ = Base::HashMap<MemberId, std::uint32_t>();
+        propertyChangeIndex_ = Base::HashMap<TypeId, std::uint32_t>();
+        collectionChangeIndex_ = Base::HashMap<TypeId, std::uint32_t>();
     }
 
     TypeRegistry* types_ = nullptr;
@@ -829,6 +834,11 @@ private:
         propertyChangeNotifications_;
     Base::Vector<CollectionChangeNotificationRegistration>
         collectionChangeNotifications_;
+    Base::HashMap<TypeId, std::uint32_t> typeFactoriesIndex_;
+    Base::HashMap<MemberId, std::uint32_t> contentAccessorsIndex_;
+    Base::HashMap<MemberId, std::uint32_t> propertyAccessorsIndex_;
+    Base::HashMap<TypeId, std::uint32_t> propertyChangeIndex_;
+    Base::HashMap<TypeId, std::uint32_t> collectionChangeIndex_;
     Base::Vector<OwnedBehaviorData> ownedContexts_;
     bool frozen_ = false;
 };
@@ -977,6 +987,8 @@ private:
     TypeRegistry* types_ = nullptr;
     Base::Vector<ValueSemanticsEntry*> valueSemantics_;
     Base::Vector<TextValueConverterRegistration> textConverters_;
+    Base::HashMap<TypeId, std::uint32_t> valueSemanticsIndex_;
+    Base::HashMap<TypeId, std::uint32_t> textConvertersIndex_;
     bool frozen_ = false;
 };
 

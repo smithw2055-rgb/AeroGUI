@@ -981,6 +981,57 @@ Base::Result<std::uint32_t>
         return count;
     }
 
+Base::Result<const Meta::BindingPathPlan*>
+InteractivityEngine::FindOrCompileBindingPath(
+        Meta::TypeId sourceType,
+        Base::StringView path) noexcept {
+        if (Metadata() == nullptr || sourceType == Meta::InvalidTypeId || path.Empty()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Authored Binding path or source type is invalid");
+        }
+        const Base::HashCode key = Base::MixHash64(
+            sourceType ^ Base::DefaultHash<Base::StringView>{}(path));
+        if (Base::Vector<CachedBindingPathPlan>* bucket =
+                compiledPathCache_.Find(key)) {
+            for (const CachedBindingPathPlan& entry : *bucket) {
+                if (entry.sourceType == sourceType &&
+                    entry.path.View() == path) {
+                    return &entry.plan;
+                }
+            }
+        }
+        Meta::BindingPathCompileError pathError;
+        Base::Result<Meta::BindingPathPlan> compiled =
+            Meta::BindingPathPlan::Compile(
+                *Metadata(), sourceType, path, &pathError);
+        if (!compiled) {
+            return compiled.GetStatus();
+        }
+        CachedBindingPathPlan entry;
+        entry.sourceType = sourceType;
+        Base::Result<void> assigned = entry.path.Assign(path);
+        if (!assigned) {
+            return assigned.GetStatus();
+        }
+        entry.plan = std::move(compiled).Value();
+        Base::Vector<CachedBindingPathPlan>* bucket =
+            compiledPathCache_.Find(key);
+        if (bucket == nullptr) {
+            Base::Vector<CachedBindingPathPlan> created(Allocator());
+            created.PushBack(std::move(entry));
+            auto inserted = compiledPathCache_.Insert(key, std::move(created));
+            if (inserted.entry == nullptr) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Failed to cache compiled binding path");
+            }
+            return &inserted.entry->Value().Back().plan;
+        }
+        bucket->PushBack(std::move(entry));
+        return &bucket->Back().plan;
+    }
+
 Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(
         const Binding& binding,
         FrameworkElement& owner,
@@ -1068,15 +1119,10 @@ Base::Result<Meta::PropertyValue> InteractivityEngine::EvaluateAuthoredBinding(
                         triggers, triggerIndex, actionIndex);
                 }
             } else {
-                Meta::BindingPathCompileError pathError;
-                Base::Result<Meta::BindingPathPlan> plan =
-                    Meta::BindingPathPlan::Compile(
-                        *Metadata(),
-                        source->RuntimeType(),
-                        path,
-                        &pathError);
-                if (plan) {
-                    value = plan.Value().Get(*Metadata(), *source);
+                Base::Result<const Meta::BindingPathPlan*> plan =
+                    FindOrCompileBindingPath(source->RuntimeType(), path);
+                if (plan && plan.Value() != nullptr) {
+                    value = plan.Value()->Get(*Metadata(), *source);
                 } else {
                     value = plan.GetStatus();
                 }
@@ -1606,24 +1652,31 @@ InteractivityEngine::ResolveBindingProperty(
             }
             resolved.dependencySource = nullptr;
         }
-        Base::StringView rootPath = path;
-        for (std::uint32_t index = 0U; index < path.SizeBytes(); ++index) {
-            if (path[index] == '.') {
-                rootPath = path.Substr(0U, index);
-                break;
+        Base::Result<const Meta::BindingPathPlan*> compiled =
+            FindOrCompileBindingPath(sourceObject->RuntimeType(), path);
+        if (compiled && compiled.Value() != nullptr &&
+            !compiled.Value()->Steps().Empty()) {
+            const Data::CompiledPathStep& firstStep =
+                compiled.Value()->Steps()[0U];
+            if (firstStep.dependencyProperty != nullptr &&
+                Metadata()->Types().IsDerivedFrom(
+                    sourceObject->RuntimeType(),
+                    ::Aero::DependencyObject::StaticTypeId())) {
+                resolved.dependencySource =
+                    static_cast<::Aero::DependencyObject*>(sourceObject);
+                resolved.dependencyProperty =
+                    firstStep.dependencyProperty->Handle();
+                return resolved;
+            }
+            if (firstStep.member != Meta::InvalidMemberId &&
+                Metadata()->CanReadProperty(firstStep.member)) {
+                resolved.metadataProperty = firstStep.member;
+                return resolved;
             }
         }
-        const Meta::PropertyInfo* property =
-            Metadata()->Types().FindProperty(
-                sourceObject->RuntimeType(), rootPath, true);
-        if (property == nullptr ||
-            !Metadata()->CanReadProperty(property->Id())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotFound,
-                "Binding property was not found");
-        }
-        resolved.metadataProperty = property->Id();
-        return resolved;
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Binding property was not found");
     }
 
 Base::Result<InteractivityEngine::InteractionTriggerProperty>

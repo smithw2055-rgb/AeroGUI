@@ -55,20 +55,11 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 } // namespace
 
 bool TemplateTriggerCondition::IsMet(
-    DependencyObject& source,
+    DependencyObject& /*source*/,
     const PropertyValue& current) const noexcept {
-    if (value.IsNullObject() &&
-        property ==
-            Primitives::ToggleButton::
-                IsCheckedProperty.Handle() &&
-        DependencyObjectAccess::PropertyRegistry((source)).Types().IsDerivedFrom(
-            source.RuntimeType(),
-            Primitives::ToggleButton::StaticTypeId())) {
-        return !static_cast<Primitives::ToggleButton&>(
-            source).GetIsChecked().GetHasValue();
-    }
-    // Pass nullptr metadata: text conversion failures fall back to false (matching
-    // legacy operator== behavior) without aborting template condition checks.
+    // ComparePropertyValues already handles Nullable<bool> null-object sentinels
+    // (such as ToggleButton.IsChecked="{x:Null}"). Pass nullptr metadata so text
+    // conversion failures fall back to false without aborting template checks.
     return ComparePropertyValues(current, value, nullptr);
 }
 

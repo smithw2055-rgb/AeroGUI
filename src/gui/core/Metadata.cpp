@@ -351,14 +351,19 @@ Base::Result<TypeId> TypeRegistry::RegisterType(
     types_.PushBack(std::move(info));
     bool factoryAdded = false;
     if (registration.factory != nullptr) {
+        const std::uint32_t factoryIdx = behaviors.typeFactories_.Size();
         behaviors.typeFactories_.PushBack({id, registration.factory});
+        static_cast<void>(behaviors.typeFactoriesIndex_.Insert(id, factoryIdx));
         factoryAdded = true;
     }
 
     Base::HashMap<TypeId, std::uint32_t>::InsertResult inserted =
         typeIndex_.Insert(id, index);
     if (!inserted.inserted) {
-        if (factoryAdded) behaviors.typeFactories_.PopBack();
+        if (factoryAdded) {
+            behaviors.typeFactoriesIndex_.Erase(id);
+            behaviors.typeFactories_.PopBack();
+        }
         types_.PopBack();
         return IdCollisionStatus();
     }
@@ -453,13 +458,11 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
     owner.properties_.PushBack(std::move(property));
     bool behaviorAdded = false;
     if (hasBehavior) {
+        const std::uint32_t propAccessorIdx = behaviors.propertyAccessors_.Size();
         behaviors.propertyAccessors_.PushBack({
             id, registration.access, registration.get, registration.set,
             registration.provider, registration.context});
-        if (!result) {
-            owner.properties_.PopBack();
-            return result.GetStatus();
-        }
+        static_cast<void>(behaviors.propertyAccessorsIndex_.Insert(id, propAccessorIdx));
         behaviorAdded = true;
     }
 
@@ -468,7 +471,10 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
     Base::HashMap<MemberId, MemberLocation>::InsertResult inserted =
         memberIndex_.Insert(id, location);
     if (!inserted.inserted) {
-        if (behaviorAdded) behaviors.propertyAccessors_.PopBack();
+        if (behaviorAdded) {
+            behaviors.propertyAccessorsIndex_.Erase(id);
+            behaviors.propertyAccessors_.PopBack();
+        }
         owner.properties_.PopBack();
         return IdCollisionStatus();
     }
@@ -656,7 +662,9 @@ Base::Result<void> TypeRegistry::SetFactory(
             Base::ErrorCode::AlreadyExists,
             "Type factory is already registered");
     }
+    const std::uint32_t factoryIdx = behaviors.typeFactories_.Size();
     behaviors.typeFactories_.PushBack({type, factory});
+    static_cast<void>(behaviors.typeFactoriesIndex_.Insert(type, factoryIdx));
     return {};
 }
 
@@ -1925,8 +1933,8 @@ Base::Result<void> BehaviorTable::Freeze() noexcept {
 
 const TypeFactoryRegistration*
 BehaviorTable::FindTypeFactory(TypeId type) const noexcept {
-    for (const TypeFactoryRegistration& registration : typeFactories_) {
-        if (registration.type == type) return &registration;
+    if (const std::uint32_t* idx = typeFactoriesIndex_.Find(type)) {
+        if (*idx < typeFactories_.Size()) return &typeFactories_[*idx];
     }
     return nullptr;
 }
@@ -1934,8 +1942,8 @@ BehaviorTable::FindTypeFactory(TypeId type) const noexcept {
 const ContentAccessorRegistration*
 BehaviorTable::FindContentAccessor(
     MemberId member) const noexcept {
-    for (const ContentAccessorRegistration& registration : contentAccessors_) {
-        if (registration.member == member) return &registration;
+    if (const std::uint32_t* idx = contentAccessorsIndex_.Find(member)) {
+        if (*idx < contentAccessors_.Size()) return &contentAccessors_[*idx];
     }
     return nullptr;
 }
@@ -1943,8 +1951,8 @@ BehaviorTable::FindContentAccessor(
 const PropertyAccessorRegistration*
 BehaviorTable::FindPropertyAccessor(
     MemberId member) const noexcept {
-    for (const PropertyAccessorRegistration& registration : propertyAccessors_) {
-        if (registration.member == member) return &registration;
+    if (const std::uint32_t* idx = propertyAccessorsIndex_.Find(member)) {
+        if (*idx < propertyAccessors_.Size()) return &propertyAccessors_[*idx];
     }
     return nullptr;
 }
@@ -1971,9 +1979,10 @@ BehaviorTable::FindMethodInvoker(
 const PropertyChangeNotificationRegistration*
 BehaviorTable::FindPropertyChangeNotification(
     TypeId type) const noexcept {
-    for (const PropertyChangeNotificationRegistration& registration :
-         propertyChangeNotifications_) {
-        if (registration.type == type) return &registration;
+    if (const std::uint32_t* idx = propertyChangeIndex_.Find(type)) {
+        if (*idx < propertyChangeNotifications_.Size()) {
+            return &propertyChangeNotifications_[*idx];
+        }
     }
     return nullptr;
 }
@@ -1981,9 +1990,10 @@ BehaviorTable::FindPropertyChangeNotification(
 const CollectionChangeNotificationRegistration*
 BehaviorTable::FindCollectionChangeNotification(
     TypeId type) const noexcept {
-    for (const CollectionChangeNotificationRegistration& registration :
-         collectionChangeNotifications_) {
-        if (registration.type == type) return &registration;
+    if (const std::uint32_t* idx = collectionChangeIndex_.Find(type)) {
+        if (*idx < collectionChangeNotifications_.Size()) {
+            return &collectionChangeNotifications_[*idx];
+        }
     }
     return nullptr;
 }
@@ -2118,7 +2128,9 @@ Base::Result<void> RegistrationTypes::SetContentAccessor(
             Base::ErrorCode::AlreadyExists,
             "Content accessor is already registered");
     }
+    const std::uint32_t contentIdx = behaviors_->contentAccessors_.Size();
     behaviors_->contentAccessors_.PushBack(registration);
+    static_cast<void>(behaviors_->contentAccessorsIndex_.Insert(registration.member, contentIdx));
     return {};
 }
 
@@ -2144,8 +2156,10 @@ RegistrationTypes::RegisterPropertyChangeNotification(
             Base::ErrorCode::AlreadyExists,
             "Property-change notification is already registered");
     }
+    const std::uint32_t propNotifIdx = behaviors_->propertyChangeNotifications_.Size();
     behaviors_->propertyChangeNotifications_.PushBack(
         registration);
+    static_cast<void>(behaviors_->propertyChangeIndex_.Insert(registration.type, propNotifIdx));
     return {};
 }
 
@@ -2172,8 +2186,10 @@ RegistrationTypes::RegisterCollectionChangeNotification(
             Base::ErrorCode::AlreadyExists,
             "Collection-change notification is already registered");
     }
+    const std::uint32_t collNotifIdx = behaviors_->collectionChangeNotifications_.Size();
     behaviors_->collectionChangeNotifications_.PushBack(
         registration);
+    static_cast<void>(behaviors_->collectionChangeIndex_.Insert(registration.type, collNotifIdx));
     return {};
 }
 

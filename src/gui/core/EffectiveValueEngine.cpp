@@ -1648,11 +1648,23 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             return {};
         };
 
+        auto isDeferredToVisualDescendant = [](DependencyObject* parentObj, DependencyObject* cand) noexcept {
+            if (auto* childVis = ::Aero::TryCast<::Aero::Media::Visual>(cand)) {
+                ::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*childVis);
+                if (vParent != nullptr && vParent != parentObj) {
+                    for (::Aero::Media::Visual* anc = vParent; anc != nullptr; anc = ::Aero::Media::VisualTreeHelper::GetParent(*anc)) {
+                        if (anc == parentObj) return true;
+                    }
+                }
+            }
+            return false;
+        };
         for (std::uint32_t frontierIdx = 0U; frontierIdx < frontier_.Size(); ++frontierIdx) {
             DependencyObject* current = frontier_[frontierIdx];
             if (!childrenByParent_.Empty()) {
                 if (auto* explicitChildren = childrenByParent_.Find(current)) {
                     for (DependencyObject* desc : *explicitChildren) {
+                        if (isDeferredToVisualDescendant(current, desc)) continue;
                         Base::Result<void> res = enqueueAll(current, desc);
                         if (!res) return res.GetStatus();
                     }
@@ -1667,7 +1679,9 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             }
             const std::uint32_t lCount = ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
             for (std::uint32_t i = 0U; i < lCount; ++i) {
-                Base::Result<void> res = enqueueAll(current, ::Aero::LogicalTreeHelper::GetChild(*current, i));
+                DependencyObject* lChild = ::Aero::LogicalTreeHelper::GetChild(*current, i);
+                if (isDeferredToVisualDescendant(current, lChild)) continue;
+                Base::Result<void> res = enqueueAll(current, lChild);
                 if (!res) return res.GetStatus();
             }
         }
@@ -1740,11 +1754,23 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
         return {};
     };
 
+        auto isDeferredToVisualDescendant = [](DependencyObject* parentObj, DependencyObject* cand) noexcept {
+            if (auto* childVis = ::Aero::TryCast<::Aero::Media::Visual>(cand)) {
+                ::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*childVis);
+                if (vParent != nullptr && vParent != parentObj) {
+                    for (::Aero::Media::Visual* anc = vParent; anc != nullptr; anc = ::Aero::Media::VisualTreeHelper::GetParent(*anc)) {
+                        if (anc == parentObj) return true;
+                    }
+                }
+            }
+            return false;
+        };
     for (std::uint32_t cursor = 0U; cursor < frontier_.Size(); ++cursor) {
         DependencyObject* current = frontier_[cursor];
         if (!childrenByParent_.Empty()) {
             if (auto* explicitChildren = childrenByParent_.Find(current)) {
                 for (DependencyObject* child : *explicitChildren) {
+                    if (isDeferredToVisualDescendant(current, child)) continue;
                     Base::Result<void> res = enqueue(current, child);
                     if (!res) return res.GetStatus();
                 }
@@ -1759,7 +1785,9 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
         }
         const std::uint32_t lCount = ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
         for (std::uint32_t i = 0U; i < lCount; ++i) {
-            Base::Result<void> res = enqueue(current, ::Aero::LogicalTreeHelper::GetChild(*current, i));
+            DependencyObject* lChild = ::Aero::LogicalTreeHelper::GetChild(*current, i);
+            if (isDeferredToVisualDescendant(current, lChild)) continue;
+            Base::Result<void> res = enqueue(current, lChild);
             if (!res) return res.GetStatus();
         }
     }

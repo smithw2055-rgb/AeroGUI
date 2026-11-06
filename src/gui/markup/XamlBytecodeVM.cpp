@@ -1138,6 +1138,8 @@ Base::Result<void> XamlVM::Execute(
                 } else if (auto* setterTrigger = ::Aero::TryCast<SetterTriggerBase>(parent)) {
                     if (auto* setter = ::Aero::TryCast<Setter>(child.Get())) {
                         setterTrigger->AddAuthoredSetter(Base::Ref<Setter>::FromBorrowed(*setter));
+                    } else if (parent->RuntimeType() == DataTrigger::StaticTypeId()) {
+                        setterTrigger->AddEnterAction(child);
                     }
                 } else if (auto* style = ::Aero::TryCast<Style>(parent)) {
                     if (auto* setterBase = ::Aero::TryCast<SetterBase>(child.Get())) {
