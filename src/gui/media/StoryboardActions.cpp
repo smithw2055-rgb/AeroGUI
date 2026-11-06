@@ -96,69 +96,7 @@ static bool TargetsScaleTransform(
     return false;
 }
 
-static Base::Result<Base::Object*> ResolveActionTargetObject(
-    StoryboardHost& host,
-    const Base::Ref<Data::Binding>& targetBinding,
-    Base::StringView targetName,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names,
-    Base::Object* actionSelf) noexcept {
-    if (targetBinding) {
-        if (host.Interactivity() == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "Interactivity engine is unavailable");
-        }
-        Base::Result<Meta::PropertyValue> evaluated =
-            host.Interactivity()->EvaluateAuthoredBinding(
-                *targetBinding,
-                owner,
-                dataTemplateContext,
-                names,
-                actionSelf);
-        if (!evaluated) return evaluated.GetStatus();
-        if (evaluated.Value().Kind() == Meta::ValueKind::Object &&
-            !evaluated.Value().IsNullObject() &&
-            evaluated.Value().AsObject()) {
-            return evaluated.Value().AsObject().Get();
-        }
-        return nullptr;
-    }
-    if (targetName.Empty()) {
-        return static_cast<Base::Object*>(&owner);
-    }
-    if (dataTemplateContext != nullptr) {
-        if (Base::Object* found = dataTemplateContext->FindName(targetName)) {
-            return found;
-        }
-    }
-    if (names != nullptr) {
-        if (Base::Object* found = names->Find(targetName)) {
-            return found;
-        }
-    }
-    if (Base::Object* found = owner.FindName(targetName)) {
-        return found;
-    }
-    if (Controls::TemplateEngine* templates = ElementTree::TemplatesOf(owner)) {
-        const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&owner);
-        if (control == nullptr) {
-            control = ::Aero::TryCast<Controls::Control>(owner.GetTemplatedParent());
-        }
-        if (control != nullptr) {
-            const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
-            if (handle.IsValid()) {
-                if (Base::Object* found = templates->FindName(handle, targetName)) {
-                    return found;
-                }
-            }
-        }
-    }
-    return host.view != nullptr
-        ? host.view->loadedDocument.names.Find(targetName)
-        : nullptr;
-}
+
 
 Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
@@ -176,8 +114,7 @@ StoryboardHost::ExecuteAnimationAction(
             static_cast<Interactivity::ChangePropertyAction&>(
                 action);
         Base::Result<Base::Object*> resolvedTarget =
-            ResolveActionTargetObject(
-                *this,
+            ResolveTargetObject(
                 change.GetTargetObject(),
                 change.GetTargetName(),
                 owner,
@@ -316,8 +253,7 @@ StoryboardHost::ExecuteAnimationAction(
         auto& setFocus = static_cast<Interactivity::SetFocusAction&>(action);
         if (!setFocus.GetEngage() || Input() == nullptr) return {};
         Base::Result<Base::Object*> resolvedTarget =
-            ResolveActionTargetObject(
-                *this,
+            ResolveTargetObject(
                 setFocus.GetTargetObject(),
                 setFocus.GetTargetName(),
                 owner,
@@ -411,8 +347,7 @@ StoryboardHost::ExecuteAnimationAction(
     if (type == Interactivity::RemoveElementAction::StaticTypeId()) {
         auto& remove = static_cast<Interactivity::RemoveElementAction&>(action);
         Base::Result<Base::Object*> resolvedTarget =
-            ResolveActionTargetObject(
-                *this,
+            ResolveTargetObject(
                 remove.GetTargetObject(),
                 {},
                 owner,
@@ -614,8 +549,8 @@ StoryboardHost::ExecuteAnimationAction(
                 : static_cast<StopMediaAction&>(action)
                       .GetTargetName();
         Base::Result<Base::Object*> resolvedMediaTarget =
-            ResolveActionTargetObject(
-                *this, {}, targetName, owner, dataTemplateContext, names, &action);
+            ResolveTargetObject(
+                {}, targetName, owner, dataTemplateContext, names, &action);
         Base::Object* targetObject = resolvedMediaTarget ? resolvedMediaTarget.Value() : nullptr;
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
@@ -1001,14 +936,20 @@ bool EventTriggerOwnerInSubtree(
 
 void StoryboardHost::ClearEventTriggersFor(
         Media::Visual& fragmentRoot) noexcept {
-        for (std::uint32_t index = 0U;
-             index < animationEventSubscriptions.Size();) {
+        std::uint32_t writeIndex = 0U;
+        for (std::uint32_t readIndex = 0U;
+             readIndex < animationEventSubscriptions.Size();
+             ++readIndex) {
             AnimationEventSubscription& subscription =
-                animationEventSubscriptions[index];
+                animationEventSubscriptions[readIndex];
             if (subscription.visualOwner == nullptr ||
                 !EventTriggerOwnerInSubtree(
                     subscription.visualOwner, fragmentRoot)) {
-                ++index;
+                if (writeIndex != readIndex) {
+                    animationEventSubscriptions[writeIndex] =
+                        std::move(subscription);
+                }
+                ++writeIndex;
                 continue;
             }
             if (subscription.source != nullptr) {
@@ -1029,13 +970,8 @@ void StoryboardHost::ClearEventTriggersFor(
             FreeObject(
                 *Allocator(), Base::MemoryTag::Ui,
                 subscription.context);
-            for (std::uint32_t next = index + 1U;
-                 next < animationEventSubscriptions.Size(); ++next) {
-                animationEventSubscriptions[next - 1U] =
-                    std::move(animationEventSubscriptions[next]);
-            }
-            animationEventSubscriptions.PopBack();
         }
+        static_cast<void>(animationEventSubscriptions.Resize(writeIndex));
     }
 
 void StoryboardHost::ClearEventTriggers() noexcept {

@@ -537,12 +537,13 @@ Base::Result<BindingHandle> BindingEngine::Attach(
 
     if (record.sourceKind == BindingSourceKind::MetadataPath) {
         BindingPathCompileError compileError;
-        Base::Result<BindingPathPlan> compiled = BindingPathPlan::Compile(
-            *record.metadata,
-            record.metadataSource->RuntimeType(),
-            record.path.View(),
-            &compileError);
-        if (!compiled) {
+        Base::Result<const CompiledBindingPath*> compiled =
+            FindOrCompilePathPlan(
+                *record.metadata,
+                record.metadataSource->RuntimeType(),
+                record.path.View(),
+                &compileError);
+        if (!compiled || compiled.Value() == nullptr) {
             --nextHandle_;
             return BindingPathFailure(
                 record.metadata->Types(),
@@ -550,7 +551,8 @@ Base::Result<BindingHandle> BindingEngine::Attach(
                 compileError,
                 compiled.GetStatus());
         }
-        record.pathPlan = std::move(compiled).Value();
+        record.pathPlan = compiled.Value();
+        record.validatedSourceType = record.metadataSource->RuntimeType();
         const DependencyProperty* targetProperty =
             DependencyObjectAccess::PropertyRegistry(descriptor.target).Find(
                 descriptor.targetProperty);
@@ -560,20 +562,20 @@ Base::Result<BindingHandle> BindingEngine::Attach(
              !TargetAcceptsPathResult(
                  record.metadata->Types(),
                  targetProperty,
-                 record.pathPlan.ResultType(),
-                 record.pathPlan.HasDynamicResult()))) {
+                 record.pathPlan->ResultType(),
+                 record.pathPlan->HasDynamicResult()))) {
             --nextHandle_;
             return BindingTypeMismatch(
                 record.metadata->Types(),
                 record.path.View(),
-                record.pathPlan.ResultType(),
+                record.pathPlan->ResultType(),
                 *descriptor.target,
                 targetProperty);
         }
         const bool wantsWriteback =
             record.descriptor.mode == BindingMode::TwoWay ||
             record.descriptor.mode == BindingMode::OneWayToSource;
-        if (wantsWriteback && !record.pathPlan.CanWrite()) {
+        if (wantsWriteback && !record.pathPlan->CanWrite()) {
             if (descriptor.mode != BindingMode::Default ||
                 record.descriptor.mode == BindingMode::OneWayToSource) {
                 --nextHandle_;
@@ -585,16 +587,16 @@ Base::Result<BindingHandle> BindingEngine::Attach(
         }
         if (wantsWriteback &&
             record.descriptor.mode != BindingMode::OneWay &&
-            !record.pathPlan.HasDynamicResult() &&
-            targetProperty->ValueType() != record.pathPlan.ResultType() &&
+            !record.pathPlan->HasDynamicResult() &&
+            targetProperty->ValueType() != record.pathPlan->ResultType() &&
             descriptor.convertBack == nullptr &&
             !descriptor.converterResource &&
             !HasDefaultTargetConversion(
                 targetProperty->ValueType(),
-                record.pathPlan.ResultType()) &&
+                record.pathPlan->ResultType()) &&
             !CanRoundTripObjectValue(
                 record.metadata->Types(),
-                record.pathPlan.ResultType(),
+                record.pathPlan->ResultType(),
                 targetProperty->ValueType())) {
             if (descriptor.mode != BindingMode::Default ||
                 record.descriptor.mode == BindingMode::OneWayToSource) {
@@ -808,8 +810,11 @@ Base::Result<PropertyValue> BindingEngine::ReadSource(
                 Base::Ref<Base::Object>::FromBorrowed(
                     *record.metadataSource)));
     }
+    if (record.pathPlan == nullptr) {
+        return InvalidState("Binding path plan is not resolved");
+    }
     return Aero::Data::UnboxItemsValue(
-        record.pathPlan.Get(
+        record.pathPlan->Get(
             *record.metadata, *record.metadataSource));
 }
 
@@ -830,7 +835,10 @@ Base::Result<void> BindingEngine::WriteSource(
     }
     Base::Result<void> resolved = ResolveMetadataSource(record);
     if (!resolved) return resolved;
-    return record.pathPlan.Set(
+    if (record.pathPlan == nullptr) {
+        return InvalidState("Binding path plan is not resolved");
+    }
+    return record.pathPlan->Set(
         *record.metadata, *record.metadataSource, value);
 }
 
@@ -952,8 +960,8 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
                record.sourceKind == BindingSourceKind::DataContext) {
         Base::Result<void> resolved = ResolveMetadataSource(record);
         if (!resolved) return resolved.GetStatus();
-        if (record.pathPlan.IsValid()) {
-            sourceType = record.pathPlan.ResultType();
+        if (record.pathPlan != nullptr && record.pathPlan->IsValid()) {
+            sourceType = record.pathPlan->ResultType();
         }
     }
     if (sourceType == InvalidTypeId) {

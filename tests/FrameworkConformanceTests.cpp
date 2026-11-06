@@ -1888,6 +1888,74 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(itemHost->GetCount() == 1U);
     }
 
+    // 17. Validate Round 3 optimizations: BindingEngine shared CompiledBindingPath cache,
+    // StyleApplication-folded SetterBindings O(1) teardown, and StoryboardHost::ResolveTargetObject.
+    {
+        constexpr const char* kRound3Xaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:b="http://schemas.microsoft.com/xaml/behaviors">
+    <Grid.Resources>
+        <Style x:Key="BoundItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Tag" Value="{Binding Text, ElementName=SharedSource}"/>
+        </Style>
+    </Grid.Resources>
+    <StackPanel>
+        <TextBox x:Name="SharedSource" Text="SharedPlanValue"/>
+        <ListBox x:Name="StyledList" ItemContainerStyle="{StaticResource BoundItemStyle}">
+            <ListBoxItem x:Name="Row1" Content="One"/>
+            <ListBoxItem x:Name="Row2" Content="Two"/>
+            <ListBoxItem x:Name="Row3" Content="Three"/>
+        </ListBox>
+        <Border x:Name="AnimTarget" Width="50" Height="20">
+            <b:Interaction.Triggers>
+                <b:DataTrigger Binding="{Binding Text, ElementName=SharedSource}" Value="AnimateWidth">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="AnimTarget"
+                                             Storyboard.TargetProperty="Width"
+                                             To="120" Duration="0:0:0"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </b:DataTrigger>
+            </b:Interaction.Triggers>
+        </Border>
+    </StackPanel>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kRound3Xaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        TextBox* sharedSource = doc.Value().FindName<TextBox>("SharedSource");
+        ListBox* styledList = doc.Value().FindName<ListBox>("StyledList");
+        ListBoxItem* row1 = doc.Value().FindName<ListBoxItem>("Row1");
+        ListBoxItem* row2 = doc.Value().FindName<ListBoxItem>("Row2");
+        ListBoxItem* row3 = doc.Value().FindName<ListBoxItem>("Row3");
+        Border* animTarget = doc.Value().FindName<Border>("AnimTarget");
+        CHECK(sharedSource != nullptr && styledList != nullptr && row1 != nullptr && row2 != nullptr && row3 != nullptr && animTarget != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        CHECK(row1->GetValue(FrameworkElement::TagProperty).Kind() == Aero::Base::ValueKind::String && row1->GetValue(FrameworkElement::TagProperty).AsString() == "SharedPlanValue");
+        CHECK(row2->GetValue(FrameworkElement::TagProperty).Kind() == Aero::Base::ValueKind::String && row2->GetValue(FrameworkElement::TagProperty).AsString() == "SharedPlanValue");
+        CHECK(row3->GetValue(FrameworkElement::TagProperty).Kind() == Aero::Base::ValueKind::String && row3->GetValue(FrameworkElement::TagProperty).AsString() == "SharedPlanValue");
+
+        // Remove Row2 from StyledList to exercise UnmountSubtree -> StyleEngine::DetachObject -> O(1) DetachSetterBindings
+        CHECK(styledList->GetItems().RemoveAt(1U));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        sharedSource->SetText("AnimateWidth");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(row1->GetValue(FrameworkElement::TagProperty).Kind() == Aero::Base::ValueKind::String && row1->GetValue(FrameworkElement::TagProperty).AsString() == "AnimateWidth");
+        CHECK(row3->GetValue(FrameworkElement::TagProperty).Kind() == Aero::Base::ValueKind::String && row3->GetValue(FrameworkElement::TagProperty).AsString() == "AnimateWidth");
+        CHECK(std::abs(animTarget->GetWidth() - 120.0) < 1e-4);
+    }
+
     return true;
 }
 

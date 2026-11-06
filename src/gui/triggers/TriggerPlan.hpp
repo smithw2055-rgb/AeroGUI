@@ -12,6 +12,7 @@
 #include <Aero/Value.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Data/Binding.hpp>
+#include <Aero/Data/BindingExpression.hpp>
 
 #include <cstdint>
 
@@ -47,6 +48,7 @@ struct StyleApplication {
     Base::Vector<std::uint8_t> triggerStates;
     Base::Vector<std::uint8_t> bindingTriggerStates;
     Base::Vector<std::uint8_t> bindingTriggerKnown;
+    Base::Vector<Data::BindingHandle> setterBindings;
 };
 
 Base::Result<void> InvalidStyle(const char* message) noexcept;

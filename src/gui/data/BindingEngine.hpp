@@ -329,7 +329,8 @@ private:
         Base::String path;
         Base::String stringFormat;
         bool bindsToSource = false;
-        CompiledBindingPath pathPlan;
+        const CompiledBindingPath* pathPlan = nullptr;
+        Meta::TypeId validatedSourceType = Meta::InvalidTypeId;
         std::uint64_t notificationSubscription = 0U;
         DependencyPropertyHandle sourceDependencyProperty;
         PropertyValue lastSourceValue;
@@ -358,6 +359,13 @@ private:
         Base::Vector<Data::BindingHandle> handles;
     };
 
+    struct CachedBindingPathPlan {
+        const Meta::Registry* metadata = nullptr;
+        Meta::TypeId sourceType = Meta::InvalidTypeId;
+        Base::String path;
+        CompiledBindingPath plan;
+    };
+
     Dispatcher* dispatcher_ = nullptr;
     Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
@@ -365,6 +373,7 @@ private:
     Base::HashMap<const DependencyObject*, Base::Vector<DeferredBindingRecord>> deferredByTarget_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;
+    Base::HashMap<Base::HashCode, Base::Vector<CachedBindingPathPlan>> compiledPathCache_;
     Base::HashMap<const Base::Object*, Base::Vector<BindingHandle>> sourceToBindings_;
     Base::HashMap<const DependencyObject*, Base::Vector<BindingHandle>> targetToBindings_;
     Base::Vector<BindingHandle> dataContextBindings_;
@@ -405,6 +414,11 @@ private:
         const BindingDescriptor& descriptor) const noexcept;
     Base::Result<void> VerifyDescriptor(
         const MetadataBindingDescriptor& descriptor) const noexcept;
+    Base::Result<const CompiledBindingPath*> FindOrCompilePathPlan(
+        const Meta::Registry& metadata,
+        Meta::TypeId sourceType,
+        Base::StringView path,
+        Meta::BindingPathCompileError* error = nullptr) noexcept;
     Base::Result<void> ResolveMetadataSource(
         BindingRecord& record) noexcept;
     Base::Result<PropertyValue> ReadSource(

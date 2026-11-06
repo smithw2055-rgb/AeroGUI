@@ -111,6 +111,13 @@ public:
     Base::Result<ResolvedAnimationProperty> ResolveAnimationProperty(
         ::Aero::DependencyObject& target,
         Base::StringView authoredPath) noexcept;
+    Base::Result<Base::Object*> ResolveTargetObject(
+        const Base::Ref<Data::Binding>& targetBinding,
+        Base::StringView targetName,
+        Aero::FrameworkElement& owner,
+        Aero::Controls::DataTemplateTriggerInstance* dataTemplateContext = nullptr,
+        const Aero::NameScope* names = nullptr,
+        Base::Object* actionSelf = nullptr) noexcept;
 
     struct StoryboardTimingState {
         Aero::Media::Animation::AnimationTime beginTimeMicroseconds = 0U;

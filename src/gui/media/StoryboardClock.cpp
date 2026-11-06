@@ -42,6 +42,74 @@ StoryboardHost::ResolveAnimationProperty(
             resolved.Value().target, resolved.Value().property};
     }
 
+Base::Result<Base::Object*> StoryboardHost::ResolveTargetObject(
+        const Base::Ref<Data::Binding>& targetBinding,
+        Base::StringView targetName,
+        FrameworkElement& owner,
+        Controls::DataTemplateTriggerInstance* dataTemplateContext,
+        const NameScope* names,
+        Base::Object* actionSelf) noexcept {
+    if (targetBinding) {
+        if (Interactivity() == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Interactivity engine is unavailable");
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            Interactivity()->EvaluateAuthoredBinding(
+                *targetBinding,
+                owner,
+                dataTemplateContext,
+                names,
+                actionSelf);
+        if (!evaluated) return evaluated.GetStatus();
+        if (evaluated.Value().Kind() == Meta::ValueKind::Object &&
+            !evaluated.Value().IsNullObject() &&
+            evaluated.Value().AsObject()) {
+            return evaluated.Value().AsObject().Get();
+        }
+        return nullptr;
+    }
+    if (targetName.Empty()) {
+        return static_cast<Base::Object*>(&owner);
+    }
+    if (dataTemplateContext != nullptr) {
+        if (Base::Object* found = dataTemplateContext->FindName(targetName)) {
+            return found;
+        }
+    }
+    if (names != nullptr) {
+        if (Base::Object* found = names->Find(targetName)) {
+            return found;
+        }
+    }
+    if (Base::Object* found = owner.FindName(targetName)) {
+        return found;
+    }
+    if (Controls::TemplateEngine* templates = ElementTree::TemplatesOf(owner)) {
+        const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&owner);
+        if (control == nullptr) {
+            control = ::Aero::TryCast<Controls::Control>(owner.GetTemplatedParent());
+        }
+        if (control != nullptr) {
+            const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
+            if (handle.IsValid()) {
+                if (Base::Object* found = templates->FindName(handle, targetName)) {
+                    return found;
+                }
+            }
+        }
+    }
+    if (view != nullptr) {
+        if (Base::Object* found = view->loadedDocument.names.Find(targetName)) {
+            return found;
+        }
+        return ViewFrame::FindNameForElement(
+            view, targetName, DependencyObject::StaticTypeId());
+    }
+    return nullptr;
+}
+
 } // namespace Aero
 
 namespace Aero {
@@ -113,42 +181,16 @@ Base::Result<std::uint32_t> StoryboardHost::BeginTimeline(
                 Storyboard::TargetPropertyProperty);
         if (!targetPath) return targetPath.GetStatus();
 
+        Base::Result<Base::Object*> resolvedTarget =
+            ResolveTargetObject(
+                {},
+                targetName.Value(),
+                triggerOwner,
+                dataTemplateContext,
+                names,
+                nullptr);
         Base::Object* targetObject =
-            targetName.Value().Empty()
-            ? static_cast<Base::Object*>(
-                  &triggerOwner)
-            : dataTemplateContext != nullptr
-                ? dataTemplateContext->FindName(
-                      targetName.Value())
-                : names != nullptr
-                    ? names->Find(targetName.Value())
-                    : view->loadedDocument.names.Find(
-                          targetName.Value());
-        if (targetObject == nullptr) {
-            targetObject = triggerOwner.FindName(targetName.Value());
-        }
-        if (targetObject == nullptr) {
-            if (Controls::TemplateEngine* templates = ElementTree::TemplatesOf(triggerOwner)) {
-                const Controls::Control* control = ::Aero::TryCast<Controls::Control>(&triggerOwner);
-                if (control == nullptr) {
-                    control = ::Aero::TryCast<Controls::Control>(triggerOwner.GetTemplatedParent());
-                }
-                if (control != nullptr) {
-                    const Controls::TemplateHandle handle = templates->AppliedHandle(*control);
-                    if (handle.IsValid()) {
-                        targetObject = templates->FindName(handle, targetName.Value());
-                    }
-                }
-            }
-        }
-        if (targetObject == nullptr && names != nullptr) {
-            targetObject = view->loadedDocument.names.Find(
-                targetName.Value());
-        }
-        if (targetObject == nullptr && view != nullptr) {
-            targetObject = ViewFrame::FindNameForElement(
-                view, targetName.Value(), DependencyObject::StaticTypeId());
-        }
+            resolvedTarget ? resolvedTarget.Value() : nullptr;
         if (targetObject == nullptr ||
             !Metadata()->Types().IsDerivedFrom(
                 targetObject->RuntimeType(),
@@ -190,11 +232,13 @@ CancelStoryboardCompletionSessions(
     Base::Span<const Model::AnimationHandle>
         handles) noexcept
 {
-    for (std::uint32_t index = 0U;
-         index < storyboardCompletionSessions.Size();) {
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U;
+         readIndex < storyboardCompletionSessions.Size();
+         ++readIndex) {
         bool matches = false;
         for (Model::AnimationHandle sessionHandle :
-             storyboardCompletionSessions[index].handles) {
+             storyboardCompletionSessions[readIndex].handles) {
             for (Model::AnimationHandle handle :
                  handles) {
                 if (sessionHandle == handle) {
@@ -205,16 +249,14 @@ CancelStoryboardCompletionSessions(
             if (matches) break;
         }
         if (!matches) {
-            ++index;
-            continue;
+            if (writeIndex != readIndex) {
+                storyboardCompletionSessions[writeIndex] =
+                    std::move(storyboardCompletionSessions[readIndex]);
+            }
+            ++writeIndex;
         }
-        for (std::uint32_t next = index + 1U;
-             next < storyboardCompletionSessions.Size();
-             ++next) {
-            storyboardCompletionSessions[next - 1U] =
-                std::move(
-                    storyboardCompletionSessions[next]);
-        }
+    }
+    while (storyboardCompletionSessions.Size() > writeIndex) {
         storyboardCompletionSessions.PopBack();
     }
 }

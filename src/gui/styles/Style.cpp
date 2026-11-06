@@ -1293,37 +1293,33 @@ Base::Result<void> StyleEngine::AttachSetterBindings(
         Base::Result<Data::BindingHandle> attached =
             bindings->Attach(descriptor);
         if (!attached) return attached.GetStatus();
-        setterBindings_.PushBack(
-            {&object, attached.Value()});
+        const std::uint32_t appIndex = FindApplication(object);
+        if (appIndex != UINT32_MAX) {
+            applications_[appIndex].setterBindings.PushBack(
+                attached.Value());
+        }
     }
     return {};
 }
 
 void StyleEngine::DetachSetterBindings(DependencyObject& object) noexcept {
-    if (setterBindings_.Empty()) {
+    const std::uint32_t appIndex = FindApplication(object);
+    if (appIndex == UINT32_MAX ||
+        applications_[appIndex].setterBindings.Empty()) {
         return;
     }
-    BindingEngine* bindings = nullptr;
-    bool resolvedBindings = false;
-    std::uint32_t keep = 0U;
-    for (std::uint32_t index = 0U; index < setterBindings_.Size(); ++index) {
-        SetterBinding record = setterBindings_[index];
-        if (record.object != &object) {
-            setterBindings_[keep] = record;
-            ++keep;
-            continue;
-        }
-        if (record.handle.IsValid()) {
-            if (!resolvedBindings) {
-                bindings = ElementTree::BindingsOf(object);
-                resolvedBindings = true;
-            }
-            if (bindings != nullptr) {
-                static_cast<void>(bindings->Detach(record.handle));
-            }
+    Base::Vector<Data::BindingHandle> handles =
+        std::move(applications_[appIndex].setterBindings);
+    applications_[appIndex].setterBindings.Clear();
+    BindingEngine* bindings = ElementTree::BindingsOf(object);
+    if (bindings == nullptr) {
+        return;
+    }
+    for (const Data::BindingHandle handle : handles) {
+        if (handle.IsValid()) {
+            static_cast<void>(bindings->Detach(handle));
         }
     }
-    static_cast<void>(setterBindings_.Resize(keep));
 }
 
 

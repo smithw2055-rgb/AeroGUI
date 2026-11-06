@@ -1249,39 +1249,40 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
         Visual& fragmentRoot) noexcept {
         DetachBehaviorsInSubtree(fragmentRoot);
         ClearDataTemplateTriggerProvidersInSubtree(fragmentRoot);
-        for (std::uint32_t index = 0U;
-             index < dataTemplateTriggerSubscriptions.Size();) {
-            DataTemplateTriggerSubscription& subscription =
-                dataTemplateTriggerSubscriptions[index];
-            const bool sourceMatches =
-                subscription.source != nullptr &&
-                Metadata()->Types().IsDerivedFrom(
-                    subscription.source->RuntimeType(),
-                    Visual::StaticTypeId()) &&
-                IsInVisualSubtree(
-                    static_cast<Visual*>(
-                        subscription.source), fragmentRoot);
-            auto* ctx = subscription.GetContext<DataTemplateTriggerHandlerState>();
-            const bool contextMatches =
-                ctx != nullptr &&
-                ctx->triggerContext &&
-                ctx->triggerContext->root != nullptr &&
-                IsInVisualSubtree(
-                    ctx->triggerContext->root,
-                    fragmentRoot);
-            const bool matches =
-                sourceMatches || contextMatches;
-            if (!matches) {
-                ++index;
-                continue;
+        {
+            std::uint32_t writeIndex = 0U;
+            for (std::uint32_t readIndex = 0U;
+                 readIndex < dataTemplateTriggerSubscriptions.Size();
+                 ++readIndex) {
+                DataTemplateTriggerSubscription& subscription =
+                    dataTemplateTriggerSubscriptions[readIndex];
+                const bool sourceMatches =
+                    subscription.source != nullptr &&
+                    Metadata()->Types().IsDerivedFrom(
+                        subscription.source->RuntimeType(),
+                        Visual::StaticTypeId()) &&
+                    IsInVisualSubtree(
+                        static_cast<Visual*>(
+                            subscription.source), fragmentRoot);
+                auto* ctx = subscription.GetContext<DataTemplateTriggerHandlerState>();
+                const bool contextMatches =
+                    ctx != nullptr &&
+                    ctx->triggerContext &&
+                    ctx->triggerContext->root != nullptr &&
+                    IsInVisualSubtree(
+                        ctx->triggerContext->root,
+                        fragmentRoot);
+                if (!sourceMatches && !contextMatches) {
+                    if (writeIndex != readIndex) {
+                        dataTemplateTriggerSubscriptions[writeIndex] =
+                            std::move(subscription);
+                    }
+                    ++writeIndex;
+                    continue;
+                }
+                subscription.Unbind(*this);
             }
-            subscription.Unbind(*this);
-            for (std::uint32_t next = index + 1U;
-                 next < dataTemplateTriggerSubscriptions.Size(); ++next) {
-                dataTemplateTriggerSubscriptions[next - 1U] =
-                    std::move(dataTemplateTriggerSubscriptions[next]);
-            }
-            dataTemplateTriggerSubscriptions.PopBack();
+            static_cast<void>(dataTemplateTriggerSubscriptions.Resize(writeIndex));
         }
         auto clearMatchingTriggers = [this, &fragmentRoot](auto& subscriptions) {
             for (std::uint32_t index = 0U; index < subscriptions.Size();) {
@@ -1340,65 +1341,75 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
         }
         if (Storyboards() == nullptr) return;
         Storyboards()->ClearEventTriggersFor(fragmentRoot);
-        for (std::uint32_t index = 0U;
-             index < Storyboards()->storyboardSessions.Size();) {
-            StoryboardHost::StoryboardSession& session = Storyboards()->storyboardSessions[index];
-            if (session.owner == nullptr ||
-                !IsInVisualSubtree(session.owner, fragmentRoot)) {
-                ++index;
-                continue;
-            }
-            Storyboards()->CancelStoryboardCompletionSessions(session.handles.AsSpan());
-            if (Animations() != nullptr) {
-                for (AnimationHandle handle : session.handles) {
-                    Animations()->Remove(handle);
+        {
+            auto& sessions = Storyboards()->storyboardSessions;
+            std::uint32_t writeIndex = 0U;
+            for (std::uint32_t readIndex = 0U;
+                 readIndex < sessions.Size();
+                 ++readIndex) {
+                StoryboardHost::StoryboardSession& session = sessions[readIndex];
+                if (session.owner == nullptr ||
+                    !IsInVisualSubtree(session.owner, fragmentRoot)) {
+                    if (writeIndex != readIndex) {
+                        sessions[writeIndex] = std::move(session);
+                    }
+                    ++writeIndex;
+                    continue;
+                }
+                Storyboards()->CancelStoryboardCompletionSessions(session.handles.AsSpan());
+                if (Animations() != nullptr) {
+                    for (AnimationHandle handle : session.handles) {
+                        Animations()->Remove(handle);
+                    }
                 }
             }
-            for (std::uint32_t next = index + 1U;
-                 next < Storyboards()->storyboardSessions.Size(); ++next) {
-                Storyboards()->storyboardSessions[next - 1U] =
-                    std::move(Storyboards()->storyboardSessions[next]);
+            while (sessions.Size() > writeIndex) {
+                sessions.PopBack();
             }
-            Storyboards()->storyboardSessions.PopBack();
         }
-        for (std::uint32_t index = 0U;
-             index < Storyboards()->storyboardCompletionSessions.Size();) {
-            StoryboardHost::StoryboardCompletionSession& session =
-                Storyboards()->storyboardCompletionSessions[index];
-            if (session.owner == nullptr ||
-                !IsInVisualSubtree(session.owner, fragmentRoot)) {
-                ++index;
-                continue;
-            }
-            if (Animations() != nullptr) {
-                for (AnimationHandle handle :
-                     session.handles) {
-                    Animations()->Remove(handle);
+        {
+            auto& completionSessions = Storyboards()->storyboardCompletionSessions;
+            std::uint32_t writeIndex = 0U;
+            for (std::uint32_t readIndex = 0U;
+                 readIndex < completionSessions.Size();
+                 ++readIndex) {
+                StoryboardHost::StoryboardCompletionSession& session =
+                    completionSessions[readIndex];
+                if (session.owner == nullptr ||
+                    !IsInVisualSubtree(session.owner, fragmentRoot)) {
+                    if (writeIndex != readIndex) {
+                        completionSessions[writeIndex] = std::move(session);
+                    }
+                    ++writeIndex;
+                    continue;
+                }
+                if (Animations() != nullptr) {
+                    for (AnimationHandle handle : session.handles) {
+                        Animations()->Remove(handle);
+                    }
                 }
             }
-            for (std::uint32_t next = index + 1U;
-                 next < Storyboards()->storyboardCompletionSessions.Size(); ++next) {
-                Storyboards()->storyboardCompletionSessions[next - 1U] =
-                    std::move(Storyboards()->storyboardCompletionSessions[next]);
+            while (completionSessions.Size() > writeIndex) {
+                completionSessions.PopBack();
             }
-            Storyboards()->storyboardCompletionSessions.PopBack();
         }
-        for (std::uint32_t index = 0U;
-             index < Storyboards()->storyboardCompletedSubscriptions.Size();) {
-            const StoryboardHost::StoryboardCompletedSubscription& subscription =
-                Storyboards()->storyboardCompletedSubscriptions[index];
-            if (subscription.owner == nullptr ||
-                !IsInVisualSubtree(
-                    subscription.owner, fragmentRoot)) {
-                ++index;
-                continue;
+        {
+            auto& completedSubs = Storyboards()->storyboardCompletedSubscriptions;
+            std::uint32_t writeIndex = 0U;
+            for (std::uint32_t readIndex = 0U;
+                 readIndex < completedSubs.Size();
+                 ++readIndex) {
+                StoryboardHost::StoryboardCompletedSubscription& subscription =
+                    completedSubs[readIndex];
+                if (subscription.owner == nullptr ||
+                    !IsInVisualSubtree(subscription.owner, fragmentRoot)) {
+                    if (writeIndex != readIndex) {
+                        completedSubs[writeIndex] = std::move(subscription);
+                    }
+                    ++writeIndex;
+                }
             }
-            for (std::uint32_t next = index + 1U;
-                 next < Storyboards()->storyboardCompletedSubscriptions.Size(); ++next) {
-                Storyboards()->storyboardCompletedSubscriptions[next - 1U] =
-                    std::move(Storyboards()->storyboardCompletedSubscriptions[next]);
-            }
-            Storyboards()->storyboardCompletedSubscriptions.PopBack();
+            static_cast<void>(completedSubs.Resize(writeIndex));
         }
     }
 
