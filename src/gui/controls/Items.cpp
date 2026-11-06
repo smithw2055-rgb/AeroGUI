@@ -1220,11 +1220,19 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
     // WPF contract: derived controls decide via IsItemItsOwnContainerOverride
     // (e.g. ListBoxItem added directly to a ListBox). Default returns false
     // and falls through to the FrameworkElement borrow below.
+    const bool isListViewWithView =
+        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+            owner_->RuntimeType(),
+            ListView::StaticTypeId()) &&
+        static_cast<ListView*>(owner_)->GetView() != nullptr;
     const bool isOwnContainer =
         owner_->IsItemItsOwnContainerOverride(record.item.Get()) ||
-        DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-            record.item->RuntimeType(),
-            FrameworkElement::StaticTypeId());
+        (!isListViewWithView &&
+         DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
+             record.item->RuntimeType(),
+             FrameworkElement::StaticTypeId()) &&
+         static_cast<FrameworkElement*>(record.item.Get())->GetVisualParent() == nullptr &&
+         static_cast<FrameworkElement*>(record.item.Get())->GetLogicalParent() == nullptr);
     if (isOwnContainer) {
         if (!DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
                 record.item->RuntimeType(),
@@ -1313,17 +1321,14 @@ ItemContainerGenerator::GeneratorState::CreateRecord(
         text->SetText(display.View());
         record.content = std::move(text);
         record.generatedTextContent = true;
+    } else if (isListViewWithView) {
+        // GridView presents the data item directly through GridViewRowPresenter reading DataContext.
+        // No placeholder content required.
     } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types()
         .IsDerivedFrom(
             record.item->RuntimeType(),
             UIElement::StaticTypeId())) {
         record.content = record.item;
-    } else if (DependencyObjectAccess::PropertyRegistry(owner_).Types().IsDerivedFrom(
-                   owner_->RuntimeType(),
-                   ListView::StaticTypeId()) &&
-               static_cast<ListView*>(owner_)->GetView()) {
-        // GridView presents the data item directly through GridViewRowPresenter reading DataContext.
-        // No placeholder content required.
     } else {
         // No ItemTemplate, DisplayMemberPath, or recognized value wrapper was
         // supplied. Mirror WPF's ToString() fallback by realizing the item

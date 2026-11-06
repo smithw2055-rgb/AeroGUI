@@ -95,6 +95,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/Items.cpp
     src/gui/controls/ListView.cpp
     src/gui/controls/Menus.cpp
+    src/gui/controls/Ranges.cpp
     src/gui/controls/Scroll.cpp
     src/gui/controls/Selectors.cpp
     src/gui/controls/Popup.cpp
@@ -106,9 +107,13 @@ set(_aero_gui_controls_sources
 
 set(_aero_gui_markup_sources
     src/gui/markup/XamlBytecode.cpp
+    src/gui/markup/XamlBytecodeVM.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
+    src/gui/markup/XamlTokenizer.cpp
     src/gui/markup/XamlCompiler.cpp
     src/gui/markup/XamlSchema.cpp
+    src/gui/markup/XamlSchemaSupport.cpp
+    src/gui/markup/XamlLoaderPipeline.cpp
     src/gui/markup/XamlReader.cpp)
 
 set(_aero_gui_text_sources
@@ -164,6 +169,7 @@ set(_aero_gui_internal_headers
     src/gui/data/BindingPath.hpp
     src/gui/core/EnumRegistration.hpp
     src/gui/controls/ControlPropertyValidators.hpp
+    src/gui/controls/ScrollSupport.hpp
     src/gui/markup/XamlBytecode.hpp
     src/gui/markup/XamlSchema.hpp
     src/gui/media/AnimationEngineCommon.hpp
@@ -233,6 +239,9 @@ set_target_properties(AeroGui PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES)
 aero_apply_compiler_options(AeroGui)
+if(AERO_ENABLE_PCH)
+    target_precompile_headers(AeroGui PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/include/AeroPCH.hpp>")
+endif()
 aero_verify_windows_exports(AeroGui "Gui@Aero@@")
 
 # Backend-neutral render contracts are implemented and exported by AeroGui,

@@ -61,89 +61,9 @@ class Schema;
 class SchemaManifest;
 class CompiledDocument;
 class NodeReader;
-class ObjectWriter;
 struct VisualContentPlan;
 struct EffectServices;
 struct ExtensionServices;
-
-// ===== DeferredContent edges =====
-struct DeferredContentEdge {
-    Base::Object* owner = nullptr;
-    Base::Object* parent = nullptr;
-    Base::Ref<Base::Object> child;
-    ::Aero::Meta::Registry* metadata = nullptr;
-    Meta::MemberId member = Meta::InvalidMemberId;
-    bool property = false;
-};
-
-struct DeferredBindingEdge {
-    Base::Object* owner = nullptr;
-    Base::Object* source = nullptr;
-    Base::String sourceName;
-    Base::String relativeAncestorType;
-    std::uint32_t relativeAncestorLevel = 0U;
-    ::Aero::DependencyObject* target = nullptr;
-    ::Aero::Meta::Registry* metadata = nullptr;
-    Meta::DependencyPropertyHandle targetProperty;
-    Meta::DependencyPropertyHandle dataContextProperty;
-    Base::String path;
-    Base::String stringFormat;
-    bool bindsToSource = false;
-    Data::BindingMode mode =
-        Data::BindingMode::Default;
-    Meta::UpdateSourceTrigger updateSourceTrigger =
-        Meta::UpdateSourceTrigger::PropertyChanged;
-    Base::Ref<Data::IValueConverter> converter;
-    Meta::PropertyValue converterParameter;
-};
-
-class DeferredContentPlan {
-public:
-    Base::Result<void> Stage(
-        Base::Object& owner,
-        Base::Object& parent,
-        const Base::Ref<Base::Object>& child,
-        ::Aero::Meta::Registry& metadata,
-        Meta::MemberId member) noexcept;
-    Base::Result<void> StageProperty(
-        Base::Object& owner,
-        Base::Object& parent,
-        const Base::Ref<Base::Object>& child,
-        ::Aero::Meta::Registry& metadata,
-        Meta::MemberId member) noexcept;
-    Base::Result<void> CopyForOwner(
-        const Base::Object& owner,
-        Base::Vector<DeferredContentEdge>& output) const noexcept;
-    Base::Result<void> StageBinding(
-        Base::Object& owner,
-        Base::Object* source,
-        Base::StringView sourceName,
-        Base::StringView relativeAncestorType,
-        std::uint32_t relativeAncestorLevel,
-        ::Aero::DependencyObject& target,
-        ::Aero::Meta::Registry& metadata,
-        Meta::DependencyPropertyHandle targetProperty,
-        Meta::DependencyPropertyHandle dataContextProperty,
-        Base::StringView path,
-        Base::StringView stringFormat,
-        Data::BindingMode mode,
-        Meta::UpdateSourceTrigger updateSourceTrigger,
-        bool bindsToSource,
-        const Base::Ref<Data::IValueConverter>& converter,
-        const Meta::PropertyValue& converterParameter) noexcept;
-    Base::Result<void> CopyBindingsForOwner(
-        const Base::Object& owner,
-        Base::Vector<DeferredBindingEdge>& output) const noexcept;
-    void ReleaseOwner(Base::Object& owner) noexcept;
-    void ReleaseAll() noexcept;
-    bool Empty() const noexcept {
-        return edges_.Empty() && bindings_.Empty();
-    }
-
-private:
-    Base::Vector<DeferredContentEdge> edges_;
-    Base::Vector<DeferredBindingEdge> bindings_;
-};
 
 // ============================================================================
 // SECTION: ProvidedValue & ExtensionServices Contract
@@ -254,7 +174,6 @@ struct ExtensionServices {
         ambientResourceChain;
     VisualContentPlan* visualContent = nullptr;
     Base::Object* deferredContentOwner = nullptr;
-    DeferredContentPlan* deferredContent = nullptr;
 };
 
 // ============================================================================
@@ -1355,7 +1274,6 @@ private:
     friend class ::Aero::GuiSchema;
     friend class CompiledDocument;
     friend class Loader;
-    friend class ObjectWriter;
     friend class XamlVM;
     friend class SchemaManifest;
     friend class XamlStyleSchemaFacet;
@@ -2349,6 +2267,7 @@ public:
 private:
     BindingExtensionOptions options_;
 
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2409,6 +2328,7 @@ public:
 private:
     DynamicResourceExtensionOptions options_;
 
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2432,6 +2352,7 @@ public:
         Meta::TypeId staticResourceExtensionType) noexcept;
 
 private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2450,6 +2371,7 @@ public:
         Meta::TypeId markupExtensionType) noexcept;
 
 private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2475,6 +2397,7 @@ public:
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
 
 private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2498,6 +2421,7 @@ public:
         Meta::TypeId markupExtensionType) noexcept;
 
 private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,
@@ -2520,6 +2444,7 @@ public:
         Meta::TypeId markupExtensionType) noexcept;
 
 private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
     static Base::Result<ProvidedValue> ProvideValue(
         Base::StringView arguments,
         const ExtensionServices& services,

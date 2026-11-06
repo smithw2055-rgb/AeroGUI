@@ -122,6 +122,8 @@ private:
     mutable Base::Vector<RichTextStyleRange> richTextStyleRanges_;
     Ref<Documents::Inline> pendingInline_;
     Size glyphRunSize_;
+    float lastShapedAvailableWidth_ = -1.0f;
+    bool lastShapedArrangeMode_ = false;
     bool serviceOwnsGlyphRun_ = false;
     bool arrangingText_ = false;
 };

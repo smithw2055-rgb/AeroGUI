@@ -375,8 +375,19 @@ public:
     void SetOrientation(Orientation value) noexcept;
     double GetNormalizedValue() const noexcept;
 
+    void OnApplyTemplate() noexcept override;
+
     AERO_DEPENDENCY_PROPERTY(bool, IsIndeterminate);
     AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+
+protected:
+    void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
+    Size ArrangeOverride(Size finalSize) noexcept override;
+
+private:
+    void UpdateIndicator(Size fallbackSize) noexcept;
+    FrameworkElement* track_ = nullptr;
+    FrameworkElement* indicator_ = nullptr;
 };
 
 } // namespace Aero::Controls

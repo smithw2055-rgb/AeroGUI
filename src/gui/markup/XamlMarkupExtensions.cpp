@@ -1571,45 +1571,6 @@ Base::Result<ProvidedValue> BindingExtension::ProvideValue(
                 "Binding without ElementName requires a DataContext property");
         }
     }
-    if (services.deferredContentOwner != nullptr &&
-        services.deferredContent != nullptr) {
-        Meta::PropertyValue stagedParameter;
-        if (!converterParameter.Empty()) {
-            Base::Result<Meta::PropertyValue> parameter =
-                Meta::PropertyValue::TryFromString(
-                    Meta::TypeOf<Base::String>(),
-                    converterParameter);
-            if (!parameter) return parameter.GetStatus();
-            stagedParameter = std::move(parameter).Value();
-        }
-        Base::Result<void> staged =
-            services.deferredContent->StageBinding(
-                *services.deferredContentOwner,
-                source,
-                elementName,
-                relativeSource == RelativeSourceKind::Ancestor
-                    ? ancestorType
-                    : Base::StringView{},
-                relativeSource == RelativeSourceKind::Ancestor
-                    ? ancestorLevel
-                    : 0U,
-                *target,
-                *services.schema->Metadata(),
-                targetHandle,
-                dataContextProperty,
-                path,
-                stringFormat,
-                mode,
-                updateSourceTrigger,
-                path.Empty(),
-                converter,
-                stagedParameter);
-        return staged
-            ? Base::Result<ProvidedValue>(
-                  ProvidedValue::Handled())
-            : Base::Result<ProvidedValue>(
-                  staged.GetStatus());
-    }
 
     Base::IAllocator& allocator = Base::GetDefaultAllocator();
     void* memory = allocator.Allocate({

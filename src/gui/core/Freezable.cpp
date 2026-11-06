@@ -602,6 +602,10 @@ void DependencyObject::InvalidateSubProperty(
     const Meta::PropertyInvalidationFlags flags =
         object.AccumulateInvalidations(metadata->flags);
     object.OnPropertyInvalidated(flags);
+    if (HasFlag(flags, Meta::PropertyInvalidationFlags::Inheritance)) {
+        DependencyObjectAccess::PropertyRegistry((object))
+            .NotifyInheritancePropertyChanged(object, propertyHandle);
+    }
 }
 
 } // namespace Aero

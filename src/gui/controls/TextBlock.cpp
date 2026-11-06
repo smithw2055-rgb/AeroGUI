@@ -426,10 +426,21 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     const Thickness padding =
         GetValue(PaddingProperty);
 
-    if (!arrangingText_ &&
-        flatTextValid_ &&
-        GetTextWrapping() == TextWrapping::NoWrap &&
-        GetTextTrimming() == TextTrimming::None &&
+    Size cachedTextAvailable = availableSize;
+    if (std::isfinite(cachedTextAvailable.width) && cachedTextAvailable.width > 0.0f) {
+        cachedTextAvailable.width = std::max(
+            0.0f, cachedTextAvailable.width - padding.left - padding.right);
+    }
+    const bool widthMatchesCache =
+        (GetTextWrapping() == TextWrapping::NoWrap &&
+         GetTextTrimming() == TextTrimming::None &&
+         !arrangingText_ && !lastShapedArrangeMode_) ||
+        (std::isfinite(cachedTextAvailable.width) &&
+         std::isfinite(lastShapedAvailableWidth_) &&
+         std::fabs(cachedTextAvailable.width - lastShapedAvailableWidth_) <= 0.01f &&
+         arrangingText_ == lastShapedArrangeMode_);
+    if (flatTextValid_ &&
+        widthMatchesCache &&
         !glyphRuns_.Empty() &&
         GetVisualChildrenCount() == 0U) {
         Size desired{
@@ -536,6 +547,8 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                     glyphRuns_ = std::move(output.glyphRuns);
                     textHitRegions_ = std::move(output.hitRegions);
                     glyphRunSize_ = output.desiredSize;
+                    lastShapedAvailableWidth_ = textAvailable.width;
+                    lastShapedArrangeMode_ = arrangingText_;
                     serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
                     flatTextValid_ = true;
                     if (changed) {

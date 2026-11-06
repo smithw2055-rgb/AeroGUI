@@ -1,5 +1,8 @@
 add_executable(AeroFrameworkConformanceTests
     FrameworkConformanceTests.cpp
+    ConformanceCoreAndRenderTests.cpp
+    ConformanceControlsAndTemplatesTests.cpp
+    ConformanceMediaAndDataTests.cpp
     SampleXamlLoadApplyTests.cpp)
 target_link_libraries(AeroFrameworkConformanceTests
     PRIVATE

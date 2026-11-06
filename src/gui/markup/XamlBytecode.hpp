@@ -259,6 +259,7 @@ struct XamlBytecodeProgram {
     Base::ResourceUri baseUri;
     Base::Vector<NamespaceEntry> namespaces;
     Base::Vector<Base::WeakRef<Base::Object>> ambientResourceOwners;
+    Base::Vector<Aero::ResourceDictionary> ambientDictionaries;
     Aero::ResourceDictionary fallbackResources;
     Base::Object* templateOwner = nullptr;
 

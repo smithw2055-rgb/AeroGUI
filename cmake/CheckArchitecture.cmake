@@ -1045,11 +1045,15 @@ aero_require_text(
     "friend class BindingEngine;"
     "Freezable::Parent must stay private to BindingEngine")
 aero_require_text(
+    "src/gui/markup/XamlBytecode.hpp"
+    "ConnectEventHandler"
+    "XAML event attributes must connect through the XamlVM bytecode pipeline")
+aero_forbid_text(
     "src/gui/markup/XamlReader.cpp"
-    "ObjectWriter::ConnectEvent("
-    "XAML event attributes must connect through the object-writer pipeline")
-aero_require_file("samples/HelloWpf/App.xaml")
-aero_require_file("samples/HelloWpf/MainWindow.xaml")
+    "class ObjectWriter"
+    "Legacy DOM ObjectWriter must remain retired in favor of XamlVM bytecode execution")
+aero_require_file("samples/HelloWorld/App.xaml")
+aero_require_file("samples/HelloWorld/MainWindow.xaml")
 # Built-in + extension themes are embedded into BuiltinThemes.generated.hpp;
 # every Source= pack URI registered in Gui.cpp must resolve to a file here.
 foreach(aero_required_theme IN ITEMS
@@ -1696,7 +1700,7 @@ aero_require_text(
     "Hot DP entries must hold single effective Value plus packed flags and a rare pointer (P2.2)")
 aero_require_text(
     "src/gui/core/PropertyStore.hpp"
-    "OriginShift = 16U"
+    "OriginShift = 17U"
     "Packed origin bits must live on the hot StoredValueEntry flags word")
 aero_forbid_text(
     "src/gui/core/PropertyStore.hpp"

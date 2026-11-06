@@ -28,9 +28,10 @@ struct Length {
     AERO_DECLARE_TYPE(Length, NoMetadataBase)
     double value = 0.0;
     bool isAuto = true;
+    std::uint8_t reserved_[7]{};
 
     static constexpr Length Auto() noexcept { return {}; }
-    static constexpr Length Pixels(double value) noexcept { return {value, false}; }
+    static constexpr Length Pixels(double value) noexcept { return {value, false, {}}; }
 };
 
 AERO_GUI_API bool IsFinite(Point value) noexcept;

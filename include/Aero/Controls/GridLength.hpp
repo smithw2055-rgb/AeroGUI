@@ -16,6 +16,7 @@ enum class GridUnitType : std::uint8_t {
 struct GridLength {
     float value = 1.0f;
     GridUnitType unit = GridUnitType::Star;
+    std::uint8_t reserved_[3]{};
 
     constexpr GridLength() noexcept = default;
 

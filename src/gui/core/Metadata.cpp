@@ -3395,6 +3395,11 @@ Base::Result<Value> Registry::TryConvertText(
     }
     const ::Aero::TextConverterFacet* converter =
         RuntimeData().FindTextConverter(type);
+    for (const TypeInfo* cur = descriptor;
+         converter == nullptr && cur != nullptr && cur->BaseType() != InvalidTypeId;
+         cur = Types().FindType(cur->BaseType())) {
+        converter = RuntimeData().FindTextConverter(cur->BaseType());
+    }
     if (converter == nullptr ||
         converter->convert == nullptr) {
         return Base::Status::Failure(
@@ -3403,9 +3408,13 @@ Base::Result<Value> Registry::TryConvertText(
     }
     Base::Result<Value> converted =
         converter->convert(type, text, converter->context);
+    if (!converted && converter->type != type) {
+        converted = converter->convert(converter->type, text, converter->context);
+    }
     if (!converted) return converted.GetStatus();
     if (converted.Value().IsUnset() ||
-        converted.Value().Type() != type) {
+        (converted.Value().Type() != type &&
+         !Types().IsAssignableFrom(type, converted.Value().Type()))) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Metadata text converter returned an incompatible value");

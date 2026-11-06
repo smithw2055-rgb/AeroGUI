@@ -105,12 +105,6 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
 } // namespace
 
 Base::Result<void> TemplateBuilder::SetRoot(
-    Base::Ref<Base::Object> owner,
-    ::Aero::Media::Visual& root) noexcept {
-    return SetRoot({}, std::move(owner), root);
-}
-
-Base::Result<void> TemplateBuilder::SetRoot(
     Base::StringView name,
     Base::Ref<Base::Object> owner,
     ::Aero::Media::Visual& root) noexcept {
@@ -1612,9 +1606,9 @@ using namespace Aero::Threading;
 
 Base::Result<void> FrameworkTemplateState::Materialize(
     const ControlTemplate& plan,
-    TemplateBuildState& buildState,
+    TemplateBuildState& /*buildState*/,
     TemplateBuilder& context,
-    const Meta::DependencyPropertyRegistry& properties) noexcept {
+    const Meta::DependencyPropertyRegistry& /*properties*/) noexcept {
     Base::Result<void> built =
         Factory(plan)(context, FactoryContext(plan));
     if (!built || context.RootVisual() == nullptr) {
@@ -1623,41 +1617,6 @@ Base::Result<void> FrameworkTemplateState::Materialize(
             ? InvalidTemplate(
                 "ControlTemplate factory did not set a root")
             : built.GetStatus();
-    }
-
-    if (Factory(plan) != &Aero::Markup::BuildCompiledTemplate) {
-        const std::uint32_t authoredPartCount = buildState.parts.Size();
-        for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
-            TemplatePart& part = buildState.parts[index];
-            if (part.object == nullptr ||
-                !properties.Types().IsDerivedFrom(
-                    part.object->RuntimeType(),
-                    ContentPresenter::StaticTypeId())) {
-                continue;
-            }
-            context.PopulateContentPresenter(
-                    *static_cast<ContentPresenter*>(part.object));
-        }
-
-        Control* control = buildState.parent;
-        if (control != nullptr &&
-            properties.Types().IsDerivedFrom(
-                control->RuntimeType(),
-                ItemsControl::StaticTypeId())) {
-            auto& itemsControl = static_cast<ItemsControl&>(*control);
-            for (std::uint32_t index = 0U; index < authoredPartCount; ++index) {
-                TemplatePart& part = buildState.parts[index];
-                if (part.object == nullptr ||
-                    !properties.Types().IsDerivedFrom(
-                        part.object->RuntimeType(),
-                        ItemsPresenter::StaticTypeId())) {
-                    continue;
-                }
-                context.PopulateItemsPresenter(
-                        *static_cast<ItemsPresenter*>(part.object),
-                        itemsControl.GetItemsPanel().Get());
-            }
-        }
     }
     return {};
 }

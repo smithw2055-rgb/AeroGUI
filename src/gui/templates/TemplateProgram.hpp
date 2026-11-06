@@ -69,7 +69,6 @@ class ItemsPresenter;
 
 class TemplateBuilder {
 public:
-    Base::Result<void> SetRoot(Base::Ref<Base::Object> owner, ::Aero::Media::Visual& root) noexcept;
     Base::Result<void> SetRoot(Base::StringView name, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& root) noexcept;
     Base::Result<void> AddPart(Base::StringView name, ::Aero::Media::Visual& parent, Base::Ref<Base::Object> owner, ::Aero::Media::Visual& part) noexcept;
     Base::Result<void> AddObjectPart(

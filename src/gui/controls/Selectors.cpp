@@ -2088,7 +2088,9 @@ Size TabControl::MeasureOverride(
         GetTabStripPlacement() == Dock::Left ||
         GetTabStripPlacement() == Dock::Right;
     TabItem* selected = GetSelectedTab();
-    if (selected == nullptr) {
+    if (selected == nullptr ||
+        !selected->GetIsLayoutAttached() ||
+        selected->LayoutParent() != this) {
         return verticalStrip
             ? Size{HeaderExtent, 0.0}
             : Size{0.0, HeaderExtent};
@@ -2125,7 +2127,9 @@ Size TabControl::ArrangeOverride(
                 item->RuntimeType(), TabItem::StaticTypeId())) {
             tab = static_cast<TabItem*>(item.Get());
         }
-        if (tab == nullptr) continue;
+        if (tab == nullptr ||
+            !tab->GetIsLayoutAttached() ||
+            tab->LayoutParent() != this) continue;
         Rect slot{};
         if (tab == selected) {
             if (verticalStrip) {

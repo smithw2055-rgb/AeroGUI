@@ -1257,7 +1257,11 @@ Size TextBoxBase::MeasureOverride(
     ReleaseGlyphRuns();
     textSize_ = {};
     wrapColumns_ = UINT32_MAX;
+    const bool hasTemplatePlaceholder =
+        GetTemplateRoot() != nullptr &&
+        GetTemplateChild(Base::StringView("Placeholder")) != nullptr;
     showingPlaceholder_ =
+        !hasTemplatePlaceholder &&
         displayText_.Empty() &&
         !GetPlaceholderCore().Empty();
     if (showingPlaceholder_) {
@@ -1493,6 +1497,7 @@ void TextBoxBase::OnApplyTemplate() noexcept {
     } else {
         static_cast<void>(AttachScrollViewer(nullptr));
     }
+    InvalidateMeasure();
 }
 
 void TextBoxBase::OnRender(

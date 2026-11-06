@@ -1757,7 +1757,7 @@ Base::Result<void> RenderTree::DescribeVisual(
         : Size{};
     snapshot.blendMode = element != nullptr
         ? element->GetBlendMode()
-        : BlendMode::Normal;
+        : ::Aero::BlendMode::Normal;
     snapshot.opacity = element != nullptr
         ? element->GetOpacity()
         : 1.0;

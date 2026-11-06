@@ -72,6 +72,7 @@ struct Duration {
 
 private:
     Kind kind_ = Kind::Automatic;
+    std::uint8_t reserved_[7]{};
     TimeSpan timeSpan_{};
 };
 

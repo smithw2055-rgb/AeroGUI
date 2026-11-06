@@ -50,12 +50,12 @@ bool WriteFile(
 }
 
 Aero::Base::Result<Aero::Markup::SchemaManifest>
-BuildBuiltInManifest() noexcept {
-    Aero::ModuleSet modules;
+BuildBuiltInManifest(
+    Aero::ModuleSet& modules,
+    Aero::GuiSchema& bundle) noexcept {
     Aero::Base::Result<void> status =
         modules.Add(Aero::App::AppMetadataModule());
     if (!status) return status.GetStatus();
-    Aero::GuiSchema bundle;
     status = bundle.Prepare(modules);
     if (!status) return status.GetStatus();
     status = bundle.Finalize({});
@@ -98,8 +98,10 @@ int main(int argc, char** argv) {
             "aero-schema-gen --describe <input.aeroschema>");
     }
 
+    Aero::ModuleSet modules;
+    Aero::GuiSchema bundle;
     Aero::Base::Result<Aero::Markup::SchemaManifest> manifest =
-        BuildBuiltInManifest();
+        BuildBuiltInManifest(modules, bundle);
     if (!manifest) return Fail(manifest.GetStatus());
     Aero::Base::Result<Aero::Base::Vector<std::uint8_t>> encoded =
         manifest.Value().Serialize();

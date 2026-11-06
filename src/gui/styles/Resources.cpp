@@ -206,6 +206,11 @@ struct ResourceDictionary::DictionaryState {
     Base::Vector<Entry> entries;
     Base::HashMap<Base::StringView, std::uint32_t> stringIndex;
     Base::HashMap<Meta::TypeId, std::uint32_t> typeIndex;
+    mutable Base::HashMap<Base::StringView, const Entry*> mergedStringCache;
+    mutable Base::HashMap<Meta::TypeId, const Entry*> mergedTypeCache;
+    mutable std::uint64_t cachedMergedTreeGeneration = UINT64_MAX;
+    mutable bool mergedCacheValid = false;
+    mutable bool mergedHasCycle = false;
     Base::Vector<Listener> listeners;
     Base::Vector<Merged> merged;
     Base::ResourceUri source;
@@ -304,7 +309,101 @@ void Notify(
     }
 }
 
-template<class KeyT, std::size_t InlineCapacity>
+template<std::uint32_t InlineCapacity>
+bool ComputeMergedTreeGeneration(
+    const ResourceDictionary::DictionaryState& node,
+    Base::BasicVector<const ResourceDictionary::DictionaryState*, InlineCapacity>& visited,
+    std::uint64_t& accum) noexcept {
+    for (const ResourceDictionary::DictionaryState* active : visited) {
+        if (active == &node) {
+            return false;
+        }
+    }
+    accum = (accum * 1099511628211ULL) ^ (node.generation + 0x9e3779b97f4a7c15ULL);
+    accum ^= static_cast<std::uint64_t>(node.entries.Size()) << 16U;
+    accum ^= static_cast<std::uint64_t>(node.merged.Size());
+    visited.PushBack(&node);
+    for (std::uint32_t index = node.merged.Size(); index > 0U; --index) {
+        const ResourceDictionary::DictionaryState* child =
+            node.merged[index - 1U].dictionary;
+        if (child == nullptr) continue;
+        if (!ComputeMergedTreeGeneration(*child, visited, accum)) {
+            visited.PopBack();
+            return false;
+        }
+    }
+    visited.PopBack();
+    return true;
+}
+
+template<std::uint32_t InlineCapacity>
+void PopulateMergedCacheRecursive(
+    const ResourceDictionary::DictionaryState& root,
+    const ResourceDictionary::DictionaryState& current,
+    Base::BasicVector<const ResourceDictionary::DictionaryState*, InlineCapacity>& visited) noexcept {
+    for (const ResourceDictionary::DictionaryState* active : visited) {
+        if (active == &current) {
+            root.mergedHasCycle = true;
+            return;
+        }
+    }
+    if (&current != &root) {
+        for (std::uint32_t i = 0U; i < current.entries.Size(); ++i) {
+            const ResourceDictionary::DictionaryState::Entry& entry = current.entries[i];
+            if (entry.key.Kind() == ResourceKeyKind::String) {
+                if (root.mergedStringCache.Find(entry.key.StringValue()) == nullptr) {
+                    static_cast<void>(root.mergedStringCache.Insert(entry.key.StringValue(), &entry));
+                }
+            } else if (entry.key.Kind() == ResourceKeyKind::Type) {
+                if (root.mergedTypeCache.Find(entry.key.TypeValue()) == nullptr) {
+                    static_cast<void>(root.mergedTypeCache.Insert(entry.key.TypeValue(), &entry));
+                }
+            }
+        }
+    }
+    visited.PushBack(&current);
+    for (std::uint32_t index = current.merged.Size(); index > 0U; --index) {
+        const ResourceDictionary::DictionaryState* child =
+            current.merged[index - 1U].dictionary;
+        if (child == nullptr) continue;
+        PopulateMergedCacheRecursive(root, *child, visited);
+        if (root.mergedHasCycle) {
+            visited.PopBack();
+            return;
+        }
+    }
+    visited.PopBack();
+}
+
+inline const ResourceDictionary::DictionaryState::Entry* FindInMergedCache(
+    const ResourceDictionary::DictionaryState& impl,
+    Base::StringView key) noexcept {
+    const ResourceDictionary::DictionaryState::Entry* const* found =
+        impl.mergedStringCache.Find(key);
+    return found != nullptr ? *found : nullptr;
+}
+
+inline const ResourceDictionary::DictionaryState::Entry* FindInMergedCache(
+    const ResourceDictionary::DictionaryState& impl,
+    Meta::TypeId key) noexcept {
+    const ResourceDictionary::DictionaryState::Entry* const* found =
+        impl.mergedTypeCache.Find(key);
+    return found != nullptr ? *found : nullptr;
+}
+
+inline const ResourceDictionary::DictionaryState::Entry* FindInMergedCache(
+    const ResourceDictionary::DictionaryState& impl,
+    const ResourceKey& key) noexcept {
+    if (key.Kind() == ResourceKeyKind::String) {
+        return FindInMergedCache(impl, key.StringValue());
+    }
+    if (key.Kind() == ResourceKeyKind::Type) {
+        return FindInMergedCache(impl, key.TypeValue());
+    }
+    return nullptr;
+}
+
+template<class KeyT, std::uint32_t InlineCapacity>
 Base::Result<ResourceValue> LookupImpl(
     const ResourceDictionary::DictionaryState& impl,
     const KeyT& key,
@@ -325,6 +424,30 @@ Base::Result<ResourceValue> LookupImpl(
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             MessageResourceNotFound);
+    }
+    if (visited.Empty()) {
+        std::uint64_t treeGen = 14695981039346656037ULL;
+        const bool acyclic = ComputeMergedTreeGeneration(impl, visited, treeGen);
+        if (acyclic) {
+            if (!impl.mergedCacheValid || impl.cachedMergedTreeGeneration != treeGen) {
+                impl.mergedStringCache.Clear();
+                impl.mergedTypeCache.Clear();
+                impl.mergedHasCycle = false;
+                PopulateMergedCacheRecursive(impl, impl, visited);
+                impl.cachedMergedTreeGeneration = treeGen;
+                impl.mergedCacheValid = !impl.mergedHasCycle;
+            }
+            if (impl.mergedCacheValid) {
+                const ResourceDictionary::DictionaryState::Entry* mergedHit =
+                    FindInMergedCache(impl, key);
+                if (mergedHit != nullptr) {
+                    return mergedHit->value;
+                }
+                return Base::Status::Failure(
+                    Base::ErrorCode::NotFound,
+                    MessageResourceNotFound);
+            }
+        }
     }
     visited.PushBack(&impl);
     for (std::uint32_t index = impl.merged.Size();
@@ -353,7 +476,7 @@ Base::Result<ResourceValue> LookupImpl(
         MessageResourceNotFound);
 }
 
-template<std::size_t InlineCapacity>
+template<std::uint32_t InlineCapacity>
 bool DependsOn(
     const ResourceDictionary::DictionaryState& root,
     const ResourceDictionary::DictionaryState& candidate,

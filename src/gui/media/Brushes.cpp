@@ -946,7 +946,7 @@ AERO_DESCRIBE(Brush) {
 AERO_DESCRIBE(SolidColorBrush) {
     using namespace Aero::Meta;
     Register<SolidColorBrush>(context)
-            .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}).Structural())
+            .Property(SolidColorBrush::ColorProperty, FrameworkPropertyMetadata(Color{}, AffectsRender).Structural())
             .Content(MakeMemberId(SolidColorBrush::StaticTypeId(), MemberKind::Property, "Color"))
             .TextConverter(&::Aero::MetadataSupport::ConvertBrushText)
             .Factory();

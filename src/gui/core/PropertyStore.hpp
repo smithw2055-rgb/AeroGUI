@@ -99,9 +99,9 @@ struct StoredValueEntry {
         DescendantsQueuedBit = 1U << 8U,
         HasInlineProviderBit = 1U << 9U,
         RankShift = 10U,
-        RankMask = 0x3FU,
-        OriginShift = 16U,
-        OriginMask = 0xFFFFU
+        RankMask = 0x7FU,
+        OriginShift = 17U,
+        OriginMask = 0x7FFFU
     };
 
     PropertyValue effectiveValue;

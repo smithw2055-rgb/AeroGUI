@@ -116,20 +116,23 @@ bool ComparePropertyValues(
         return false;
     }
 
+    const Meta::Registry* activeMetadata = metadata != nullptr
+        ? metadata
+        : Meta::CurrentObjectFactory().metadata;
     if (rightValue.Kind() == Meta::ValueKind::String &&
         leftValue.Kind() != Meta::ValueKind::String) {
-        if (metadata != nullptr) {
+        if (activeMetadata != nullptr) {
             Base::Result<Meta::PropertyValue> converted =
-                metadata->TryConvertText(leftValue.Type(), rightValue.AsString());
+                activeMetadata->TryConvertText(leftValue.Type(), rightValue.AsString());
             if (converted) {
                 rightValue = std::move(converted).Value();
             }
         }
     } else if (leftValue.Kind() == Meta::ValueKind::String &&
                rightValue.Kind() != Meta::ValueKind::String) {
-        if (metadata != nullptr) {
+        if (activeMetadata != nullptr) {
             Base::Result<Meta::PropertyValue> converted =
-                metadata->TryConvertText(rightValue.Type(), leftValue.AsString());
+                activeMetadata->TryConvertText(rightValue.Type(), leftValue.AsString());
             if (converted) {
                 leftValue = std::move(converted).Value();
             }

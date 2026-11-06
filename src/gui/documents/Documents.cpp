@@ -793,10 +793,10 @@ void PopulateDocumentsMetadata(::Aero::Meta::Registration& context) noexcept {
     Register<TextElement>(context, TypeFlags::Abstract)
         .AddOwner(TextElement::FontFamilyProperty, Aero::FrameworkElement::FontFamilyProperty, Base::Ref<FontFamily>{}, Inherits | AffectsMeasure)
         .Property(TextElement::FontWeightProperty, FontWeight::Normal, Inherits | AffectsMeasure)
-        .AddOwner(TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits)
-        .Property(TextElement::FontSizeProperty, 15.0, Inherits, &Controls::ValidatePositiveFiniteDouble)
-        .Property(TextElement::FontStyleProperty, FontStyle::Normal, Inherits)
-        .Property(TextElement::TextDecorationsProperty, Controls::TextDecorations::None, Inherits);
+        .AddOwner(TextElement::ForegroundProperty, Aero::FrameworkElement::ForegroundProperty, black, Inherits | AffectsRender)
+        .Property(TextElement::FontSizeProperty, 15.0, Inherits | AffectsMeasure | AffectsRender, &Controls::ValidatePositiveFiniteDouble)
+        .Property(TextElement::FontStyleProperty, FontStyle::Normal, Inherits | AffectsMeasure | AffectsRender)
+        .Property(TextElement::TextDecorationsProperty, Controls::TextDecorations::None, Inherits | AffectsRender);
 
     Register<Inline>(context, TypeFlags::Abstract);
 
