@@ -1917,42 +1917,26 @@ Base::Result<void> TemplateEngine::Subscribe(
     instance.bindingPropertyMask = 0ULL;
     instance.parentTriggerPropertyMask = 0ULL;
     instance.childTriggerPropertyMask = 0ULL;
-    std::uint64_t subscribedParentMask = 0ULL;
-    for (std::uint32_t index = 0U;
-         index < bindings.Size();
-         ++index) {
-        const DependencyPropertyHandle property =
-            bindings[index].sourceProperty;
-        const std::uint64_t propMask = PropertyTriggerMask(property);
-        instance.bindingPropertyMask |= propMask;
-        if ((subscribedParentMask & propMask) == propMask) {
-            bool first = true;
-            for (std::uint32_t previous = 0U;
-                 previous < index;
-                 ++previous) {
-                first = first &&
-                    bindings[previous].sourceProperty != property;
-            }
-            if (!first) continue;
+
+    TriggerSubscriptionFilter parentFilter;
+    for (const TemplateBindingPlan& binding : bindings) {
+        instance.bindingPropertyMask |= PropertyTriggerMask(binding.sourceProperty);
+        if (parentFilter.TryAcquire(binding.sourceProperty)) {
+            instance.parent->AddValueChangedHandler(
+                binding.sourceProperty, propertyChangedHandler_);
         }
-        subscribedParentMask |= propMask;
-        instance.parent->AddValueChangedHandler(
-            property, propertyChangedHandler_);
     }
-    for (std::uint32_t index = 0U;
-         index < triggers.Size();
-         ++index) {
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        for (std::uint32_t condIndex = 0U;
-             condIndex < trigger.conditions.Size();
-             ++condIndex) {
-            const TemplateTriggerCondition& condition =
-                trigger.conditions[condIndex];
-            DependencyObject* source =
-                FindTarget(
-                    instance,
-                    condition.sourceName.View(),
-                    condition.sourcePartIndex);
+
+    struct SourcePropertyPair {
+        DependencyObject* source = nullptr;
+        DependencyPropertyHandle property;
+    };
+    Base::BasicVector<SourcePropertyPair, 16U> childSubscriptions;
+
+    for (const TemplatePropertyTrigger& trigger : triggers) {
+        for (const TemplateTriggerCondition& condition : trigger.conditions) {
+            DependencyObject* source = FindTarget(
+                instance, condition.sourceName.View(), condition.sourcePartIndex);
             if (source == nullptr) {
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
@@ -1961,59 +1945,25 @@ Base::Result<void> TemplateEngine::Subscribe(
             const std::uint64_t propMask = PropertyTriggerMask(condition.property);
             if (source == instance.parent) {
                 instance.parentTriggerPropertyMask |= propMask;
-                if ((subscribedParentMask & propMask) == propMask) {
-                    bool alreadySubscribed = false;
-                    for (const TemplateBindingPlan& b : bindings) {
-                        if (b.sourceProperty == condition.property) {
-                            alreadySubscribed = true;
-                            break;
-                        }
-                    }
-                    for (std::uint32_t prevTrigger = 0U;
-                         !alreadySubscribed && prevTrigger <= index;
-                         ++prevTrigger) {
-                        const auto& prevConds = triggers[prevTrigger].conditions;
-                        const std::uint32_t limit =
-                            prevTrigger == index ? condIndex : prevConds.Size();
-                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
-                            if (prevConds[prevCond].property == condition.property &&
-                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
-                                alreadySubscribed = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (alreadySubscribed) continue;
+                if (!parentFilter.TryAcquire(condition.property)) {
+                    continue;
                 }
-                subscribedParentMask |= propMask;
             } else {
-                const bool mayCollide =
-                    (instance.childTriggerPropertyMask & propMask) == propMask;
                 instance.childTriggerPropertyMask |= propMask;
-                const std::uint32_t instanceIndex = static_cast<std::uint32_t>(&instance - instances_.Data());
+                const std::uint32_t instanceIndex =
+                    static_cast<std::uint32_t>(&instance - instances_.Data());
                 static_cast<void>(triggerSourceToInstance_.Insert(source, instanceIndex));
-                if (mayCollide) {
-                    bool alreadySubscribed = false;
-                    for (std::uint32_t prevTrigger = 0U;
-                         !alreadySubscribed && prevTrigger <= index;
-                         ++prevTrigger) {
-                        const auto& prevConds = triggers[prevTrigger].conditions;
-                        const std::uint32_t limit =
-                            prevTrigger == index ? condIndex : prevConds.Size();
-                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
-                            if (prevConds[prevCond].property == condition.property &&
-                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
-                                alreadySubscribed = true;
-                                break;
-                            }
-                        }
+                bool duplicate = false;
+                for (const SourcePropertyPair& existing : childSubscriptions) {
+                    if (existing.source == source && existing.property == condition.property) {
+                        duplicate = true;
+                        break;
                     }
-                    if (alreadySubscribed) continue;
                 }
+                if (duplicate) continue;
+                childSubscriptions.PushBack({source, condition.property});
             }
-            source->AddValueChangedHandler(
-                condition.property,
-                propertyChangedHandler_);
+            source->AddValueChangedHandler(condition.property, propertyChangedHandler_);
         }
     }
     return {};
@@ -2025,95 +1975,43 @@ void TemplateEngine::Unsubscribe(
         Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan);
     const Base::Span<const TemplatePropertyTrigger> triggers =
         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
-    std::uint64_t unsubscribedParentMask = 0ULL;
-    for (std::uint32_t index = 0U;
-         index < bindings.Size();
-         ++index) {
-        const DependencyPropertyHandle property =
-            bindings[index].sourceProperty;
-        const std::uint64_t propMask = PropertyTriggerMask(property);
-        if ((unsubscribedParentMask & propMask) == propMask) {
-            bool first = true;
-            for (std::uint32_t previous = 0U;
-                 previous < index;
-                 ++previous) {
-                first = first &&
-                    bindings[previous].sourceProperty != property;
-            }
-            if (!first) continue;
+
+    TriggerSubscriptionFilter parentFilter;
+    for (const TemplateBindingPlan& binding : bindings) {
+        if (parentFilter.TryAcquire(binding.sourceProperty)) {
+            (void)instance.parent->RemoveValueChangedHandler(
+                binding.sourceProperty, propertyChangedHandler_);
         }
-        unsubscribedParentMask |= propMask;
-        (void)instance.parent->RemoveValueChangedHandler(
-            property, propertyChangedHandler_);
     }
-    std::uint64_t unsubscribedChildMask = 0ULL;
-    for (std::uint32_t index = 0U;
-         index < triggers.Size();
-         ++index) {
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        for (std::uint32_t condIndex = 0U;
-             condIndex < trigger.conditions.Size();
-             ++condIndex) {
-            const TemplateTriggerCondition& condition =
-                trigger.conditions[condIndex];
-            DependencyObject* source =
-                FindTarget(
-                    instance,
-                    condition.sourceName.View(),
-                    condition.sourcePartIndex);
+
+    struct SourcePropertyPair {
+        DependencyObject* source = nullptr;
+        DependencyPropertyHandle property;
+    };
+    Base::BasicVector<SourcePropertyPair, 16U> childSubscriptions;
+
+    for (const TemplatePropertyTrigger& trigger : triggers) {
+        for (const TemplateTriggerCondition& condition : trigger.conditions) {
+            DependencyObject* source = FindTarget(
+                instance, condition.sourceName.View(), condition.sourcePartIndex);
             if (source == nullptr) continue;
-            const std::uint64_t propMask = PropertyTriggerMask(condition.property);
             if (source == instance.parent) {
-                if ((unsubscribedParentMask & propMask) == propMask) {
-                    bool alreadyUnsubscribed = false;
-                    for (const TemplateBindingPlan& b : bindings) {
-                        if (b.sourceProperty == condition.property) {
-                            alreadyUnsubscribed = true;
-                            break;
-                        }
-                    }
-                    for (std::uint32_t prevTrigger = 0U;
-                         !alreadyUnsubscribed && prevTrigger <= index;
-                         ++prevTrigger) {
-                        const auto& prevConds = triggers[prevTrigger].conditions;
-                        const std::uint32_t limit =
-                            prevTrigger == index ? condIndex : prevConds.Size();
-                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
-                            if (prevConds[prevCond].property == condition.property &&
-                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
-                                alreadyUnsubscribed = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (alreadyUnsubscribed) continue;
+                if (!parentFilter.TryAcquire(condition.property)) {
+                    continue;
                 }
-                unsubscribedParentMask |= propMask;
             } else {
                 triggerSourceToInstance_.Erase(source);
-                if ((unsubscribedChildMask & propMask) == propMask) {
-                    bool alreadyUnsubscribed = false;
-                    for (std::uint32_t prevTrigger = 0U;
-                         !alreadyUnsubscribed && prevTrigger <= index;
-                         ++prevTrigger) {
-                        const auto& prevConds = triggers[prevTrigger].conditions;
-                        const std::uint32_t limit =
-                            prevTrigger == index ? condIndex : prevConds.Size();
-                        for (std::uint32_t prevCond = 0U; prevCond < limit; ++prevCond) {
-                            if (prevConds[prevCond].property == condition.property &&
-                                prevConds[prevCond].sourceName.View() == condition.sourceName.View()) {
-                                alreadyUnsubscribed = true;
-                                break;
-                            }
-                        }
+                bool duplicate = false;
+                for (const SourcePropertyPair& existing : childSubscriptions) {
+                    if (existing.source == source && existing.property == condition.property) {
+                        duplicate = true;
+                        break;
                     }
-                    if (alreadyUnsubscribed) continue;
                 }
-                unsubscribedChildMask |= propMask;
+                if (duplicate) continue;
+                childSubscriptions.PushBack({source, condition.property});
             }
-            (void)source->RemoveValueChangedHandler(
-                condition.property,
-                propertyChangedHandler_);
+            (void)source->RemoveValueChangedHandler(condition.property, propertyChangedHandler_);
         }
     }
 }
@@ -2345,27 +2243,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
         return {};
     }
 
-    std::uint64_t activeMask = 0ULL;
-    Base::Vector<std::uint8_t> activeStatesFallback;
-    if (triggers.Size() > 64U) {
-        activeStatesFallback.Resize(triggers.Size(), 0U);
-    }
-    auto setActive = [&](std::uint32_t idx, bool act) noexcept {
-        if (idx < 64U) {
-            if (act) {
-                activeMask |= (UINT64_C(1) << idx);
-            }
-        } else {
-            activeStatesFallback[idx] = act ? 1U : 0U;
-        }
-    };
-    auto getActive = [&](std::uint32_t idx) noexcept -> bool {
-        if (idx < 64U) {
-            return (activeMask & (UINT64_C(1) << idx)) != 0ULL;
-        }
-        return activeStatesFallback[idx] != 0U;
-    };
-
+    TriggerActiveBitset activeStates(triggers.Size());
     bool anyStateChanged = firstEval;
     for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
         const TemplatePropertyTrigger& trigger = triggers[index];
@@ -2389,7 +2267,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
                 break;
             }
         }
-        setActive(index, active);
+        activeStates.Set(index, active);
         const std::uint64_t bit = index < 64U ? (UINT64_C(1) << index) : 0ULL;
         const bool wasActive = (instance.triggerStatesMask & bit) != 0ULL;
         if (active != wasActive) {
@@ -2427,7 +2305,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
     }
 
     for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
-        const bool active = getActive(index);
+        const bool active = activeStates.Get(index);
         if (!active) continue;
         const TemplatePropertyTrigger& trigger = triggers[index];
         for (const TemplateTriggerSetter& setter : trigger.setters) {

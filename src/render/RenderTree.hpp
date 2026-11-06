@@ -139,6 +139,10 @@ struct RenderNodeSnapshot {
     std::uint32_t commandCount = 0U;
     std::uint32_t payloadOffset = 0U;
     std::uint32_t payloadSize = 0U;
+    std::uint32_t subtreeEnd = 0U;
+    std::uint32_t subtreeCommandCount = 0U;
+    bool descendantHasEffectOrMask = false;
+    bool isIdentityTransform = true;
     std::uint64_t elementRevision = 0U;
     const DisplayList* drawing = nullptr;
 };
@@ -349,9 +353,10 @@ private:
     void QueueDirty(
         ::Aero::Media::Visual& visual) noexcept;
     void RemoveQueued(::Aero::Media::Visual& visual) noexcept;
-    void MarkCommittedSubtree(
+    bool MarkCommittedSubtree(
         ::Aero::Media::Visual& visual,
-        bool ancestorVisible = true) noexcept;
+        bool ancestorVisible = true,
+        bool pruneCleanSubtrees = false) noexcept;
     DrawingRecord* FindDrawing(::Aero::Media::Visual& visual) noexcept;
     void RemoveDrawing(::Aero::Media::Visual& visual) noexcept;
     // P4.3: DescribeVisual is the single visual fact source. It re-records

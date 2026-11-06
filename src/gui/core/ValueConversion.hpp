@@ -20,6 +20,9 @@
 namespace Aero {
 struct Length;
 struct GridLength;
+namespace Meta {
+class TypeRegistry;
+}
 }
 
 namespace Aero::Base {
@@ -64,6 +67,35 @@ Result<void> FormatScalarValue(
     String& output,
     const Meta::Value& value) noexcept;
 Result<String> FormatScalarValue(
+    const Meta::Value& value) noexcept;
+
+// Unified runtime Value coercion & conversion kernel (Phase 1 deduplication).
+bool IsNumericType(Meta::TypeId type) noexcept;
+bool TryExtractNumber(
+    const Meta::Value& value,
+    long double& outNumber,
+    bool parseString = false) noexcept;
+Result<Meta::Value> ConvertNumericValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Result<Meta::Value> ConvertNullableBooleanValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Result<Meta::Value> ConvertMetricValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Result<Meta::Value> ConvertColorAndBrushValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType,
+    const Meta::TypeRegistry* types = nullptr) noexcept;
+Result<Meta::Value> ConvertTextToValueFallback(
+    const Meta::TypeRegistry* types,
+    Meta::TypeId targetType,
+    StringView text) noexcept;
+bool HasDefaultTargetConversion(
+    Meta::TypeId sourceType,
+    Meta::TypeId targetType) noexcept;
+Meta::Value UnboxItemValue(
     const Meta::Value& value) noexcept;
 
 template<class T>

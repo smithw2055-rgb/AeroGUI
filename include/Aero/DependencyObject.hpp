@@ -211,8 +211,9 @@ private:
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
     const DependencyPropertyRef<TOwner, TValue>& property) const noexcept {
-    const PropertyValue stored = GetValue(property.Handle());
-    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(stored);
+    const PropertyValue* stored = FindEffectiveValuePtr(property.Handle());
+    if (stored == nullptr) return PropertyAccess<TValue>{};
+    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(*stored);
     return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
 }
 
@@ -223,8 +224,9 @@ template<class TOwner> StringView DependencyObject::GetValue(
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
     const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
-    const PropertyValue stored = GetValue(property.Handle());
-    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(stored);
+    const PropertyValue* stored = FindEffectiveValuePtr(property.Handle());
+    if (stored == nullptr) return PropertyAccess<TValue>{};
+    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(*stored);
     return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
 }
 

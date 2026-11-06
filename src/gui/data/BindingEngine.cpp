@@ -826,128 +826,19 @@ Base::Status BindingPathFailure(
 }
 
 bool IsNumericType(TypeId type) noexcept {
-    return type == TypeOf<std::int8_t>() ||
-        type == TypeOf<std::int16_t>() ||
-        type == TypeOf<std::int32_t>() ||
-        type == TypeOf<std::int64_t>() ||
-        type == TypeOf<std::uint8_t>() ||
-        type == TypeOf<std::uint16_t>() ||
-        type == TypeOf<std::uint32_t>() ||
-        type == TypeOf<std::uint64_t>() ||
-        type == TypeOf<double>();
+    return Base::ValueConversion::IsNumericType(type);
 }
 
 Base::Result<PropertyValue> ConvertNumericValue(
     const PropertyValue& value,
     TypeId targetType) noexcept {
-    long double number = 0.0L;
-    switch (value.Kind()) {
-    case ValueKind::SignedInteger:
-        number = static_cast<long double>(
-            value.AsSignedInteger());
-        break;
-    case ValueKind::UnsignedInteger:
-        number = static_cast<long double>(
-            value.AsUnsignedInteger());
-        break;
-    case ValueKind::Double:
-        if (!std::isfinite(value.AsDouble())) {
-            return InvalidArgument(
-                "Binding numeric value is not finite");
-        }
-        number = static_cast<long double>(
-            value.AsDouble());
-        break;
-    default:
-        return InvalidArgument(
-            "Binding numeric value has an invalid representation");
-    }
-
-    if (targetType == TypeOf<double>()) {
-        const double result =
-            static_cast<double>(number);
-        if (!std::isfinite(result)) {
-            return InvalidArgument(
-                "Binding numeric value exceeds the Double range");
-        }
-        return PropertyValue::FromDouble(
-            targetType, result);
-    }
-
-    const bool signedTarget =
-        targetType == TypeOf<std::int8_t>() ||
-        targetType == TypeOf<std::int16_t>() ||
-        targetType == TypeOf<std::int32_t>() ||
-        targetType == TypeOf<std::int64_t>();
-    if (signedTarget) {
-        long double minimum = static_cast<long double>(
-            std::numeric_limits<std::int64_t>::min());
-        long double maximum = static_cast<long double>(
-            std::numeric_limits<std::int64_t>::max());
-        if (targetType == TypeOf<std::int8_t>()) {
-            minimum = std::numeric_limits<std::int8_t>::min();
-            maximum = std::numeric_limits<std::int8_t>::max();
-        } else if (
-            targetType == TypeOf<std::int16_t>()) {
-            minimum = std::numeric_limits<std::int16_t>::min();
-            maximum = std::numeric_limits<std::int16_t>::max();
-        } else if (
-            targetType == TypeOf<std::int32_t>()) {
-            minimum = std::numeric_limits<std::int32_t>::min();
-            maximum = std::numeric_limits<std::int32_t>::max();
-        }
-        if (number < minimum || number > maximum) {
-            return InvalidArgument(
-                "Binding numeric value exceeds the signed target range");
-        }
-        return PropertyValue::FromSignedInteger(
-            targetType,
-            static_cast<std::int64_t>(number));
-    }
-
-    long double maximum = static_cast<long double>(
-        std::numeric_limits<std::uint64_t>::max());
-    if (targetType == TypeOf<std::uint8_t>()) {
-        maximum = std::numeric_limits<std::uint8_t>::max();
-    } else if (
-        targetType == TypeOf<std::uint16_t>()) {
-        maximum = std::numeric_limits<std::uint16_t>::max();
-    } else if (
-        targetType == TypeOf<std::uint32_t>()) {
-        maximum = std::numeric_limits<std::uint32_t>::max();
-    }
-    if (number < 0.0L || number > maximum) {
-        return InvalidArgument(
-            "Binding numeric value exceeds the unsigned target range");
-    }
-    return PropertyValue::FromUnsignedInteger(
-        targetType,
-        static_cast<std::uint64_t>(number));
+    return Base::ValueConversion::ConvertNumericValue(value, targetType);
 }
 
 bool HasDefaultTargetConversion(
     TypeId sourceType,
     TypeId targetType) noexcept {
-    return sourceType == TypeOf<Meta::Value>() ||
-        (sourceType == TypeOf<bool>() &&
-         targetType == TypeOf<::Aero::Nullable<bool>>()) ||
-        (sourceType == TypeOf<::Aero::Nullable<bool>>() &&
-         targetType == TypeOf<bool>()) ||
-        (sourceType != targetType &&
-         IsNumericType(sourceType) &&
-         IsNumericType(targetType)) ||
-        (IsNumericType(sourceType) &&
-         targetType == TypeOf<Aero::Length>()) ||
-        (IsNumericType(sourceType) &&
-         targetType == TypeOf<Base::Thickness>()) ||
-        (sourceType == TypeOf<Aero::Length>() &&
-         IsNumericType(targetType)) ||
-        (sourceType == TypeOf<Base::Color>() &&
-         targetType == Media::Brush::StaticTypeId()) ||
-        (targetType == TypeOf<Base::String>() &&
-         sourceType != InvalidTypeId) ||
-        (sourceType == TypeOf<Base::String>() &&
-         targetType != InvalidTypeId);
+    return Base::ValueConversion::HasDefaultTargetConversion(sourceType, targetType);
 }
 
 bool TargetAcceptsPathResult(
@@ -973,80 +864,24 @@ bool TargetAcceptsPathResult(
 Base::Result<PropertyValue> ConvertNullableBooleanValue(
     const PropertyValue& value,
     TypeId targetType) noexcept {
-    if (targetType == TypeOf<::Aero::Nullable<bool>>() &&
-        value.Type() == TypeOf<bool>() &&
-        value.Kind() == ValueKind::Boolean) {
-        return ValueCodec<::Aero::Nullable<bool>>::Encode(
-            ::Aero::Nullable<bool>{value.AsBoolean()});
-    }
-    if (targetType == TypeOf<bool>() &&
-        value.Type() == TypeOf<::Aero::Nullable<bool>>()) {
-        Base::Result<::Aero::Nullable<bool>> decoded =
-            ValueCodec<::Aero::Nullable<bool>>::Decode(value);
-        if (!decoded) return decoded.GetStatus();
-        if (!decoded.Value().GetHasValue()) {
-            return InvalidArgument(
-                "Indeterminate Nullable Boolean cannot be converted to Boolean");
-        }
-        return PropertyValue::FromBoolean(
-            targetType, decoded.Value().GetValue());
-    }
-    return InvalidArgument(
-        "Nullable Boolean conversion is incompatible");
+    return Base::ValueConversion::ConvertNullableBooleanValue(value, targetType);
 }
 
 Base::Result<PropertyValue> ConvertThicknessValue(
     const PropertyValue& value) noexcept {
-    Base::Result<PropertyValue> numeric =
-        ConvertNumericValue(value, TypeOf<double>());
-    if (!numeric) return numeric.GetStatus();
-    const double uniform = numeric.Value().AsDouble();
-    return Meta::ValueCodec<Base::Thickness>::Encode(
-        Base::Thickness{uniform, uniform, uniform, uniform});
+    return Base::ValueConversion::ConvertMetricValue(value, TypeOf<Base::Thickness>());
 }
 
 Base::Result<PropertyValue> ConvertLengthValue(
     const PropertyValue& value,
     TypeId targetType) noexcept {
-    if (targetType == TypeOf<Aero::Length>() &&
-        IsNumericType(value.Type())) {
-        Base::Result<PropertyValue> numeric =
-            ConvertNumericValue(value, TypeOf<double>());
-        if (!numeric) return numeric.GetStatus();
-        return Meta::ValueCodec<Aero::Length>::Encode(
-            Aero::Length::Pixels(numeric.Value().AsDouble()));
-    }
-    if (value.Type() == TypeOf<Aero::Length>() &&
-        IsNumericType(targetType)) {
-        Base::Result<Aero::Length> length =
-            Meta::ValueCodec<Aero::Length>::Decode(value);
-        if (!length) return length.GetStatus();
-        if (length.Value().isAuto) {
-            return InvalidArgument(
-                "Auto Length cannot be converted to a numeric binding target");
-        }
-        return ConvertNumericValue(
-            PropertyValue::FromDouble(
-                TypeOf<double>(), length.Value().value),
-            targetType);
-    }
-    return InvalidArgument(
-        "Binding Length conversion is not supported");
+    return Base::ValueConversion::ConvertMetricValue(value, targetType);
 }
 
 Base::Result<PropertyValue> ConvertColorToBrush(
     const PropertyValue& value) noexcept {
-    Base::Result<Base::Color> color =
-        Meta::ValueCodec<Base::Color>::Decode(value);
-    if (!color) return color.GetStatus();
-    Base::Ref<Media::Brush> brush =
-        Media::MakeSolidColorBrush(color.Value());
-    if (!brush) {
-        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create brush");
-    }
-    return PropertyValue::FromObject(
-        Media::Brush::StaticTypeId(),
-        Base::Ref<Base::Object>(std::move(brush)));
+    return Base::ValueConversion::ConvertColorAndBrushValue(
+        value, Media::Brush::StaticTypeId());
 }
 
 // A TwoWay object binding may intentionally expose a concrete source object
@@ -1497,16 +1332,41 @@ Base::Result<Base::String> FormatBindingString(
 Base::Result<PropertyValue> UnboxItemsValue(
     Base::Result<PropertyValue> value) noexcept {
     if (!value) return value.GetStatus();
-    const PropertyValue& current = value.Value();
-    if (current.Kind() == ValueKind::Object &&
-        !current.IsNullObject() && current.AsObject() &&
-        current.AsObject()->RuntimeType() ==
-            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
-        return static_cast<const
-            ::Aero::Controls::BoxedItemValue&>(
-                *current.AsObject()).Value();
+    return Base::ValueConversion::UnboxItemValue(value.Value());
+}
+
+Base::Result<PropertyValue> ConvertDefaultBindingValue(
+    const PropertyValue& value,
+    TypeId targetType,
+    Base::StringView stringFormat,
+    const Registry* metadata,
+    TypeId formattedStringType) noexcept {
+    if ((value.Type() == TypeOf<bool>() &&
+         targetType == TypeOf<::Aero::Nullable<bool>>()) ||
+        (value.Type() == TypeOf<::Aero::Nullable<bool>>() &&
+         targetType == TypeOf<bool>())) {
+        return ConvertNullableBooleanValue(value, targetType);
     }
-    return value;
+    if ((IsNumericType(value.Type()) &&
+         (targetType == TypeOf<Base::Thickness>() ||
+          targetType == TypeOf<Aero::Length>() ||
+          targetType == TypeOf<Aero::GridLength>() ||
+          targetType == TypeOf<Base::CornerRadius>())) ||
+        (value.Type() == TypeOf<Aero::Length>() &&
+         IsNumericType(targetType))) {
+        return Base::ValueConversion::ConvertMetricValue(value, targetType);
+    }
+    if (value.Type() == TypeOf<Base::Color>() &&
+        targetType == Media::Brush::StaticTypeId()) {
+        return ConvertColorToBrush(value);
+    }
+    if (IsNumericType(value.Type()) && IsNumericType(targetType)) {
+        return ConvertNumericValue(value, targetType);
+    }
+    Base::Result<Base::String> text =
+        FormatBindingString(value, stringFormat, metadata);
+    if (!text) return text.GetStatus();
+    return PropertyValue::TryFromString(formattedStringType, text.Value().View());
 }
 
 

@@ -151,6 +151,7 @@ bool IsPersistableCompiledValue(
         return IsPersistableCompiledCustomType(value.Type());
     case Meta::ValueKind::Unset:
     case Meta::ValueKind::Object:
+    case Meta::ValueKind::DynamicResource:
         return false;
     }
     return false;
@@ -1313,6 +1314,7 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
     }
     case Meta::ValueKind::Unset:
     case Meta::ValueKind::Object:
+    case Meta::ValueKind::DynamicResource:
         return makeText();
     }
     return makeText();
@@ -2267,17 +2269,7 @@ CompiledDocument::Serialize(
     if (!result) return result.GetStatus();
     result = AppendU32(output, XamlCompiledDocumentEncodingVersion);
     if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.cacheFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.typeIdAlgorithmVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.metadataSchemaFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.metadataProgramFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity_.schemaVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU64(output, identity_.metadataSchemaHash);
+    result = AppendCompiledCacheIdentity(output, identity_);
     if (!result) return result.GetStatus();
     result = AppendU32(output, sections.Size());
     if (!result) return result.GetStatus();
@@ -2332,24 +2324,9 @@ CompiledDocument::Deserialize(
     }
 
     CompiledDocument document;
-    Base::Result<std::uint32_t> value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    document.identity_.cacheFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    document.identity_.typeIdAlgorithmVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    document.identity_.metadataSchemaFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    document.identity_.metadataProgramFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    document.identity_.schemaVersion = value.Value();
-    Base::Result<std::uint64_t> hash = decoder.ReadU64();
-    if (!hash) return hash.GetStatus();
-    document.identity_.metadataSchemaHash = hash.Value();
+    Base::Result<CompiledCacheIdentity> readIdentity = ReadCompiledCacheIdentity(decoder);
+    if (!readIdentity) return readIdentity.GetStatus();
+    document.identity_ = readIdentity.Value();
     Base::Result<void> compatible = ValidateCompiledCacheIdentity(
         document.identity_, domain);
     if (!compatible) return compatible.GetStatus();

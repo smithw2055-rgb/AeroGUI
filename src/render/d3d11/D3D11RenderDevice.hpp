@@ -155,9 +155,7 @@ protected:
 
 private:
     struct DynamicBuffer {
-        uint32_t size = 0U;
-        uint32_t pos = 0U;
-        uint32_t drawPos = 0U;
+        RingBufferTracker ring{};
         D3D11_BIND_FLAG flags = D3D11_BIND_VERTEX_BUFFER;
         ID3D11Buffer* obj = nullptr;
         bool isMapped = false;

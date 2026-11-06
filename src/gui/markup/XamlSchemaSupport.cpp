@@ -167,6 +167,12 @@ struct SchemaManifest::State {
     const TypeRecord* FindType(
         Base::StringView xamlNamespace,
         Base::StringView name) const noexcept {
+        if (const TypeRecord* byId = FindType(Meta::MakeTypeId(xamlNamespace, name))) {
+            if (byId->xamlNamespace.View() == xamlNamespace &&
+                byId->name.View() == name) {
+                return byId;
+            }
+        }
         for (const TypeRecord& type : types) {
             if (type.xamlNamespace.View() == xamlNamespace &&
                 type.name.View() == name) {
@@ -187,15 +193,20 @@ struct SchemaManifest::State {
         Base::StringView name,
         ManifestMemberKind kind,
         bool includeBaseTypes) const noexcept {
+        const Meta::MemberKind metadataKind =
+            kind == ManifestMemberKind::Event
+                ? Meta::MemberKind::Event
+                : Meta::MemberKind::Property;
         Meta::TypeId current = ownerType;
         for (std::uint32_t depth = 0U;
              current != Meta::InvalidTypeId && depth <= types.Size();
              ++depth) {
-            for (const MemberRecord& member : members) {
-                if (member.ownerType == current &&
-                    member.kind == kind &&
-                    member.name.View() == name) {
-                    return &member;
+            if (const MemberRecord* byId = FindMember(
+                    Meta::MakeMemberId(current, metadataKind, name))) {
+                if (byId->ownerType == current &&
+                    byId->kind == kind &&
+                    byId->name.View() == name) {
+                    return byId;
                 }
             }
             if (!includeBaseTypes) break;
@@ -363,42 +374,12 @@ void DestroyManifestState(
 Base::Result<void> AppendIdentity(
     Base::Vector<std::uint8_t>& output,
     const CompiledCacheIdentity& identity) noexcept {
-    Base::Result<void> result = AppendU32(
-        output, identity.cacheFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity.typeIdAlgorithmVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity.metadataSchemaFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity.metadataProgramFormatVersion);
-    if (!result) return result.GetStatus();
-    result = AppendU32(output, identity.schemaVersion);
-    if (!result) return result.GetStatus();
-    return AppendU64(output, identity.metadataSchemaHash);
+    return AppendCompiledCacheIdentity(output, identity);
 }
 
 Base::Result<CompiledCacheIdentity> ReadIdentity(
     Decoder& decoder) noexcept {
-    CompiledCacheIdentity identity;
-    Base::Result<std::uint32_t> value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    identity.cacheFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    identity.typeIdAlgorithmVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    identity.metadataSchemaFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    identity.metadataProgramFormatVersion = value.Value();
-    value = decoder.ReadU32();
-    if (!value) return value.GetStatus();
-    identity.schemaVersion = value.Value();
-    Base::Result<std::uint64_t> hash = decoder.ReadU64();
-    if (!hash) return hash.GetStatus();
-    identity.metadataSchemaHash = hash.Value();
-    return identity;
+    return ReadCompiledCacheIdentity(decoder);
 }
 
 } // namespace
@@ -973,25 +954,8 @@ Base::Status MissingStyleProperty(
     Base::StringView property,
     Meta::TypeId targetType,
     const Meta::TypeRegistry& types) noexcept {
-    thread_local char message[384];
-    const Meta::TypeInfo* target =
-        types.FindType(targetType);
-    const Base::StringView typeName =
-        target != nullptr
-        ? target->Name()
-        : Base::StringView("<unknown>");
-    std::snprintf(
-        message,
-        sizeof(message),
-        "Style %s '%.*s' was not found on TargetType '%.*s'",
-        role,
-        static_cast<int>(property.SizeBytes()),
-        property.Data(),
-        static_cast<int>(typeName.SizeBytes()),
-        typeName.Data());
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        message);
+    return FormatMissingTargetPropertyStatus(
+        "Style", role, property, targetType, types, Base::ErrorCode::NotFound);
 }
 
 inline const Meta::DependencyProperty* ResolveStyleProperty(
@@ -1123,12 +1087,7 @@ Base::Result<Meta::PropertyValue> XamlStyleSchemaFacet::ConvertValueForProperty(
     // Setter.Value="{Binding ...}" is a declaration. Converting it to the
     // target DP type (Canvas.Left is double) would drop the Binding and
     // fail style sealing, so ListBoxItem orbit placement never applied.
-    if (value.Kind() == Meta::ValueKind::Object &&
-        !value.IsNullObject() &&
-        (value.Type() == Data::Binding::StaticTypeId() ||
-         (value.AsObject() &&
-          value.AsObject()->RuntimeType() ==
-              Data::Binding::StaticTypeId()))) {
+    if (IsPassthroughMarkupPropertyValue(value)) {
         return value;
     }
     const Meta::DependencyProperty* property =
@@ -2413,13 +2372,9 @@ const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
         return nullptr;
     }
 
-    ::Aero::Base::StringView ownerName = name.Substr(0U, separator);
-    for (std::uint32_t index = 0U; index < ownerName.SizeBytes(); ++index) {
-        if (ownerName[index] == ':') {
-            ownerName = ownerName.Substr(index + 1U, ownerName.SizeBytes() - index - 1U);
-            break;
-        }
-    }
+    ::Aero::Base::StringView ownerPrefix;
+    ::Aero::Base::StringView ownerName;
+    SplitRelaxedQualifiedXamlName(name.Substr(0U, separator), ownerPrefix, ownerName);
 
     const ::Aero::Meta::TypeInfo* owner = properties.Types().FindType(
         ::Aero::Meta::AeroNamespaceUri(), ownerName);
@@ -2444,53 +2399,21 @@ const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
         return value;
     }
 
-    if ((targetPropertyType == ::Aero::Length::StaticTypeId() ||
-         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Length>() ||
-         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) &&
-        (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger ||
-         value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger ||
-         value.Kind() == ::Aero::Meta::ValueKind::Double)) {
-        double numericVal = 0.0;
-        if (value.Kind() == ::Aero::Meta::ValueKind::Double) {
-            auto num = ::Aero::Meta::ValueCodec<double>::Decode(value);
-            if (num) numericVal = num.Value();
-        } else if (value.Kind() == ::Aero::Meta::ValueKind::SignedInteger) {
-            auto num = ::Aero::Meta::ValueCodec<std::int64_t>::Decode(value);
-            if (num) numericVal = static_cast<double>(num.Value());
-        } else if (value.Kind() == ::Aero::Meta::ValueKind::UnsignedInteger) {
-            auto num = ::Aero::Meta::ValueCodec<std::uint64_t>::Decode(value);
-            if (num) numericVal = static_cast<double>(num.Value());
-        }
-        if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) {
-            return ::Aero::Meta::ValueCodec<::Aero::GridLength>::Encode(::Aero::GridLength::Pixel(numericVal));
-        }
-        return ::Aero::Meta::ValueCodec<::Aero::Length>::Encode(::Aero::Length::Pixels(numericVal));
+    if (targetPropertyType == ::Aero::Length::StaticTypeId() ||
+        targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Length>() ||
+        targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) {
+        auto metric = ::Aero::Base::ValueConversion::ConvertMetricValue(value, targetPropertyType);
+        if (metric) return metric;
     }
 
     if (targetPropertyType == ::Aero::Media::Brush::StaticTypeId() &&
         value.Type() == ::Aero::Meta::TypeOf<::Aero::Base::Color>()) {
-        auto color = ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Decode(value);
-        if (!color) return color.GetStatus();
-        auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
-        if (!brush) {
-            return ::Aero::Base::Status::Failure(::Aero::Base::ErrorCode::OutOfMemory, "Failed to create brush");
-        }
-        return ::Aero::Meta::Value::FromObject(
-            ::Aero::Media::Brush::StaticTypeId(),
-            ::Aero::Base::Ref<::Aero::Base::Object>(std::move(brush)));
+        return ::Aero::Base::ValueConversion::ConvertColorAndBrushValue(value, targetPropertyType);
     }
 
     if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {
-        if (value.IsNullObject()) {
-            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
-        }
-        if (value.Type() == ::Aero::Meta::TypeOf<bool>() ||
-            value.Kind() == ::Aero::Meta::ValueKind::Boolean) {
-            auto boolVal = ::Aero::Meta::ValueCodec<bool>::Decode(value);
-            if (!boolVal) return boolVal.GetStatus();
-            return ::Aero::Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
-                ::Aero::Nullable<bool>(boolVal.Value()));
-        }
+        auto nullable = ::Aero::Base::ValueConversion::ConvertNullableBooleanValue(value, targetPropertyType);
+        if (nullable) return nullable;
     }
 
     if (value.IsNullObject() && value.Type() != targetPropertyType) {
@@ -2507,20 +2430,48 @@ const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
     if (property.ValueType() == ::Aero::Meta::TypeOf<::Aero::Base::Color>() &&
         value.Kind() == ::Aero::Meta::ValueKind::Object &&
         types.IsDerivedFrom(value.Type(), ::Aero::Media::Brush::StaticTypeId())) {
-        ::Aero::Base::Result<::Aero::Base::Ref<::Aero::Media::Brush>> brush =
-            ::Aero::Meta::ValueCodec<::Aero::Base::Ref<::Aero::Media::Brush>>::Decode(value);
-        if (!brush) return brush.GetStatus();
-        if (brush.Value() == nullptr ||
-            brush->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
-            return ::Aero::Base::Status::Failure(
-                ::Aero::Base::ErrorCode::InvalidArgument,
-                "Color-backed text property requires SolidColorBrush");
-        }
-        return ::Aero::Meta::ValueCodec<::Aero::Base::Color>::Encode(
-            static_cast<const ::Aero::Media::SolidColorBrush&>(*brush.Value()).GetColor());
+        return ::Aero::Base::ValueConversion::ConvertColorAndBrushValue(
+            value, property.ValueType(), &types);
     }
 
     return CoerceXamlValueForProperty(property.ValueType(), value);
+}
+
+::Aero::Base::Result<::Aero::Meta::Value> BoxXamlStringAsObject(
+    ::Aero::Base::StringView text) noexcept {
+    Base::Result<Meta::Value> strVal =
+        Meta::Value::TryFromString(Meta::TypeOf<Base::String>(), text);
+    if (!strVal) return strVal.GetStatus();
+    Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
+        Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
+    if (!boxed) return boxed.GetStatus();
+    return Meta::Value::FromObject(
+        Meta::TypeOf<Base::Object>(),
+        Base::Ref<Base::Object>(std::move(boxed).Value()));
+}
+
+::Aero::Base::Status FormatMissingTargetPropertyStatus(
+    const char* scopeName,
+    const char* role,
+    ::Aero::Base::StringView property,
+    ::Aero::Meta::TypeId targetType,
+    const ::Aero::Meta::TypeRegistry& types,
+    ::Aero::Base::ErrorCode errorCode) noexcept {
+    thread_local char message[384];
+    const Meta::TypeInfo* target = types.FindType(targetType);
+    const Base::StringView typeName =
+        target != nullptr ? target->Name() : Base::StringView("<unknown>");
+    std::snprintf(
+        message,
+        sizeof(message),
+        "%s %s '%.*s' was not found on TargetType '%.*s'",
+        scopeName,
+        role,
+        static_cast<int>(property.SizeBytes()),
+        property.Data(),
+        static_cast<int>(typeName.SizeBytes()),
+        typeName.Data());
+    return Base::Status::Failure(errorCode, message);
 }
 
 MarkupExtensionContext MakeMarkupExtensionContext(
@@ -2530,22 +2481,15 @@ MarkupExtensionContext MakeMarkupExtensionContext(
         if (s == nullptr || s->schema == nullptr || name.Empty()) {
             return Base::Status::Failure(Base::ErrorCode::InvalidState, "ExtensionServices is null or name is empty");
         }
-        std::uint32_t colon = name.SizeBytes();
-        for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
-            if (name[index] != ':') continue;
-            if (colon != name.SizeBytes()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference contains multiple namespace prefixes");
-            }
-            colon = index;
-        }
         Base::StringView prefix;
-        Base::StringView localName = name;
-        if (colon != name.SizeBytes()) {
-            if (colon == 0U || colon + 1U >= name.SizeBytes()) {
-                return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference namespace prefix is malformed");
-            }
-            prefix = name.Substr(0U, colon);
-            localName = name.Substr(colon + 1U, name.SizeBytes() - colon - 1U);
+        Base::StringView localName;
+        switch (SplitQualifiedXamlName(name, prefix, localName)) {
+        case QualifiedNameSplitStatus::MultipleColons:
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference contains multiple namespace prefixes");
+        case QualifiedNameSplitStatus::MalformedPrefix:
+            return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Type reference namespace prefix is malformed");
+        case QualifiedNameSplitStatus::Ok:
+            break;
         }
         Base::Result<Base::StringView> uri = s->namespaces.Lookup(prefix);
         if (!uri) return uri.GetStatus();

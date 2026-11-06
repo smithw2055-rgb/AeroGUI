@@ -23,8 +23,17 @@ function(aero_forbid_file relative_path)
     endif()
 endfunction()
 
+macro(aero_get_cached_content relative_path out_var)
+    string(MAKE_C_IDENTIFIER "aero_cache_${relative_path}" _aero_cache_key)
+    if(NOT DEFINED "${_aero_cache_key}")
+        file(READ "${AERO_SOURCE_DIR}/${relative_path}" "${_aero_cache_key}")
+        set("${_aero_cache_key}" "${${_aero_cache_key}}" PARENT_SCOPE)
+    endif()
+    set(${out_var} "${${_aero_cache_key}}")
+endmacro()
+
 function(aero_require_text relative_path needle description)
-    file(READ "${AERO_SOURCE_DIR}/${relative_path}" content)
+    aero_get_cached_content("${relative_path}" content)
     string(FIND "${content}" "${needle}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR "${description}: ${relative_path}")
@@ -32,7 +41,7 @@ function(aero_require_text relative_path needle description)
 endfunction()
 
 function(aero_forbid_text relative_path needle description)
-    file(READ "${AERO_SOURCE_DIR}/${relative_path}" content)
+    aero_get_cached_content("${relative_path}" content)
     string(FIND "${content}" "${needle}" position)
     if(NOT position EQUAL -1)
         message(FATAL_ERROR "${description}: ${relative_path}")
@@ -131,10 +140,7 @@ foreach(aero_root_value_alias IN ITEMS
         "${aero_root_value_alias}")
     list(GET aero_root_value_alias_parts 0 aero_root_value_alias_header)
     list(GET aero_root_value_alias_parts 1 aero_root_value_alias_text)
-    aero_require_text(
-        "${aero_root_value_alias_header}"
-        "${aero_root_value_alias_text}"
-        "Ordinary SDK value spellings must be available directly under Aero")
+    aero_require_text("${aero_root_value_alias_header}" "${aero_root_value_alias_text}" "Ordinary SDK value spellings must be available directly under Aero")
 endforeach()
 
 foreach(aero_primary_sdk_header IN ITEMS
@@ -157,10 +163,7 @@ foreach(aero_primary_sdk_header IN ITEMS
             "Base::String"
             "Base::StringView"
             "Base::Span")
-        aero_forbid_text(
-            "${aero_primary_sdk_header}"
-            "${aero_low_level_spelling}"
-            "Primary SDK entry signatures must use the root Aero spelling")
+        aero_forbid_text("${aero_primary_sdk_header}" "${aero_low_level_spelling}" "Primary SDK entry signatures must use the root Aero spelling")
     endforeach()
 endforeach()
 
@@ -202,104 +205,38 @@ foreach(retired_public_entry IN ITEMS
     aero_forbid_file("${retired_public_entry}")
 endforeach()
 
-aero_require_text(
-    "include/Aero/IRenderer.hpp"
-    "RenderTarget& target"
-    "IRenderer must render to the canonical RenderTarget")
-aero_forbid_text(
-    "include/Aero/IRenderer.hpp"
-    "RenderSurface"
-    "IRenderer must not expose the retired RenderSurface spelling")
-aero_require_text(
-    "include/AeroRender/RenderTarget.hpp"
-    "class AERO_GUI_API RenderTarget : public Base::Object"
-    "RenderTarget must be the installed target object")
-aero_forbid_text(
-    "include/AeroRender/RenderTarget.hpp"
-    "PresentMode"
-    "Presentation policy must remain source-private")
-aero_require_text(
-    "include/Aero/Module.hpp"
-    "Span<const Markup::ResourceScopeRegistration> resourceScopes;"
-    "Product resource scopes must cross the Gui boundary through module data")
-aero_forbid_text(
-    "src/gui/markup/XamlReader.cpp"
-    "AeroApp/Application.hpp"
-    "AeroGui Markup must not include the AeroApp Application contract")
-aero_forbid_text(
-    "src/gui/markup/XamlReader.cpp"
-    "Aero::Application"
-    "AeroGui Markup must not link back to AeroApp symbols")
-aero_require_text(
-    "include/AeroApp/App.hpp"
-    "AppMetadataModule()"
-    "Custom App hosts must be able to register Application and Window metadata")
-aero_require_text(
-    "src/app/AppMetadata.cpp"
-    "module.resourceScopes = resourceScopes;"
-    "The App module must provide its Application resource-scope capability")
+aero_require_text("include/Aero/IRenderer.hpp" "RenderTarget& target" "IRenderer must render to the canonical RenderTarget")
+aero_forbid_text("include/Aero/IRenderer.hpp" "RenderSurface" "IRenderer must not expose the retired RenderSurface spelling")
+aero_require_text("include/AeroRender/RenderTarget.hpp" "class AERO_GUI_API RenderTarget : public Base::Object" "RenderTarget must be the installed target object")
+aero_forbid_text("include/AeroRender/RenderTarget.hpp" "PresentMode" "Presentation policy must remain source-private")
+aero_require_text("include/Aero/Module.hpp" "Span<const Markup::ResourceScopeRegistration> resourceScopes;" "Product resource scopes must cross the Gui boundary through module data")
+aero_forbid_text("src/gui/markup/XamlReader.cpp" "AeroApp/Application.hpp" "AeroGui Markup must not include the AeroApp Application contract")
+aero_forbid_text("src/gui/markup/XamlReader.cpp" "Aero::Application" "AeroGui Markup must not link back to AeroApp symbols")
+aero_require_text("include/AeroApp/App.hpp" "AppMetadataModule()" "Custom App hosts must be able to register Application and Window metadata")
+aero_require_text("src/app/AppMetadata.cpp" "module.resourceScopes = resourceScopes;" "The App module must provide its Application resource-scope capability")
 
 foreach(backend_header IN ITEMS
         "include/AeroRender/D3D11.hpp"
         "include/AeroRender/OpenGL33.hpp")
-    aero_forbid_text(
-        "${backend_header}"
-        "WindowSurface"
-        "Window presentation belongs to App/private backend code")
-    aero_forbid_text(
-        "${backend_header}"
-        "NativeWindow"
-        "Render backend SDK must not own native window hosting")
+    aero_forbid_text("${backend_header}" "WindowSurface" "Window presentation belongs to App/private backend code")
+    aero_forbid_text("${backend_header}" "NativeWindow" "Render backend SDK must not own native window hosting")
 endforeach()
-aero_require_text(
-    "include/AeroRender/D3D11.hpp"
-    "namespace Aero::Render::D3D11"
-    "D3D11 backend declarations must use a dedicated namespace")
-aero_require_text(
-    "include/AeroRender/OpenGL33.hpp"
-    "namespace Aero::Render::OpenGL33"
-    "OpenGL backend declarations must use a dedicated namespace")
+aero_require_text("include/AeroRender/D3D11.hpp" "namespace Aero::Render::D3D11" "D3D11 backend declarations must use a dedicated namespace")
+aero_require_text("include/AeroRender/OpenGL33.hpp" "namespace Aero::Render::OpenGL33" "OpenGL backend declarations must use a dedicated namespace")
 foreach(backend_header IN ITEMS
         "include/AeroRender/D3D11.hpp"
         "include/AeroRender/OpenGL33.hpp")
-    aero_require_text(
-        "${backend_header}"
-        "CreateDevice("
-        "Render backends must expose a uniform CreateDevice factory")
-    aero_require_text(
-        "${backend_header}"
-        "CreateTarget("
-        "Render backends must expose a uniform CreateTarget factory")
+    aero_require_text("${backend_header}" "CreateDevice(" "Render backends must expose a uniform CreateDevice factory")
+    aero_require_text("${backend_header}" "CreateTarget(" "Render backends must expose a uniform CreateTarget factory")
 endforeach()
-aero_forbid_text(
-    "include/AeroRender/D3D11.hpp"
-    "CreateD3D11"
-    "D3D11 backend factories must not repeat the namespace name")
-aero_forbid_text(
-    "include/AeroRender/OpenGL33.hpp"
-    "CreateOpenGL33"
-    "OpenGL backend factories must not repeat the namespace name")
+aero_forbid_text("include/AeroRender/D3D11.hpp" "CreateD3D11" "D3D11 backend factories must not repeat the namespace name")
+aero_forbid_text("include/AeroRender/OpenGL33.hpp" "CreateOpenGL33" "OpenGL backend factories must not repeat the namespace name")
 
-aero_require_text(
-    "include/Aero/View.hpp"
-    "bool Update(double timeInSeconds) noexcept;"
-    "View must report whether an immutable frame was committed")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "Result<void> Update("
-    "View must not expose a Result-returning per-frame update")
-aero_require_text(
-    "include/Aero/IRenderer.hpp"
-    "virtual bool UpdateRenderTree() noexcept = 0;"
-    "Renderer tree synchronization must be Result-free")
-aero_require_text(
-    "include/Aero/IRenderer.hpp"
-    "virtual bool RenderOffscreen() noexcept = 0;"
-    "Renderer offscreen execution must be Result-free")
-aero_require_text(
-    "include/Aero/IRenderer.hpp"
-    "virtual void Render(RenderTarget& target) noexcept = 0;"
-    "Renderer onscreen execution must be Result-free")
+aero_require_text("include/Aero/View.hpp" "bool Update(double timeInSeconds) noexcept;" "View must report whether an immutable frame was committed")
+aero_forbid_text("include/Aero/View.hpp" "Result<void> Update(" "View must not expose a Result-returning per-frame update")
+aero_require_text("include/Aero/IRenderer.hpp" "virtual bool UpdateRenderTree() noexcept = 0;" "Renderer tree synchronization must be Result-free")
+aero_require_text("include/Aero/IRenderer.hpp" "virtual bool RenderOffscreen() noexcept = 0;" "Renderer offscreen execution must be Result-free")
+aero_require_text("include/Aero/IRenderer.hpp" "virtual void Render(RenderTarget& target) noexcept = 0;" "Renderer onscreen execution must be Result-free")
 
 include("${AERO_SOURCE_DIR}/cmake/AeroPublicHeaders.cmake")
 foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
@@ -332,22 +269,10 @@ foreach(public_header IN LISTS AERO_PUBLIC_HEADERS)
     endif()
 endforeach()
 
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "enum class FontWeight"
-    "FrameworkElement must not own text-formatting declarations")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "class AERO_GUI_API FontFamily"
-    "FrameworkElement must not own media font declarations")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "TypeTraits<Base::Color>"
-    "FrameworkElement must not own built-in value metadata")
-aero_forbid_text(
-    "include/Aero/Media/Brushes.hpp"
-    "TypeTraits<Base::Rect>"
-    "Brushes must not own built-in value metadata")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "enum class FontWeight" "FrameworkElement must not own text-formatting declarations")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "class AERO_GUI_API FontFamily" "FrameworkElement must not own media font declarations")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "TypeTraits<Base::Color>" "FrameworkElement must not own built-in value metadata")
+aero_forbid_text("include/Aero/Media/Brushes.hpp" "TypeTraits<Base::Rect>" "Brushes must not own built-in value metadata")
 
 foreach(required_architecture_document IN ITEMS
         "docs/ARCHITECTURE.md"
@@ -356,21 +281,12 @@ foreach(required_architecture_document IN ITEMS
     aero_require_file("${required_architecture_document}")
 endforeach()
 aero_require_file("cmake/CheckWindowsExports.cmake")
-aero_require_text(
-    "cmake/AeroCompilerOptions.cmake"
-    "function(aero_verify_windows_exports target expected_export)"
-    "Shared Windows builds must validate their real DLL export tables")
+aero_require_text("cmake/AeroCompilerOptions.cmake" "function(aero_verify_windows_exports target expected_export)" "Shared Windows builds must validate their real DLL export tables")
 if(EXISTS "${AERO_SOURCE_DIR}/tests/CMakeLists.txt")
-    aero_forbid_text(
-        "tests/CMakeLists.txt"
-        "Aero::Integration"
-        "Framework tests must link the final Gui product rather than retired Integration")
+    aero_forbid_text("tests/CMakeLists.txt" "Aero::Integration" "Framework tests must link the final Gui product rather than retired Integration")
 endif()
 if(EXISTS "${AERO_SOURCE_DIR}/tests/FrameworkConformanceTests.cpp")
-    aero_forbid_text(
-        "tests/FrameworkConformanceTests.cpp"
-        "Aero/Integration"
-        "Framework tests must consume the current installed SDK")
+    aero_forbid_text("tests/FrameworkConformanceTests.cpp" "Aero/Integration" "Framework tests must consume the current installed SDK")
 endif()
 
 if(NOT DEFINED AERO_PUBLIC_HEADERS)
@@ -666,229 +582,85 @@ unset(source_contract_name)
 # Rendering ownership
 # ---------------------------------------------------------------------------
 aero_require_file("src/gui/ViewRenderer.hpp")
-aero_require_text(
-    "src/gui/ViewRenderer.hpp"
-    "class ViewRenderer final : public IRenderer"
-    "View must own the only concrete IRenderer")
-aero_require_text(
-    "src/gui/ViewRenderer.hpp"
-    "std::optional<::Aero::Render::UiFrameEncoder> frameEncoder_"
-    "ViewRenderer must directly own its delayed frame encoder")
-aero_forbid_text(
-    "src/gui/ViewRenderer.hpp"
-    "struct Access"
-    "ViewRenderer must use direct members rather than a source-only pimpl")
-aero_require_text(
-    "src/gui/ViewRenderer.hpp"
-    "RenderOnscreenFrame("
-    "ViewRenderer must own onscreen UI rendering")
-aero_require_text(
-    "src/gui/ViewRenderer.hpp"
-    "RenderOffscreenFrame("
-    "ViewRenderer must own offscreen UI rendering")
-aero_forbid_text(
-    "src/gui/ViewRenderer.hpp"
-    "SurfaceSession"
-    "Renderer must not depend on a second surface lifecycle")
+aero_require_text("src/gui/ViewRenderer.hpp" "class ViewRenderer final : public IRenderer" "View must own the only concrete IRenderer")
+aero_require_text("src/gui/ViewRenderer.hpp" "std::optional<::Aero::Render::UiFrameEncoder> frameEncoder_" "ViewRenderer must directly own its delayed frame encoder")
+aero_forbid_text("src/gui/ViewRenderer.hpp" "struct Access" "ViewRenderer must use direct members rather than a source-only pimpl")
+aero_require_text("src/gui/ViewRenderer.hpp" "RenderOnscreenFrame(" "ViewRenderer must own onscreen UI rendering")
+aero_require_text("src/gui/ViewRenderer.hpp" "RenderOffscreenFrame(" "ViewRenderer must own offscreen UI rendering")
+aero_forbid_text("src/gui/ViewRenderer.hpp" "SurfaceSession" "Renderer must not depend on a second surface lifecycle")
 aero_forbid_file("src/render/Surface.hpp")
 aero_forbid_file("src/render/Surface.cpp")
 aero_forbid_file("src/render/WindowRenderContext.hpp")
 aero_forbid_file("src/render/Presentation.hpp")
-aero_require_text(
-    "src/render/RenderContext.hpp"
-    "struct PresentationSize"
-    "Render context must own presentation size contract")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderDevice.cpp"
-    "ViewRenderer"
-    "Backend target implementations must not depend on the private GUI renderer")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderDevice.cpp"
-    "RenderOnscreenFrame"
-    "AeroGui must own onscreen frame submission")
+aero_require_text("src/render/RenderContext.hpp" "struct PresentationSize" "Render context must own presentation size contract")
+aero_forbid_text("src/render/d3d11/D3D11RenderDevice.cpp" "ViewRenderer" "Backend target implementations must not depend on the private GUI renderer")
+aero_forbid_text("src/render/d3d11/D3D11RenderDevice.cpp" "RenderOnscreenFrame" "AeroGui must own onscreen frame submission")
 aero_forbid_file("src/render/RenderTarget.cpp")
 aero_forbid_file("src/render/RenderPassPlanner.hpp")
 aero_forbid_file("src/render/RenderResourceTable.hpp")
 aero_forbid_file("src/render/common/RingBuffer.hpp")
-aero_require_text(
-    "src/render/FrameEncoder.hpp"
-    "class RenderResourceTable"
-    "FrameEncoder must own internal resource table")
-aero_require_text(
-    "src/render/common/StateCache.hpp"
-    "struct RingBufferTracker"
-    "StateCache header must own RingBufferTracker")
+aero_require_text("src/render/FrameEncoder.hpp" "class RenderResourceTable" "FrameEncoder must own internal resource table")
+aero_require_text("src/render/common/StateCache.hpp" "struct RingBufferTracker" "StateCache header must own RingBufferTracker")
 aero_forbid_file("src/render/private/BackendApi.hpp")
 aero_forbid_file("src/render/RenderTargetState.hpp")
 aero_forbid_file("src/render/RenderDeviceState.hpp")
 aero_forbid_file("src/render/GraphicsTypes.hpp")
 aero_forbid_file("src/render/RenderBatch.hpp")
 aero_forbid_file("src/render/RenderBatch.cpp")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "GraphicsDevice"
-    "The retired generic graphics device must not be built")
-aero_forbid_text(
-    "src/render/FrameEncoder.hpp"
-    "using FrameEncoder ="
-    "The low-level command encoder must not be exposed through a migration alias")
-aero_require_text(
-    "src/render/FrameEncoder.hpp"
-    "class UiFrameEncoder"
-    "The low-level helper must be an explicit UI frame encoder")
-aero_forbid_text(
-    "src/render/FrameEncoder.hpp"
-    "class Renderer {"
-    "FrameEncoder must not recreate a peer semantic Renderer")
-aero_forbid_text(
-    "src/render/FrameEncoder.hpp"
-    "using RenderTarget ="
-    "The frame attachment value must not shadow the SDK RenderTarget")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "GraphicsDevice" "The retired generic graphics device must not be built")
+aero_forbid_text("src/render/FrameEncoder.hpp" "using FrameEncoder =" "The low-level command encoder must not be exposed through a migration alias")
+aero_require_text("src/render/FrameEncoder.hpp" "class UiFrameEncoder" "The low-level helper must be an explicit UI frame encoder")
+aero_forbid_text("src/render/FrameEncoder.hpp" "class Renderer {" "FrameEncoder must not recreate a peer semantic Renderer")
+aero_forbid_text("src/render/FrameEncoder.hpp" "using RenderTarget =" "The frame attachment value must not shadow the SDK RenderTarget")
 
-aero_require_text(
-    "src/render/opengl33/OpenGL33RenderContext.cpp"
-    "class OpenGLRenderContext final : public RenderContext"
-    "OpenGL window presentation must belong to a concrete render backend context")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderDevice.cpp"
-    "ViewRenderData*"
-    "D3D11 RenderDevice must not own per-View renderer data")
+aero_require_text("src/render/opengl33/OpenGL33RenderContext.cpp" "class OpenGLRenderContext final : public RenderContext" "OpenGL window presentation must belong to a concrete render backend context")
+aero_forbid_text("src/render/d3d11/D3D11RenderDevice.cpp" "ViewRenderData*" "D3D11 RenderDevice must not own per-View renderer data")
 aero_forbid_file("src/render/d3d11/D3D11Device.cpp")
 aero_forbid_file("src/render/opengl33/OpenGL33Factories.cpp")
-aero_forbid_text(
-    "src/render/opengl33/OpenGL33RenderDevice.hpp"
-    "ViewRenderData*"
-    "OpenGL RenderDevice must not own per-View renderer data")
+aero_forbid_text("src/render/opengl33/OpenGL33RenderDevice.hpp" "ViewRenderData*" "OpenGL RenderDevice must not own per-View renderer data")
 aero_forbid_file("src/render/opengl33/OpenGL33Embedded.cpp")
-aero_forbid_text(
-    "src/render/FrameEncoder.cpp"
-    "using Renderer ="
-    "UI frame encoding must not retain a local Renderer migration alias")
-aero_forbid_text(
-    "src/render/FrameEncoder.cpp"
-    "using RenderTarget ="
-    "UI frame encoding must use FrameTarget directly")
-aero_forbid_text(
-    "src/render/FrameEncoder.hpp"
-    "BatchComposer"
-    "ViewRenderer must not retain a second BatchComposer owner")
+aero_forbid_text("src/render/FrameEncoder.cpp" "using Renderer =" "UI frame encoding must not retain a local Renderer migration alias")
+aero_forbid_text("src/render/FrameEncoder.cpp" "using RenderTarget =" "UI frame encoding must use FrameTarget directly")
+aero_forbid_text("src/render/FrameEncoder.hpp" "BatchComposer" "ViewRenderer must not retain a second BatchComposer owner")
 aero_forbid_file("src/render/opengl33/OpenGL33Device.cpp")
-aero_forbid_text(
-    "src/render/RenderTree.hpp"
-    "RenderDevice"
-    "RenderTree must only build immutable frames")
-aero_forbid_text(
-    "src/render/RenderTree.hpp"
-    "Submit("
-    "RenderTree must not own GPU submission")
+aero_forbid_text("src/render/RenderTree.hpp" "RenderDevice" "RenderTree must only build immutable frames")
+aero_forbid_text("src/render/RenderTree.hpp" "Submit(" "RenderTree must not own GPU submission")
 
-aero_require_text(
-    "src/render/RenderContext.hpp"
-    "Base::Result<void> presented = PresentFrame();"
-    "RenderContext must own the final desktop Present boundary")
-aero_require_text(
-    "src/render/RenderContext.hpp"
-    "bool frameOpen_ = false;"
-    "RenderContext must own desktop frame state")
-aero_require_text(
-    "src/render/d3d11/D3D11RenderContext.cpp"
-    "class D3D11RenderContext final : public RenderContext"
-    "D3D11 window/device creation must belong to a concrete RenderContext")
-aero_require_text(
-    "src/render/opengl33/OpenGL33RenderContext.cpp"
-    "class OpenGLRenderContext final : public RenderContext"
-    "OpenGL window/device creation must belong to a concrete RenderContext")
-aero_forbid_text(
-    "src/render/RenderContext.hpp"
-    "class RenderContext final"
-    "RenderContext must remain the shared presentation lifecycle base")
+aero_require_text("src/render/RenderContext.hpp" "Base::Result<void> presented = PresentFrame();" "RenderContext must own the final desktop Present boundary")
+aero_require_text("src/render/RenderContext.hpp" "bool frameOpen_ = false;" "RenderContext must own desktop frame state")
+aero_require_text("src/render/d3d11/D3D11RenderContext.cpp" "class D3D11RenderContext final : public RenderContext" "D3D11 window/device creation must belong to a concrete RenderContext")
+aero_require_text("src/render/opengl33/OpenGL33RenderContext.cpp" "class OpenGLRenderContext final : public RenderContext" "OpenGL window/device creation must belong to a concrete RenderContext")
+aero_forbid_text("src/render/RenderContext.hpp" "class RenderContext final" "RenderContext must remain the shared presentation lifecycle base")
 aero_forbid_file("src/render/RenderCommands.hpp")
 aero_forbid_file("src/render/RenderCommands.cpp")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderDevice.cpp"
-    "DrawPhase"
-    "D3D11 must execute one Batch directly without an internal command model")
-aero_forbid_text(
-    "src/render/opengl33/OpenGL33RenderDevice.cpp"
-    "DrawPhase"
-    "OpenGL must execute one Batch directly without an internal command model")
-aero_require_text(
-    "src/gui/ViewRenderer.hpp"
-    "RenderOnscreenFrame("
-    "ViewRenderer must submit the source-private UI draws")
+aero_forbid_text("src/render/d3d11/D3D11RenderDevice.cpp" "DrawPhase" "D3D11 must execute one Batch directly without an internal command model")
+aero_forbid_text("src/render/opengl33/OpenGL33RenderDevice.cpp" "DrawPhase" "OpenGL must execute one Batch directly without an internal command model")
+aero_require_text("src/gui/ViewRenderer.hpp" "RenderOnscreenFrame(" "ViewRenderer must submit the source-private UI draws")
 aero_forbid_file("src/render/BatchPlanner.cpp")
 aero_forbid_file("src/render/BatchPlanner.hpp")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "BatchPlanner"
-    "The duplicate diagnostic batching pipeline must not be part of AeroGui")
-aero_forbid_text(
-    "src/render/d3d11/D3D11RenderContext.cpp"
-    "CreateD3D11WindowSurface"
-    "Desktop D3D11 hosting must explicitly compose device and target")
-aero_forbid_text(
-    "src/render/opengl33/OpenGL33RenderContext.cpp"
-    "CreateOpenGL33WindowSurface"
-    "Desktop OpenGL hosting must explicitly compose device and target")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "BatchPlanner" "The duplicate diagnostic batching pipeline must not be part of AeroGui")
+aero_forbid_text("src/render/d3d11/D3D11RenderContext.cpp" "CreateD3D11WindowSurface" "Desktop D3D11 hosting must explicitly compose device and target")
+aero_forbid_text("src/render/opengl33/OpenGL33RenderContext.cpp" "CreateOpenGL33WindowSurface" "Desktop OpenGL hosting must explicitly compose device and target")
 
 # ---------------------------------------------------------------------------
 # WPF code-behind experience
 # ---------------------------------------------------------------------------
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "void InitializeComponent() noexcept;"
-    "Window code-behind must expose the conventional InitializeComponent entry")
+aero_require_text("include/AeroApp/Window.hpp" "void InitializeComponent() noexcept;" "Window code-behind must expose the conventional InitializeComponent entry")
 aero_forbid_file("src/app/ApplicationRun.cpp")
 aero_forbid_file("src/app/RenderContextFactory.hpp")
 aero_forbid_file("src/app/RenderContextFactory.cpp")
-aero_require_text(
-    "include/Aero/Meta.hpp"
-    "TypeBuilder& EventHandler("
-    "Component metadata must expose a direct XAML event-handler description")
-aero_require_text(
-    "include/Aero/Module.hpp"
-    "DefineComponentModule("
-    "Custom components must not require handwritten Registry or facet adapters")
-aero_require_text(
-    "include/Aero/Meta.hpp"
-    "class TypeBuilder"
-    "Public metadata authoring must use the compact TypeBuilder spelling")
-aero_require_text(
-    "include/Aero/Meta.hpp"
-    "class FrameworkPropertyMetadata"
-    "Dependency-property authoring must expose typed framework metadata")
-aero_forbid_text(
-    "include/Aero/Meta.hpp"
-    "TypeDescription"
-    "The legacy metadata description surface must remain retired")
-aero_forbid_text(
-    "include/Aero/Meta.hpp"
-    "PropertyOptions"
-    "The legacy property-options surface must remain retired")
-aero_require_text(
-    "tools/sdk-consumers/MetaConsumer.cpp"
-    "Aero::Meta::FrameworkPropertyMetadata("
-    "The SDK consumer must compile the concise framework metadata form")
-aero_require_text(
-    "tools/sdk-consumers/MetaConsumer.cpp"
-    "Aero::Meta::AffectsRender"
-    "The SDK consumer must compile concise metadata option constants")
-aero_require_text(
-    "include/Aero/DependencyProperty.hpp"
-    "class DependencyPropertyRegistry;"
-    "Mutable dependency-property registry storage must remain a public forward declaration only")
-aero_forbid_text(
-    "include/Aero/DependencyProperty.hpp"
-    "class AERO_GUI_API DependencyPropertyRegistry"
-    "DependencyPropertyRegistry definition must not live in the installed SDK header")
-aero_require_text(
-    "tools/sdk-consumers/MetaConsumer.cpp"
-    "!HasPropertyRegistry<Aero::DependencyObject>::value"
-    "SDK consumers must prove DependencyObject does not expose its runtime registry")
-aero_require_text(
-    "tools/sdk-consumers/MetaConsumer.cpp"
-    "!HasRawFactoryOverload<ConsumerControl>::value"
-    "SDK consumers must prove metadata callback ABI is absent from the typed facade")
+aero_require_text("include/Aero/Meta.hpp" "TypeBuilder& EventHandler(" "Component metadata must expose a direct XAML event-handler description")
+aero_require_text("include/Aero/Module.hpp" "DefineComponentModule(" "Custom components must not require handwritten Registry or facet adapters")
+aero_require_text("include/Aero/Meta.hpp" "class TypeBuilder" "Public metadata authoring must use the compact TypeBuilder spelling")
+aero_require_text("include/Aero/Meta.hpp" "class FrameworkPropertyMetadata" "Dependency-property authoring must expose typed framework metadata")
+aero_forbid_text("include/Aero/Meta.hpp" "TypeDescription" "The legacy metadata description surface must remain retired")
+aero_forbid_text("include/Aero/Meta.hpp" "PropertyOptions" "The legacy property-options surface must remain retired")
+aero_require_text("tools/sdk-consumers/MetaConsumer.cpp" "Aero::Meta::FrameworkPropertyMetadata(" "The SDK consumer must compile the concise framework metadata form")
+aero_require_text("tools/sdk-consumers/MetaConsumer.cpp" "Aero::Meta::AffectsRender" "The SDK consumer must compile concise metadata option constants")
+aero_require_text("include/Aero/DependencyProperty.hpp" "class DependencyPropertyRegistry;" "Mutable dependency-property registry storage must remain a public forward declaration only")
+aero_forbid_text("include/Aero/DependencyProperty.hpp" "class AERO_GUI_API DependencyPropertyRegistry" "DependencyPropertyRegistry definition must not live in the installed SDK header")
+aero_require_text("tools/sdk-consumers/MetaConsumer.cpp" "!HasPropertyRegistry<Aero::DependencyObject>::value" "SDK consumers must prove DependencyObject does not expose its runtime registry")
+aero_require_text("tools/sdk-consumers/MetaConsumer.cpp" "!HasRawFactoryOverload<ConsumerControl>::value" "SDK consumers must prove metadata callback ABI is absent from the typed facade")
 file(READ
     "${AERO_SOURCE_DIR}/include/Aero/Meta.hpp"
     aero_meta_header_text)
@@ -924,10 +696,7 @@ file(GLOB_RECURSE aero_all_public_headers
     RELATIVE "${AERO_SOURCE_DIR}"
     "${AERO_SOURCE_DIR}/include/*.hpp")
 foreach(aero_pub_hdr IN LISTS aero_all_public_headers)
-    aero_forbid_text(
-        "${aero_pub_hdr}"
-        "AERO_GUI_IMPLEMENTATION"
-        "Public SDK headers must not contain AERO_GUI_IMPLEMENTATION")
+    aero_forbid_text("${aero_pub_hdr}" "AERO_GUI_IMPLEMENTATION" "Public SDK headers must not contain AERO_GUI_IMPLEMENTATION")
     # Public headers may grant friendship to AeroGuiInternal, but must not call or expose it.
     file(READ "${AERO_SOURCE_DIR}/${aero_pub_hdr}" _pub_hdr_text)
     string(REGEX REPLACE "(class|friend[ \t]+class)[ \t]+(::Aero::)?AeroGuiInternal;" "" _pub_hdr_no_friend "${_pub_hdr_text}")
@@ -958,100 +727,34 @@ endforeach()
 foreach(aero_render_contract_header IN ITEMS
         "include/AeroRender/RenderDevice.hpp"
         "include/AeroRender/RenderTarget.hpp")
-    aero_forbid_text(
-        "${aero_render_contract_header}"
-        "struct Access"
-        "Render contracts must not expose the retired Access seam")
+    aero_forbid_text("${aero_render_contract_header}" "struct Access" "Render contracts must not expose the retired Access seam")
 endforeach()
-aero_require_text(
-    "src/render/d3d11/D3D11RenderDevice.hpp"
-    "public Aero::Render::RenderDeviceBase"
-    "D3D11 must implement the core RenderDevice contract directly")
-aero_require_text(
-    "src/render/opengl33/OpenGL33RenderDevice.hpp"
-    "public Aero::Render::RenderDeviceBase"
-    "OpenGL33 must implement the core RenderDevice contract directly")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "struct Access;"
-    "FrameworkElement must not expose an unused Access seam")
+aero_require_text("src/render/d3d11/D3D11RenderDevice.hpp" "public Aero::Render::RenderDeviceBase" "D3D11 must implement the core RenderDevice contract directly")
+aero_require_text("src/render/opengl33/OpenGL33RenderDevice.hpp" "public Aero::Render::RenderDeviceBase" "OpenGL33 must implement the core RenderDevice contract directly")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "struct Access;" "FrameworkElement must not expose an unused Access seam")
 
 # Engine free-function bridges stay src-only; installed FE/FCE must not embed
 # Seams class bodies (Detail namespace is already banned on installed headers).
 aero_require_file("src/gui/core/FrameworkElementSeams.hpp")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "class FrameworkElementSeams {"
-    "FrameworkElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
-aero_forbid_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "class FrameworkContentElementSeams {"
-    "FrameworkContentElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
-aero_require_text(
-    "src/gui/core/FrameworkElementSeams.hpp"
-    "class FrameworkElementSeams {"
-    "Src-only FrameworkElementSeams bridge is required for metadata/markup free functions")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "friend class FrameworkElementSeams;"
-    "FrameworkElement must friend the src-only Seams bridge")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "class FrameworkElementSeams {" "FrameworkElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
+aero_forbid_text("include/Aero/FrameworkContentElement.hpp" "class FrameworkContentElementSeams {" "FrameworkContentElementSeams class body must live in src/gui/core/FrameworkElementSeams.hpp")
+aero_require_text("src/gui/core/FrameworkElementSeams.hpp" "class FrameworkElementSeams {" "Src-only FrameworkElementSeams bridge is required for metadata/markup free functions")
+aero_require_text("include/Aero/FrameworkElement.hpp" "friend class FrameworkElementSeams;" "FrameworkElement must friend the src-only Seams bridge")
 aero_forbid_file("src/gui/styles/StyleSeams.hpp")
-aero_forbid_text(
-    "include/Aero/Style.hpp"
-    "StyleSeams"
-    "StyleSeams façade deleted; StyleEngine/Program are the accessors")
-aero_forbid_text(
-    "include/Aero/Style.hpp"
-    "SealStyle("
-    "Style free friends must not name SealStyle in the install header")
-aero_forbid_text(
-    "include/Aero/Style.hpp"
-    "StyleRuntimeSetters"
-    "Style free friends must not name StyleRuntimeSetters in the install header")
-aero_forbid_text(
-    "include/Aero/Style.hpp"
-    "StyleProviderSession"
-    "StyleProviderSession must not appear in installed Style.hpp")
-aero_require_text(
-    "include/Aero/Style.hpp"
-    "friend class StyleEngine;"
-    "Style must friend StyleEngine for Program accessors")
-aero_require_text(
-    "include/Aero/Style.hpp"
-    "friend struct Program;"
-    "Style must friend Program for seal/runtime helpers")
-aero_require_text(
-    "src/gui/styles/StyleEngine.hpp"
-    "SealProgram("
-    "StyleEngine must expose SealProgram after StyleSeams removal")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "friend class PointerStateMachine;"
-    "UIElement must friend PointerStateMachine for mouse-over/pressed seams")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "friend class FocusState;"
-    "UIElement must friend FocusState for keyboard-focus seams")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "friend class ElementTree;"
-    "UIElement must friend ElementTree for Layout/InvokeHandlers seams")
-aero_require_text(
-    "include/Aero/Freezable.hpp"
-    "friend class DependencyObject;"
-    "Freezable consumer attach/detach must stay private to DependencyObject")
-aero_require_text(
-    "include/Aero/Freezable.hpp"
-    "friend class BindingEngine;"
-    "Freezable::Parent must stay private to BindingEngine")
-aero_require_text(
-    "src/gui/markup/XamlBytecode.hpp"
-    "ConnectEventHandler"
-    "XAML event attributes must connect through the XamlVM bytecode pipeline")
-aero_forbid_text(
-    "src/gui/markup/XamlReader.cpp"
-    "class ObjectWriter"
-    "Legacy DOM ObjectWriter must remain retired in favor of XamlVM bytecode execution")
+aero_forbid_text("include/Aero/Style.hpp" "StyleSeams" "StyleSeams façade deleted; StyleEngine/Program are the accessors")
+aero_forbid_text("include/Aero/Style.hpp" "SealStyle(" "Style free friends must not name SealStyle in the install header")
+aero_forbid_text("include/Aero/Style.hpp" "StyleRuntimeSetters" "Style free friends must not name StyleRuntimeSetters in the install header")
+aero_forbid_text("include/Aero/Style.hpp" "StyleProviderSession" "StyleProviderSession must not appear in installed Style.hpp")
+aero_require_text("include/Aero/Style.hpp" "friend class StyleEngine;" "Style must friend StyleEngine for Program accessors")
+aero_require_text("include/Aero/Style.hpp" "friend struct Program;" "Style must friend Program for seal/runtime helpers")
+aero_require_text("src/gui/styles/StyleEngine.hpp" "SealProgram(" "StyleEngine must expose SealProgram after StyleSeams removal")
+aero_require_text("include/Aero/UIElement.hpp" "friend class PointerStateMachine;" "UIElement must friend PointerStateMachine for mouse-over/pressed seams")
+aero_require_text("include/Aero/UIElement.hpp" "friend class FocusState;" "UIElement must friend FocusState for keyboard-focus seams")
+aero_require_text("include/Aero/UIElement.hpp" "friend class ElementTree;" "UIElement must friend ElementTree for Layout/InvokeHandlers seams")
+aero_require_text("include/Aero/Freezable.hpp" "friend class DependencyObject;" "Freezable consumer attach/detach must stay private to DependencyObject")
+aero_require_text("include/Aero/Freezable.hpp" "friend class BindingEngine;" "Freezable::Parent must stay private to BindingEngine")
+aero_require_text("src/gui/markup/XamlBytecode.hpp" "ConnectEventHandler" "XAML event attributes must connect through the XamlVM bytecode pipeline")
+aero_forbid_text("src/gui/markup/XamlReader.cpp" "class ObjectWriter" "Legacy DOM ObjectWriter must remain retired in favor of XamlVM bytecode execution")
 aero_require_file("samples/HelloWorld/App.xaml")
 aero_require_file("samples/HelloWorld/MainWindow.xaml")
 # Built-in + extension themes are embedded into BuiltinThemes.generated.hpp;
@@ -1074,120 +777,48 @@ endforeach()
 # ---------------------------------------------------------------------------
 # Gui / XAML / View ownership
 # ---------------------------------------------------------------------------
-aero_require_text(
-    "include/Aero/Markup/XamlReader.hpp"
-    "explicit XamlReader(Aero::Gui& gui)"
-    "XamlReader must be Gui-owned rather than View-owned")
-aero_forbid_text(
-    "include/Aero/Markup/XamlReader.hpp"
-    "XamlReader(Aero::View&"
-    "XamlReader must not recreate View-owned loading")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "friend class Markup::ReloadCoordinator"
-    "ReloadCoordinator must not require View private access")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "QueryReloadSource("
-    "Reload source/cache ownership belongs to Gui/Markup")
-aero_require_text(
-    "include/Aero/View.hpp"
-    "bool SetViewport(const ViewViewport& viewport) noexcept;"
-    "Installed View must support atomic logical/pixel/DPI viewport updates")
-aero_require_text(
-    "include/Aero/View.hpp"
-    "void SetSize("
-    "Installed View must retain the Noesis-friendly SetSize facade")
-aero_require_text(
-    "include/Aero/View.hpp"
-    "void SetScale(double scale) noexcept;"
-    "Installed View must retain the Noesis-friendly SetScale facade")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "DispatchPointer("
-    "Installed View must expose host-friendly pointer methods")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "DispatchKeyboard("
-    "Installed View must expose host-friendly keyboard methods")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "DispatchText("
-    "Installed View must expose Char rather than a generic text dispatch protocol")
+aero_require_text("include/Aero/Markup/XamlReader.hpp" "explicit XamlReader(Aero::Gui& gui)" "XamlReader must be Gui-owned rather than View-owned")
+aero_forbid_text("include/Aero/Markup/XamlReader.hpp" "XamlReader(Aero::View&" "XamlReader must not recreate View-owned loading")
+aero_forbid_text("include/Aero/View.hpp" "friend class Markup::ReloadCoordinator" "ReloadCoordinator must not require View private access")
+aero_forbid_text("include/Aero/View.hpp" "QueryReloadSource(" "Reload source/cache ownership belongs to Gui/Markup")
+aero_require_text("include/Aero/View.hpp" "bool SetViewport(const ViewViewport& viewport) noexcept;" "Installed View must support atomic logical/pixel/DPI viewport updates")
+aero_require_text("include/Aero/View.hpp" "void SetSize(" "Installed View must retain the Noesis-friendly SetSize facade")
+aero_require_text("include/Aero/View.hpp" "void SetScale(double scale) noexcept;" "Installed View must retain the Noesis-friendly SetScale facade")
+aero_forbid_text("include/Aero/View.hpp" "DispatchPointer(" "Installed View must expose host-friendly pointer methods")
+aero_forbid_text("include/Aero/View.hpp" "DispatchKeyboard(" "Installed View must expose host-friendly keyboard methods")
+aero_forbid_text("include/Aero/View.hpp" "DispatchText(" "Installed View must expose Char rather than a generic text dispatch protocol")
 foreach(view_private_operation IN ITEMS
         "MountContent(" "UnmountContent(" "LoadResources("
         "LoadCompiledResources(" "SetResourceDictionary("
         "LoadBuiltInTheme(" "ExecuteFrame(" "AdvanceClocks("
         "AdvanceAnimations(" "FindNamedObject(" "NamedObjectCount("
         "IsInstanceOf(")
-    aero_forbid_text(
-        "include/Aero/View.hpp"
-        "${view_private_operation}"
-        "View implementation operations must remain source-only")
+    aero_forbid_text("include/Aero/View.hpp" "${view_private_operation}" "View implementation operations must remain source-only")
 endforeach()
-aero_require_text(
-    "src/gui/markup/XamlReader.cpp"
-    "gui->QuerySource"
-    "ReloadCoordinator must query Gui-owned XAML sources directly")
+aero_require_text("src/gui/markup/XamlReader.cpp" "gui->QuerySource" "ReloadCoordinator must query Gui-owned XAML sources directly")
 aero_require_file("src/gui/ViewRenderer.hpp")
 aero_forbid_file("cmake/AeroRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiRuntimeTargets.cmake")
 aero_forbid_file("cmake/AeroGuiCompositionTargets.cmake")
 aero_forbid_file("cmake/AeroRenderingTargets.cmake")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "Runtime::Detail"
-    "View must not expose a generic Runtime implementation namespace")
-aero_forbid_text(
-    "src/gui/media/ImageCache.hpp"
-    "Runtime::Detail"
-    "ImageCache belongs to Media rather than a generic Runtime namespace")
-aero_forbid_text(
-    "src/gui/text/TextPipeline.hpp"
-    "Runtime::Detail"
-    "TextPipeline belongs to Text rather than a generic Runtime namespace")
-aero_forbid_text(
-    "src/gui/text/TextPipeline.cpp"
-    "RenderSurface.hpp"
-    "TextPipeline must not depend on the retired RenderSurface contract")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "AERO_INTERNAL_RUNTIME"
-    "Gui composition must not recreate the generic Runtime product spelling")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "AERO_INTERNAL_GUI_RUNTIME"
-    "Gui composition must use composition rather than Runtime build vocabulary")
+aero_forbid_text("include/Aero/View.hpp" "Runtime::Detail" "View must not expose a generic Runtime implementation namespace")
+aero_forbid_text("src/gui/media/ImageCache.hpp" "Runtime::Detail" "ImageCache belongs to Media rather than a generic Runtime namespace")
+aero_forbid_text("src/gui/text/TextPipeline.hpp" "Runtime::Detail" "TextPipeline belongs to Text rather than a generic Runtime namespace")
+aero_forbid_text("src/gui/text/TextPipeline.cpp" "RenderSurface.hpp" "TextPipeline must not depend on the retired RenderSurface contract")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "AERO_INTERNAL_RUNTIME" "Gui composition must not recreate the generic Runtime product spelling")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "AERO_INTERNAL_GUI_RUNTIME" "Gui composition must use composition rather than Runtime build vocabulary")
 aero_forbid_file("tools/sdk-consumers/GuiRuntimeConsumer.cpp")
 aero_require_file("tools/sdk-consumers/GuiCompositionConsumer.cpp")
-aero_forbid_text(
-    "src/gui/View.cpp"
-    "Aero::Runtime::Detail"
-    "View must not depend on the retired generic Runtime namespace")
-aero_forbid_text(
-    "src/gui/templates/DataTemplateTriggerInstance.hpp"
-    "Aero::Runtime::Detail"
-    "DataTemplate trigger state belongs to Templates")
-aero_forbid_text(
-    "src/gui/View.cpp"
-    "controls/ControlsPrivate.hpp"
-    "View must include the private control contracts it actually consumes")
-aero_forbid_text(
-    "src/gui/View.cpp"
-    "gui/GuiPrivate.hpp"
-    "View must not import the whole private Gui domain")
-aero_forbid_text(
-    "src/gui/View.cpp"
-    "media/MediaPrivate.hpp"
-    "View must not import the whole private Media domain")
+aero_forbid_text("src/gui/View.cpp" "Aero::Runtime::Detail" "View must not depend on the retired generic Runtime namespace")
+aero_forbid_text("src/gui/templates/DataTemplateTriggerInstance.hpp" "Aero::Runtime::Detail" "DataTemplate trigger state belongs to Templates")
+aero_forbid_text("src/gui/View.cpp" "controls/ControlsPrivate.hpp" "View must include the private control contracts it actually consumes")
+aero_forbid_text("src/gui/View.cpp" "gui/GuiPrivate.hpp" "View must not import the whole private Gui domain")
+aero_forbid_text("src/gui/View.cpp" "media/MediaPrivate.hpp" "View must not import the whole private Media domain")
 aero_forbid_file("src/gui/GuiPrivate.hpp")
 aero_forbid_file("src/gui/controls/ControlsPrivate.hpp")
 aero_forbid_file("src/gui/markup/MarkupPrivate.hpp")
 aero_forbid_file("src/gui/media/MediaPrivate.hpp")
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/media/StoryboardActions.cpp"
-    "EventTrigger runtime must compile with StoryboardHost")
+aero_require_text("cmake/AeroGuiTargets.cmake" "src/gui/media/StoryboardActions.cpp" "EventTrigger runtime must compile with StoryboardHost")
 aero_forbid_file("src/gui/media/StoryboardHost.Properties.cpp")
 aero_forbid_file("src/gui/media/StoryboardHost.Timelines.cpp")
 aero_forbid_file("src/gui/media/StoryboardHost.Actions.cpp")
@@ -1233,10 +864,7 @@ aero_forbid_file("src/gui/markup/LocExtension.inl")
 aero_forbid_file("src/gui/markup/TemplateBindingExtension.inl")
 aero_forbid_file("src/gui/markup/TypeExtension.inl")
 aero_forbid_file("src/gui/markup/StaticExtension.inl")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/interactivity/InteractivityEngine.Events.cpp"
-    "EventTrigger runtime must not remain on InteractivityEngine")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "src/gui/interactivity/InteractivityEngine.Events.cpp" "EventTrigger runtime must not remain on InteractivityEngine")
 aero_forbid_file("src/gui/interactivity/ViewTriggers.cpp")
 aero_forbid_file("src/gui/interactivity/InteractivityEngine.Events.cpp")
 aero_forbid_file("src/gui/media/ViewStoryboardSessions.cpp")
@@ -1246,54 +874,18 @@ aero_forbid_file("src/gui/controls/Documents.cpp")
 aero_forbid_file("src/gui/controls/Path.cpp")
 aero_forbid_file("src/gui/controls/Shapes.cpp")
 aero_forbid_file("src/gui/data/BindingState.hpp")
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "_aero_gui_interactivity_sources"
-    "Blend/interactivity TUs must be a dedicated AeroGui source group")
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "_aero_gui_documents_sources"
-    "Documents.cpp must compile in a documents source group")
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "_aero_gui_shapes_sources"
-    "Path.cpp and Shapes.cpp must compile in a shapes source group")
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/ViewDocuments.cpp"
-    "ViewDocuments must compile with View composition sources")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/markup/ViewDocuments.cpp"
-    "ViewDocuments must not remain in the markup source group")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/controls/Documents.cpp"
-    "Documents.cpp must not remain in the controls source group")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/controls/Path.cpp"
-    "Path.cpp must not remain in the controls source group")
-aero_forbid_text(
-    "cmake/AeroGuiTargets.cmake"
-    "src/gui/controls/Shapes.cpp"
-    "Shapes.cpp must not remain in the controls source group")
-aero_require_text(
-    "src/gui/data/BindingEngine.hpp"
-    "class BindingEngine"
-    "BindingEngine.hpp must own the BindingEngine declaration")
-aero_require_text(
-    "src/gui/data/BindingEngine.hpp"
-    "gui/data/BindingPath.hpp"
-    "Binding path plans stay in BindingPath.hpp")
-aero_require_text(
-    "src/gui/data/BindingPath.hpp"
-    "class BindingPathPlan"
-    "BindingPath.hpp must own the path-plan types")
-aero_forbid_text(
-    "src/gui/ViewFrame.hpp"
-    "gui/GuiRuntime.hpp"
-    "ViewFrame must not include GuiRuntime")
+aero_require_text("cmake/AeroGuiTargets.cmake" "_aero_gui_interactivity_sources" "Blend/interactivity TUs must be a dedicated AeroGui source group")
+aero_require_text("cmake/AeroGuiTargets.cmake" "_aero_gui_documents_sources" "Documents.cpp must compile in a documents source group")
+aero_require_text("cmake/AeroGuiTargets.cmake" "_aero_gui_shapes_sources" "Path.cpp and Shapes.cpp must compile in a shapes source group")
+aero_require_text("cmake/AeroGuiTargets.cmake" "src/gui/ViewDocuments.cpp" "ViewDocuments must compile with View composition sources")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "src/gui/markup/ViewDocuments.cpp" "ViewDocuments must not remain in the markup source group")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "src/gui/controls/Documents.cpp" "Documents.cpp must not remain in the controls source group")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "src/gui/controls/Path.cpp" "Path.cpp must not remain in the controls source group")
+aero_forbid_text("cmake/AeroGuiTargets.cmake" "src/gui/controls/Shapes.cpp" "Shapes.cpp must not remain in the controls source group")
+aero_require_text("src/gui/data/BindingEngine.hpp" "class BindingEngine" "BindingEngine.hpp must own the BindingEngine declaration")
+aero_require_text("src/gui/data/BindingEngine.hpp" "gui/data/BindingPath.hpp" "Binding path plans stay in BindingPath.hpp")
+aero_require_text("src/gui/data/BindingPath.hpp" "class BindingPathPlan" "BindingPath.hpp must own the path-plan types")
+aero_forbid_text("src/gui/ViewFrame.hpp" "gui/GuiRuntime.hpp" "ViewFrame must not include GuiRuntime")
 aero_forbid_file("src/gui/controls/ControlsMetadata.hpp")
 aero_forbid_file("src/gui/controls/ControlsMetadata.cpp")
 aero_forbid_file("src/gui/controls/ControlDescribes.inl")
@@ -1303,54 +895,18 @@ aero_forbid_file("src/gui/core/BuiltinMetadata.cpp")
 aero_forbid_file("src/gui/core/EnumMetadata.cpp")
 aero_require_file("src/gui/core/ElementEnumsDescribe.cpp")
 aero_require_file("src/gui/core/EnumRegistration.hpp")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "AERO_REGISTER_ENUM("
-    "BuiltinModules must not contain concrete AERO_REGISTER_ENUM bodies; families register their own enums")
-aero_require_text(
-    "src/gui/BuiltinModules.cpp"
-    "PopulateElementEnums(context)"
-    "BuiltinModules must orchestrate family Populate*Enums calls")
-aero_require_text(
-    "src/app/AppMetadata.cpp"
-    "PopulateAppEnums"
-    "App enums must register in app/Metadata, not Gui BuiltinModules")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "FillVisualMetadata"
-    "BuiltinModules must not contain FillVisualMetadata bodies; Visual AERO_DESCRIBE owns registration")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "FillUIElementMetadata"
-    "BuiltinModules must not contain FillUIElementMetadata bodies; UIElement AERO_DESCRIBE owns registration")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "FillFrameworkElementMetadata"
-    "BuiltinModules must not contain FillFrameworkElementMetadata bodies; FrameworkElement AERO_DESCRIBE owns registration")
-aero_require_text(
-    "src/gui/BuiltinModules.cpp"
-    "DescribeHook<::Aero::Media::Visual>::Run(context)"
-    "PopulateUiElements must orchestrate Visual DescribeHook")
-aero_require_text(
-    "src/gui/BuiltinModules.cpp"
-    "PopulateMediaValueTypes(context)"
-    "BuiltinModules must orchestrate PopulateMediaValueTypes for POD value types")
-aero_require_text(
-    "src/gui/media/Geometry.cpp"
-    "PopulateMediaValueTypes"
-    "Geometry family must own PopulateMediaValueTypes for POD value types")
-aero_require_text(
-    "src/gui/core/UIElement.cpp"
-    "AERO_DESCRIBE(UIElement)"
-    "UIElement must register metadata via AERO_DESCRIBE in its defining TU")
-aero_require_text(
-    "src/gui/core/FrameworkElement.cpp"
-    "AERO_DESCRIBE(FrameworkElement)"
-    "FrameworkElement must register metadata via AERO_DESCRIBE in its defining TU")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "Register<Thickness>"
-    "BuiltinModules must not Register Thickness; Geometry PopulateMediaValueTypes owns POD value types")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "AERO_REGISTER_ENUM(" "BuiltinModules must not contain concrete AERO_REGISTER_ENUM bodies; families register their own enums")
+aero_require_text("src/gui/BuiltinModules.cpp" "PopulateElementEnums(context)" "BuiltinModules must orchestrate family Populate*Enums calls")
+aero_require_text("src/app/AppMetadata.cpp" "PopulateAppEnums" "App enums must register in app/Metadata, not Gui BuiltinModules")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "FillVisualMetadata" "BuiltinModules must not contain FillVisualMetadata bodies; Visual AERO_DESCRIBE owns registration")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "FillUIElementMetadata" "BuiltinModules must not contain FillUIElementMetadata bodies; UIElement AERO_DESCRIBE owns registration")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "FillFrameworkElementMetadata" "BuiltinModules must not contain FillFrameworkElementMetadata bodies; FrameworkElement AERO_DESCRIBE owns registration")
+aero_require_text("src/gui/BuiltinModules.cpp" "DescribeHook<::Aero::Media::Visual>::Run(context)" "PopulateUiElements must orchestrate Visual DescribeHook")
+aero_require_text("src/gui/BuiltinModules.cpp" "PopulateMediaValueTypes(context)" "BuiltinModules must orchestrate PopulateMediaValueTypes for POD value types")
+aero_require_text("src/gui/media/Geometry.cpp" "PopulateMediaValueTypes" "Geometry family must own PopulateMediaValueTypes for POD value types")
+aero_require_text("src/gui/core/UIElement.cpp" "AERO_DESCRIBE(UIElement)" "UIElement must register metadata via AERO_DESCRIBE in its defining TU")
+aero_require_text("src/gui/core/FrameworkElement.cpp" "AERO_DESCRIBE(FrameworkElement)" "FrameworkElement must register metadata via AERO_DESCRIBE in its defining TU")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "Register<Thickness>" "BuiltinModules must not Register Thickness; Geometry PopulateMediaValueTypes owns POD value types")
 aero_forbid_file("src/gui/core/UiMetadata.hpp")
 aero_forbid_file("src/gui/core/ElementsFill.hpp")
 aero_forbid_file("src/gui/styles/StyleMetadata.cpp")
@@ -1358,10 +914,7 @@ aero_forbid_file("src/gui/input/InputMetadata.cpp")
 aero_forbid_file("src/gui/media/MediaMetadata.cpp")
 aero_forbid_file("src/gui/media/ResourceMetadata.cpp")
 aero_forbid_file("src/gui/media/AnimationMetadata.cpp")
-aero_require_text(
-    "src/gui/styles/StyleEngine.hpp"
-    "class StyleEngine"
-    "StyleEngine.hpp must own the StyleEngine declaration")
+aero_require_text("src/gui/styles/StyleEngine.hpp" "class StyleEngine" "StyleEngine.hpp must own the StyleEngine declaration")
 aero_forbid_file("src/gui/styles/StyleState.hpp")
 aero_forbid_file("src/gui/core/state/FreezableState.hpp")
 aero_forbid_file("src/gui/core/state/ElementTree.hpp")
@@ -1375,55 +928,19 @@ aero_forbid_file("src/gui/core/facets/InteractionStateFacet.hpp")
 aero_forbid_file("src/gui/core/facets/DependencyPropertyFacet.hpp")
 aero_forbid_file("src/gui/core/facets/InputEventFacet.hpp")
 aero_forbid_file("src/gui/core/facets/TextLayoutFacet.hpp")
-aero_require_text(
-    "include/Aero/Controls/Buttons.hpp"
-    "class AERO_GUI_API Button"
-    "Buttons.hpp must own the Button declaration")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept"
-    "FrameworkElement must expose WPF-shaped FindResource")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "ResourceValue TryFindResource(const ResourceKey& key) const noexcept"
-    "FrameworkElement must expose WPF-shaped TryFindResource")
-aero_require_text(
-    "include/Aero/Controls/Ranges.hpp"
-    "class AERO_GUI_API Thumb"
-    "Ranges.hpp must own the Thumb declaration")
-aero_forbid_text(
-    "include/Aero/Controls/Ranges.hpp"
-    "class AERO_GUI_API GridSplitter"
-    "GridSplitter stays in GridSplitter.hpp")
-aero_require_text(
-    "include/Aero/Controls.hpp"
-    "#include <Aero/Controls/Ranges.hpp>"
-    "Controls.hpp must include the range family")
+aero_require_text("include/Aero/Controls/Buttons.hpp" "class AERO_GUI_API Button" "Buttons.hpp must own the Button declaration")
+aero_require_text("include/Aero/FrameworkElement.hpp" "Result<ResourceValue> FindResource(const ResourceKey& key) const noexcept" "FrameworkElement must expose WPF-shaped FindResource")
+aero_require_text("include/Aero/FrameworkElement.hpp" "ResourceValue TryFindResource(const ResourceKey& key) const noexcept" "FrameworkElement must expose WPF-shaped TryFindResource")
+aero_require_text("include/Aero/Controls/Ranges.hpp" "class AERO_GUI_API Thumb" "Ranges.hpp must own the Thumb declaration")
+aero_forbid_text("include/Aero/Controls/Ranges.hpp" "class AERO_GUI_API GridSplitter" "GridSplitter stays in GridSplitter.hpp")
+aero_require_text("include/Aero/Controls.hpp" "#include <Aero/Controls/Ranges.hpp>" "Controls.hpp must include the range family")
 aero_forbid_file("include/Aero/Gui/Primitives.hpp")
-aero_forbid_text(
-    "include/Aero/Controls/Control.hpp"
-    "class AERO_GUI_API VisualState"
-    "VisualState public types must live in VisualStateManager.hpp")
-aero_forbid_text(
-    "include/Aero/Controls/Control.hpp"
-    "class AERO_GUI_API VisualStateManager"
-    "VisualStateManager must not be declared in Control.hpp")
-aero_require_text(
-    "include/Aero/VisualStateManager.hpp"
-    "static bool GoToState("
-    "VisualStateManager must keep the public WPF GoToState entry")
-aero_forbid_text(
-    "include/Aero/Triggers.hpp"
-    "Interactivity/"
-    "Triggers.hpp must not include Blend Interactivity headers")
-aero_forbid_text(
-    "include/Aero/Triggers.hpp"
-    "Media/Animation/"
-    "Triggers.hpp must not include Media.Animation trigger headers")
-aero_forbid_text(
-    "include/Aero/View.hpp"
-    "class AERO_GUI_API CompositionTarget"
-    "CompositionTarget must not be declared in View.hpp")
+aero_forbid_text("include/Aero/Controls/Control.hpp" "class AERO_GUI_API VisualState" "VisualState public types must live in VisualStateManager.hpp")
+aero_forbid_text("include/Aero/Controls/Control.hpp" "class AERO_GUI_API VisualStateManager" "VisualStateManager must not be declared in Control.hpp")
+aero_require_text("include/Aero/VisualStateManager.hpp" "static bool GoToState(" "VisualStateManager must keep the public WPF GoToState entry")
+aero_forbid_text("include/Aero/Triggers.hpp" "Interactivity/" "Triggers.hpp must not include Blend Interactivity headers")
+aero_forbid_text("include/Aero/Triggers.hpp" "Media/Animation/" "Triggers.hpp must not include Media.Animation trigger headers")
+aero_forbid_text("include/Aero/View.hpp" "class AERO_GUI_API CompositionTarget" "CompositionTarget must not be declared in View.hpp")
 
 # S25: public headers are organized by WPF-visible type ownership. Retired
 # Gui-path compatibility umbrellas are absent rather than forwarded.
@@ -1543,10 +1060,7 @@ foreach(s14_owner IN ITEMS
     string(REPLACE "|" ";" s14_owner_parts "${s14_owner}")
     list(GET s14_owner_parts 0 s14_owner_header)
     list(GET s14_owner_parts 1 s14_owner_declaration)
-    aero_require_text(
-        "${s14_owner_header}"
-        "${s14_owner_declaration}"
-        "S14 leaf header must own its public declaration")
+    aero_require_text("${s14_owner_header}" "${s14_owner_declaration}" "S14 leaf header must own its public declaration")
 endforeach()
 foreach(s14_retired_umbrella IN ITEMS
         "include/Aero/Gui/Core.hpp"
@@ -1558,42 +1072,18 @@ foreach(s14_retired_umbrella IN ITEMS
 endforeach()
 aero_forbid_file("include/Aero/Gui/Text.hpp")
 aero_forbid_file("include/Aero/Text.hpp")
-aero_forbid_text(
-    "include/Aero/Value.hpp"
-    "struct Members"
-    "WPF-facing dependency properties and routed events must not use the retired Members category")
+aero_forbid_text("include/Aero/Value.hpp" "struct Members" "WPF-facing dependency properties and routed events must not use the retired Members category")
 # ---------------------------------------------------------------------------
 # Public API and build model
 # ---------------------------------------------------------------------------
-aero_forbid_text(
-    "include/AeroApp/Application.hpp"
-    "RunChecked"
-    "Application must expose one Result-returning Run family")
-aero_forbid_text(
-    "include/AeroApp/Application.hpp"
-    "Run(Base::Ref<Window>"
-    "Explicit windows must be supplied through SetMainWindow")
-aero_forbid_text(
-    "include/AeroApp/Application.hpp"
-    "SetMainWindowBorrowed"
-    "Application ownership adapters must remain source-only")
-aero_forbid_text(
-    "include/Aero/Controls/Items.hpp"
-    "SetItemsSourceBorrowed"
-    "ItemsControl ownership adapters must remain source-only")
-aero_forbid_text(
-    "include/AeroApp/Window.hpp"
-    "ShowChecked"
-    "Window must expose one Result-returning Show API")
-aero_forbid_text(
-    "include/AeroApp/Window.hpp"
-    "CloseChecked"
-    "Window must expose one Result-returning Close API")
+aero_forbid_text("include/AeroApp/Application.hpp" "RunChecked" "Application must expose one Result-returning Run family")
+aero_forbid_text("include/AeroApp/Application.hpp" "Run(Base::Ref<Window>" "Explicit windows must be supplied through SetMainWindow")
+aero_forbid_text("include/AeroApp/Application.hpp" "SetMainWindowBorrowed" "Application ownership adapters must remain source-only")
+aero_forbid_text("include/Aero/Controls/Items.hpp" "SetItemsSourceBorrowed" "ItemsControl ownership adapters must remain source-only")
+aero_forbid_text("include/AeroApp/Window.hpp" "ShowChecked" "Window must expose one Result-returning Show API")
+aero_forbid_text("include/AeroApp/Window.hpp" "CloseChecked" "Window must expose one Result-returning Close API")
 
-aero_require_text(
-    "cmake/AeroGuiTargets.cmake"
-    "function(aero_compile_d3d11_shader_pair"
-    "D3D11 shader compilation must use the shared helper")
+aero_require_text("cmake/AeroGuiTargets.cmake" "function(aero_compile_d3d11_shader_pair" "D3D11 shader compilation must use the shared helper")
 
 file(GLOB aero_target_modules
     "${AERO_SOURCE_DIR}/CMakeLists.txt"
@@ -1620,18 +1110,9 @@ if(product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*AeroIntegration" OR
    product_text MATCHES "add_library[ \t\r\n]*[(][ \t\r\n]*Aero::Integration")
     message(FATAL_ERROR "The retired Integration product must not be recreated")
 endif()
-aero_require_text(
-    "cmake/AeroProductTargets.cmake"
-    "AeroGui must remain backend neutral"
-    "AeroGui target validation must reject native backend sources")
-aero_require_text(
-    "cmake/AeroProductTargets.cmake"
-    "Aero::RenderD3D11"
-    "App must compose the enabled D3D11 backend product")
-aero_require_text(
-    "cmake/AeroProductTargets.cmake"
-    "Aero::RenderOpenGL33"
-    "App must compose the enabled OpenGL33 backend product")
+aero_require_text("cmake/AeroProductTargets.cmake" "AeroGui must remain backend neutral" "AeroGui target validation must reject native backend sources")
+aero_require_text("cmake/AeroProductTargets.cmake" "Aero::RenderD3D11" "App must compose the enabled D3D11 backend product")
+aero_require_text("cmake/AeroProductTargets.cmake" "Aero::RenderOpenGL33" "App must compose the enabled OpenGL33 backend product")
 foreach(retired_object_layer IN ITEMS
         AeroGuiKernelObjects AeroControlsObjects AeroMarkupKernelObjects
         AeroMarkupObjects AeroInspectorObjects AeroRuntimeObjects
@@ -1682,147 +1163,42 @@ aero_forbid_file("src/gui/internal/AeroGuiInternal.Layout.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.Visual.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.Control.hpp")
 aero_forbid_file("src/gui/internal/AeroGuiInternal.Property.hpp")
-aero_require_text(
-    "src/gui/core/PropertyStore.hpp"
-    "struct StoredValueRare"
-    "Packed StoredValueEntry must keep expression/animation/current in StoredValueRare")
-aero_require_text(
-    "src/gui/core/PropertyStore.hpp"
-    "StoredValueRare* rare"
-    "Packed StoredValueEntry must hold an uncommon-data pointer, not six PropertyValues")
-aero_require_text(
-    "src/gui/core/PropertyStore.hpp"
-    "std::uint32_t packedFlags = 0U;"
-    "Hot DP entries must pack origin/has* bits instead of scattered bools")
-aero_require_text(
-    "src/gui/core/PropertyStore.hpp"
-    "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;"
-    "Hot DP entries must hold single effective Value plus packed flags and a rare pointer (P2.2)")
-aero_require_text(
-    "src/gui/core/PropertyStore.hpp"
-    "OriginShift = 17U"
-    "Packed origin bits must live on the hot StoredValueEntry flags word")
-aero_forbid_text(
-    "src/gui/core/PropertyStore.hpp"
-    "PropertyValue baseValue"
-    "Packed StoredValueEntry must not store the unused baseValue snapshot")
-aero_forbid_text(
-    "src/gui/core/PropertyStore.hpp"
-    "PropertyValue localValue;\n    PropertyValue currentValue;\n    PropertyValue inheritedValue;"
-    "Packed StoredValueEntry must not keep the six-copy PropertyValue layout")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "ResourceDictionary resources_;"
-    "FrameworkElement must not embed a ResourceDictionary by value")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "mutable ResourceDictionary* resources_ = nullptr;"
-    "FrameworkElement local resources must be a lazy pointer")
-aero_require_text(
-    "src/gui/styles/Resources.cpp"
-    "current->LocalResources()"
-    "Resource tree lookup must peek LocalResources and not allocate via GetResources")
-aero_forbid_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "ResourceDictionary resources_;"
-    "FrameworkContentElement must not embed a ResourceDictionary by value")
-aero_require_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "mutable ResourceDictionary* resources_ = nullptr;"
-    "FrameworkContentElement local resources must be a lazy pointer")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "Base::Vector"
-    "FrameworkElement private storage must not contain Base::Vector; authored data lives on Rare")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "FrameworkRare* frameworkRare_ = nullptr;"
-    "FrameworkElement must keep a lazy FrameworkRare* instead of hot Vectors")
-aero_forbid_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "Base::Vector"
-    "FrameworkContentElement private storage must not contain Base::Vector; authored data lives on Rare")
-aero_require_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "FrameworkContentRare* frameworkRare_ = nullptr;"
-    "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
+aero_require_text("src/gui/core/PropertyStore.hpp" "struct StoredValueRare" "Packed StoredValueEntry must keep expression/animation/current in StoredValueRare")
+aero_require_text("src/gui/core/PropertyStore.hpp" "StoredValueRare* rare" "Packed StoredValueEntry must hold an uncommon-data pointer, not six PropertyValues")
+aero_require_text("src/gui/core/PropertyStore.hpp" "std::uint32_t packedFlags = 0U;" "Hot DP entries must pack origin/has* bits instead of scattered bools")
+aero_require_text("src/gui/core/PropertyStore.hpp" "PropertyValue effectiveValue;\n    StoredValueRare* rare = nullptr;\n    std::uint32_t packedFlags = 0U;" "Hot DP entries must hold single effective Value plus packed flags and a rare pointer (P2.2)")
+aero_require_text("src/gui/core/PropertyStore.hpp" "OriginShift = 17U" "Packed origin bits must live on the hot StoredValueEntry flags word")
+aero_forbid_text("src/gui/core/PropertyStore.hpp" "PropertyValue baseValue" "Packed StoredValueEntry must not store the unused baseValue snapshot")
+aero_forbid_text("src/gui/core/PropertyStore.hpp" "PropertyValue localValue;\n    PropertyValue currentValue;\n    PropertyValue inheritedValue;" "Packed StoredValueEntry must not keep the six-copy PropertyValue layout")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "ResourceDictionary resources_;" "FrameworkElement must not embed a ResourceDictionary by value")
+aero_require_text("include/Aero/FrameworkElement.hpp" "mutable ResourceDictionary* resources_ = nullptr;" "FrameworkElement local resources must be a lazy pointer")
+aero_require_text("src/gui/styles/Resources.cpp" "current->LocalResources()" "Resource tree lookup must peek LocalResources and not allocate via GetResources")
+aero_forbid_text("include/Aero/FrameworkContentElement.hpp" "ResourceDictionary resources_;" "FrameworkContentElement must not embed a ResourceDictionary by value")
+aero_require_text("include/Aero/FrameworkContentElement.hpp" "mutable ResourceDictionary* resources_ = nullptr;" "FrameworkContentElement local resources must be a lazy pointer")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "Base::Vector" "FrameworkElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text("include/Aero/FrameworkElement.hpp" "FrameworkRare* frameworkRare_ = nullptr;" "FrameworkElement must keep a lazy FrameworkRare* instead of hot Vectors")
+aero_forbid_text("include/Aero/FrameworkContentElement.hpp" "Base::Vector" "FrameworkContentElement private storage must not contain Base::Vector; authored data lives on Rare")
+aero_require_text("include/Aero/FrameworkContentElement.hpp" "FrameworkContentRare* frameworkRare_ = nullptr;" "FrameworkContentElement must keep a lazy FrameworkContentRare* instead of hot Vectors")
 
-aero_require_text(
-    "include/Aero/DataTemplate.hpp"
-    "class AERO_GUI_API DataTemplateSelector : public Base::Object"
-    "DataTemplateSelector must inherit Object")
-aero_forbid_text(
-    "include/Aero/DataTemplate.hpp"
-    "GetHierarchicalItemsSource"
-    "Hierarchical ItemsSource/ItemTemplate belong on HierarchicalDataTemplate, not DataTemplate")
-aero_require_text(
-    "include/Aero/DataTemplate.hpp"
-    "GetItemsSource"
-    "HierarchicalDataTemplate must own ItemsSource (WPF shape)")
-aero_require_text(
-    "include/Aero/DataTemplate.hpp"
-    "GetItemTemplate"
-    "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
-aero_require_text(
-    "include/Aero/Controls/Items.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Ref<DataTemplateSelector>, ItemTemplateSelector)"
-    "ItemsControl must expose ItemTemplateSelector")
-aero_require_text(
-    "include/Aero/Controls/Items.hpp"
-    "ResolveItemTemplate"
-    "ItemsControl must resolve ItemTemplateSelector, ItemTemplate, then implicit DataTemplate")
-aero_require_text(
-    "include/Aero/Data/CollectionView.hpp"
-    "public Collections::IItemsSource"
-    "CollectionView must implement IItemsSource")
-aero_require_text(
-    "include/Aero/Data/CollectionView.hpp"
-    "GetDefaultView"
-    "CollectionViewSource must cache GetDefaultView")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem)"
-    "Selector must expose IsSynchronizedWithCurrentItem")
-aero_require_text(
-    "src/gui/controls/Selectors.cpp"
-    "const std::uint32_t firstGeneratedIndex =\n        generator->GetFirstGeneratedIndex();"
-    "SyncContainers must map generated slots through firstGeneratedIndex_")
-aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "class AERO_GUI_API CompositeTransform3D : public Transform3D"
-    "CompositeTransform3D must reparent to Transform3D")
-aero_forbid_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "GetProjectedMatrix"
-    "GetProjectedMatrix is retired; use GetTransform3D + collapse")
-aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "class AERO_GUI_API PerspectiveTransform3D : public Transform3D"
-    "PerspectiveTransform3D must inherit Transform3D")
-aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "class AERO_GUI_API MatrixTransform3D : public Transform3D"
-    "MatrixTransform3D must inherit Transform3D")
-aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "AERO_DEPENDENCY_PROPERTY2(Base::Transform3, Matrix)"
-    "MatrixTransform3D.Matrix must be a fully declared DP")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform3D>, Transform3D)"
-    "UIElement must own public Transform3DProperty")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "Base::ProjectiveTransform2D GetLocalVisualTransform()"
-    "GetLocalVisualTransform must return ProjectiveTransform2D with local semantics")
-aero_require_text(
-    "include/Aero/Base/Geometry.hpp"
-    "inline ProjectiveTransform2D CollapsePerspective("
-    "Geometry.hpp must own CollapsePerspective")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "ProjectionProperty"
-    "UIElement.Projection / PlaneProjection are out of scope")
+aero_require_text("include/Aero/DataTemplate.hpp" "class AERO_GUI_API DataTemplateSelector : public Base::Object" "DataTemplateSelector must inherit Object")
+aero_forbid_text("include/Aero/DataTemplate.hpp" "GetHierarchicalItemsSource" "Hierarchical ItemsSource/ItemTemplate belong on HierarchicalDataTemplate, not DataTemplate")
+aero_require_text("include/Aero/DataTemplate.hpp" "GetItemsSource" "HierarchicalDataTemplate must own ItemsSource (WPF shape)")
+aero_require_text("include/Aero/DataTemplate.hpp" "GetItemTemplate" "HierarchicalDataTemplate must own ItemTemplate (WPF shape)")
+aero_require_text("include/Aero/Controls/Items.hpp" "AERO_DEPENDENCY_PROPERTY(Ref<DataTemplateSelector>, ItemTemplateSelector)" "ItemsControl must expose ItemTemplateSelector")
+aero_require_text("include/Aero/Controls/Items.hpp" "ResolveItemTemplate" "ItemsControl must resolve ItemTemplateSelector, ItemTemplate, then implicit DataTemplate")
+aero_require_text("include/Aero/Data/CollectionView.hpp" "public Collections::IItemsSource" "CollectionView must implement IItemsSource")
+aero_require_text("include/Aero/Data/CollectionView.hpp" "GetDefaultView" "CollectionViewSource must cache GetDefaultView")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem)" "Selector must expose IsSynchronizedWithCurrentItem")
+aero_require_text("src/gui/controls/Selectors.cpp" "const std::uint32_t firstGeneratedIndex =\n        generator->GetFirstGeneratedIndex();" "SyncContainers must map generated slots through firstGeneratedIndex_")
+aero_require_text("include/Aero/Media/Transform3D.hpp" "class AERO_GUI_API CompositeTransform3D : public Transform3D" "CompositeTransform3D must reparent to Transform3D")
+aero_forbid_text("include/Aero/Media/Transform3D.hpp" "GetProjectedMatrix" "GetProjectedMatrix is retired; use GetTransform3D + collapse")
+aero_require_text("include/Aero/Media/Transform3D.hpp" "class AERO_GUI_API PerspectiveTransform3D : public Transform3D" "PerspectiveTransform3D must inherit Transform3D")
+aero_require_text("include/Aero/Media/Transform3D.hpp" "class AERO_GUI_API MatrixTransform3D : public Transform3D" "MatrixTransform3D must inherit Transform3D")
+aero_require_text("include/Aero/Media/Transform3D.hpp" "AERO_DEPENDENCY_PROPERTY2(Base::Transform3, Matrix)" "MatrixTransform3D.Matrix must be a fully declared DP")
+aero_require_text("include/Aero/UIElement.hpp" "AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform3D>, Transform3D)" "UIElement must own public Transform3DProperty")
+aero_require_text("include/Aero/FrameworkElement.hpp" "Base::ProjectiveTransform2D GetLocalVisualTransform()" "GetLocalVisualTransform must return ProjectiveTransform2D with local semantics")
+aero_require_text("include/Aero/Base/Geometry.hpp" "inline ProjectiveTransform2D CollapsePerspective(" "Geometry.hpp must own CollapsePerspective")
+aero_forbid_text("include/Aero/UIElement.hpp" "ProjectionProperty" "UIElement.Projection / PlaneProjection are out of scope")
 file(GLOB_RECURSE aero_public_hpp
     "${AERO_SOURCE_DIR}/include/*.hpp")
 foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
@@ -1983,22 +1359,10 @@ foreach(aero_animation_header IN LISTS aero_animation_public_headers)
         endif()
     endif()
 endforeach()
-aero_require_text(
-    "include/Aero/Media/Animation/Storyboard.hpp"
-    "class AERO_GUI_API Storyboard : public ParallelTimeline"
-    "Storyboard must inherit ParallelTimeline")
-aero_require_text(
-    "include/Aero/Media/Animation/Storyboard.hpp"
-    "class AERO_GUI_API ParallelTimeline : public TimelineGroup"
-    "ParallelTimeline must inherit TimelineGroup")
-aero_require_text(
-    "include/Aero/Media/Animation/Storyboard.hpp"
-    "class AERO_GUI_API TimelineGroup : public Timeline"
-    "TimelineGroup must inherit Timeline")
-aero_require_text(
-    "include/Aero/Media/Animation/EasingFunctions.hpp"
-    "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable"
-    "EasingFunctionBase must inherit Freezable")
+aero_require_text("include/Aero/Media/Animation/Storyboard.hpp" "class AERO_GUI_API Storyboard : public ParallelTimeline" "Storyboard must inherit ParallelTimeline")
+aero_require_text("include/Aero/Media/Animation/Storyboard.hpp" "class AERO_GUI_API ParallelTimeline : public TimelineGroup" "ParallelTimeline must inherit TimelineGroup")
+aero_require_text("include/Aero/Media/Animation/Storyboard.hpp" "class AERO_GUI_API TimelineGroup : public Timeline" "TimelineGroup must inherit Timeline")
+aero_require_text("include/Aero/Media/Animation/EasingFunctions.hpp" "class AERO_GUI_API EasingFunctionBase : public ::Aero::Freezable" "EasingFunctionBase must inherit Freezable")
 aero_require_text(
     "src/gui/media/Animation.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"SineEase\")"
@@ -2007,590 +1371,155 @@ aero_require_text(
     "src/gui/media/Animation.cpp"
     "RegisterAlias<EasingFunctionBase>(context, \"ElasticEase\")"
     "ElasticEase must stay an XAML alias of EasingFunctionBase")
-aero_require_text(
-    "src/gui/media/Animation.cpp"
-    "AERO_KEYFRAMES(Double, double)"
-    "LinearDoubleKeyFrame must stay an XAML alias of DoubleKeyFrame")
-aero_require_text(
-    "src/gui/media/Animation.cpp"
-    "AERO_KEYFRAME_ALIAS(Name, Linear)"
-    "Keyframe aliases must include the Linear interpolation name")
-aero_require_text(
-    "src/gui/BuiltinModules.cpp"
-    "PopulateAnimationTypes(context)"
-    "BuiltinModules must orchestrate PopulateAnimationTypes for eases/keyframes")
-aero_require_text(
-    "src/gui/media/Animation.cpp"
-    "PopulateAnimationTypes"
-    "Animation family must own PopulateAnimationTypes for eases/keyframes")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "AERO_KEYFRAMES("
-    "BuiltinModules must not contain AERO_KEYFRAMES bodies; Animation.cpp owns them")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "RegisterAlias<EasingFunctionBase>"
-    "BuiltinModules must not RegisterAlias eases; Animation.cpp owns them")
-aero_require_text(
-    "src/gui/markup/XamlSchema.cpp"
-    "PopulateMarkupMetadata"
-    "XamlSchemaMetadata must own PopulateMarkupMetadata token registration")
-aero_require_text(
-    "src/gui/triggers/VisualStateManager.cpp"
-    "PopulateVisualStateMetadata"
-    "VisualStateManager family must own PopulateVisualStateMetadata")
+aero_require_text("src/gui/media/Animation.cpp" "AERO_KEYFRAMES(Double, double)" "LinearDoubleKeyFrame must stay an XAML alias of DoubleKeyFrame")
+aero_require_text("src/gui/media/Animation.cpp" "AERO_KEYFRAME_ALIAS(Name, Linear)" "Keyframe aliases must include the Linear interpolation name")
+aero_require_text("src/gui/BuiltinModules.cpp" "PopulateAnimationTypes(context)" "BuiltinModules must orchestrate PopulateAnimationTypes for eases/keyframes")
+aero_require_text("src/gui/media/Animation.cpp" "PopulateAnimationTypes" "Animation family must own PopulateAnimationTypes for eases/keyframes")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "AERO_KEYFRAMES(" "BuiltinModules must not contain AERO_KEYFRAMES bodies; Animation.cpp owns them")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "RegisterAlias<EasingFunctionBase>" "BuiltinModules must not RegisterAlias eases; Animation.cpp owns them")
+aero_require_text("src/gui/markup/XamlSchema.cpp" "PopulateMarkupMetadata" "XamlSchemaMetadata must own PopulateMarkupMetadata token registration")
+aero_require_text("src/gui/triggers/VisualStateManager.cpp" "PopulateVisualStateMetadata" "VisualStateManager family must own PopulateVisualStateMetadata")
 aero_forbid_file("src/gui/controls/VisualStateManager.cpp")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "DynamicResourceExtensionToken"
-    "BuiltinModules must not define markup extension tokens; XamlSchemaMetadata owns them")
-aero_forbid_text(
-    "src/gui/BuiltinModules.cpp"
-    "Register<VisualStateGroup>"
-    "BuiltinModules must not Register VisualState*; VisualStateManager owns them")
-aero_require_text(
-    "include/Aero/Media/Animation/KeyFrames.hpp"
-    "class AERO_GUI_API KeyFrameBase : public ::Aero::Freezable"
-    "KeyFrameBase must inherit Freezable")
-aero_require_text(
-    "include/Aero/Media/Animation/KeyFrames.hpp"
-    "class KeyFrame : public KeyFrameBase"
-    "template KeyFrame<T> must inherit KeyFrameBase")
-aero_require_text(
-    "include/Aero/Media/Animation/Animations.hpp"
-    "class AERO_GUI_API AnimationTimeline : public Timeline"
-    "AnimationTimeline must inherit Timeline")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "class AERO_GUI_API Timeline : public ::Aero::Animatable"
-    "Timeline must inherit Animatable")
-aero_require_text(
-    "include/Aero/Animatable.hpp"
-    "class AERO_GUI_API Animatable : public Freezable"
-    "Animatable must sit between Freezable and animated media")
-aero_require_text(
-    "include/Aero/Media/Brushes.hpp"
-    "class AERO_GUI_API Brush : public Animatable"
-    "Brush must inherit Animatable")
-aero_require_text(
-    "include/Aero/Media/Geometries.hpp"
-    "class AERO_GUI_API Geometry : public Animatable"
-    "Geometry must inherit Animatable")
-aero_require_text(
-    "include/Aero/Media/Transform2D.hpp"
-    "class AERO_GUI_API Transform : public ::Aero::Animatable"
-    "Transform must inherit Animatable")
-aero_require_text(
-    "include/Aero/Media/Transform3D.hpp"
-    "class AERO_GUI_API Transform3D : public ::Aero::Freezable"
-    "Transform3D must inherit Freezable")
-aero_require_text(
-    "include/Aero/Controls/GridSplitter.hpp"
-    "class AERO_GUI_API GridSplitter : public Primitives::Thumb"
-    "GridSplitter must inherit Thumb")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "static void RegisterClassHandler("
-    "Input extension uses class handlers, not a growing virtual table")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "virtual void OnMouseDown"
-    "OnMouseDown must be a class handler, not a UIElement virtual")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "virtual void OnKeyDown"
-    "OnKeyDown must be a class handler, not a UIElement virtual")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Duration, Duration)"
-    "Timeline Duration must be a dependency property")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "AERO_DEPENDENCY_PROPERTY(RepeatBehavior, RepeatBehavior)"
-    "Timeline RepeatBehavior must be a dependency property")
-aero_forbid_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "beginTimeText_"
-    "Timeline timing must not store StringView clock text")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "IsAutomatic"
-    "Duration must expose Automatic/Forever/TimeSpan")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "Paced"
-    "KeyTime must expose TimeSpan/Percent/Uniform/Paced")
-aero_require_text(
-    "include/Aero/Media/Animation/Timeline.hpp"
-    "FromDuration"
-    "RepeatBehavior must support count, Forever, and duration")
-aero_require_text(
-    "include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp"
-    "class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase"
-    "StoryboardCompletedTrigger must inherit TriggerBase like EventTrigger")
-aero_forbid_text(
-    "include/Aero/Media/Animation.hpp"
-    "#include <Aero/Interactivity"
-    "Animation.hpp umbrella must not reverse-include the interactivity layer")
-aero_forbid_text(
-    "include/Aero/Media/Animation.hpp"
-    "StoryboardCompletedTrigger"
-    "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
-aero_require_text(
-    "include/Aero/DependencyProperty.hpp"
-    "#include <Aero/Diagnostics.hpp>"
-    "DependencyProperty.hpp must take EffectiveValueSource from the Diagnostics umbrella")
-aero_forbid_text(
-    "include/Aero/DependencyProperty.hpp"
-    "#include <Aero/Diagnostics/"
-    "DependencyProperty.hpp must not include deleted Diagnostics/ sub-headers")
-aero_forbid_text(
-    "include/Aero/DependencyProperty.hpp"
-    "HashMap.hpp"
-    "Public DependencyProperty.hpp must not include HashMap; memberIndex_ lives in the pimpl header")
-aero_require_text(
-    "src/gui/core/DependencyPropertyRegistry.hpp"
-    "Base::HashMap<MemberId, std::uint32_t> memberIndex_"
-    "HashMap for DependencyPropertyRegistry::memberIndex_ must stay in the implementation pimpl header")
-aero_forbid_text(
-    "include/Aero/DependencyObject.hpp"
-    "#include <Aero/Threading.hpp>"
-    "DependencyObject.hpp must not include Threading.hpp (engine includes live under src/gui/core)")
-aero_forbid_text(
-    "include/Aero/DependencyObject.hpp"
-    "DispatcherReentrancyGuard"
-    "DispatcherReentrancyGuard is engine-private under src/gui/core")
-aero_forbid_text(
-    "include/Aero/Threading.hpp"
-    "#include <Aero/PropertySlab.hpp>"
-    "PropertySlab must not be a public Threading include; it lives under src/gui/core")
-aero_forbid_text(
-    "include/Aero/Threading.hpp"
-    "#include <Aero/DispatcherReentrancyGuard.hpp>"
-    "DispatcherReentrancyGuard must not be a public Threading include; it lives under src/gui/core")
-aero_require_text(
-    "src/gui/core/PropertySlab.hpp"
-    "class PropertySlab"
-    "PropertySlab must live under src/gui/core")
-aero_require_text(
-    "src/gui/core/DispatcherReentrancyGuard.hpp"
-    "class AERO_GUI_API DispatcherReentrancyGuard"
-    "DispatcherReentrancyGuard must live under src/gui/core")
-aero_require_text(
-    "include/Aero/Resources.hpp"
-    "#include <Aero/Diagnostics.hpp>"
-    "Resources.hpp SourceSpan must come from the Diagnostics umbrella")
-aero_forbid_text(
-    "include/Aero/Resources.hpp"
-    "#include <Aero/Diagnostics/"
-    "Resources.hpp must not include deleted Diagnostics/ sub-headers")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "bool renderAttached_"
-    "Visual render bools must be packed into visualFlags_, not one-byte members")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "std::uint8_t visualFlags_ = 0U;"
-    "Visual render/loaded flags must share one packed byte")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "bool measureValid : 1;"
-    "UIElement layout dirty flags must be packed bitfields on LayoutHot")
-aero_require_text(
-    "include/Aero/DependencyObject.hpp"
-    "void* valueStore_ = nullptr;"
-    "Public DependencyObject ABI must keep valueStore_ as opaque void*")
-aero_require_text(
-    "src/gui/core/DependencyObject.cpp"
-    "store->entries.Find(propertyHandle.value)"
-    "GetValue must probe the property store by the incoming handle before registry Find")
-aero_require_text(
-    "src/gui/core/DependencyObject.cpp"
-    "Canonical-handle hot path"
-    "GetValue must skip registry Find for a canonical handle that already has a store entry")
-aero_require_text(
-    "src/gui/styles/StyleEngine.hpp"
-    "struct StyleSetter {\n    DependencyPropertyHandle property;"
-    "Style setters must key by DependencyPropertyHandle, not property name")
-aero_require_text(
-    "src/gui/templates/TemplateProgram.hpp"
-    "struct VisualStateSetterPlan {\n    Base::String targetName;\n    DependencyPropertyHandle property;"
-    "VSM setters must key by DependencyPropertyHandle, not property name")
-aero_require_text(
-    "src/gui/templates/TemplateProgram.hpp"
-    "struct TemplateTriggerSetter {\n    Base::String targetName;\n    DependencyPropertyHandle property;"
-    "Template trigger setters must key by DependencyPropertyHandle, not property name")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "friend class AeroGuiInternal"
-    "Visual must not friend a side access class")
-aero_require_text(
-    "include/Aero/VisualTreeHelper.hpp"
-    "class AERO_GUI_API VisualTreeHelper"
-    "VisualTreeHelper must remain the public WPF visual-tree API")
-aero_require_text(
-    "include/Aero/LogicalTreeHelper.hpp"
-    "class AERO_GUI_API LogicalTreeHelper"
-    "LogicalTreeHelper must remain the public WPF logical-tree API")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "class AERO_GUI_API VisualTreeHelper"
-    "VisualTreeHelper must live in VisualTreeHelper.hpp")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "class AERO_GUI_API LogicalTreeHelper"
-    "LogicalTreeHelper must live in LogicalTreeHelper.hpp")
-aero_forbid_text(
-    "include/Aero/DependencyProperty.hpp"
-    "class AERO_GUI_API DependencyObject"
-    "DependencyObject must live in DependencyObject.hpp")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "#include <Aero/Media/DrawingContext.hpp>"
-    "FrameworkElement must not hard-include DrawingContext.hpp")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "#include <Aero/Media/DrawingContext.hpp>"
-    "UIElement must not hard-include DrawingContext.hpp")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "class AERO_GUI_API TabControl : public Primitives::Selector"
-    "TabControl derives Selector so tabs are driven by Items/ItemsSource/SelectedIndex")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "class AERO_GUI_API Path : public Shape"
-    "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule)"
-    "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
-aero_require_text(
-    "include/Aero/Media/Geometries.hpp"
-    "Flatten("
-    "PathSegment must Flatten into a sink instead of stringifying")
-aero_require_text(
-    "include/Aero/Media/Geometries.hpp"
-    "class AERO_GUI_API BezierSegment : public PathSegment"
-    "BezierSegment must inherit PathSegment")
-aero_require_text(
-    "include/Aero/Media/Geometries.hpp"
-    "FlattenCore"
-    "Geometry rendering Flatten must apply Transform then FlattenCore")
-aero_require_text(
-    "src/gui/shapes/Path.cpp"
-    "geometry->Flatten(sink)"
-    "Path rendering must Flatten object-model Geometry, not ToStreamData")
-aero_forbid_text(
-    "src/gui/shapes/Path.cpp"
-    "ToStreamData()"
-    "Path rendering must not round-trip PathGeometry through ToStreamData")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "class AERO_GUI_API Line : public Shape"
-    "Line must derive Shape")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "class AERO_GUI_API Polygon : public Shape"
-    "Polygon must derive Shape")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "class AERO_GUI_API Polyline : public Shape"
-    "Polyline must derive Shape")
-aero_require_text(
-    "include/Aero/Shapes.hpp"
-    "class AERO_GUI_API Shape : public FrameworkElement"
-    "Shape is the geometry element base")
-aero_require_text(
-    "include/Aero/Controls/VirtualizingPanels.hpp"
-    "class AERO_GUI_API VirtualizingPanel : public Panel"
-    "VirtualizingPanel must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/VirtualizingPanels.hpp"
-    "class AERO_GUI_API VirtualizingStackPanel : public VirtualizingPanel,"
-    "VirtualizingStackPanel must derive VirtualizingPanel")
-aero_require_text(
-    "include/Aero/Controls/VirtualizingPanels.hpp"
-    "class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingPanel,"
-    "VirtualizingWrapPanel must derive VirtualizingPanel, not VirtualizingStackPanel")
-aero_forbid_text(
-    "include/Aero/Controls/VirtualizingPanels.hpp"
-    "class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingStackPanel"
-    "VirtualizingWrapPanel must not inherit the stack virtualizer")
-aero_require_text(
-    "include/Aero/DependencyObject.hpp"
-    "AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)"
-    "DependencyObject TypeId parent must match C++ inheritance from DispatcherObject")
-aero_require_text(
-    "include/Aero/DispatcherObject.hpp"
-    "AERO_DECLARE_TYPE(DispatcherObject, Base::Object)"
-    "DispatcherObject must have a TypeId parented at Object")
-aero_forbid_text(
-    "include/Aero/Threading.hpp"
-    "class AERO_GUI_API DispatcherObject"
-    "DispatcherObject must live in DispatcherObject.hpp")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "class AERO_GUI_API Selector"
-    "Selector must live in Selectors.hpp")
-aero_forbid_text(
-    "include/Aero/Documents.hpp"
-    "class AERO_GUI_API TextElement"
-    "TextElement must live in Documents/TextElement.hpp")
-aero_forbid_text(
-    "include/Aero/Documents.hpp"
-    "class AERO_GUI_API Run"
-    "Run must live in Documents/Run.hpp")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "visualChildren_"
-    "Visual must not store a Vector of visual children")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "logicalChildren_"
-    "Visual must not store a Vector of logical children")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "GetVisualChildren()"
-    "Public GetVisualChildren Span is retired; walk Count/GetChild")
-aero_require_text(
-    "include/Aero/TryCast.hpp"
-    "template<class T>"
-    "TryCast is the TypeId-chain downcast template")
-aero_require_text(
-    "include/Aero/TryCast.hpp"
-    "T* TryCast(Object* object) noexcept"
-    "Public habit is Aero::TryCast<T>(object)")
-aero_forbid_text(
-    "include/Aero/TryCast.hpp"
-    "#include <Aero/Meta.hpp>"
-    "TryCast.hpp must not include Meta.hpp")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "AsUIElement"
-    "Visual vtable must not carry AsUIElement")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "AsFrameworkElement"
-    "Visual vtable must not carry AsFrameworkElement")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "AsUIElement"
-    "UIElement must not restore AsUIElement")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "AsFrameworkElement"
-    "FrameworkElement must not restore AsFrameworkElement")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "static Visual* Of"
-    "Visual::Of is retired; use Aero::TryCast<Media::Visual>")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "IsAncestorOf"
-    "Visual must expose IsAncestorOf")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "TransformToVisual"
-    "Visual must expose TransformToVisual")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "PointToScreen"
-    "Visual must expose PointToScreen")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "PointFromScreen"
-    "Visual must expose PointFromScreen")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "AddVisualChild"
-    "Visual child attachment is AddVisualChild/RemoveVisualChild")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "OnVisualChildrenChanged"
-    "Visual must expose OnVisualChildrenChanged")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "DependencyObject* GetLogicalParent()"
-    "GetLogicalParent returns DependencyObject* so ContentElement can parent")
-aero_forbid_text(
-    "include/Aero/LogicalTreeHelper.hpp"
-    "static Media::Visual* GetParent"
-    "LogicalTreeHelper keeps DependencyObject overloads only")
-aero_require_text(
-    "include/Aero/Controls/Panels.hpp"
-    "class AERO_GUI_API StackPanel : public Panel"
-    "StackPanel must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/Panels.hpp"
-    "class AERO_GUI_API DockPanel : public Panel"
-    "DockPanel must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/Panels.hpp"
-    "class AERO_GUI_API WrapPanel : public Panel"
-    "WrapPanel must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/Panels.hpp"
-    "class AERO_GUI_API UniformGrid : public Panel"
-    "UniformGrid must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/Panels.hpp"
-    "class AERO_GUI_API Canvas : public Panel"
-    "Canvas must derive Panel")
-aero_require_text(
-    "include/Aero/Controls/Decorators.hpp"
-    "class AERO_GUI_API Viewbox"
-    "Viewbox must live in Decorators.hpp")
-aero_require_text(
-    "include/Aero/Controls/Control.hpp"
-    "class AERO_GUI_API GroupBox"
-    "GroupBox must live in Control.hpp")
-aero_require_text(
-    "include/Aero/Controls/Control.hpp"
-    "class AERO_GUI_API Label"
-    "Label must live in Control.hpp")
-aero_require_text(
-    "include/Aero/Controls/Control.hpp"
-    "class AERO_GUI_API Expander"
-    "Expander must live in Control.hpp")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "class AERO_GUI_API TabItem"
-    "TabItem must live in Selectors.hpp")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "class AERO_GUI_API TabControl"
-    "TabControl must live in Selectors.hpp")
-aero_require_text(
-    "include/Aero/Controls/Selectors.hpp"
-    "class AERO_GUI_API TabPanel"
-    "TabPanel must live in Selectors.hpp")
-aero_forbid_text(
-    "include/Aero/FrameworkContentElement.hpp"
-    "class AERO_GUI_API ContentElement"
-    "ContentElement must live in ContentElement.hpp")
-aero_forbid_text(
-    "include/Aero/Visual.hpp"
-    "GetTree"
-    "Visual.GetTree must not be declared on the installed SDK class")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "std::uint8_t renderDirtyFlags_"
-    "Visual render dirty flags must remain private hot fields on Visual")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "std::uint32_t handleIndex_"
-    "Visual handle index must remain a private hot field on Visual")
-aero_require_text(
-    "include/Aero/Visual.hpp"
-    "Base::RenderNodeId renderNodeId_"
-    "Visual render node id must remain a private hot field on Visual")
-aero_require_text(
-    "tools/sdk-consumers/GuiConsumer.cpp"
-    "!HasVisualGetTree<Aero::Media::Visual>::value"
-    "SDK consumers must prove Visual.GetTree is not part of the installed API")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "#include <Aero/Layout.hpp>"
-    "UIElement must not pull the Layout.hpp umbrella")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "#include <Aero/ElementEnums.hpp>"
-    "Visibility and BlendMode must stay on the light element-enum header")
-aero_require_text(
-    "include/Aero/FrameworkElement.hpp"
-    "#include <Aero/ElementEnums.hpp>"
-    "Alignment enums must stay on the light element-enum header")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "enum class Visibility"
-    "UIElement must not own Visibility")
-aero_forbid_text(
-    "include/Aero/FrameworkElement.hpp"
-    "enum class HorizontalAlignment"
-    "FrameworkElement must not own alignment enums")
-aero_require_text(
-    "include/Aero/Controls/Grid.hpp"
-    "#include <Aero/Controls/GridLength.hpp>"
-    "GridLength must be owned by the Grid header family")
-aero_require_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/ElementEnums.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for element enums")
-aero_require_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/Controls/GridLength.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for GridLength")
-aero_require_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/Diagnostics.hpp>"
-    "Layout.hpp must remain a compatibility umbrella for LayoutDiagnostics")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "#include <Aero/Diagnostics/"
-    "Layout.hpp must not include deleted Diagnostics/ sub-headers")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "enum class Visibility"
-    "Layout.hpp must not own Visibility")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "enum class HorizontalAlignment"
-    "Layout.hpp must not own HorizontalAlignment")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "enum class BlendMode"
-    "Layout.hpp must not own BlendMode")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "struct GridLength"
-    "Layout.hpp must not own GridLength")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "struct LayoutDiagnostics"
-    "Layout.hpp must not own LayoutDiagnostics")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "Threading.hpp"
-    "Layout.hpp must not pull Threading.hpp")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "Media/Geometry.hpp"
-    "Layout.hpp must not pull the retired Geometry.hpp path")
-aero_forbid_text(
-    "include/Aero/Layout.hpp"
-    "Media/Geometries.hpp"
-    "Layout.hpp must not pull the geometry family")
-aero_require_text(
-    "include/Aero/UIElement.hpp"
-    "struct LayoutHot"
-    "Layout hot state must live on UIElement, not a facet bag")
-aero_forbid_text(
-    "include/Aero/Controls/Items.hpp"
-    "static Base::Result<ItemContainerGenerator*> Create("
-    "ItemContainerGenerator::Create with engine refs must not be public")
-aero_forbid_text(
-    "include/Aero/Controls/Items.hpp"
-    "class ElementTree;"
-    "ElementTree fwd must not leak through public Items.hpp")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "DynamicResourceExtensionToken" "BuiltinModules must not define markup extension tokens; XamlSchemaMetadata owns them")
+aero_forbid_text("src/gui/BuiltinModules.cpp" "Register<VisualStateGroup>" "BuiltinModules must not Register VisualState*; VisualStateManager owns them")
+aero_require_text("include/Aero/Media/Animation/KeyFrames.hpp" "class AERO_GUI_API KeyFrameBase : public ::Aero::Freezable" "KeyFrameBase must inherit Freezable")
+aero_require_text("include/Aero/Media/Animation/KeyFrames.hpp" "class KeyFrame : public KeyFrameBase" "template KeyFrame<T> must inherit KeyFrameBase")
+aero_require_text("include/Aero/Media/Animation/Animations.hpp" "class AERO_GUI_API AnimationTimeline : public Timeline" "AnimationTimeline must inherit Timeline")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "class AERO_GUI_API Timeline : public ::Aero::Animatable" "Timeline must inherit Animatable")
+aero_require_text("include/Aero/Animatable.hpp" "class AERO_GUI_API Animatable : public Freezable" "Animatable must sit between Freezable and animated media")
+aero_require_text("include/Aero/Media/Brushes.hpp" "class AERO_GUI_API Brush : public Animatable" "Brush must inherit Animatable")
+aero_require_text("include/Aero/Media/Geometries.hpp" "class AERO_GUI_API Geometry : public Animatable" "Geometry must inherit Animatable")
+aero_require_text("include/Aero/Media/Transform2D.hpp" "class AERO_GUI_API Transform : public ::Aero::Animatable" "Transform must inherit Animatable")
+aero_require_text("include/Aero/Media/Transform3D.hpp" "class AERO_GUI_API Transform3D : public ::Aero::Freezable" "Transform3D must inherit Freezable")
+aero_require_text("include/Aero/Controls/GridSplitter.hpp" "class AERO_GUI_API GridSplitter : public Primitives::Thumb" "GridSplitter must inherit Thumb")
+aero_require_text("include/Aero/UIElement.hpp" "static void RegisterClassHandler(" "Input extension uses class handlers, not a growing virtual table")
+aero_forbid_text("include/Aero/UIElement.hpp" "virtual void OnMouseDown" "OnMouseDown must be a class handler, not a UIElement virtual")
+aero_forbid_text("include/Aero/UIElement.hpp" "virtual void OnKeyDown" "OnKeyDown must be a class handler, not a UIElement virtual")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "AERO_DEPENDENCY_PROPERTY(Duration, Duration)" "Timeline Duration must be a dependency property")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "AERO_DEPENDENCY_PROPERTY(RepeatBehavior, RepeatBehavior)" "Timeline RepeatBehavior must be a dependency property")
+aero_forbid_text("include/Aero/Media/Animation/Timeline.hpp" "beginTimeText_" "Timeline timing must not store StringView clock text")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "IsAutomatic" "Duration must expose Automatic/Forever/TimeSpan")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "Paced" "KeyTime must expose TimeSpan/Percent/Uniform/Paced")
+aero_require_text("include/Aero/Media/Animation/Timeline.hpp" "FromDuration" "RepeatBehavior must support count, Forever, and duration")
+aero_require_text("include/Aero/Media/Animation/StoryboardCompletedTrigger.hpp" "class AERO_GUI_API StoryboardCompletedTrigger : public ::Aero::TriggerBase" "StoryboardCompletedTrigger must inherit TriggerBase like EventTrigger")
+aero_forbid_text("include/Aero/Media/Animation.hpp" "#include <Aero/Interactivity" "Animation.hpp umbrella must not reverse-include the interactivity layer")
+aero_forbid_text("include/Aero/Media/Animation.hpp" "StoryboardCompletedTrigger" "Animation.hpp umbrella must not pull StoryboardCompletedTrigger")
+aero_require_text("include/Aero/DependencyProperty.hpp" "#include <Aero/Diagnostics.hpp>" "DependencyProperty.hpp must take EffectiveValueSource from the Diagnostics umbrella")
+aero_forbid_text("include/Aero/DependencyProperty.hpp" "#include <Aero/Diagnostics/" "DependencyProperty.hpp must not include deleted Diagnostics/ sub-headers")
+aero_forbid_text("include/Aero/DependencyProperty.hpp" "HashMap.hpp" "Public DependencyProperty.hpp must not include HashMap; memberIndex_ lives in the pimpl header")
+aero_require_text("src/gui/core/DependencyPropertyRegistry.hpp" "Base::HashMap<MemberId, std::uint32_t> memberIndex_" "HashMap for DependencyPropertyRegistry::memberIndex_ must stay in the implementation pimpl header")
+aero_forbid_text("include/Aero/DependencyObject.hpp" "#include <Aero/Threading.hpp>" "DependencyObject.hpp must not include Threading.hpp (engine includes live under src/gui/core)")
+aero_forbid_text("include/Aero/DependencyObject.hpp" "DispatcherReentrancyGuard" "DispatcherReentrancyGuard is engine-private under src/gui/core")
+aero_forbid_text("include/Aero/Threading.hpp" "#include <Aero/PropertySlab.hpp>" "PropertySlab must not be a public Threading include; it lives under src/gui/core")
+aero_forbid_text("include/Aero/Threading.hpp" "#include <Aero/DispatcherReentrancyGuard.hpp>" "DispatcherReentrancyGuard must not be a public Threading include; it lives under src/gui/core")
+aero_require_text("src/gui/core/PropertySlab.hpp" "class PropertySlab" "PropertySlab must live under src/gui/core")
+aero_require_text("src/gui/core/DispatcherReentrancyGuard.hpp" "class AERO_GUI_API DispatcherReentrancyGuard" "DispatcherReentrancyGuard must live under src/gui/core")
+aero_require_text("include/Aero/Resources.hpp" "#include <Aero/Diagnostics.hpp>" "Resources.hpp SourceSpan must come from the Diagnostics umbrella")
+aero_forbid_text("include/Aero/Resources.hpp" "#include <Aero/Diagnostics/" "Resources.hpp must not include deleted Diagnostics/ sub-headers")
+aero_forbid_text("include/Aero/Visual.hpp" "bool renderAttached_" "Visual render bools must be packed into visualFlags_, not one-byte members")
+aero_require_text("include/Aero/Visual.hpp" "std::uint8_t visualFlags_ = 0U;" "Visual render/loaded flags must share one packed byte")
+aero_require_text("include/Aero/UIElement.hpp" "bool measureValid : 1;" "UIElement layout dirty flags must be packed bitfields on LayoutHot")
+aero_require_text("include/Aero/DependencyObject.hpp" "void* valueStore_ = nullptr;" "Public DependencyObject ABI must keep valueStore_ as opaque void*")
+aero_require_text("src/gui/core/DependencyObject.cpp" "store->entries.Find(propertyHandle.value)" "GetValue must probe the property store by the incoming handle before registry Find")
+aero_require_text("src/gui/core/DependencyObject.cpp" "Canonical-handle hot path" "GetValue must skip registry Find for a canonical handle that already has a store entry")
+aero_require_text("src/gui/styles/StyleEngine.hpp" "struct StyleSetter {\n    DependencyPropertyHandle property;" "Style setters must key by DependencyPropertyHandle, not property name")
+aero_require_text("src/gui/templates/TemplateProgram.hpp" "struct VisualStateSetterPlan {\n    Base::String targetName;\n    DependencyPropertyHandle property;" "VSM setters must key by DependencyPropertyHandle, not property name")
+aero_require_text("src/gui/templates/TemplateProgram.hpp" "struct TemplateTriggerSetter {\n    Base::String targetName;\n    DependencyPropertyHandle property;" "Template trigger setters must key by DependencyPropertyHandle, not property name")
+aero_forbid_text("include/Aero/Visual.hpp" "friend class AeroGuiInternal" "Visual must not friend a side access class")
+aero_require_text("include/Aero/VisualTreeHelper.hpp" "class AERO_GUI_API VisualTreeHelper" "VisualTreeHelper must remain the public WPF visual-tree API")
+aero_require_text("include/Aero/LogicalTreeHelper.hpp" "class AERO_GUI_API LogicalTreeHelper" "LogicalTreeHelper must remain the public WPF logical-tree API")
+aero_forbid_text("include/Aero/Visual.hpp" "class AERO_GUI_API VisualTreeHelper" "VisualTreeHelper must live in VisualTreeHelper.hpp")
+aero_forbid_text("include/Aero/Visual.hpp" "class AERO_GUI_API LogicalTreeHelper" "LogicalTreeHelper must live in LogicalTreeHelper.hpp")
+aero_forbid_text("include/Aero/DependencyProperty.hpp" "class AERO_GUI_API DependencyObject" "DependencyObject must live in DependencyObject.hpp")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "#include <Aero/Media/DrawingContext.hpp>" "FrameworkElement must not hard-include DrawingContext.hpp")
+aero_forbid_text("include/Aero/UIElement.hpp" "#include <Aero/Media/DrawingContext.hpp>" "UIElement must not hard-include DrawingContext.hpp")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "class AERO_GUI_API TabControl : public Primitives::Selector" "TabControl derives Selector so tabs are driven by Items/ItemsSource/SelectedIndex")
+aero_require_text("include/Aero/Shapes.hpp" "class AERO_GUI_API Path : public Shape" "Path must derive Shape so Fill/Stroke live on the WPF Shape base")
+aero_require_text("include/Aero/Shapes.hpp" "AERO_DEPENDENCY_PROPERTY2(FillRule, FillRule)" "Path must expose FillRule so tessellation is not hardcoded EvenOdd")
+aero_require_text("include/Aero/Media/Geometries.hpp" "Flatten(" "PathSegment must Flatten into a sink instead of stringifying")
+aero_require_text("include/Aero/Media/Geometries.hpp" "class AERO_GUI_API BezierSegment : public PathSegment" "BezierSegment must inherit PathSegment")
+aero_require_text("include/Aero/Media/Geometries.hpp" "FlattenCore" "Geometry rendering Flatten must apply Transform then FlattenCore")
+aero_require_text("src/gui/shapes/Path.cpp" "geometry->Flatten(sink)" "Path rendering must Flatten object-model Geometry, not ToStreamData")
+aero_forbid_text("src/gui/shapes/Path.cpp" "ToStreamData()" "Path rendering must not round-trip PathGeometry through ToStreamData")
+aero_require_text("include/Aero/Shapes.hpp" "class AERO_GUI_API Line : public Shape" "Line must derive Shape")
+aero_require_text("include/Aero/Shapes.hpp" "class AERO_GUI_API Polygon : public Shape" "Polygon must derive Shape")
+aero_require_text("include/Aero/Shapes.hpp" "class AERO_GUI_API Polyline : public Shape" "Polyline must derive Shape")
+aero_require_text("include/Aero/Shapes.hpp" "class AERO_GUI_API Shape : public FrameworkElement" "Shape is the geometry element base")
+aero_require_text("include/Aero/Controls/VirtualizingPanels.hpp" "class AERO_GUI_API VirtualizingPanel : public Panel" "VirtualizingPanel must derive Panel")
+aero_require_text("include/Aero/Controls/VirtualizingPanels.hpp" "class AERO_GUI_API VirtualizingStackPanel : public VirtualizingPanel," "VirtualizingStackPanel must derive VirtualizingPanel")
+aero_require_text("include/Aero/Controls/VirtualizingPanels.hpp" "class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingPanel," "VirtualizingWrapPanel must derive VirtualizingPanel, not VirtualizingStackPanel")
+aero_forbid_text("include/Aero/Controls/VirtualizingPanels.hpp" "class AERO_GUI_API VirtualizingWrapPanel : public VirtualizingStackPanel" "VirtualizingWrapPanel must not inherit the stack virtualizer")
+aero_require_text("include/Aero/DependencyObject.hpp" "AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)" "DependencyObject TypeId parent must match C++ inheritance from DispatcherObject")
+aero_require_text("include/Aero/DispatcherObject.hpp" "AERO_DECLARE_TYPE(DispatcherObject, Base::Object)" "DispatcherObject must have a TypeId parented at Object")
+aero_forbid_text("include/Aero/Threading.hpp" "class AERO_GUI_API DispatcherObject" "DispatcherObject must live in DispatcherObject.hpp")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "class AERO_GUI_API Selector" "Selector must live in Selectors.hpp")
+aero_forbid_text("include/Aero/Documents.hpp" "class AERO_GUI_API TextElement" "TextElement must live in Documents/TextElement.hpp")
+aero_forbid_text("include/Aero/Documents.hpp" "class AERO_GUI_API Run" "Run must live in Documents/Run.hpp")
+aero_forbid_text("include/Aero/Visual.hpp" "visualChildren_" "Visual must not store a Vector of visual children")
+aero_forbid_text("include/Aero/Visual.hpp" "logicalChildren_" "Visual must not store a Vector of logical children")
+aero_forbid_text("include/Aero/Visual.hpp" "GetVisualChildren()" "Public GetVisualChildren Span is retired; walk Count/GetChild")
+aero_require_text("include/Aero/TryCast.hpp" "template<class T>" "TryCast is the TypeId-chain downcast template")
+aero_require_text("include/Aero/TryCast.hpp" "T* TryCast(Object* object) noexcept" "Public habit is Aero::TryCast<T>(object)")
+aero_forbid_text("include/Aero/TryCast.hpp" "#include <Aero/Meta.hpp>" "TryCast.hpp must not include Meta.hpp")
+aero_forbid_text("include/Aero/Visual.hpp" "AsUIElement" "Visual vtable must not carry AsUIElement")
+aero_forbid_text("include/Aero/Visual.hpp" "AsFrameworkElement" "Visual vtable must not carry AsFrameworkElement")
+aero_forbid_text("include/Aero/UIElement.hpp" "AsUIElement" "UIElement must not restore AsUIElement")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "AsFrameworkElement" "FrameworkElement must not restore AsFrameworkElement")
+aero_forbid_text("include/Aero/Visual.hpp" "static Visual* Of" "Visual::Of is retired; use Aero::TryCast<Media::Visual>")
+aero_require_text("include/Aero/Visual.hpp" "IsAncestorOf" "Visual must expose IsAncestorOf")
+aero_require_text("include/Aero/Visual.hpp" "TransformToVisual" "Visual must expose TransformToVisual")
+aero_require_text("include/Aero/Visual.hpp" "PointToScreen" "Visual must expose PointToScreen")
+aero_require_text("include/Aero/Visual.hpp" "PointFromScreen" "Visual must expose PointFromScreen")
+aero_require_text("include/Aero/Visual.hpp" "AddVisualChild" "Visual child attachment is AddVisualChild/RemoveVisualChild")
+aero_require_text("include/Aero/Visual.hpp" "OnVisualChildrenChanged" "Visual must expose OnVisualChildrenChanged")
+aero_require_text("include/Aero/Visual.hpp" "DependencyObject* GetLogicalParent()" "GetLogicalParent returns DependencyObject* so ContentElement can parent")
+aero_forbid_text("include/Aero/LogicalTreeHelper.hpp" "static Media::Visual* GetParent" "LogicalTreeHelper keeps DependencyObject overloads only")
+aero_require_text("include/Aero/Controls/Panels.hpp" "class AERO_GUI_API StackPanel : public Panel" "StackPanel must derive Panel")
+aero_require_text("include/Aero/Controls/Panels.hpp" "class AERO_GUI_API DockPanel : public Panel" "DockPanel must derive Panel")
+aero_require_text("include/Aero/Controls/Panels.hpp" "class AERO_GUI_API WrapPanel : public Panel" "WrapPanel must derive Panel")
+aero_require_text("include/Aero/Controls/Panels.hpp" "class AERO_GUI_API UniformGrid : public Panel" "UniformGrid must derive Panel")
+aero_require_text("include/Aero/Controls/Panels.hpp" "class AERO_GUI_API Canvas : public Panel" "Canvas must derive Panel")
+aero_require_text("include/Aero/Controls/Decorators.hpp" "class AERO_GUI_API Viewbox" "Viewbox must live in Decorators.hpp")
+aero_require_text("include/Aero/Controls/Control.hpp" "class AERO_GUI_API GroupBox" "GroupBox must live in Control.hpp")
+aero_require_text("include/Aero/Controls/Control.hpp" "class AERO_GUI_API Label" "Label must live in Control.hpp")
+aero_require_text("include/Aero/Controls/Control.hpp" "class AERO_GUI_API Expander" "Expander must live in Control.hpp")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "class AERO_GUI_API TabItem" "TabItem must live in Selectors.hpp")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "class AERO_GUI_API TabControl" "TabControl must live in Selectors.hpp")
+aero_require_text("include/Aero/Controls/Selectors.hpp" "class AERO_GUI_API TabPanel" "TabPanel must live in Selectors.hpp")
+aero_forbid_text("include/Aero/FrameworkContentElement.hpp" "class AERO_GUI_API ContentElement" "ContentElement must live in ContentElement.hpp")
+aero_forbid_text("include/Aero/Visual.hpp" "GetTree" "Visual.GetTree must not be declared on the installed SDK class")
+aero_require_text("include/Aero/Visual.hpp" "std::uint8_t renderDirtyFlags_" "Visual render dirty flags must remain private hot fields on Visual")
+aero_require_text("include/Aero/Visual.hpp" "std::uint32_t handleIndex_" "Visual handle index must remain a private hot field on Visual")
+aero_require_text("include/Aero/Visual.hpp" "Base::RenderNodeId renderNodeId_" "Visual render node id must remain a private hot field on Visual")
+aero_require_text("tools/sdk-consumers/GuiConsumer.cpp" "!HasVisualGetTree<Aero::Media::Visual>::value" "SDK consumers must prove Visual.GetTree is not part of the installed API")
+aero_forbid_text("include/Aero/UIElement.hpp" "#include <Aero/Layout.hpp>" "UIElement must not pull the Layout.hpp umbrella")
+aero_require_text("include/Aero/UIElement.hpp" "#include <Aero/ElementEnums.hpp>" "Visibility and BlendMode must stay on the light element-enum header")
+aero_require_text("include/Aero/FrameworkElement.hpp" "#include <Aero/ElementEnums.hpp>" "Alignment enums must stay on the light element-enum header")
+aero_forbid_text("include/Aero/UIElement.hpp" "enum class Visibility" "UIElement must not own Visibility")
+aero_forbid_text("include/Aero/FrameworkElement.hpp" "enum class HorizontalAlignment" "FrameworkElement must not own alignment enums")
+aero_require_text("include/Aero/Controls/Grid.hpp" "#include <Aero/Controls/GridLength.hpp>" "GridLength must be owned by the Grid header family")
+aero_require_text("include/Aero/Layout.hpp" "#include <Aero/ElementEnums.hpp>" "Layout.hpp must remain a compatibility umbrella for element enums")
+aero_require_text("include/Aero/Layout.hpp" "#include <Aero/Controls/GridLength.hpp>" "Layout.hpp must remain a compatibility umbrella for GridLength")
+aero_require_text("include/Aero/Layout.hpp" "#include <Aero/Diagnostics.hpp>" "Layout.hpp must remain a compatibility umbrella for LayoutDiagnostics")
+aero_forbid_text("include/Aero/Layout.hpp" "#include <Aero/Diagnostics/" "Layout.hpp must not include deleted Diagnostics/ sub-headers")
+aero_forbid_text("include/Aero/Layout.hpp" "enum class Visibility" "Layout.hpp must not own Visibility")
+aero_forbid_text("include/Aero/Layout.hpp" "enum class HorizontalAlignment" "Layout.hpp must not own HorizontalAlignment")
+aero_forbid_text("include/Aero/Layout.hpp" "enum class BlendMode" "Layout.hpp must not own BlendMode")
+aero_forbid_text("include/Aero/Layout.hpp" "struct GridLength" "Layout.hpp must not own GridLength")
+aero_forbid_text("include/Aero/Layout.hpp" "struct LayoutDiagnostics" "Layout.hpp must not own LayoutDiagnostics")
+aero_forbid_text("include/Aero/Layout.hpp" "Threading.hpp" "Layout.hpp must not pull Threading.hpp")
+aero_forbid_text("include/Aero/Layout.hpp" "Media/Geometry.hpp" "Layout.hpp must not pull the retired Geometry.hpp path")
+aero_forbid_text("include/Aero/Layout.hpp" "Media/Geometries.hpp" "Layout.hpp must not pull the geometry family")
+aero_require_text("include/Aero/UIElement.hpp" "struct LayoutHot" "Layout hot state must live on UIElement, not a facet bag")
+aero_forbid_text("include/Aero/Controls/Items.hpp" "static Base::Result<ItemContainerGenerator*> Create(" "ItemContainerGenerator::Create with engine refs must not be public")
+aero_forbid_text("include/Aero/Controls/Items.hpp" "class ElementTree;" "ElementTree fwd must not leak through public Items.hpp")
 aero_require_file("src/gui/controls/ItemContainerGeneratorFactory.hpp")
-aero_require_text(
-    "include/Aero/Controls/Items.hpp"
-    "friend class ItemContainerGeneratorFactory;"
-    "ItemContainerGenerator must friend the src-only factory")
-aero_forbid_text(
-    "include/Aero/Resources.hpp"
-    "class AERO_GUI_API ResourceResolver"
-    "Aero::FrameworkResourceResolver must live in src, not Resources.hpp")
+aero_require_text("include/Aero/Controls/Items.hpp" "friend class ItemContainerGeneratorFactory;" "ItemContainerGenerator must friend the src-only factory")
+aero_forbid_text("include/Aero/Resources.hpp" "class AERO_GUI_API ResourceResolver" "Aero::FrameworkResourceResolver must live in src, not Resources.hpp")
 aero_require_file("src/gui/styles/FrameworkResourceResolver.hpp")
 # ServiceProvider.hpp retired per aero4 refactoring
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "ElementFacet"
-    "Installed UIElement.hpp must not advertise element facet APIs")
-aero_forbid_text(
-    "include/Aero/UIElement.hpp"
-    "GetFacet"
-    "Installed UIElement.hpp must not advertise GetFacet")
+aero_forbid_text("include/Aero/UIElement.hpp" "ElementFacet" "Installed UIElement.hpp must not advertise element facet APIs")
+aero_forbid_text("include/Aero/UIElement.hpp" "GetFacet" "Installed UIElement.hpp must not advertise GetFacet")
 
 # One public AERO_*_API class per header, with basename equal to the type
 # name. Umbrella headers and remaining kitchen-sink families (split in later
@@ -2733,10 +1662,7 @@ aero_forbid_file("include/Aero/Controls/GridViewHeaderRowPresenter.hpp")
 aero_forbid_file("include/Aero/Controls/GridViewRowPresenter.hpp")
 aero_forbid_file("include/Aero/Media/Animation/EventTrigger.hpp")
 aero_forbid_file("include/Aero/EventTrigger.hpp")
-aero_require_text(
-    "include/Aero/Triggers.hpp"
-    "class AERO_GUI_API EventTrigger"
-    "EventTrigger must live in Triggers.hpp with the Trigger family")
+aero_require_text("include/Aero/Triggers.hpp" "class AERO_GUI_API EventTrigger" "EventTrigger must live in Triggers.hpp with the Trigger family")
 aero_forbid_file("include/Aero/Controls/RangeBase.hpp")
 aero_forbid_file("include/Aero/Media/Transforms.hpp")
 foreach(aero_retired_media IN ITEMS
@@ -2931,94 +1857,31 @@ foreach(gui_kernel_file IN LISTS aero_gui_kernel_files)
     endforeach()
 endforeach()
 
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "namespace Aero::App"
-    "Window host types must live under Aero::App")
-aero_require_text(
-    "include/AeroApp/Application.hpp"
-    "namespace Aero::App"
-    "Application must live under Aero::App with Window")
-aero_forbid_text(
-    "include/AeroApp/Window.hpp"
-    "using App::Window"
-    "Root Aero:: aliases for App::Window must not return")
-aero_forbid_text(
-    "include/AeroApp/Window.hpp"
-    "using App::WindowState"
-    "Root Aero:: aliases for App window enums must not return")
-aero_forbid_text(
-    "include/AeroApp/Application.hpp"
-    "using App::Application"
-    "Root Aero:: aliases for App::Application must not return")
-aero_forbid_text(
-    "include/AeroApp/Application.hpp"
-    "using App::ShutdownMode"
-    "Root Aero:: aliases for App::ShutdownMode must not return")
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "bool ShowDialog()"
-    "Window must expose WPF ShowDialog")
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Nullable<bool>, DialogResult)"
-    "Window.DialogResult is a nullable bool dependency property")
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner)"
-    "Window.Owner is a Window dependency property")
+aero_require_text("include/AeroApp/Window.hpp" "namespace Aero::App" "Window host types must live under Aero::App")
+aero_require_text("include/AeroApp/Application.hpp" "namespace Aero::App" "Application must live under Aero::App with Window")
+aero_forbid_text("include/AeroApp/Window.hpp" "using App::Window" "Root Aero:: aliases for App::Window must not return")
+aero_forbid_text("include/AeroApp/Window.hpp" "using App::WindowState" "Root Aero:: aliases for App window enums must not return")
+aero_forbid_text("include/AeroApp/Application.hpp" "using App::Application" "Root Aero:: aliases for App::Application must not return")
+aero_forbid_text("include/AeroApp/Application.hpp" "using App::ShutdownMode" "Root Aero:: aliases for App::ShutdownMode must not return")
+aero_require_text("include/AeroApp/Window.hpp" "bool ShowDialog()" "Window must expose WPF ShowDialog")
+aero_require_text("include/AeroApp/Window.hpp" "AERO_DEPENDENCY_PROPERTY(Nullable<bool>, DialogResult)" "Window.DialogResult is a nullable bool dependency property")
+aero_require_text("include/AeroApp/Window.hpp" "AERO_DEPENDENCY_PROPERTY(Ref<Window>, Owner)" "Window.Owner is a Window dependency property")
 
-aero_require_text(
-    "include/AeroApp/Window.hpp"
-    "AERO_DECLARE_TYPE_ENUM(Aero::App::WindowState)"
-    "Window enums must declare TypeId under Aero::App")
-aero_require_text(
-    "include/AeroApp/Application.hpp"
-    "AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)"
-    "ShutdownMode must declare TypeId under Aero::App")
+aero_require_text("include/AeroApp/Window.hpp" "AERO_DECLARE_TYPE_ENUM(Aero::App::WindowState)" "Window enums must declare TypeId under Aero::App")
+aero_require_text("include/AeroApp/Application.hpp" "AERO_DECLARE_TYPE_ENUM(Aero::App::ShutdownMode)" "ShutdownMode must declare TypeId under Aero::App")
 
 
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct SourceSpan"
-    "Diagnostics.hpp must own SourceSpan after the Diagnostics/ merge")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "enum class EffectiveValueSource"
-    "Diagnostics.hpp must own EffectiveValueSource after the Diagnostics/ merge")
-aero_forbid_text(
-    "include/Aero/Diagnostics.hpp"
-    "class PropertyProviderSet"
-    "PropertyProviderSet must live in src/gui/core/PropertyProviderSet.hpp")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct SourceSpan" "Diagnostics.hpp must own SourceSpan after the Diagnostics/ merge")
+aero_require_text("include/Aero/Diagnostics.hpp" "enum class EffectiveValueSource" "Diagnostics.hpp must own EffectiveValueSource after the Diagnostics/ merge")
+aero_forbid_text("include/Aero/Diagnostics.hpp" "class PropertyProviderSet" "PropertyProviderSet must live in src/gui/core/PropertyProviderSet.hpp")
 aero_require_file("src/gui/core/PropertyProviderSet.hpp")
-aero_require_text(
-    "src/gui/core/PropertyProviderSet.hpp"
-    "class PropertyProviderSet"
-    "PropertyProviderSet storage must live next to PropertyStore")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct PropertyValueSourceInfo"
-    "Diagnostics.hpp must keep PropertyValueSourceInfo public")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct PropertyProviderToken"
-    "Diagnostics.hpp must keep PropertyProviderToken public")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct PropertyExpression"
-    "Diagnostics.hpp must keep PropertyExpression public")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct LayoutDiagnostics"
-    "Diagnostics.hpp must own LayoutDiagnostics after the Diagnostics/ merge")
-aero_require_text(
-    "include/Aero/Diagnostics.hpp"
-    "struct RenderDeviceStatistics"
-    "Diagnostics.hpp must own RenderDeviceStatistics after the Diagnostics/ merge")
-aero_forbid_text(
-    "include/Aero/Diagnostics.hpp"
-    "#include <Aero/Diagnostics/"
-    "Diagnostics.hpp must not thin-include deleted Diagnostics/ sub-headers")
+aero_require_text("src/gui/core/PropertyProviderSet.hpp" "class PropertyProviderSet" "PropertyProviderSet storage must live next to PropertyStore")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct PropertyValueSourceInfo" "Diagnostics.hpp must keep PropertyValueSourceInfo public")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct PropertyProviderToken" "Diagnostics.hpp must keep PropertyProviderToken public")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct PropertyExpression" "Diagnostics.hpp must keep PropertyExpression public")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct LayoutDiagnostics" "Diagnostics.hpp must own LayoutDiagnostics after the Diagnostics/ merge")
+aero_require_text("include/Aero/Diagnostics.hpp" "struct RenderDeviceStatistics" "Diagnostics.hpp must own RenderDeviceStatistics after the Diagnostics/ merge")
+aero_forbid_text("include/Aero/Diagnostics.hpp" "#include <Aero/Diagnostics/" "Diagnostics.hpp must not thin-include deleted Diagnostics/ sub-headers")
 
 
 # Every public Effect subclass must map to a RenderEffectKind consumed by

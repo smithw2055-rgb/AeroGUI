@@ -250,22 +250,6 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
         Base::Span<const Base::Ref<Base::Object>> behaviors,
         FrameworkElement& owner,
         const NameScope* names) noexcept {
-        const auto numeric = [](const Meta::PropertyValue& value,
-                                long double& output) noexcept {
-            switch (value.Kind()) {
-            case Meta::ValueKind::SignedInteger:
-                output = static_cast<long double>(value.AsSignedInteger());
-                return true;
-            case Meta::ValueKind::UnsignedInteger:
-                output = static_cast<long double>(value.AsUnsignedInteger());
-                return true;
-            case Meta::ValueKind::Double:
-                output = static_cast<long double>(value.AsDouble());
-                return true;
-            default:
-                return false;
-            }
-        };
         const auto evaluate = [&](const ComparisonCondition& condition)
             noexcept -> Base::Result<bool> {
             const Base::Ref<Binding> binding = condition.GetLeftOperand();
@@ -278,50 +262,11 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
                 EvaluateAuthoredBinding(
                     *binding, owner, nullptr, names, nullptr);
             if (!current) return current.GetStatus();
-            Meta::PropertyValue expected = condition.GetRightOperand();
-            const auto comparison = condition.GetComparisonOperator();
-            if (comparison == ComparisonCondition::Operator::Equal) {
-                return ComparePropertyValues(
-                    current.Value(), std::move(expected), Metadata(), PropertyComparisonOperator::Equal);
-            }
-            if (comparison == ComparisonCondition::Operator::NotEqual) {
-                return ComparePropertyValues(
-                    current.Value(), std::move(expected), Metadata(), PropertyComparisonOperator::NotEqual);
-            }
-            long double left = 0.0L;
-            long double right = 0.0L;
-            if (numeric(current.Value(), left) && numeric(expected, right)) {
-                switch (comparison) {
-                case ComparisonCondition::Operator::LessThan:
-                    return left < right;
-                case ComparisonCondition::Operator::LessThanOrEqual:
-                    return left <= right;
-                case ComparisonCondition::Operator::GreaterThan:
-                    return left > right;
-                case ComparisonCondition::Operator::GreaterThanOrEqual:
-                    return left >= right;
-                default:
-                    return false;
-                }
-            }
-            if (current.Value().Kind() == Meta::ValueKind::String &&
-                expected.Kind() == Meta::ValueKind::String) {
-                const int order = current.Value().AsString().Compare(
-                    expected.AsString());
-                switch (comparison) {
-                case ComparisonCondition::Operator::LessThan:
-                    return order < 0;
-                case ComparisonCondition::Operator::LessThanOrEqual:
-                    return order <= 0;
-                case ComparisonCondition::Operator::GreaterThan:
-                    return order > 0;
-                case ComparisonCondition::Operator::GreaterThanOrEqual:
-                    return order >= 0;
-                default:
-                    return false;
-                }
-            }
-            return false;
+            return ComparePropertyValues(
+                current.Value(),
+                condition.GetRightOperand(),
+                Metadata(),
+                static_cast<PropertyComparisonOperator>(condition.GetComparisonOperator()));
         };
 
         for (const Base::Ref<Base::Object>& behavior : behaviors) {
@@ -570,45 +515,15 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                 if (!target) continue;
 
                 Meta::PropertyValue valueToApply = setter.value;
-                Base::StringView resourceKey;
                 if (setter.value.IsDynamicResource()) {
-                    resourceKey = setter.value.AsDynamicResourceKey();
-                }
-                if (!resourceKey.Empty()) {
-                    ResourceValue resource;
-                    if (auto* fe = TryCast<FrameworkElement>(target.Get())) {
-                        resource = fe->TryFindResource(resourceKey);
-                    }
-                    if (resource.IsUnset() && context.root != nullptr) {
-                        resource = context.root->TryFindResource(resourceKey);
-                    }
-                    const Meta::DependencyProperty* dp =
-                        DependencyObjectAccess::PropertyRegistry(*target).Find(setter.property);
-                    if (!resource.IsUnset()) {
-                        if (dp != nullptr &&
-                            resource.Kind() == Meta::ValueKind::String &&
-                            resource.Type() != dp->ValueType()) {
-                            Base::Result<Meta::PropertyValue> converted =
-                                Meta::PropertyValue::TryFromString(
-                                    dp->ValueType(), resource.AsString());
-                            if (converted) {
-                                valueToApply = converted.Value();
-                            } else {
-                                valueToApply = resource;
-                            }
-                        } else {
-                            valueToApply = resource;
-                        }
-                    } else if (dp != nullptr) {
-                        const Meta::PropertyMetadata* meta =
-                            dp->MetadataFor(target->RuntimeType());
-                        if (meta == nullptr) {
-                            meta = dp->MetadataFor(dp->RegisteredOwnerType());
-                        }
-                        if (meta != nullptr && !meta->defaultValue.IsUnset()) {
-                            valueToApply = meta->defaultValue;
-                        }
-                    }
+                    (void)ResolveTriggerSetterValue(
+                        *target,
+                        setter.property,
+                        setter.value,
+                        valueToApply,
+                        context.root,
+                        nullptr,
+                        /*fallbackToDefaultOnMissingResource=*/true);
                 }
 
                 Base::Result<void> applied =

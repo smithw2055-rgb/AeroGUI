@@ -1,12 +1,16 @@
 #include "gui/core/ValueConversion.hpp"
+#include "gui/core/TypeRegistryCore.hpp"
+#include "gui/controls/ItemsContainers.hpp"
 
 #include <Aero/Base/String.hpp>
 #include <Aero/Layout.hpp>
 #include <Aero/Controls/GridLength.hpp>
+#include <Aero/Media/Brushes.hpp>
 
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 namespace Aero::Base::ValueConversion {
 
@@ -466,6 +470,349 @@ Base::Result<::Aero::GridLength> ConvertGridLength(
             "GridLength must be Auto, a nonnegative pixel value, or a star weight");
     }
     return ::Aero::GridLength::Pixel(pixels.Value());
+}
+
+namespace {
+
+template <typename T, auto ConvertFn>
+Base::Result<Meta::Value> EncodeTextWithCodec(Base::StringView text) noexcept {
+    auto converted = ConvertFn(text);
+    if (!converted) return converted.GetStatus();
+    return Meta::ValueCodec<T>::Encode(converted.Value());
+}
+
+} // namespace
+
+bool IsNumericType(Meta::TypeId type) noexcept {
+    return type == Meta::TypeOf<std::int8_t>() ||
+        type == Meta::TypeOf<std::int16_t>() ||
+        type == Meta::TypeOf<std::int32_t>() ||
+        type == Meta::TypeOf<std::int64_t>() ||
+        type == Meta::TypeOf<std::uint8_t>() ||
+        type == Meta::TypeOf<std::uint16_t>() ||
+        type == Meta::TypeOf<std::uint32_t>() ||
+        type == Meta::TypeOf<std::uint64_t>() ||
+        type == Meta::TypeOf<double>();
+}
+
+bool TryExtractNumber(
+    const Meta::Value& value,
+    long double& outNumber,
+    bool parseString) noexcept {
+    switch (value.Kind()) {
+    case Meta::ValueKind::SignedInteger:
+        outNumber = static_cast<long double>(value.AsSignedInteger());
+        return true;
+    case Meta::ValueKind::UnsignedInteger:
+        outNumber = static_cast<long double>(value.AsUnsignedInteger());
+        return true;
+    case Meta::ValueKind::Double:
+        if (!std::isfinite(value.AsDouble())) return false;
+        outNumber = static_cast<long double>(value.AsDouble());
+        return true;
+    case Meta::ValueKind::String:
+        if (parseString) {
+            const Base::StringView str = Trim(value.AsString());
+            if (str.Empty()) return false;
+            char buf[64];
+            if (str.SizeBytes() >= sizeof(buf)) return false;
+            std::memcpy(buf, str.Data(), str.SizeBytes());
+            buf[str.SizeBytes()] = '\0';
+            char* endPtr = nullptr;
+            outNumber = std::strtold(buf, &endPtr);
+            return endPtr != buf && *endPtr == '\0' && std::isfinite(static_cast<double>(outNumber));
+        }
+        return false;
+    default:
+        return false;
+    }
+}
+
+Base::Result<Meta::Value> ConvertNumericValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept {
+    long double number = 0.0L;
+    if (!TryExtractNumber(value, number, false)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Numeric value has an invalid or non-finite representation");
+    }
+
+    if (targetType == Meta::TypeOf<double>()) {
+        const double result = static_cast<double>(number);
+        if (!std::isfinite(result)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Numeric value exceeds the Double range");
+        }
+        return Meta::Value::FromDouble(targetType, result);
+    }
+
+    const bool signedTarget =
+        targetType == Meta::TypeOf<std::int8_t>() ||
+        targetType == Meta::TypeOf<std::int16_t>() ||
+        targetType == Meta::TypeOf<std::int32_t>() ||
+        targetType == Meta::TypeOf<std::int64_t>();
+    if (signedTarget) {
+        long double minimum = static_cast<long double>(std::numeric_limits<std::int64_t>::min());
+        long double maximum = static_cast<long double>(std::numeric_limits<std::int64_t>::max());
+        if (targetType == Meta::TypeOf<std::int8_t>()) {
+            minimum = std::numeric_limits<std::int8_t>::min();
+            maximum = std::numeric_limits<std::int8_t>::max();
+        } else if (targetType == Meta::TypeOf<std::int16_t>()) {
+            minimum = std::numeric_limits<std::int16_t>::min();
+            maximum = std::numeric_limits<std::int16_t>::max();
+        } else if (targetType == Meta::TypeOf<std::int32_t>()) {
+            minimum = std::numeric_limits<std::int32_t>::min();
+            maximum = std::numeric_limits<std::int32_t>::max();
+        }
+        if (number < minimum || number > maximum) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Numeric value exceeds the signed target range");
+        }
+        return Meta::Value::FromSignedInteger(targetType, static_cast<std::int64_t>(number));
+    }
+
+    const bool unsignedTarget =
+        targetType == Meta::TypeOf<std::uint8_t>() ||
+        targetType == Meta::TypeOf<std::uint16_t>() ||
+        targetType == Meta::TypeOf<std::uint32_t>() ||
+        targetType == Meta::TypeOf<std::uint64_t>();
+    if (unsignedTarget) {
+        long double maximum = static_cast<long double>(std::numeric_limits<std::uint64_t>::max());
+        if (targetType == Meta::TypeOf<std::uint8_t>()) {
+            maximum = std::numeric_limits<std::uint8_t>::max();
+        } else if (targetType == Meta::TypeOf<std::uint16_t>()) {
+            maximum = std::numeric_limits<std::uint16_t>::max();
+        } else if (targetType == Meta::TypeOf<std::uint32_t>()) {
+            maximum = std::numeric_limits<std::uint32_t>::max();
+        }
+        if (number < 0.0L || number > maximum) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Numeric value exceeds the unsigned target range");
+        }
+        return Meta::Value::FromUnsignedInteger(targetType, static_cast<std::uint64_t>(number));
+    }
+
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Target type is not a supported numeric type");
+}
+
+Base::Result<Meta::Value> ConvertNullableBooleanValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept {
+    const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
+    if (targetType == nullableBoolType) {
+        if (value.IsNullObject()) {
+            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(::Aero::Nullable<bool>{});
+        }
+        if (value.Kind() == Meta::ValueKind::Boolean || value.Type() == Meta::TypeOf<bool>()) {
+            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
+                ::Aero::Nullable<bool>{value.AsBoolean()});
+        }
+    } else if (targetType == Meta::TypeOf<bool>() && value.Type() == nullableBoolType) {
+        Base::Result<::Aero::Nullable<bool>> decoded =
+            Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+        if (!decoded) return decoded.GetStatus();
+        if (!decoded.Value().GetHasValue()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Indeterminate Nullable Boolean cannot be converted to Boolean");
+        }
+        return Meta::Value::FromBoolean(targetType, decoded.Value().GetValue());
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Nullable Boolean conversion is incompatible");
+}
+
+Base::Result<Meta::Value> ConvertMetricValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept {
+    long double rawNumber = 0.0L;
+    if (TryExtractNumber(value, rawNumber, false)) {
+        const double number = static_cast<double>(rawNumber);
+        if (!std::isfinite(number)) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Metric numeric value is not finite");
+        }
+        if (targetType == ::Aero::Length::StaticTypeId() ||
+            targetType == Meta::TypeOf<::Aero::Length>()) {
+            return Meta::ValueCodec<::Aero::Length>::Encode(::Aero::Length::Pixels(number));
+        }
+        if (targetType == Meta::TypeOf<::Aero::GridLength>()) {
+            return Meta::ValueCodec<::Aero::GridLength>::Encode(::Aero::GridLength::Pixel(number));
+        }
+        if (targetType == Meta::TypeOf<Base::Thickness>()) {
+            return Meta::ValueCodec<Base::Thickness>::Encode(Base::Thickness(number));
+        }
+        if (targetType == Meta::TypeOf<Base::CornerRadius>()) {
+            return Meta::ValueCodec<Base::CornerRadius>::Encode(Base::CornerRadius(number));
+        }
+        if (IsNumericType(targetType)) {
+            return ConvertNumericValue(value, targetType);
+        }
+    }
+    if (value.Type() == Meta::TypeOf<::Aero::Length>() && IsNumericType(targetType)) {
+        Base::Result<::Aero::Length> length = Meta::ValueCodec<::Aero::Length>::Decode(value);
+        if (!length) return length.GetStatus();
+        if (length.Value().isAuto) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Auto Length cannot be converted to a numeric target");
+        }
+        return ConvertNumericValue(
+            Meta::Value::FromDouble(Meta::TypeOf<double>(), length.Value().value),
+            targetType);
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Metric conversion is not supported for target type");
+}
+
+Base::Result<Meta::Value> ConvertColorAndBrushValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType,
+    const Meta::TypeRegistry* types) noexcept {
+    if ((targetType == ::Aero::Media::Brush::StaticTypeId() ||
+         targetType == ::Aero::Media::SolidColorBrush::StaticTypeId()) &&
+        value.Type() == Meta::TypeOf<Base::Color>()) {
+        Base::Result<Base::Color> color = Meta::ValueCodec<Base::Color>::Decode(value);
+        if (!color) return color.GetStatus();
+        Base::Ref<::Aero::Media::Brush> brush =
+            ::Aero::Media::MakeSolidColorBrush(color.Value());
+        if (!brush) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to create brush");
+        }
+        return Meta::Value::FromObject(
+            targetType,
+            Base::Ref<Base::Object>(std::move(brush)));
+    }
+    if (targetType == Meta::TypeOf<Base::Color>() &&
+        value.Kind() == Meta::ValueKind::Object &&
+        (value.Type() == ::Aero::Media::SolidColorBrush::StaticTypeId() ||
+         value.Type() == ::Aero::Media::Brush::StaticTypeId() ||
+         (types != nullptr && types->IsDerivedFrom(value.Type(), ::Aero::Media::Brush::StaticTypeId())))) {
+        Base::Result<Base::Ref<::Aero::Media::Brush>> brush =
+            Meta::ValueCodec<Base::Ref<::Aero::Media::Brush>>::Decode(value);
+        if (!brush) return brush.GetStatus();
+        if (brush.Value() == nullptr ||
+            brush.Value()->RuntimeType() != ::Aero::Media::SolidColorBrush::StaticTypeId()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Color-backed property requires SolidColorBrush");
+        }
+        return Meta::ValueCodec<Base::Color>::Encode(
+            static_cast<const ::Aero::Media::SolidColorBrush&>(*brush.Value()).GetColor());
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Color/Brush conversion is incompatible");
+}
+
+Base::Result<Meta::Value> ConvertTextToValueFallback(
+    const Meta::TypeRegistry* types,
+    Meta::TypeId targetType,
+    Base::StringView text) noexcept {
+    if (targetType == Meta::TypeOf<Base::String>()) {
+        return EncodeTextWithCodec<Base::String, &ConvertString>(text);
+    }
+    if (targetType == Meta::TypeOf<::Aero::Nullable<bool>>()) {
+        return EncodeTextWithCodec<::Aero::Nullable<bool>, &ConvertNullableBoolean>(text);
+    }
+    if (targetType == ::Aero::Media::Brush::StaticTypeId() ||
+        targetType == ::Aero::Media::SolidColorBrush::StaticTypeId()) {
+        auto color = ConvertColor(text);
+        if (!color) return color.GetStatus();
+        auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
+        if (!brush) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Brush allocation failed");
+        }
+        return Meta::Value::FromObject(targetType, Base::Ref<Base::Object>(std::move(brush)));
+    }
+    if (targetType == Meta::TypeOf<Base::Color>()) {
+        return EncodeTextWithCodec<Base::Color, &ConvertColor>(text);
+    }
+    if (targetType == Meta::TypeOf<Base::Thickness>()) {
+        return EncodeTextWithCodec<Base::Thickness, &ConvertThickness>(text);
+    }
+    if (targetType == Meta::TypeOf<Base::CornerRadius>()) {
+        return EncodeTextWithCodec<Base::CornerRadius, &ConvertCornerRadius>(text);
+    }
+    if (targetType == Meta::TypeOf<::Aero::Length>()) {
+        return EncodeTextWithCodec<::Aero::Length, &ConvertLength>(text);
+    }
+    if (targetType == Meta::TypeOf<::Aero::GridLength>()) {
+        return EncodeTextWithCodec<::Aero::GridLength, &ConvertGridLength>(text);
+    }
+    if (targetType == Meta::TypeOf<double>()) {
+        return EncodeTextWithCodec<double, &ConvertDouble>(text);
+    }
+    if (targetType == Meta::TypeOf<bool>()) {
+        return EncodeTextWithCodec<bool, &ConvertBoolean>(text);
+    }
+    if (targetType == Meta::TypeOf<std::int32_t>()) {
+        return EncodeTextWithCodec<std::int32_t, &ConvertInteger<std::int32_t>>(text);
+    }
+    if (targetType == Meta::TypeOf<std::int64_t>()) {
+        return EncodeTextWithCodec<std::int64_t, &ConvertInteger<std::int64_t>>(text);
+    }
+    if (targetType == Meta::TypeOf<std::uint32_t>()) {
+        return EncodeTextWithCodec<std::uint32_t, &ConvertInteger<std::uint32_t>>(text);
+    }
+    if (targetType == Meta::TypeOf<std::uint64_t>()) {
+        return EncodeTextWithCodec<std::uint64_t, &ConvertInteger<std::uint64_t>>(text);
+    }
+    if (types != nullptr) {
+        const Meta::TypeInfo* descriptor = types->FindType(targetType);
+        if (descriptor != nullptr && descriptor->Kind() == Meta::MetadataTypeKind::Enum) {
+            return Meta::Registry::ConvertEnumText(*descriptor, text);
+        }
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "Dependency-property text conversion is not supported for target type");
+}
+
+bool HasDefaultTargetConversion(
+    Meta::TypeId sourceType,
+    Meta::TypeId targetType) noexcept {
+    return sourceType == Meta::TypeOf<Meta::Value>() ||
+        (sourceType == Meta::TypeOf<bool>() &&
+         targetType == Meta::TypeOf<::Aero::Nullable<bool>>()) ||
+        (sourceType == Meta::TypeOf<::Aero::Nullable<bool>>() &&
+         targetType == Meta::TypeOf<bool>()) ||
+        (sourceType != targetType &&
+         IsNumericType(sourceType) &&
+         IsNumericType(targetType)) ||
+        (IsNumericType(sourceType) &&
+         (targetType == Meta::TypeOf<::Aero::Length>() ||
+          targetType == Meta::TypeOf<::Aero::GridLength>() ||
+          targetType == Meta::TypeOf<Base::Thickness>() ||
+          targetType == Meta::TypeOf<Base::CornerRadius>())) ||
+        (sourceType == Meta::TypeOf<::Aero::Length>() &&
+         IsNumericType(targetType)) ||
+        (sourceType == Meta::TypeOf<Base::Color>() &&
+         targetType == ::Aero::Media::Brush::StaticTypeId()) ||
+        (targetType == Meta::TypeOf<Base::String>() &&
+         sourceType != Meta::InvalidTypeId) ||
+        (sourceType == Meta::TypeOf<Base::String>() &&
+         targetType != Meta::InvalidTypeId);
+}
+
+Meta::Value UnboxItemValue(const Meta::Value& value) noexcept {
+    if (value.Kind() == Meta::ValueKind::Object &&
+        !value.IsNullObject() && value.AsObject() &&
+        value.AsObject()->RuntimeType() ==
+            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
+        return static_cast<const ::Aero::Controls::BoxedItemValue&>(
+            *value.AsObject()).Value();
+    }
+    return value;
 }
 
 } // namespace Aero::Base::ValueConversion

@@ -180,10 +180,12 @@ Point UIElement::GetRenderTransformOrigin() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
+    if (!HasRenderTransform()) return {};
     return GetValue(RenderTransformProperty);
 }
 
 Base::Ref<Media::Transform3D> UIElement::GetTransform3D() const noexcept {
+    if (!HasTransform3D()) return {};
     return GetValue(Transform3DProperty);
 }
 
@@ -234,6 +236,7 @@ void UIElement::SetOpacityMask(
 // from src/gui/controls/Layout.cpp
 
 Base::Ref<Media::Brush> UIElement::GetOpacityMask() const noexcept {
+    if (!HasOpacityMask()) return {};
     return GetValue(OpacityMaskProperty);
 }
 
@@ -262,6 +265,7 @@ void UIElement::SetClip(Base::Ref<Geometry> value) noexcept {
 }
 
 Base::Ref<Geometry> UIElement::GetClip() const noexcept {
+    if (!HasClip()) return {};
     return GetValue(ClipProperty);
 }
 
@@ -338,6 +342,46 @@ void UIElement::SyncHotProperty(
         if (decoded) {
             layout_.visibility = decoded.Value();
         }
+    } else if (property == ClipToBoundsProperty.Handle()) {
+        Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
+        if (decoded) {
+            layout_.clipToBounds = decoded.Value();
+        }
+    } else if (property == BlendModeProperty.Handle()) {
+        Base::Result<BlendMode> decoded = Meta::ValueCodec<BlendMode>::Decode(newValue);
+        if (decoded) {
+            layout_.blendMode = decoded.Value();
+        }
+    } else if (property == EffectProperty.Handle()) {
+        layout_.SetRenderRare(
+            LayoutHot::kRenderRareEffect,
+            newValue.Kind() == Meta::ValueKind::Object &&
+                !newValue.IsNullObject() &&
+                newValue.AsObject() != nullptr);
+    } else if (property == ClipProperty.Handle()) {
+        layout_.SetRenderRare(
+            LayoutHot::kRenderRareClip,
+            newValue.Kind() == Meta::ValueKind::Object &&
+                !newValue.IsNullObject() &&
+                newValue.AsObject() != nullptr);
+    } else if (property == OpacityMaskProperty.Handle()) {
+        layout_.SetRenderRare(
+            LayoutHot::kRenderRareOpacityMask,
+            newValue.Kind() == Meta::ValueKind::Object &&
+                !newValue.IsNullObject() &&
+                newValue.AsObject() != nullptr);
+    } else if (property == RenderTransformProperty.Handle()) {
+        layout_.SetRenderRare(
+            LayoutHot::kRenderRareRenderTransform,
+            newValue.Kind() == Meta::ValueKind::Object &&
+                !newValue.IsNullObject() &&
+                newValue.AsObject() != nullptr);
+    } else if (property == Transform3DProperty.Handle()) {
+        layout_.SetRenderRare(
+            LayoutHot::kRenderRareTransform3D,
+            newValue.Kind() == Meta::ValueKind::Object &&
+                !newValue.IsNullObject() &&
+                newValue.AsObject() != nullptr);
     }
 }
 
@@ -472,18 +516,19 @@ double UIElement::GetOpacity() const noexcept {
 // from src/gui/controls/Layout.cpp
 
 Base::Ref<Effect> UIElement::GetEffect() const noexcept {
+    if (!HasEffect()) return {};
     return GetValue(EffectProperty);
 }
 
 // from src/gui/controls/Layout.cpp
 BlendMode UIElement::GetBlendMode() const noexcept {
-    return GetValue(BlendModeProperty);
+    return layout_.blendMode;
 }
 
 // from src/gui/controls/Layout.cpp
 
 bool UIElement::GetClipToBounds() const noexcept {
-    return GetValue(ClipToBoundsProperty);
+    return layout_.clipToBounds;
 }
 
 // from src/gui/controls/Layout.cpp

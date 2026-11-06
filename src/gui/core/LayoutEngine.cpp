@@ -908,6 +908,39 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     measuredCount_ = 0U;
     arrangedCount_ = 0U;
 
+    const auto computeDepth = [](const UIElement& node) noexcept -> std::uint32_t {
+        std::uint32_t depth = 0U;
+        for (const UIElement* cur = node.GetIsLayoutAttached() ? node.LayoutParent() : nullptr;
+             cur != nullptr && depth < 256U;
+             cur = cur->GetIsLayoutAttached() ? cur->LayoutParent() : nullptr) {
+            ++depth;
+        }
+        return depth;
+    };
+
+    const auto sortWorkQueueByDepth = [&](Base::Vector<VisualHandle>& work) noexcept {
+        if (work.Size() <= 1U) return;
+        struct DepthEntry {
+            VisualHandle handle;
+            std::uint32_t depth = 0U;
+        };
+        Base::BasicVector<DepthEntry, 32U> entries;
+        entries.Reserve(work.Size());
+        for (const VisualHandle h : work) {
+            const UIElement* el = ResolveQueued(h);
+            entries.PushBack({h, el != nullptr ? computeDepth(*el) : 256U});
+        }
+        std::stable_sort(
+            entries.begin(),
+            entries.end(),
+            [](const DepthEntry& a, const DepthEntry& b) noexcept {
+                return a.depth < b.depth;
+            });
+        for (std::uint32_t i = 0U; i < entries.Size(); ++i) {
+            work[i] = entries[i].handle;
+        }
+    };
+
     if (root_ != nullptr &&
         (!root_->GetIsMeasureValid() || !root_->GetIsArrangeValid())) {
         MeasureElement(*root_, rootAvailableSize_);
@@ -916,46 +949,77 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
                      rootAvailableSize_.width, rootAvailableSize_.height});
     }
 
-    measureWorkQueue_.Clear();
-    measureWorkQueue_.Swap(measureQueue_);
-    for (const VisualHandle handle : measureWorkQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
-    }
-    for (const VisualHandle handle : measureWorkQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element == nullptr || element == root_ ||
-            ElementTree::LayoutOf(*element) != this || element->GetIsMeasureValid()) {
-            continue;
+    // WPF/Noesis-style depth-ordered measure-before-arrange loop:
+    // always drain shallowest dirty Measure nodes first; if ArrangeOverride
+    // invalidates any subtree's Measure, loop back to drain measureQueue_
+    // incrementally without invalidating root_.
+    constexpr std::uint32_t MaxQueueWaves = 16U;
+    for (std::uint32_t wave = 0U;
+         wave < MaxQueueWaves && (!measureQueue_.Empty() || !arrangeQueue_.Empty());
+         ++wave) {
+        while (!measureQueue_.Empty()) {
+            measureWorkQueue_.Clear();
+            measureWorkQueue_.Swap(measureQueue_);
+            sortWorkQueueByDepth(measureWorkQueue_);
+            for (const VisualHandle handle : measureWorkQueue_) {
+                UIElement* element = ResolveQueued(handle);
+                if (element != nullptr) {
+                    element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
+                }
+            }
+            for (const VisualHandle handle : measureWorkQueue_) {
+                UIElement* element = ResolveQueued(handle);
+                if (element == nullptr ||
+                    ElementTree::LayoutOf(*element) != this ||
+                    element->GetIsMeasureValid()) {
+                    continue;
+                }
+                if (element == root_) {
+                    MeasureElement(*root_, rootAvailableSize_);
+                    continue;
+                }
+                UIElement* parent = element->GetIsLayoutAttached()
+                    ? element->LayoutParent() : nullptr;
+                const Size constraint = parent != nullptr
+                    ? parent->GetRenderSize() : rootAvailableSize_;
+                MeasureElement(*element, constraint);
+            }
+            measureWorkQueue_.Clear();
         }
-        UIElement* parent = element->GetIsLayoutAttached()
-            ? element->LayoutParent() : nullptr;
-        const Size constraint = parent != nullptr
-            ? parent->GetRenderSize() : rootAvailableSize_;
-        MeasureElement(*element, constraint);
-    }
-    measureWorkQueue_.Clear();
 
-    arrangeWorkQueue_.Clear();
-    arrangeWorkQueue_.Swap(arrangeQueue_);
-    for (const VisualHandle handle : arrangeWorkQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
-    }
-    for (const VisualHandle handle : arrangeWorkQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element == nullptr || element == root_ ||
-            ElementTree::LayoutOf(*element) != this || element->GetIsArrangeValid()) {
-            continue;
+        if (!arrangeQueue_.Empty()) {
+            arrangeWorkQueue_.Clear();
+            arrangeWorkQueue_.Swap(arrangeQueue_);
+            sortWorkQueueByDepth(arrangeWorkQueue_);
+            for (const VisualHandle handle : arrangeWorkQueue_) {
+                UIElement* element = ResolveQueued(handle);
+                if (element != nullptr) {
+                    element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
+                }
+            }
+            for (const VisualHandle handle : arrangeWorkQueue_) {
+                UIElement* element = ResolveQueued(handle);
+                if (element == nullptr ||
+                    ElementTree::LayoutOf(*element) != this ||
+                    element->GetIsArrangeValid()) {
+                    continue;
+                }
+                if (element == root_) {
+                    ArrangeElement(
+                        *root_,
+                        {0.0f, 0.0f, rootAvailableSize_.width, rootAvailableSize_.height});
+                    continue;
+                }
+                Rect slot = element->GetLayoutSlot();
+                if (slot.width == 0.0f && slot.height == 0.0f) {
+                    slot.width = element->GetDesiredSize().width;
+                    slot.height = element->GetDesiredSize().height;
+                }
+                ArrangeElement(*element, slot);
+            }
+            arrangeWorkQueue_.Clear();
         }
-        Rect slot = element->GetLayoutSlot();
-        if (slot.width == 0.0f && slot.height == 0.0f) {
-            slot.width = element->GetDesiredSize().width;
-            slot.height = element->GetDesiredSize().height;
-        }
-        ArrangeElement(*element, slot);
     }
-    arrangeWorkQueue_.Clear();
 
     // Applying a template during ArrangeOverride can attach new visuals and
     // invalidate the root after the root's first arrange has completed. Drive

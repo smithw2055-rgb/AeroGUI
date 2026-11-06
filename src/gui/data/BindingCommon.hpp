@@ -146,4 +146,11 @@ Base::Result<Base::String> FormatBindingString(
 Base::Result<PropertyValue> UnboxItemsValue(
     Base::Result<PropertyValue> value) noexcept;
 
+Base::Result<PropertyValue> ConvertDefaultBindingValue(
+    const PropertyValue& value,
+    TypeId targetType,
+    Base::StringView stringFormat = {},
+    const Registry* metadata = nullptr,
+    TypeId formattedStringType = TypeOf<Base::String>()) noexcept;
+
 } // namespace Aero::Data

@@ -85,6 +85,21 @@ public:
     }
 
     std::uint32_t AddValue(const Meta::Value& value) noexcept {
+        switch (value.Kind()) {
+        case Meta::ValueKind::Boolean:
+        case Meta::ValueKind::SignedInteger:
+        case Meta::ValueKind::UnsignedInteger:
+        case Meta::ValueKind::Double:
+        case Meta::ValueKind::String:
+            for (std::uint32_t i = 0U; i < valuePool_.Size(); ++i) {
+                if (valuePool_[i].Type() == value.Type() && valuePool_[i] == value) {
+                    return i;
+                }
+            }
+            break;
+        default:
+            break;
+        }
         const std::uint32_t newIndex = valuePool_.Size();
         valuePool_.PushBack(value);
         return newIndex;
@@ -467,6 +482,31 @@ Base::Result<void> CompileNodesToBytecode(
     };
     Base::Vector<SubProgramSlotInfo> subProgramSlots;
 
+    auto resolveMemberFrame = [&](
+        const Node& currentNode,
+        MemberFrame& frame,
+        MemberSyntax syntax) noexcept {
+        if (currentNode.HasCompiledMemberBinding()) {
+            const auto& mb = currentNode.CompiledMember();
+            frame.memberId = mb.id;
+            frame.valueType = mb.valueType;
+            frame.kind = mb.kind;
+            frame.isEvent = (mb.kind == Meta::MemberKind::Event);
+            return;
+        }
+        frame.memberId = currentNode.CompiledMemberId();
+        if (frame.memberId == Meta::InvalidMemberId && !objectStack.Empty()) {
+            Base::Result<ResolvedMember> resolved = schema.ResolveMember(
+                objectStack.Back().typeId, currentNode.Name(), syntax);
+            if (resolved) {
+                frame.memberId = resolved.Value().id;
+                frame.valueType = resolved.Value().valueType;
+                frame.kind = resolved.Value().kind;
+                frame.isEvent = (resolved.Value().kind == Meta::MemberKind::Event);
+            }
+        }
+    };
+
     for (; nodeIndex < nodes.Size(); ++nodeIndex) {
         const Node& node = nodes[static_cast<uint32_t>(nodeIndex)];
         switch (node.Kind()) {
@@ -502,23 +542,7 @@ Base::Result<void> CompileNodesToBytecode(
                     (localName.SizeBytes() >= 18U && localName.Substr(localName.SizeBytes() - 18U, 18U) == ".VisualStateGroups")) {
                     mf.isTriggers = true;
                 }
-                if (node.HasCompiledMemberBinding()) {
-                    const auto& mb = node.CompiledMember();
-                    mf.memberId = mb.id;
-                    mf.valueType = mb.valueType;
-                    mf.kind = mb.kind;
-                } else {
-                    mf.memberId = node.CompiledMemberId();
-                    if (mf.memberId == Meta::InvalidMemberId) {
-                        Base::Result<ResolvedMember> resolved = schema.ResolveMember(
-                            objectStack.Back().typeId, node.Name(), MemberSyntax::PropertyElement);
-                        if (resolved) {
-                            mf.memberId = resolved.Value().id;
-                            mf.valueType = resolved.Value().valueType;
-                            mf.kind = resolved.Value().kind;
-                        }
-                    }
-                }
+                resolveMemberFrame(node, mf, MemberSyntax::PropertyElement);
                 memberStack.PushBack(mf);
                 break;
             }
@@ -530,12 +554,7 @@ Base::Result<void> CompileNodesToBytecode(
                 if (!vsmContainer) {
                     return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM creating VSM bytecode container");
                 }
-                for (const auto& nsEntry : outProgram.namespaces) {
-                    XamlBytecodeProgram::NamespaceEntry copied;
-                    static_cast<void>(copied.prefix.Assign(nsEntry.prefix.View()));
-                    static_cast<void>(copied.uri.Assign(nsEntry.uri.View()));
-                    vsmContainer->program.namespaces.PushBack(std::move(copied));
-                }
+                vsmContainer->program.CopyNamespacesFrom(outProgram);
                 Base::Result<void> vsmRes = CompileNodesToBytecode(
                     nodes, nodeIndex, schema, baseUri, ambientTargetType, false, vsmContainer->program, true);
                 if (!vsmRes) return vsmRes.GetStatus();
@@ -547,12 +566,7 @@ Base::Result<void> CompileNodesToBytecode(
                 (memberStack.Empty() || memberStack.Back().parentSlot != objectStack.Back().slot ||
                  (!memberStack.Back().isTriggers && !memberStack.Back().isResources))) {
                 auto subContainer = Base::MakeRef<XamlBytecodeContainer>();
-                for (const auto& nsEntry : outProgram.namespaces) {
-                    XamlBytecodeProgram::NamespaceEntry copied;
-                    static_cast<void>(copied.prefix.Assign(nsEntry.prefix.View()));
-                    static_cast<void>(copied.uri.Assign(nsEntry.uri.View()));
-                    subContainer->program.namespaces.PushBack(std::move(copied));
-                }
+                subContainer->program.CopyNamespacesFrom(outProgram);
                 Base::Result<void> subRes = CompileNodesToBytecode(
                     nodes, nodeIndex, schema, baseUri, objectStack.Back().templateTargetType, true, subContainer->program);
                 if (!subRes) return subRes.GetStatus();
@@ -755,64 +769,25 @@ Base::Result<void> CompileNodesToBytecode(
                  node.Name().NamespaceUri() == "http://schemas.microsoft.com/winfx/2006/xaml" ||
                  node.Name().NamespaceUri() == "http://schemas.microsoft.com/winfx/2006/xaml/presentation")) {
                 mf.isName = true;
-            } else if (memName == "Resources" || (memName.SizeBytes() >= 10U && memName.Substr(memName.SizeBytes() - 10U, 10U) == ".Resources")) {
-                mf.isResources = true;
-                if (!objectStack.Empty() && !objectStack.Back().hasResourceScope) {
-                    objectStack.Back().hasResourceScope = true;
-                    builder.EmitPushAmbientResources(parentSlot);
-                }
-                mf.memberId = node.CompiledMemberId();
-                if (mf.memberId == Meta::InvalidMemberId && !objectStack.Empty()) {
-                    Base::Result<ResolvedMember> resolved = schema.ResolveMember(
-                        objectStack.Back().typeId, node.Name(), memberSyntax);
-                    if (resolved) {
-                        mf.memberId = resolved.Value().id;
-                        mf.valueType = resolved.Value().valueType;
-                        mf.kind = resolved.Value().kind;
-                    }
-                }
-            } else if (memName == "Triggers" || (memName.SizeBytes() >= 9U && memName.Substr(memName.SizeBytes() - 9U, 9U) == ".Triggers") ||
-                       memName == "VisualStateGroups" || (memName.SizeBytes() >= 18U && memName.Substr(memName.SizeBytes() - 18U, 18U) == ".VisualStateGroups")) {
-                mf.isTriggers = true;
-                mf.memberId = node.CompiledMemberId();
-                if (mf.memberId == Meta::InvalidMemberId && !objectStack.Empty()) {
-                    Base::Result<ResolvedMember> resolved = schema.ResolveMember(
-                        objectStack.Back().typeId, node.Name(), memberSyntax);
-                    if (resolved) {
-                        mf.memberId = resolved.Value().id;
-                        mf.valueType = resolved.Value().valueType;
-                        mf.kind = resolved.Value().kind;
-                    }
-                }
-            } else if (memName == "TargetType") {
-                mf.isTargetType = true;
-                mf.memberId = node.CompiledMemberId();
-                if (mf.memberId == Meta::InvalidMemberId && !objectStack.Empty()) {
-                    Base::Result<ResolvedMember> resolved = schema.ResolveMember(
-                        objectStack.Back().typeId, node.Name(), memberSyntax);
-                    if (resolved) {
-                        mf.memberId = resolved.Value().id;
-                        mf.valueType = resolved.Value().valueType;
-                        mf.kind = resolved.Value().kind;
-                    }
-                }
-            } else if (node.HasCompiledMemberBinding()) {
-                const auto& mb = node.CompiledMember();
-                mf.memberId = mb.id;
-                mf.valueType = mb.valueType;
-                mf.kind = mb.kind;
-                mf.isEvent = (mb.kind == Meta::MemberKind::Event);
             } else {
-                mf.memberId = node.CompiledMemberId();
-                if (mf.memberId == Meta::InvalidMemberId) {
-                    Base::Result<ResolvedMember> resolved = schema.ResolveMember(
-                        objectStack.Back().typeId, node.Name(), memberSyntax);
-                    if (resolved) {
-                        mf.memberId = resolved.Value().id;
-                        mf.valueType = resolved.Value().valueType;
-                        mf.kind = resolved.Value().kind;
-                        mf.isEvent = (resolved.Value().kind == Meta::MemberKind::Event);
+                if (memName == "Resources" ||
+                    (memName.SizeBytes() >= 10U && memName.Substr(memName.SizeBytes() - 10U, 10U) == ".Resources")) {
+                    mf.isResources = true;
+                    if (!objectStack.Empty() && !objectStack.Back().hasResourceScope) {
+                        objectStack.Back().hasResourceScope = true;
+                        builder.EmitPushAmbientResources(parentSlot);
                     }
+                } else if (memName == "Triggers" ||
+                           (memName.SizeBytes() >= 9U && memName.Substr(memName.SizeBytes() - 9U, 9U) == ".Triggers") ||
+                           memName == "VisualStateGroups" ||
+                           (memName.SizeBytes() >= 18U && memName.Substr(memName.SizeBytes() - 18U, 18U) == ".VisualStateGroups")) {
+                    mf.isTriggers = true;
+                } else if (memName == "TargetType") {
+                    mf.isTargetType = true;
+                }
+                resolveMemberFrame(node, mf, memberSyntax);
+                if (mf.isResources || mf.isTriggers || mf.isTargetType) {
+                    mf.isEvent = false;
                 }
             }
             memberStack.PushBack(mf);
@@ -830,19 +805,7 @@ Base::Result<void> CompileNodesToBytecode(
                 convServices.baseUri = baseUri;
                 convServices.targetObjectType = targetObjType;
                 convServices.targetMember = targetMem;
-                convServices.namespaces = NamespaceScope(
-                    +[](void* ctx, Base::StringView prefix) noexcept -> Base::Result<Base::StringView> {
-                        const auto* prog = static_cast<const XamlBytecodeProgram*>(ctx);
-                        for (std::uint32_t i = prog->namespaces.Size(); i > 0U; --i) {
-                            if (prog->namespaces[i - 1U].prefix.View() == prefix) {
-                                return prog->namespaces[i - 1U].uri.View();
-                            }
-                        }
-                        if (prefix.Empty()) return Meta::AeroNamespaceUri();
-                        if (prefix == "x") return Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml");
-                        return Base::Status::Failure(Base::ErrorCode::NotFound, "XAML namespace prefix not found");
-                    },
-                    &outProgram);
+                convServices.namespaces = outProgram.MakeNamespaceScope();
                 return convServices;
             };
 
@@ -887,34 +850,31 @@ Base::Result<void> CompileNodesToBytecode(
                             break;
                         }
                     }
-                    Base::Result<ResolvedMember> contentMember = schema.ResolveContentMember(currentObj.typeId);
-                    if (contentMember) {
-                        const ResolvedMember& mem = contentMember.Value();
-                        Meta::TypeId targetType = (mem.valueType != Meta::InvalidTypeId) ? mem.valueType : Meta::TypeOf<Base::String>();
-                        ExtensionServices convServices = makeConvServices(currentObj.typeId, mem.id);
-                        Base::Result<Meta::Value> converted = schema.ConvertText(targetType, node.Value(), &convServices);
-                        if (converted) {
-                            builder.EmitSetPropertyValue(currentObj.slot, Meta::DependencyPropertyHandle{mem.id}, converted.Value());
+                    auto tryEmitConvertedProperty = [&](Meta::MemberId memberId, Meta::TypeId valueType) noexcept -> bool {
+                        const Meta::TypeId resolvedType = (valueType != Meta::InvalidTypeId)
+                            ? valueType
+                            : Meta::TypeOf<Base::String>();
+                        ExtensionServices convServices = makeConvServices(currentObj.typeId, memberId);
+                        Base::Result<Meta::Value> converted = schema.ConvertText(resolvedType, node.Value(), &convServices);
+                        if (!converted) return false;
+                        builder.EmitSetPropertyValue(
+                            currentObj.slot,
+                            Meta::DependencyPropertyHandle{memberId},
+                            converted.Value());
+                        return true;
+                    };
+                    if (Base::Result<ResolvedMember> contentMember = schema.ResolveContentMember(currentObj.typeId)) {
+                        if (tryEmitConvertedProperty(contentMember.Value().id, contentMember.Value().valueType)) {
                             break;
                         }
                     }
-                    const Meta::PropertyInfo* textProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Text"), true);
-                    if (textProp != nullptr) {
-                        Meta::TypeId targetType = (textProp->ValueType() != Meta::InvalidTypeId) ? textProp->ValueType() : Meta::TypeOf<Base::String>();
-                        ExtensionServices convServices = makeConvServices(currentObj.typeId, textProp->Id());
-                        Base::Result<Meta::Value> converted = schema.ConvertText(targetType, node.Value(), &convServices);
-                        if (converted) {
-                            builder.EmitSetPropertyValue(currentObj.slot, Meta::DependencyPropertyHandle{textProp->Id()}, converted.Value());
+                    if (const Meta::PropertyInfo* textProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Text"), true)) {
+                        if (tryEmitConvertedProperty(textProp->Id(), textProp->ValueType())) {
                             break;
                         }
                     }
-                    const Meta::PropertyInfo* contentProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Content"), true);
-                    if (contentProp != nullptr) {
-                        Meta::TypeId targetType = (contentProp->ValueType() != Meta::InvalidTypeId) ? contentProp->ValueType() : Meta::TypeOf<Base::String>();
-                        ExtensionServices convServices = makeConvServices(currentObj.typeId, contentProp->Id());
-                        Base::Result<Meta::Value> converted = schema.ConvertText(targetType, node.Value(), &convServices);
-                        if (converted) {
-                            builder.EmitSetPropertyValue(currentObj.slot, Meta::DependencyPropertyHandle{contentProp->Id()}, converted.Value());
+                    if (const Meta::PropertyInfo* contentProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Content"), true)) {
+                        if (tryEmitConvertedProperty(contentProp->Id(), contentProp->ValueType())) {
                             break;
                         }
                     }
@@ -933,12 +893,12 @@ Base::Result<void> CompileNodesToBytecode(
 
             MemberFrame& mf = memberStack.Back();
             if (mf.isKey) {
-                static_cast<void>(objectStack.Back().key.Assign(node.Value()));
-                Base::StringView str = node.Value();
-                if (str.SizeBytes() >= 8U && str.Substr(0U, 8U) == "{x:Type ") {
+                Base::StringView unwrappedKeyType;
+                if (TryUnwrapTypeExtensionLiteral(node.Value(), unwrappedKeyType)) {
                     objectStack.Back().isTypeKey = true;
-                    Base::StringView typeName = TrimAscii(str.Substr(8U, str.SizeBytes() - 9U));
-                    static_cast<void>(objectStack.Back().key.Assign(typeName));
+                    static_cast<void>(objectStack.Back().key.Assign(unwrappedKeyType));
+                } else {
+                    static_cast<void>(objectStack.Back().key.Assign(node.Value()));
                 }
                 break;
             }
@@ -1000,14 +960,8 @@ Base::Result<void> CompileNodesToBytecode(
 
                         Meta::TypeId extTypeId = Meta::InvalidTypeId;
                         Base::StringView extPrefix{};
-                        Base::StringView extLocalName = extName;
-                        for (std::uint32_t i = 0U; i < extName.SizeBytes(); ++i) {
-                            if (extName[i] == ':') {
-                                extPrefix = TrimAscii(extName.Substr(0U, i));
-                                extLocalName = TrimAscii(extName.Substr(i + 1U, extName.SizeBytes() - i - 1U));
-                                break;
-                            }
-                        }
+                        Base::StringView extLocalName{};
+                        SplitRelaxedQualifiedXamlName(extName, extPrefix, extLocalName);
                         char extWithSuffix[64];
                         const int extLen = std::snprintf(extWithSuffix, sizeof(extWithSuffix), "%.*sExtension",
                             static_cast<int>(extLocalName.SizeBytes()), extLocalName.Data());
@@ -1064,23 +1018,13 @@ Base::Result<void> CompileNodesToBytecode(
 
             if (mf.isTargetType || targetType == Meta::TypeOf<Meta::TypeReference>()) {
                 Base::StringView typeName = TrimAscii(strVal);
-                if (typeName.SizeBytes() >= 2U && typeName[0] == '{' && typeName[typeName.SizeBytes() - 1U] == '}') {
-                    typeName = TrimAscii(typeName.Substr(1U, typeName.SizeBytes() - 2U));
-                    if (typeName.SizeBytes() >= 7U && typeName.Substr(0U, 7U) == "x:Type ") {
-                        typeName = TrimAscii(typeName.Substr(7U, typeName.SizeBytes() - 7U));
-                    } else if (typeName.SizeBytes() >= 5U && typeName.Substr(0U, 5U) == "Type ") {
-                        typeName = TrimAscii(typeName.Substr(5U, typeName.SizeBytes() - 5U));
-                    }
+                Base::StringView unwrappedType;
+                if (TryUnwrapTypeExtensionLiteral(typeName, unwrappedType)) {
+                    typeName = unwrappedType;
                 }
                 Base::StringView prefix{};
-                Base::StringView localName = typeName;
-                for (std::uint32_t i = 0U; i < typeName.SizeBytes(); ++i) {
-                    if (typeName[i] == ':') {
-                        prefix = TrimAscii(typeName.Substr(0U, i));
-                        localName = TrimAscii(typeName.Substr(i + 1U, typeName.SizeBytes() - i - 1U));
-                        break;
-                    }
-                }
+                Base::StringView localName{};
+                SplitRelaxedQualifiedXamlName(typeName, prefix, localName);
                 Base::Result<const Meta::TypeInfo*> resolved = Base::Status::Failure(Base::ErrorCode::NotFound, "type not found");
                 if (!prefix.Empty()) {
                     for (std::uint32_t nsIdx = namespaces.Size(); nsIdx > 0U; --nsIdx) {
@@ -1355,15 +1299,7 @@ Base::Result<Value> ConvertTemplateTextValue(
         return ValueCodec<std::uint32_t>::Encode(UINT32_MAX);
     }
     if (property.ValueType() == Meta::TypeOf<Base::Object>()) {
-        Base::Result<Value> strVal =
-            Value::TryFromString(Meta::TypeOf<Base::String>(), text);
-        if (!strVal) return strVal.GetStatus();
-        Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
-            Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
-        if (!boxed) return boxed.GetStatus();
-        return Value::FromObject(
-            property.ValueType(),
-            Base::Ref<Base::Object>(std::move(boxed).Value()));
+        return BoxXamlStringAsObject(text);
     }
     return runtime.TryConvertText(property.ValueType(), text);
 }
@@ -1387,15 +1323,7 @@ Base::Result<Value> ConvertAndValidateTemplateValue(
         std::snprintf(message, sizeof(message), "%s requires Value", roleName);
         return InvalidTemplateCompiler(message);
     }
-    if (value.Kind() == ValueKind::Object &&
-        !value.IsNullObject() &&
-        value.Type() == Binding::StaticTypeId()) {
-        return value;
-    }
-    if (value.IsDynamicResource()) {
-        return value;
-    }
-    if (property.AcceptsAnyValue()) {
+    if (IsPassthroughMarkupPropertyValue(value) || property.AcceptsAnyValue()) {
         return value;
     }
     if (value.Kind() == ValueKind::String &&
@@ -1459,17 +1387,13 @@ Base::Status MissingTemplateProperty(
     Base::StringView property,
     TypeId targetType,
     const TypeRegistry& types) noexcept {
-    thread_local char message[384];
-    const TypeInfo* target = types.FindType(targetType);
-    const Base::StringView typeName =
-        target != nullptr ? target->Name() : Base::StringView("<unknown>");
-    std::snprintf(
-        message, sizeof(message),
-        "ControlTemplate %s '%.*s' was not found on TargetType '%.*s'",
+    return FormatMissingTargetPropertyStatus(
+        "ControlTemplate",
         role,
-        static_cast<int>(property.SizeBytes()), property.Data(),
-        static_cast<int>(typeName.SizeBytes()), typeName.Data());
-    return InvalidTemplateCompiler(message);
+        property,
+        targetType,
+        types,
+        Base::ErrorCode::ValidationFailed);
 }
 
 Base::Result<Value> ConvertTriggerValue(
@@ -2008,47 +1932,41 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
             compiledCondition.value = std::move(converted).Value();
             plan.conditions.PushBack(std::move(compiledCondition));
         }
-    } else if (trigger->RuntimeType() == DataTrigger::StaticTypeId()) {
-        const auto& data = static_cast<const DataTrigger&>(*trigger);
-        setters = data.GetAuthoredSetters();
-        if (!data.GetBinding()) {
-            return InvalidTemplateCompiler(
-                "Template DataTrigger requires Binding");
-        }
-        CompiledTriggerCondition compiledCondition;
-        if (!data.GetBinding()->GetElementName().Empty()) {
-            const std::uint32_t slot = program.FindSlotByName(data.GetBinding()->GetElementName());
-            if (slot < program.slotNames.Size()) {
-                compiledCondition.sourceSlot = static_cast<std::int32_t>(slot);
-            }
-        }
-        compiledCondition.usesDataContext =
-            data.GetBinding()->GetElementName().Empty() &&
-            !data.GetBinding()->GetRelativeSource();
-        compiledCondition.binding = data.GetBinding();
-        compiledCondition.value = data.GetAuthoredValue();
-        plan.conditions.PushBack(std::move(compiledCondition));
-    } else if (trigger->RuntimeType() == MultiDataTrigger::StaticTypeId()) {
-        const auto& multi = static_cast<const MultiDataTrigger&>(*trigger);
-        setters = multi.GetAuthoredSetters();
-        for (const Base::Ref<Condition>& authoredCondition : multi.GetConditions()) {
-            if (!authoredCondition || !authoredCondition->GetBinding()) {
-                return InvalidTemplateCompiler(
-                    "Template MultiDataTrigger requires complete Conditions");
-            }
+    } else if (trigger->RuntimeType() == DataTrigger::StaticTypeId() ||
+               trigger->RuntimeType() == MultiDataTrigger::StaticTypeId()) {
+        auto addBindingCondition = [&](const Base::Ref<Binding>& binding, const Value& authoredValue) {
             CompiledTriggerCondition compiledCondition;
-            if (!authoredCondition->GetBinding()->GetElementName().Empty()) {
-                const std::uint32_t slot = program.FindSlotByName(authoredCondition->GetBinding()->GetElementName());
+            if (!binding->GetElementName().Empty()) {
+                const std::uint32_t slot = program.FindSlotByName(binding->GetElementName());
                 if (slot < program.slotNames.Size()) {
                     compiledCondition.sourceSlot = static_cast<std::int32_t>(slot);
                 }
             }
             compiledCondition.usesDataContext =
-                authoredCondition->GetBinding()->GetElementName().Empty() &&
-                !authoredCondition->GetBinding()->GetRelativeSource();
-            compiledCondition.binding = authoredCondition->GetBinding();
-            compiledCondition.value = authoredCondition->GetAuthoredValue();
+                binding->GetElementName().Empty() &&
+                !binding->GetRelativeSource();
+            compiledCondition.binding = binding;
+            compiledCondition.value = authoredValue;
             plan.conditions.PushBack(std::move(compiledCondition));
+        };
+        if (trigger->RuntimeType() == DataTrigger::StaticTypeId()) {
+            const auto& data = static_cast<const DataTrigger&>(*trigger);
+            setters = data.GetAuthoredSetters();
+            if (!data.GetBinding()) {
+                return InvalidTemplateCompiler(
+                    "Template DataTrigger requires Binding");
+            }
+            addBindingCondition(data.GetBinding(), data.GetAuthoredValue());
+        } else {
+            const auto& multi = static_cast<const MultiDataTrigger&>(*trigger);
+            setters = multi.GetAuthoredSetters();
+            for (const Base::Ref<Condition>& authoredCondition : multi.GetConditions()) {
+                if (!authoredCondition || !authoredCondition->GetBinding()) {
+                    return InvalidTemplateCompiler(
+                        "Template MultiDataTrigger requires complete Conditions");
+                }
+                addBindingCondition(authoredCondition->GetBinding(), authoredCondition->GetAuthoredValue());
+            }
         }
     }
     for (const Base::Ref<Setter>& setter : setters) {
@@ -2076,6 +1994,72 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
         plan.setters.PushBack(std::move(compiledSetter));
     }
     return plan;
+}
+
+Base::Result<void> CompileAuthoredTemplateTriggers(
+    Aero::FrameworkTemplate& targetTemplate,
+    XamlBytecodeProgram& subProg,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties,
+    bool isControlTemplate) noexcept {
+    if (isControlTemplate) {
+        auto& ct = static_cast<Controls::ControlTemplate&>(targetTemplate);
+        if (!subProg.controlTemplateDataTriggers.Empty() ||
+            !subProg.controlTemplateEventTriggers.Empty() ||
+            FrameworkTemplateState::AuthoredTriggers(ct).Empty()) {
+            return {};
+        }
+        for (const Base::Ref<Base::Object>& authored :
+             FrameworkTemplateState::AuthoredTriggers(ct)) {
+            if (!authored) continue;
+            const Meta::TypeId kind = authored->RuntimeType();
+            if (kind == DataTrigger::StaticTypeId() ||
+                kind == MultiDataTrigger::StaticTypeId() ||
+                (kind == Trigger::StaticTypeId() &&
+                 (!static_cast<const Trigger&>(*authored).GetEnterActions().Empty() ||
+                  !static_cast<const Trigger&>(*authored).GetExitActions().Empty()))) {
+                Base::Ref<TriggerBase> retained =
+                    Base::Ref<TriggerBase>::TryFromBorrowed(
+                        static_cast<TriggerBase&>(*authored));
+                if (!retained) continue;
+                Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
+                    std::move(retained), subProg, runtime, properties, ct.GetTargetType());
+                if (!plan) return plan.GetStatus();
+                subProg.controlTemplateDataTriggers.PushBack(std::move(plan).Value());
+            } else if (runtime.Types().IsDerivedFrom(
+                           kind, Media::Animation::EventTrigger::StaticTypeId())) {
+                Base::Ref<Media::Animation::EventTrigger> retained =
+                    Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
+                        static_cast<Media::Animation::EventTrigger&>(*authored));
+                if (!retained) continue;
+                subProg.controlTemplateEventTriggers.PushBack(std::move(retained));
+            }
+        }
+        return {};
+    }
+
+    if (!subProg.dataTemplateTriggers.Empty() ||
+        FrameworkTemplateState::AuthoredTriggers(targetTemplate).Empty()) {
+        return {};
+    }
+    for (const Base::Ref<Base::Object>& authored :
+         FrameworkTemplateState::AuthoredTriggers(targetTemplate)) {
+        if (!authored) continue;
+        const Meta::TypeId kind = authored->RuntimeType();
+        if (kind == DataTrigger::StaticTypeId() ||
+            kind == MultiDataTrigger::StaticTypeId() ||
+            kind == Trigger::StaticTypeId()) {
+            Base::Ref<TriggerBase> retained =
+                Base::Ref<TriggerBase>::TryFromBorrowed(
+                    static_cast<TriggerBase&>(*authored));
+            if (!retained) continue;
+            Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
+                std::move(retained), subProg, runtime, properties);
+            if (!plan) return plan.GetStatus();
+            subProg.dataTemplateTriggers.PushBack(std::move(plan).Value());
+        }
+    }
+    return {};
 }
 
 Base::Result<void>

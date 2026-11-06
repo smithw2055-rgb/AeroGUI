@@ -73,7 +73,59 @@ bool ResolveTriggerSetterValue(
     const PropertyValue& rawValue,
     PropertyValue& resolvedValue,
     FrameworkElement* fallbackScope = nullptr,
-    const ResourceDictionary* fallbackResources = nullptr) noexcept;
+    const ResourceDictionary* fallbackResources = nullptr,
+    bool fallbackToDefaultOnMissingResource = false) noexcept;
+
+// Shared deduplicating bloom + exact-handle filter for Style/Template trigger
+// and TemplateBinding property subscriptions (eliminates O(N^2) nested loops).
+struct TriggerSubscriptionFilter {
+    std::uint64_t mask = 0ULL;
+    Base::BasicVector<DependencyPropertyHandle, 16U> handles;
+
+    bool TryAcquire(DependencyPropertyHandle property) noexcept {
+        if (!property.IsValid()) return false;
+        const std::uint64_t propMask = PropertyTriggerMask(property);
+        if ((mask & propMask) == propMask) {
+            for (const DependencyPropertyHandle existing : handles) {
+                if (existing == property) return false;
+            }
+        }
+        mask |= propMask;
+        handles.PushBack(property);
+        return true;
+    }
+};
+
+// Shared inline 64-bit mask + overflow vector for Style and Template trigger evaluation.
+struct TriggerActiveBitset {
+    std::uint64_t inlineMask = 0ULL;
+    Base::Vector<std::uint8_t> overflow;
+
+    explicit TriggerActiveBitset(std::uint32_t count) noexcept {
+        if (count > 64U) {
+            overflow.Resize(count, 0U);
+        }
+    }
+
+    void Set(std::uint32_t index, bool active) noexcept {
+        if (index < 64U) {
+            if (active) {
+                inlineMask |= (UINT64_C(1) << index);
+            } else {
+                inlineMask &= ~(UINT64_C(1) << index);
+            }
+        } else if (index < overflow.Size()) {
+            overflow[index] = active ? 1U : 0U;
+        }
+    }
+
+    bool Get(std::uint32_t index) const noexcept {
+        if (index < 64U) {
+            return (inlineMask & (UINT64_C(1) << index)) != 0ULL;
+        }
+        return index < overflow.Size() && overflow[index] != 0U;
+    }
+};
 
 struct StyleTriggerSetter {
     DependencyPropertyHandle property;

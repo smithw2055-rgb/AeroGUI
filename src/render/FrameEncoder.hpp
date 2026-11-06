@@ -421,6 +421,8 @@ public:
         std::uint8_t stencilRef) noexcept;
 
     void SetContentStencil() noexcept;
+    void ResetBatchPayloads(Shader::Enum shader) noexcept;
+    void BeginStencilClipBatch(std::uint8_t stencilMode, std::uint8_t stencilRef) noexcept;
 
     void EnsureBatchBlend(Shader::Enum shader) noexcept;
 

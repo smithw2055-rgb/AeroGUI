@@ -887,42 +887,11 @@ Base::Result<PropertyValue> BindingEngine::ConvertForTarget(
             converted.Type(),
             targetProperty->ValueType())) {
         Base::Result<PropertyValue> result =
-            ((converted.Type() == TypeOf<bool>() &&
-              targetProperty->ValueType() ==
-                  TypeOf<::Aero::Nullable<bool>>()) ||
-             (converted.Type() == TypeOf<::Aero::Nullable<bool>>() &&
-              targetProperty->ValueType() == TypeOf<bool>()))
-            ? ConvertNullableBooleanValue(
-                  converted, targetProperty->ValueType())
-            : (IsNumericType(converted.Type()) &&
-             targetProperty->ValueType() == TypeOf<Base::Thickness>())
-            ? ConvertThicknessValue(converted)
-            : ((IsNumericType(converted.Type()) &&
-              targetProperty->ValueType() == TypeOf<Aero::Length>()) ||
-             (converted.Type() == TypeOf<Aero::Length>() &&
-              IsNumericType(targetProperty->ValueType())))
-            ? ConvertLengthValue(
-                  converted, targetProperty->ValueType())
-            : (converted.Type() == TypeOf<Base::Color>() &&
-               targetProperty->ValueType() ==
-                   Media::Brush::StaticTypeId())
-            ? ConvertColorToBrush(converted)
-            : IsNumericType(converted.Type()) &&
-                  IsNumericType(targetProperty->ValueType())
-                ? ConvertNumericValue(
-                      converted, targetProperty->ValueType())
-                : [&]() noexcept
-                  -> Base::Result<PropertyValue> {
-                Base::Result<Base::String> text =
-                    FormatBindingString(
-                        converted,
-                        record.stringFormat.View(),
-                        record.metadata);
-                if (!text) return text.GetStatus();
-                return PropertyValue::TryFromString(
-                    TypeOf<Base::String>(),
-                    text.Value().View());
-            }();
+            ConvertDefaultBindingValue(
+                converted,
+                targetProperty->ValueType(),
+                record.stringFormat.View(),
+                record.metadata);
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
     }
@@ -988,29 +957,7 @@ Base::Result<PropertyValue> BindingEngine::ConvertForSource(
     } else if (HasDefaultTargetConversion(
                    converted.Type(), sourceType)) {
         Base::Result<PropertyValue> result =
-            ((converted.Type() == TypeOf<bool>() &&
-              sourceType == TypeOf<::Aero::Nullable<bool>>()) ||
-             (converted.Type() == TypeOf<::Aero::Nullable<bool>>() &&
-              sourceType == TypeOf<bool>()))
-            ? ConvertNullableBooleanValue(converted, sourceType)
-            : ((IsNumericType(converted.Type()) &&
-              sourceType == TypeOf<Aero::Length>()) ||
-             (converted.Type() == TypeOf<Aero::Length>() &&
-              IsNumericType(sourceType)))
-            ? ConvertLengthValue(converted, sourceType)
-            : IsNumericType(converted.Type()) &&
-                  IsNumericType(sourceType)
-                ? ConvertNumericValue(converted, sourceType)
-                : [&]() noexcept
-                  -> Base::Result<PropertyValue> {
-                Base::Result<Base::String> text =
-                    FormatBindingString(
-                        converted, {});
-                if (!text) return text.GetStatus();
-                return PropertyValue::TryFromString(
-                    sourceType,
-                    text.Value().View());
-            }();
+            ConvertDefaultBindingValue(converted, sourceType, {}, nullptr, sourceType);
         if (!result) return result.GetStatus();
         converted = std::move(result).Value();
     }

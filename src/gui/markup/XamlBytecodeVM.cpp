@@ -205,6 +205,46 @@ Base::Status Decoder::InvalidVarUInt() noexcept {
         "Binary variable-length integer is invalid");
 }
 
+Base::Result<void> AppendCompiledCacheIdentity(
+    Base::Vector<std::uint8_t>& output,
+    const CompiledCacheIdentity& identity) noexcept {
+    Base::Result<void> result = AppendU32(output, identity.cacheFormatVersion);
+    if (!result) return result.GetStatus();
+    result = AppendU32(output, identity.typeIdAlgorithmVersion);
+    if (!result) return result.GetStatus();
+    result = AppendU32(output, identity.metadataSchemaFormatVersion);
+    if (!result) return result.GetStatus();
+    result = AppendU32(output, identity.metadataProgramFormatVersion);
+    if (!result) return result.GetStatus();
+    result = AppendU32(output, identity.schemaVersion);
+    if (!result) return result.GetStatus();
+    return AppendU64(output, identity.metadataSchemaHash);
+}
+
+Base::Result<CompiledCacheIdentity> ReadCompiledCacheIdentity(
+    Decoder& decoder) noexcept {
+    CompiledCacheIdentity identity;
+    Base::Result<std::uint32_t> value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    identity.cacheFormatVersion = value.Value();
+    value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    identity.typeIdAlgorithmVersion = value.Value();
+    value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    identity.metadataSchemaFormatVersion = value.Value();
+    value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    identity.metadataProgramFormatVersion = value.Value();
+    value = decoder.ReadU32();
+    if (!value) return value.GetStatus();
+    identity.schemaVersion = value.Value();
+    Base::Result<std::uint64_t> hash = decoder.ReadU64();
+    if (!hash) return hash.GetStatus();
+    identity.metadataSchemaHash = hash.Value();
+    return identity;
+}
+
 std::uint32_t XamlBytecodeProgram::FindSlotByName(Base::StringView name) const noexcept {
     for (std::uint32_t i = 0U; i < slotNames.Size(); ++i) {
         if (slotNames[i].View() == name) return i;
@@ -261,6 +301,31 @@ std::int32_t XamlBytecodeProgram::FindPartIndexByName(Base::StringView name) con
 
 Meta::TypeId XamlBytecodeProgram::GetSlotType(std::uint32_t slot) const noexcept {
     return (slot < slotTypes.Size()) ? slotTypes[slot] : Meta::InvalidTypeId;
+}
+
+NamespaceScope XamlBytecodeProgram::MakeNamespaceScope() const noexcept {
+    return NamespaceScope(
+        +[](void* ctx, Base::StringView prefix) noexcept -> Base::Result<Base::StringView> {
+            const auto* prog = static_cast<const XamlBytecodeProgram*>(ctx);
+            for (std::uint32_t i = prog->namespaces.Size(); i > 0U; --i) {
+                if (prog->namespaces[i - 1U].prefix.View() == prefix) {
+                    return prog->namespaces[i - 1U].uri.View();
+                }
+            }
+            if (prefix.Empty()) return Meta::AeroNamespaceUri();
+            if (prefix == "x") return LanguageNamespaceUri();
+            return Base::Status::Failure(Base::ErrorCode::NotFound, "XAML namespace prefix not found");
+        },
+        const_cast<XamlBytecodeProgram*>(this));
+}
+
+void XamlBytecodeProgram::CopyNamespacesFrom(const XamlBytecodeProgram& parent) noexcept {
+    for (const auto& nsEntry : parent.namespaces) {
+        NamespaceEntry copied;
+        static_cast<void>(copied.prefix.Assign(nsEntry.prefix.View()));
+        static_cast<void>(copied.uri.Assign(nsEntry.uri.View()));
+        namespaces.PushBack(std::move(copied));
+    }
 }
 
 bool XamlBytecodeProgram::IsValid() const noexcept {
@@ -459,6 +524,52 @@ Aero::ResourceDictionary* ResolveObjectResourceDictionary(
     return nullptr;
 }
 
+void XamlBytecodeProgram::PropagateAmbientResourcesFrom(
+    const XamlBytecodeProgram& parent,
+    Base::Span<const Aero::ResourceDictionary* const> ambientStack,
+    Base::Span<const Base::Ref<Base::Object>> activeObjects,
+    const Schema* activeSchema,
+    const LoadState* loadContext) noexcept {
+    ambientResourceOwners.Clear();
+    ambientDictionaries.Clear();
+    for (const auto& owner : parent.ambientResourceOwners) {
+        ambientResourceOwners.PushBack(owner);
+    }
+    for (const auto& dict : parent.ambientDictionaries) {
+        if (Base::Result<Aero::ResourceDictionary> shared = dict.Share()) {
+            ambientDictionaries.PushBack(std::move(shared).Value());
+        }
+    }
+    for (const Aero::ResourceDictionary* dict : ambientStack) {
+        if (dict != nullptr) {
+            if (Base::Result<Aero::ResourceDictionary> shared = dict->Share()) {
+                ambientDictionaries.PushBack(std::move(shared).Value());
+            }
+        }
+    }
+    for (const auto& obj : activeObjects) {
+        if (obj) {
+            if (auto* dict = ResolveObjectResourceDictionary(*obj, activeSchema)) {
+                ambientResourceOwners.PushBack(Base::WeakRef<Base::Object>(obj));
+                if (Base::Result<Aero::ResourceDictionary> shared = dict->Share()) {
+                    ambientDictionaries.PushBack(std::move(shared).Value());
+                }
+            }
+        }
+    }
+    if (fallbackResources.Size() == 0U &&
+        fallbackResources.MergedDictionaryCount() == 0U) {
+        if (loadContext != nullptr && loadContext->fallbackResources != nullptr) {
+            fallbackResources = loadContext->fallbackResources->Share();
+        } else if (loadContext != nullptr && loadContext->resources != nullptr) {
+            fallbackResources = loadContext->resources->Share();
+        } else if (parent.fallbackResources.Size() > 0U ||
+                   parent.fallbackResources.MergedDictionaryCount() > 0U) {
+            fallbackResources = parent.fallbackResources.Share();
+        }
+    }
+}
+
 Meta::TypeId ExtractImplicitResourceKeyType(const Meta::Value& itemVal) noexcept {
     if (itemVal.Kind() == Meta::ValueKind::Object && !itemVal.IsNullObject()) {
         if (const auto* obj = itemVal.AsObject().Get()) {
@@ -638,35 +749,28 @@ Base::Result<void> XamlVM::Execute(
              (key[0] == '"' && key[key.SizeBytes() - 1U] == '"'))) {
             key = key.Substr(1U, key.SizeBytes() - 2U);
         }
-        Base::StringView typeName = key;
-        bool isTypeKey = false;
-        if (key.SizeBytes() >= 2U && key[0] == '{' && key[key.SizeBytes() - 1U] == '}') {
-            Base::StringView inner = TrimAscii(key.Substr(1U, key.SizeBytes() - 2U));
-            if (inner.SizeBytes() >= 7U && inner.Substr(0U, 7U) == "x:Type ") {
-                typeName = TrimAscii(inner.Substr(7U, inner.SizeBytes() - 7U));
-                isTypeKey = true;
-            } else if (inner.SizeBytes() >= 5U && inner.Substr(0U, 5U) == "Type ") {
-                typeName = TrimAscii(inner.Substr(5U, inner.SizeBytes() - 5U));
-                isTypeKey = true;
+        auto resolveSchemaTypeByName = [&](Base::StringView candidateName) noexcept -> Meta::TypeId {
+            if (context.schema == nullptr || candidateName.Empty()) {
+                return Meta::InvalidTypeId;
             }
-        }
-        Meta::TypeId resolvedTypeId = Meta::InvalidTypeId;
-        if (isTypeKey && context.schema != nullptr) {
-            Base::StringView localName = typeName;
-            for (std::uint32_t i = 0U; i < typeName.SizeBytes(); ++i) {
-                if (typeName[i] == ':') {
-                    localName = TrimAscii(typeName.Substr(i + 1U, typeName.SizeBytes() - i - 1U));
-                    break;
-                }
-            }
-            Base::Result<const Meta::TypeInfo*> resolved = context.schema->ResolveType(Meta::AeroNamespaceUri(), localName);
+            Base::StringView prefix;
+            Base::StringView localName;
+            SplitRelaxedQualifiedXamlName(candidateName, prefix, localName);
+            Base::Result<const Meta::TypeInfo*> resolved =
+                context.schema->ResolveType(Meta::AeroNamespaceUri(), localName);
             if (!resolved) {
-                resolved = context.schema->ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), localName);
+                resolved = context.schema->ResolveType(WpfPresentationNamespace, localName);
             }
-            if (resolved && resolved.Value() != nullptr) {
-                resolvedTypeId = resolved.Value()->Id();
-            }
-        }
+            return (resolved && resolved.Value() != nullptr)
+                ? resolved.Value()->Id()
+                : Meta::InvalidTypeId;
+        };
+
+        Base::StringView typeName = key;
+        const bool isTypeKey = TryUnwrapTypeExtensionLiteral(key, typeName);
+        const Meta::TypeId resolvedTypeId = isTypeKey
+            ? resolveSchemaTypeByName(typeName)
+            : Meta::InvalidTypeId;
 
         auto lookupDict = [&](const Aero::ResourceDictionary* dict) -> Aero::Value {
             if (dict == nullptr) return Aero::Value{};
@@ -707,48 +811,33 @@ Base::Result<void> XamlVM::Execute(
                 if (val.Kind() != Meta::ValueKind::Unset) return val;
             }
         }
-        if (context.templateBuilder != nullptr) {
-            ::Aero::Controls::Control& parent = context.templateBuilder->TemplatedParent();
-            if (resolvedTypeId != Meta::InvalidTypeId) {
-                Base::Result<Aero::ResourceValue> rv = parent.FindResource(ResourceKey::FromType(resolvedTypeId));
+        auto lookupFrameworkElement = [&](Base::Object* owner) -> Aero::Value {
+            if (auto* fe = ::Aero::TryCast<FrameworkElement>(owner)) {
+                if (resolvedTypeId != Meta::InvalidTypeId) {
+                    Base::Result<Aero::ResourceValue> rv = fe->FindResource(ResourceKey::FromType(resolvedTypeId));
+                    if (rv && !rv.Value().IsUnset()) return rv.Value();
+                }
+                Base::Result<Aero::ResourceValue> rv = fe->FindResource(key);
                 if (rv && !rv.Value().IsUnset()) return rv.Value();
             }
-            Base::Result<Aero::ResourceValue> rv = parent.FindResource(key);
-            if (rv && !rv.Value().IsUnset()) return rv.Value();
+            return Aero::Value{};
+        };
+
+        if (context.templateBuilder != nullptr) {
+            Aero::Value val = lookupFrameworkElement(&context.templateBuilder->TemplatedParent());
+            if (!val.IsUnset()) return val;
         }
         if (context.deferredContentOwner != nullptr) {
-            if (auto* fe = ::Aero::TryCast<FrameworkElement>(context.deferredContentOwner)) {
-                if (resolvedTypeId != Meta::InvalidTypeId) {
-                    Base::Result<Aero::ResourceValue> rv = fe->FindResource(ResourceKey::FromType(resolvedTypeId));
-                    if (rv && !rv.Value().IsUnset()) return rv.Value();
-                }
-                Base::Result<Aero::ResourceValue> rv = fe->FindResource(key);
-                if (rv && !rv.Value().IsUnset()) return rv.Value();
-            }
+            Aero::Value val = lookupFrameworkElement(context.deferredContentOwner);
+            if (!val.IsUnset()) return val;
         }
         if (context.existingRoot) {
-            if (auto* fe = ::Aero::TryCast<FrameworkElement>(context.existingRoot.Get())) {
-                if (resolvedTypeId != Meta::InvalidTypeId) {
-                    Base::Result<Aero::ResourceValue> rv = fe->FindResource(ResourceKey::FromType(resolvedTypeId));
-                    if (rv && !rv.Value().IsUnset()) return rv.Value();
-                }
-                Base::Result<Aero::ResourceValue> rv = fe->FindResource(key);
-                if (rv && !rv.Value().IsUnset()) {
-                    return rv.Value();
-                }
-            }
+            Aero::Value val = lookupFrameworkElement(context.existingRoot.Get());
+            if (!val.IsUnset()) return val;
         }
         if (context.loadContext != nullptr && context.loadContext->existingRoot) {
-            if (auto* fe = ::Aero::TryCast<FrameworkElement>(context.loadContext->existingRoot.Get())) {
-                if (resolvedTypeId != Meta::InvalidTypeId) {
-                    Base::Result<Aero::ResourceValue> rv = fe->FindResource(ResourceKey::FromType(resolvedTypeId));
-                    if (rv && !rv.Value().IsUnset()) return rv.Value();
-                }
-                Base::Result<Aero::ResourceValue> rv = fe->FindResource(key);
-                if (rv && !rv.Value().IsUnset()) {
-                    return rv.Value();
-                }
-            }
+            Aero::Value val = lookupFrameworkElement(context.loadContext->existingRoot.Get());
+            if (!val.IsUnset()) return val;
         }
         for (const auto& obj : outObjects) {
             if (obj) {
@@ -952,36 +1041,9 @@ Base::Result<void> XamlVM::Execute(
                             ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(*ct);
                             ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(*ct);
                         }
-                        if (subProg->controlTemplateDataTriggers.Empty() &&
-                            subProg->controlTemplateEventTriggers.Empty() &&
-                            !::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*ct).Empty()) {
-                            for (const Base::Ref<Base::Object>& authored :
-                                 ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*ct)) {
-                                if (!authored) continue;
-                                if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
-                                    authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-                                    (authored->RuntimeType() == Trigger::StaticTypeId() &&
-                                     (!static_cast<const Trigger&>(*authored).GetEnterActions().Empty() ||
-                                      !static_cast<const Trigger&>(*authored).GetExitActions().Empty()))) {
-                                    Base::Ref<TriggerBase> retained =
-                                        Base::Ref<TriggerBase>::TryFromBorrowed(
-                                            static_cast<TriggerBase&>(*authored));
-                                    if (!retained) continue;
-                                    Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                                        std::move(retained), *subProg, *runtime, *propRegistry, ct->GetTargetType());
-                                    if (!plan) return plan.GetStatus();
-                                    subProg->controlTemplateDataTriggers.PushBack(std::move(plan).Value());
-                                } else if (runtime->Types().IsDerivedFrom(
-                                               authored->RuntimeType(),
-                                               Media::Animation::EventTrigger::StaticTypeId())) {
-                                    Base::Ref<Media::Animation::EventTrigger> retained =
-                                        Base::Ref<Media::Animation::EventTrigger>::TryFromBorrowed(
-                                            static_cast<Media::Animation::EventTrigger&>(*authored));
-                                    if (!retained) continue;
-                                    subProg->controlTemplateEventTriggers.PushBack(std::move(retained));
-                                }
-                            }
-                        }
+                        Base::Result<void> ctTriggers = CompileAuthoredTemplateTriggers(
+                            *ct, *subProg, *runtime, *propRegistry, true);
+                        if (!ctTriggers) return ctTriggers.GetStatus();
                     }
                 }
                 return ::Aero::Controls::FrameworkTemplateState::Seal(*ct, *propRegistry);
@@ -992,25 +1054,9 @@ Base::Result<void> XamlVM::Execute(
                     if (ftState->deferredProgram.factory == &BuildCompiledDeferredTemplate &&
                         ftState->deferredProgram.context != nullptr && runtime != nullptr) {
                         auto* subProg = static_cast<XamlBytecodeProgram*>(ftState->deferredProgram.context);
-                        if (subProg->dataTemplateTriggers.Empty() &&
-                            !::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*ft).Empty()) {
-                            for (const Base::Ref<Base::Object>& authored :
-                                 ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*ft)) {
-                                if (!authored) continue;
-                                if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
-                                    authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-                                    authored->RuntimeType() == Trigger::StaticTypeId()) {
-                                    Base::Ref<TriggerBase> retained =
-                                        Base::Ref<TriggerBase>::TryFromBorrowed(
-                                            static_cast<TriggerBase&>(*authored));
-                                    if (!retained) continue;
-                                    Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                                        std::move(retained), *subProg, *runtime, *propRegistry);
-                                    if (!plan) return plan.GetStatus();
-                                    subProg->dataTemplateTriggers.PushBack(std::move(plan).Value());
-                                }
-                            }
-                        }
+                        Base::Result<void> dtTriggers = CompileAuthoredTemplateTriggers(
+                            *ft, *subProg, *runtime, *propRegistry, false);
+                        if (!dtTriggers) return dtTriggers.GetStatus();
                     }
                 }
                 return ::Aero::Controls::FrameworkTemplateState::Seal(*ft);
@@ -1042,6 +1088,37 @@ Base::Result<void> XamlVM::Execute(
         return false;
     };
 
+    auto recordVisualContentEdge = [&](
+        const Base::Ref<Base::Object>& parentRef,
+        const Base::Ref<Base::Object>& childRef,
+        std::uint64_t memberId,
+        bool isPropertyEdge) noexcept {
+        if (context.visualContent == nullptr || context.templateBuilder != nullptr ||
+            !parentRef || !childRef || !isVisualEdge(parentRef.Get(), memberId)) {
+            return;
+        }
+        auto* parentUi = ::Aero::TryCast<UIElement>(parentRef.Get());
+        auto* childUi = ::Aero::TryCast<UIElement>(childRef.Get());
+        if (parentUi == nullptr || childUi == nullptr) {
+            return;
+        }
+        for (const auto& edge : context.visualContent->mountEdges) {
+            if (edge.parent == parentUi && edge.child == childUi) {
+                return;
+            }
+        }
+        static_cast<void>(context.visualContent->AddNode(*parentUi));
+        static_cast<void>(context.visualContent->AddNode(*childUi));
+        context.visualContent->mountEdges.PushBack({ parentUi, childUi, {} });
+        context.visualContent->contentEdges.PushBack({
+            parentRef,
+            childRef,
+            runtime,
+            memberId,
+            isPropertyEdge
+        });
+    };
+
     auto setPropertyObject = [&](std::uint16_t slot, std::uint16_t srcSlot, std::uint64_t propHandle, std::uint64_t valueType) -> Base::Result<void> {
         if (slot >= outObjects.Size() || srcSlot >= outObjects.Size() || !outObjects[slot]) {
             return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot in SetPropertyObject");
@@ -1059,33 +1136,7 @@ Base::Result<void> XamlVM::Execute(
             *outObjects[slot], propHandle,
             val,
             runtime, context.templateBuilder));
-        if (context.visualContent != nullptr && context.templateBuilder == nullptr && isVisualEdge(outObjects[slot].Get(), propHandle)) {
-            if (auto* parentUi = ::Aero::TryCast<UIElement>(outObjects[slot].Get())) {
-                if (outObjects[srcSlot]) {
-                    if (auto* childUi = ::Aero::TryCast<UIElement>(outObjects[srcSlot].Get())) {
-                        bool alreadyExists = false;
-                        for (const auto& edge : context.visualContent->mountEdges) {
-                            if (edge.parent == parentUi && edge.child == childUi) {
-                                alreadyExists = true;
-                                break;
-                            }
-                        }
-                        if (!alreadyExists) {
-                            static_cast<void>(context.visualContent->AddNode(*parentUi));
-                            static_cast<void>(context.visualContent->AddNode(*childUi));
-                            context.visualContent->mountEdges.PushBack({ parentUi, childUi, {} });
-                            context.visualContent->contentEdges.PushBack({
-                                outObjects[slot],
-                                outObjects[srcSlot],
-                                runtime,
-                                propHandle,
-                                true
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        recordVisualContentEdge(outObjects[slot], outObjects[srcSlot], propHandle, true);
         return {};
     };
 
@@ -1161,31 +1212,7 @@ Base::Result<void> XamlVM::Execute(
                     }
                 }
             }
-            if (context.visualContent != nullptr && context.templateBuilder == nullptr && isVisualEdge(parent, memberId)) {
-                if (auto* parentUi = ::Aero::TryCast<UIElement>(parent)) {
-                    if (auto* childUi = ::Aero::TryCast<UIElement>(child.Get())) {
-                        bool alreadyExists = false;
-                        for (const auto& edge : context.visualContent->mountEdges) {
-                            if (edge.parent == parentUi && edge.child == childUi) {
-                                alreadyExists = true;
-                                break;
-                            }
-                        }
-                        if (!alreadyExists) {
-                            static_cast<void>(context.visualContent->AddNode(*parentUi));
-                            static_cast<void>(context.visualContent->AddNode(*childUi));
-                            context.visualContent->mountEdges.PushBack({ parentUi, childUi, {} });
-                            context.visualContent->contentEdges.PushBack({
-                                Base::Ref<Base::Object>::FromBorrowed(*parent),
-                                child,
-                                runtime,
-                                memberId,
-                                isPropertyEdge
-                            });
-                        }
-                    }
-                }
-            }
+            recordVisualContentEdge(outObjects[parentSlot], child, memberId, isPropertyEdge);
         } else if (childSlot < outValues.Size() && !outValues[childSlot].IsUnset()) {
             if (memberId != Meta::InvalidMemberId) {
                 if (runtime == nullptr) {
@@ -1733,19 +1760,7 @@ Base::Result<void> XamlVM::Execute(
                     }
                 }
             }
-            services.namespaces = NamespaceScope(
-                +[](void* ctx, Base::StringView prefix) noexcept -> Base::Result<Base::StringView> {
-                    const auto* prog = static_cast<const XamlBytecodeProgram*>(ctx);
-                    for (std::uint32_t i = prog->namespaces.Size(); i > 0U; --i) {
-                        if (prog->namespaces[i - 1U].prefix.View() == prefix) {
-                            return prog->namespaces[i - 1U].uri.View();
-                        }
-                    }
-                    if (prefix.Empty()) return Meta::AeroNamespaceUri();
-                    if (prefix == "x") return Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml");
-                    return Base::Status::Failure(Base::ErrorCode::NotFound, "XAML namespace prefix not found");
-                },
-                const_cast<XamlBytecodeProgram*>(&program));
+            services.namespaces = program.MakeNamespaceScope();
             services.nameScope = activeNames;
             services.effectiveValues = activeEffectiveValues;
             services.bindings = context.bindings != nullptr ? context.bindings : (context.loadContext != nullptr ? context.loadContext->bindings : nullptr);
@@ -1930,44 +1945,14 @@ Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid slot or subProgramIdx in BindTemplateProgram");
             }
             if (auto* subContainer = ::Aero::TryCast<XamlBytecodeContainer>(program.subPrograms[subIdx].Get())) {
-                subContainer->program.ambientResourceOwners.Clear();
-                subContainer->program.ambientDictionaries.Clear();
-                for (const auto& owner : program.ambientResourceOwners) {
-                    subContainer->program.ambientResourceOwners.PushBack(owner);
-                }
-                for (const auto& dict : program.ambientDictionaries) {
-                    if (Base::Result<Aero::ResourceDictionary> shared = dict.Share()) {
-                        subContainer->program.ambientDictionaries.PushBack(std::move(shared).Value());
-                    }
-                }
-                for (const Aero::ResourceDictionary* dict : ambientDictStack) {
-                    if (dict != nullptr) {
-                        if (Base::Result<Aero::ResourceDictionary> shared = dict->Share()) {
-                            subContainer->program.ambientDictionaries.PushBack(std::move(shared).Value());
-                        }
-                    }
-                }
-                for (const auto& obj : outObjects) {
-                    if (obj) {
-                        if (auto* dict = ResolveObjectResourceDictionary(*obj, context.schema)) {
-                            subContainer->program.ambientResourceOwners.PushBack(Base::WeakRef<Base::Object>(obj));
-                            if (Base::Result<Aero::ResourceDictionary> shared = dict->Share()) {
-                                subContainer->program.ambientDictionaries.PushBack(std::move(shared).Value());
-                            }
-                        }
-                    }
-                }
-                if (subContainer->program.fallbackResources.Size() == 0U &&
-                    subContainer->program.fallbackResources.MergedDictionaryCount() == 0U) {
-                    if (context.loadContext != nullptr && context.loadContext->fallbackResources != nullptr) {
-                        subContainer->program.fallbackResources = context.loadContext->fallbackResources->Share();
-                    } else if (context.loadContext != nullptr && context.loadContext->resources != nullptr) {
-                        subContainer->program.fallbackResources = context.loadContext->resources->Share();
-                    } else if (program.fallbackResources.Size() > 0U ||
-                               program.fallbackResources.MergedDictionaryCount() > 0U) {
-                        subContainer->program.fallbackResources = program.fallbackResources.Share();
-                    }
-                }
+                subContainer->program.PropagateAmbientResourcesFrom(
+                    program,
+                    Base::Span<const Aero::ResourceDictionary* const>(
+                        ambientDictStack.Data(), ambientDictStack.Size()),
+                    Base::Span<const Base::Ref<Base::Object>>(
+                        outObjects.Data(), outObjects.Size()),
+                    context.schema,
+                    context.loadContext);
             }
             Base::Result<void> bound = BindCompiledSubProgramToTemplate(
                 *outObjects[slot], program.subPrograms[subIdx], runtime, context.schema);
@@ -2305,20 +2290,7 @@ Base::Result<void> MaterializeCompiledVsmPrograms(
         if (subProg.properties != nullptr) {
             vsmContainer->program.properties = subProg.properties;
         }
-        vsmContainer->program.ambientResourceOwners.Clear();
-        for (const auto& owner : subProg.ambientResourceOwners) {
-            vsmContainer->program.ambientResourceOwners.PushBack(owner);
-        }
-        vsmContainer->program.ambientDictionaries.Clear();
-        for (const auto& dict : subProg.ambientDictionaries) {
-            if (Base::Result<Aero::ResourceDictionary> shared = dict.Share()) {
-                vsmContainer->program.ambientDictionaries.PushBack(std::move(shared).Value());
-            }
-        }
-        if (subProg.fallbackResources.Size() > 0U ||
-            subProg.fallbackResources.MergedDictionaryCount() > 0U) {
-            vsmContainer->program.fallbackResources = subProg.fallbackResources.Share();
-        }
+        vsmContainer->program.PropagateAmbientResourcesFrom(subProg);
         Base::Vector<Base::Ref<Base::Object>> vsmObjects;
         XamlVMContext vmCtx;
         vmCtx.runtime = &runtime;
@@ -2440,25 +2412,9 @@ Base::Result<void> BindCompiledSubProgramToTemplate(
         if (!configured) return configured.GetStatus();
 
         if (runtime != nullptr && properties != nullptr) {
-            if (subProg.dataTemplateTriggers.Empty() &&
-                !::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*frameworkTemplate).Empty()) {
-                for (const Base::Ref<Base::Object>& authored :
-                     ::Aero::Controls::FrameworkTemplateState::AuthoredTriggers(*frameworkTemplate)) {
-                    if (!authored) continue;
-                    if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
-                        authored->RuntimeType() == MultiDataTrigger::StaticTypeId() ||
-                        authored->RuntimeType() == Trigger::StaticTypeId()) {
-                        Base::Ref<TriggerBase> retained =
-                            Base::Ref<TriggerBase>::TryFromBorrowed(
-                                static_cast<TriggerBase&>(*authored));
-                        if (!retained) continue;
-                        Base::Result<CompiledTriggerPlan> plan = CompileTriggerPlan(
-                            std::move(retained), subProg, *runtime, *properties);
-                        if (!plan) return plan.GetStatus();
-                        subProg.dataTemplateTriggers.PushBack(std::move(plan).Value());
-                    }
-                }
-            }
+            Base::Result<void> dtTriggers = CompileAuthoredTemplateTriggers(
+                *frameworkTemplate, subProg, *runtime, *properties, false);
+            if (!dtTriggers) return dtTriggers.GetStatus();
         }
 
         return {};

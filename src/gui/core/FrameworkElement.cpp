@@ -137,6 +137,9 @@ FrameworkElement::~FrameworkElement() {
 
 Base::Ref<Transform>
 FrameworkElement::GetLayoutTransform() const noexcept {
+    if (!layoutScalars_.hasLayoutTransform) {
+        return {};
+    }
     Base::Result<Base::Ref<Transform>> value =
         GetValue(LayoutTransformProperty);
     return value
@@ -151,8 +154,16 @@ void FrameworkElement::SetLayoutTransform(
         std::move(value));
 }
 
+bool FrameworkElement::HasLocalVisualTransform() const noexcept {
+    return layoutScalars_.hasLayoutTransform || HasRenderTransform() ||
+        (frameworkRare_ != nullptr && frameworkRare_->hasViewboxTransform);
+}
+
 Base::ProjectiveTransform2D
 FrameworkElement::GetLocalVisualTransform() const noexcept {
+    if (!HasLocalVisualTransform()) {
+        return Base::IdentityProjective();
+    }
     Base::Transform2D result;
     Size visualSize = GetRenderSize();
     Base::Ref<Transform> layoutTransform =
@@ -241,6 +252,29 @@ void FrameworkElement::SyncLayoutScalarProperty(
     } else if (property == MarginProperty.Handle()) {
         Base::Result<Thickness> decoded = Meta::ValueCodec<Thickness>::Decode(newValue);
         if (decoded) layoutScalars_.margin = decoded.Value();
+    } else if (property == HorizontalAlignmentProperty.Handle()) {
+        Base::Result<HorizontalAlignment> decoded =
+            Meta::ValueCodec<HorizontalAlignment>::Decode(newValue);
+        if (decoded) layoutScalars_.horizontalAlignment = decoded.Value();
+    } else if (property == VerticalAlignmentProperty.Handle()) {
+        Base::Result<VerticalAlignment> decoded =
+            Meta::ValueCodec<VerticalAlignment>::Decode(newValue);
+        if (decoded) layoutScalars_.verticalAlignment = decoded.Value();
+    } else if (property == FlowDirectionProperty.Handle()) {
+        Base::Result<FlowDirection> decoded =
+            Meta::ValueCodec<FlowDirection>::Decode(newValue);
+        if (decoded) layoutScalars_.flowDirection = decoded.Value();
+    } else if (property == UseLayoutRoundingProperty.Handle()) {
+        Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
+        if (decoded) layoutScalars_.useLayoutRounding = decoded.Value();
+    } else if (property == SnapsToDevicePixelsProperty.Handle()) {
+        Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
+        if (decoded) layoutScalars_.snapsToDevicePixels = decoded.Value();
+    } else if (property == LayoutTransformProperty.Handle()) {
+        layoutScalars_.hasLayoutTransform =
+            newValue.Kind() == Meta::ValueKind::Object &&
+            !newValue.IsNullObject() &&
+            newValue.AsObject() != nullptr;
     }
 }
 
@@ -488,12 +522,12 @@ void FrameworkElement::SetFontFamily(StringView value) noexcept {
 
 // from src/gui/controls/Layout.cpp
 VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
-    return GetValue(VerticalAlignmentProperty);
+    return layoutScalars_.verticalAlignment;
 }
 
 // from src/gui/controls/Layout.cpp
 HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
-    return GetValue(HorizontalAlignmentProperty);
+    return layoutScalars_.horizontalAlignment;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -540,30 +574,12 @@ bool FrameworkElement::GetHasWidth() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
-    return GetValue(SnapsToDevicePixelsProperty);
+    return layoutScalars_.snapsToDevicePixels;
 }
 
 // from src/gui/controls/Layout.cpp
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 bool FrameworkElement::GetUseLayoutRounding() const noexcept {
-    return GetValue(UseLayoutRoundingProperty);
+    return layoutScalars_.useLayoutRounding;
 }
 
 // from src/gui/controls/Layout.cpp

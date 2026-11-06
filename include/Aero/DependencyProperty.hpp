@@ -264,6 +264,7 @@ public:
     bool AcceptsAnyValue() const noexcept { return HasFlag(flags_, DependencyPropertyFlags::AnyValue); }
     std::uint32_t MetadataCount() const noexcept { return metadata_.Size(); }
     std::uint8_t InheritanceIndex() const noexcept { return inheritanceIndex_; }
+    std::uint16_t GlobalIndex() const noexcept { return globalIndex_; }
 
     // Metadata addresses become stable when the owning registry is frozen.
     const PropertyMetadata* MetadataFor(TypeId forType) const noexcept;
@@ -282,10 +283,12 @@ private:
         DependencyPropertyFlags flags = DependencyPropertyFlags::None;
     };
 
+    static constexpr std::uint32_t kMetadataCacheSlots = 8U;
+
     DependencyProperty() noexcept : name_(), metadata_() {}
 
     void ClearMetadataCache() const noexcept {
-        for (std::uint32_t i = 0U; i < 4U; ++i) {
+        for (std::uint32_t i = 0U; i < kMetadataCacheSlots; ++i) {
             metadataCache_[i] = {};
         }
     }
@@ -298,6 +301,7 @@ private:
     TypeId registeredOwnerType_ = InvalidTypeId;
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
     std::uint8_t inheritanceIndex_ = 0xFFU;
+    std::uint16_t globalIndex_ = 0xFFFFU;
     std::uint64_t readOnlySecret_ = 0U;
 
     struct MetadataCacheEntry {
@@ -307,7 +311,7 @@ private:
 
     String name_;
     Base::Vector<MetadataEntry> metadata_;
-    mutable MetadataCacheEntry metadataCache_[4]{};
+    mutable MetadataCacheEntry metadataCache_[kMetadataCacheSlots]{};
 };
 
 } // namespace Aero::Meta

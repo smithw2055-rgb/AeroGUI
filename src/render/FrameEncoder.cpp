@@ -79,6 +79,43 @@ inline void WriteVertex(
     uint32_t color32 = 0xFFFFFFFF,
     float u = 0.0f, float v = 0.0f,
     float coverage = 1.0f) noexcept {
+    switch (off.format) {
+    case 0U:
+        *reinterpret_cast<VertexPos*>(dst) = VertexPos{x, y};
+        return;
+    case 1U:
+        *reinterpret_cast<VertexPosColor*>(dst) = VertexPosColor{x, y, color32};
+        return;
+    case 2U:
+        *reinterpret_cast<VertexPosTex0*>(dst) = VertexPosTex0{x, y, u, v};
+        return;
+    case 5U:
+        *reinterpret_cast<VertexPosColorCoverage*>(dst) =
+            VertexPosColorCoverage{x, y, color32, coverage};
+        return;
+    case 6U:
+        *reinterpret_cast<VertexPosTex0Coverage*>(dst) =
+            VertexPosTex0Coverage{x, y, u, v, coverage};
+        return;
+    case 9U:
+        *reinterpret_cast<VertexPosColorTex1*>(dst) =
+            VertexPosColorTex1{x, y, color32, u, v};
+        return;
+    case 10U:
+        *reinterpret_cast<VertexPosTex0Tex1*>(dst) =
+            VertexPosTex0Tex1{x, y, u, v, 0.0f, 0.0f};
+        return;
+    case 13U:
+        *reinterpret_cast<VertexPosColorTex0Tex1*>(dst) =
+            VertexPosColorTex0Tex1{x, y, color32, u, v, 0.0f, 0.0f};
+        return;
+    case Shader::Vertex::Format::Count:
+        *reinterpret_cast<Vertex2D*>(dst) = Vertex2D{x, y, color32, u, v, coverage};
+        return;
+    default:
+        break;
+    }
+
     auto* pos = reinterpret_cast<float*>(dst);
     pos[0] = x;
     pos[1] = y;
@@ -119,16 +156,14 @@ inline void WriteVertex(
     }
 }
 
-
-uint32_t HashUniformDwords(const float* values, uint32_t numDwords) noexcept {
-    const auto* bytes = reinterpret_cast<const uint8_t*>(values);
-    const size_t len = static_cast<size_t>(numDwords) * sizeof(float);
-    uint32_t hash = 2166136261U;
-    for (size_t i = 0; i < len; ++i) {
-        hash ^= bytes[i];
-        hash *= 16777619U;
+constexpr BlendMode::Enum ToRenderBlendMode(::Aero::BlendMode mode) noexcept {
+    switch (mode) {
+    case ::Aero::BlendMode::Multiply: return BlendMode::SrcOver_Multiply;
+    case ::Aero::BlendMode::Screen:   return BlendMode::SrcOver_Screen;
+    case ::Aero::BlendMode::Additive: return BlendMode::SrcOver_Additive;
+    case ::Aero::BlendMode::Normal:
+    default:                          return BlendMode::SrcOver;
     }
-    return hash != 0U ? hash : 1U;
 }
 
 ProjectiveTransform2D CombineTransform(
@@ -493,16 +528,6 @@ void UiFrameEncoder::CommitBatches() noexcept {
         pendingReleaseTargets_.Clear();
     }
 
-    currentBatch_.pattern = nullptr;
-    currentBatch_.ramps = nullptr;
-    currentBatch_.image = nullptr;
-    currentBatch_.glyphs = nullptr;
-    currentBatch_.shadow = nullptr;
-    currentBatch_.pixelUniforms[0] = {};
-    currentBatch_.pixelUniforms[1] = {};
-    currentBatch_.vertexUniforms[0] = {};
-    currentBatch_.vertexUniforms[1] = {};
-
     currentVertexOffset_ = 0U;
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
@@ -641,18 +666,7 @@ void UiFrameEncoder::EmitTriangleFan(
     stats_.indexCount += indexCount;
 }
 
-void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
-    if (currentBatch_.numIndices > 0U &&
-        (currentBatch_.shader != shader ||
-         currentBatch_.pattern != nullptr ||
-         currentBatch_.ramps != nullptr ||
-         currentBatch_.image != nullptr ||
-         currentBatch_.glyphs != nullptr ||
-         currentBatch_.shadow != nullptr ||
-         currentBatch_.renderState.f.colorEnable != 1U ||
-         currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
-        FlushBatch();
-    }
+void UiFrameEncoder::ResetBatchPayloads(Shader::Enum shader) noexcept {
     currentBatch_.shader = shader;
     currentBatch_.pattern = nullptr;
     currentBatch_.ramps = nullptr;
@@ -665,6 +679,21 @@ void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
     currentBatch_.vertexUniforms[1] = {};
     AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
     AssignColorEnable(currentBatch_.renderState, 1U);
+}
+
+void UiFrameEncoder::EnsureBatchBlend(Shader::Enum shader) noexcept {
+    if (currentBatch_.numIndices > 0U &&
+        (currentBatch_.shader != shader ||
+         currentBatch_.pattern != nullptr ||
+         currentBatch_.ramps != nullptr ||
+         currentBatch_.image != nullptr ||
+         currentBatch_.glyphs != nullptr ||
+         currentBatch_.shadow != nullptr ||
+         currentBatch_.renderState.f.colorEnable != 1U ||
+         currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_))) {
+        FlushBatch();
+    }
+    ResetBatchPayloads(shader);
 }
 
 void UiFrameEncoder::SetBatchImage(
@@ -686,22 +715,13 @@ void UiFrameEncoder::SetBatchImage(
              static_cast<uint8_t>(currentBlendMode_))) {
         FlushBatch();
     }
-    currentBatch_.shader = shader;
-    currentBatch_.pattern = nullptr;
-    currentBatch_.ramps = nullptr;
+    ResetBatchPayloads(shader);
     currentBatch_.image = texture;
-    currentBatch_.glyphs = nullptr;
     currentBatch_.shadow = maskTexture;
-    currentBatch_.pixelUniforms[0] = {};
-    currentBatch_.pixelUniforms[1] = {};
-    currentBatch_.vertexUniforms[0] = {};
-    currentBatch_.vertexUniforms[1] = {};
     currentBatch_.imageSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.imageSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.shadowSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.shadowSampler.f.minmagFilter = MinMagFilter::Linear;
-    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
-    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::SetBatchRamp(
@@ -727,21 +747,12 @@ void UiFrameEncoder::SetBatchRamp(
         FlushBatch();
     }
     std::memcpy(paintUniforms_, uniforms, sizeof(paintUniforms_));
-    currentBatch_.shader = shader;
-    currentBatch_.pattern = nullptr;
+    ResetBatchPayloads(shader);
     currentBatch_.ramps = ramp;
-    currentBatch_.image = nullptr;
-    currentBatch_.glyphs = nullptr;
-    currentBatch_.shadow = nullptr;
-    currentBatch_.pixelUniforms[1] = {};
-    currentBatch_.vertexUniforms[0] = {};
-    currentBatch_.vertexUniforms[1] = {};
     currentBatch_.rampsSampler.f.wrapMode = wrapMode;
     currentBatch_.rampsSampler.f.minmagFilter = MinMagFilter::Linear;
     currentBatch_.pixelUniforms[0].values = paintUniforms_;
     currentBatch_.pixelUniforms[0].numDwords = 8U;
-    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
-    AssignColorEnable(currentBatch_.renderState, 1U);
 }
 
 void UiFrameEncoder::EmitMaskBrush(
@@ -1219,9 +1230,7 @@ void UiFrameEncoder::SetContentStencil() noexcept {
     currentBatch_.stencilRef = ref;
 }
 
-void UiFrameEncoder::EmitClipQuad(
-    const Rect& rect,
-    const ProjectiveTransform2D& transform,
+void UiFrameEncoder::BeginStencilClipBatch(
     std::uint8_t stencilMode,
     std::uint8_t stencilRef) noexcept {
     if (currentBatch_.numIndices > 0U &&
@@ -1236,20 +1245,19 @@ void UiFrameEncoder::EmitClipQuad(
          currentBatch_.stencilRef != stencilRef)) {
         FlushBatch();
     }
-    currentBatch_.shader = Shader::Path_Solid;
-    currentBatch_.pattern = nullptr;
-    currentBatch_.ramps = nullptr;
-    currentBatch_.image = nullptr;
-    currentBatch_.glyphs = nullptr;
-    currentBatch_.shadow = nullptr;
-    currentBatch_.pixelUniforms[0] = {};
-    currentBatch_.pixelUniforms[1] = {};
-    currentBatch_.vertexUniforms[0] = {};
-    currentBatch_.vertexUniforms[1] = {};
+    ResetBatchPayloads(Shader::Path_Solid);
     AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
     AssignColorEnable(currentBatch_.renderState, 0U);
     AssignStencilMode(currentBatch_.renderState, stencilMode);
     currentBatch_.stencilRef = stencilRef;
+}
+
+void UiFrameEncoder::EmitClipQuad(
+    const Rect& rect,
+    const ProjectiveTransform2D& transform,
+    std::uint8_t stencilMode,
+    std::uint8_t stencilRef) noexcept {
+    BeginStencilClipBatch(stencilMode, stencilRef);
 
     const Point p0 = TransformPoint(transform, rect.x, rect.y);
     const Point p1 = TransformPoint(transform, rect.x + rect.width, rect.y);
@@ -1279,32 +1287,7 @@ void UiFrameEncoder::EmitClipTriangles(
         indexCount > indices.Size() - indexOffset) {
         return;
     }
-    if (currentBatch_.numIndices > 0U &&
-        (currentBatch_.shader != Shader::Path_Solid ||
-         currentBatch_.pattern != nullptr ||
-         currentBatch_.ramps != nullptr ||
-         currentBatch_.image != nullptr ||
-         currentBatch_.glyphs != nullptr ||
-         currentBatch_.shadow != nullptr ||
-         currentBatch_.renderState.f.colorEnable != 0U ||
-         currentBatch_.renderState.f.stencilMode != stencilMode ||
-         currentBatch_.stencilRef != stencilRef)) {
-        FlushBatch();
-    }
-    currentBatch_.shader = Shader::Path_Solid;
-    currentBatch_.pattern = nullptr;
-    currentBatch_.ramps = nullptr;
-    currentBatch_.image = nullptr;
-    currentBatch_.glyphs = nullptr;
-    currentBatch_.shadow = nullptr;
-    currentBatch_.pixelUniforms[0] = {};
-    currentBatch_.pixelUniforms[1] = {};
-    currentBatch_.vertexUniforms[0] = {};
-    currentBatch_.vertexUniforms[1] = {};
-    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(BlendMode::SrcOver));
-    AssignColorEnable(currentBatch_.renderState, 0U);
-    AssignStencilMode(currentBatch_.renderState, stencilMode);
-    currentBatch_.stencilRef = stencilRef;
+    BeginStencilClipBatch(stencilMode, stencilRef);
 
     uint32_t stride = 0U;
     const auto& offsets = CurrentVertexFormat(stride);
@@ -2295,21 +2278,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     auto emitNodeCommands = [&](const RenderNodeSnapshot& node,
                                 const ProjectiveTransform2D& nodeTransform,
                                 double nodeOpacity) noexcept {
-        switch (node.blendMode) {
-        case ::Aero::BlendMode::Multiply:
-            currentBlendMode_ = BlendMode::SrcOver_Multiply;
-            break;
-        case ::Aero::BlendMode::Screen:
-            currentBlendMode_ = BlendMode::SrcOver_Screen;
-            break;
-        case ::Aero::BlendMode::Additive:
-            currentBlendMode_ = BlendMode::SrcOver_Additive;
-            break;
-        case ::Aero::BlendMode::Normal:
-        default:
-            currentBlendMode_ = BlendMode::SrcOver;
-            break;
-        }
+        currentBlendMode_ = ToRenderBlendMode(node.blendMode);
         if (currentBatch_.numIndices > 0U &&
             currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_)) {
             FlushBatch();
@@ -2406,57 +2375,74 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
     //  2. one reverse pass computing every subtree end with a monotonic
     //     scan (path compression, amortized O(n));
     //  3. prefix sums over commandCount for O(1) subtree command queries.
-    recordDepths_.Clear();
-    recordAncestorStack_.Clear();
-    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        const RenderNodeId parentId = nodes[i].parentId;
-        while (!recordAncestorStack_.Empty() && recordAncestorStack_.Back() != parentId) {
-            static_cast<void>(recordAncestorStack_.PopBack());
+    // Fast path: RenderTree::Commit precomputes subtreeEnd, subtreeCommandCount,
+    // and descendantHasEffectOrMask directly on RenderNodeSnapshot during its
+    // single DFS pass. Fall back to the scratch vectors only for synthetic unit
+    // test frames constructed outside RenderTree::Commit.
+    const bool hasPrecomputedSubtrees =
+        nodeCount > 0U && nodes[0].subtreeEnd == nodeCount;
+    if (!hasPrecomputedSubtrees) {
+        recordDepths_.Clear();
+        recordAncestorStack_.Clear();
+        for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+            const RenderNodeId parentId = nodes[i].parentId;
+            while (!recordAncestorStack_.Empty() && recordAncestorStack_.Back() != parentId) {
+                static_cast<void>(recordAncestorStack_.PopBack());
+            }
+            static_cast<void>(recordDepths_.PushBack(recordAncestorStack_.Size()));
+            static_cast<void>(recordAncestorStack_.PushBack(nodes[i].id));
         }
-        // Orphan parent ids (invalid frames) bottom out at depth 0, matching
-        // the old kNotFound behavior where isInSubtree() returned false.
-        static_cast<void>(recordDepths_.PushBack(recordAncestorStack_.Size()));
-        static_cast<void>(recordAncestorStack_.PushBack(nodes[i].id));
-    }
 
-    recordSubtreeEnds_.Clear();
-    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        static_cast<void>(recordSubtreeEnds_.PushBack(i + 1U));
-    }
-    for (std::uint32_t i = nodeCount; i > 0U;) {
-        --i;
-        std::uint32_t end = i + 1U;
-        while (end < nodeCount && recordDepths_[end] > recordDepths_[i]) {
-            end = recordSubtreeEnds_[end];
+        recordSubtreeEnds_.Clear();
+        for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+            static_cast<void>(recordSubtreeEnds_.PushBack(i + 1U));
         }
-        recordSubtreeEnds_[i] = end;
-    }
+        for (std::uint32_t i = nodeCount; i > 0U;) {
+            --i;
+            std::uint32_t end = i + 1U;
+            while (end < nodeCount && recordDepths_[end] > recordDepths_[i]) {
+                end = recordSubtreeEnds_[end];
+            }
+            recordSubtreeEnds_[i] = end;
+        }
 
-    recordCommandPrefix_.Clear();
-    static_cast<void>(recordCommandPrefix_.PushBack(0U));
-    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        static_cast<void>(recordCommandPrefix_.PushBack(
-            recordCommandPrefix_[i] + nodes[i].commandCount));
-    }
+        recordCommandPrefix_.Clear();
+        static_cast<void>(recordCommandPrefix_.PushBack(0U));
+        for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+            static_cast<void>(recordCommandPrefix_.PushBack(
+                recordCommandPrefix_[i] + nodes[i].commandCount));
+        }
 
-    recordEffectMaskPrefix_.Clear();
-    static_cast<void>(recordEffectMaskPrefix_.PushBack(0U));
-    for (std::uint32_t i = 0U; i < nodeCount; ++i) {
-        const RenderEffectSnapshot* eff = frame.EffectAt(nodes[i].effectIndex);
-        const RenderMaskSnapshot* msk = frame.MaskAt(nodes[i].maskIndex);
-        const bool hasEff = (eff != nullptr && eff->kind != RenderEffectKind::None) ||
-                            (msk != nullptr && msk->kind != RenderMaskKind::None);
-        static_cast<void>(recordEffectMaskPrefix_.PushBack(
-            recordEffectMaskPrefix_[i] + (hasEff ? 1U : 0U)));
+        recordEffectMaskPrefix_.Clear();
+        static_cast<void>(recordEffectMaskPrefix_.PushBack(0U));
+        for (std::uint32_t i = 0U; i < nodeCount; ++i) {
+            const RenderEffectSnapshot* eff = frame.EffectAt(nodes[i].effectIndex);
+            const RenderMaskSnapshot* msk = frame.MaskAt(nodes[i].maskIndex);
+            const bool hasEff = (eff != nullptr && eff->kind != RenderEffectKind::None) ||
+                                (msk != nullptr && msk->kind != RenderMaskKind::None);
+            static_cast<void>(recordEffectMaskPrefix_.PushBack(
+                recordEffectMaskPrefix_[i] + (hasEff ? 1U : 0U)));
+        }
     }
 
     auto subtreeEndOf = [&](std::uint32_t rootIndex) noexcept {
-        return recordSubtreeEnds_[rootIndex];
+        return hasPrecomputedSubtrees
+            ? nodes[rootIndex].subtreeEnd
+            : recordSubtreeEnds_[rootIndex];
     };
 
     auto subtreeCommandCount = [&](std::uint32_t rootIndex) noexcept {
-        return recordCommandPrefix_[recordSubtreeEnds_[rootIndex]] -
-            recordCommandPrefix_[rootIndex];
+        return hasPrecomputedSubtrees
+            ? nodes[rootIndex].subtreeCommandCount
+            : (recordCommandPrefix_[recordSubtreeEnds_[rootIndex]] -
+               recordCommandPrefix_[rootIndex]);
+    };
+
+    auto subtreeDescendantHasEffect = [&](std::uint32_t rootIndex, std::uint32_t subEnd) noexcept {
+        if (subEnd <= rootIndex + 1U) return false;
+        return hasPrecomputedSubtrees
+            ? nodes[rootIndex].descendantHasEffectOrMask
+            : (recordEffectMaskPrefix_[subEnd] - recordEffectMaskPrefix_[rootIndex + 1U] > 0U);
     };
 
     // 在 RecordOnscreen 内部定义统一的递归子树录制器，支持任意深度离屏嵌套：
@@ -2482,10 +2468,20 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
                 stack.Empty() ? 1.0 : stack.Back().opacity;
 
             const bool isCurrentPassRoot = isOffscreenRoot && (idx == startIndex);
-            const ProjectiveTransform2D local = isCurrentPassRoot
-                ? ProjectiveTransform2D{}
-                : CombineTransform(node.renderTransform, MakeTranslate(node.layoutSlot.x, node.layoutSlot.y));
-            const ProjectiveTransform2D nodeTransform = CombineTransform(local, baseTransform);
+            ProjectiveTransform2D nodeTransform = baseTransform;
+            if (!isCurrentPassRoot) {
+                const double sx = node.layoutSlot.x;
+                const double sy = node.layoutSlot.y;
+                if (node.isIdentityTransform) {
+                    nodeTransform.m31 += sx * baseTransform.m11 + sy * baseTransform.m21;
+                    nodeTransform.m32 += sx * baseTransform.m12 + sy * baseTransform.m22;
+                    nodeTransform.m33 += sx * baseTransform.m13 + sy * baseTransform.m23;
+                } else {
+                    const ProjectiveTransform2D local =
+                        CombineTransform(node.renderTransform, MakeTranslate(sx, sy));
+                    nodeTransform = CombineTransform(local, baseTransform);
+                }
+            }
             const double nodeOpacity = isCurrentPassRoot ? 1.0 : (baseOpacity * node.opacity);
 
             const std::uint32_t subEnd = subtreeEndOf(idx);
@@ -2498,8 +2494,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             bool takeOffscreen = false;
             if (!isCurrentPassRoot) {
                 const std::uint32_t subCmds = subtreeCommandCount(idx);
-                const bool subHasEffect = (subEnd > idx + 1U) &&
-                    (recordEffectMaskPrefix_[subEnd] - recordEffectMaskPrefix_[idx + 1U] > 0U);
+                const bool subHasEffect = subtreeDescendantHasEffect(idx, subEnd);
                 const bool needs3D = subCmds > 0U && !Base::IsAffine(node.renderTransform) && subHasEffect;
                 takeOffscreen = RenderPassPlanner::NeedsOffscreenFBO(
                     node,
@@ -2604,13 +2599,7 @@ Base::Result<void> UiFrameEncoder::RecordOnscreen(
             device_->BeginTile(&currentTarget, Tile{0U, 0U, targetWidth, targetHeight});
             clipDepth_ = savedClipDepth;
 
-            switch (node.blendMode) {
-            case ::Aero::BlendMode::Multiply: currentBlendMode_ = BlendMode::SrcOver_Multiply; break;
-            case ::Aero::BlendMode::Screen: currentBlendMode_ = BlendMode::SrcOver_Screen; break;
-            case ::Aero::BlendMode::Additive: currentBlendMode_ = BlendMode::SrcOver_Additive; break;
-            case ::Aero::BlendMode::Normal:
-            default: currentBlendMode_ = BlendMode::SrcOver; break;
-            }
+            currentBlendMode_ = ToRenderBlendMode(node.blendMode);
 
             CompositeOffscreen(node, offscreen, maskTarget, compositeTransform, nodeOpacity, dpi, frame, &currentTarget, targetWidth, targetHeight);
             ReleaseOffscreenTarget(offscreen);
@@ -2657,21 +2646,14 @@ void UiFrameEncoder::Downsample(
              static_cast<uint8_t>(currentBlendMode_))) {
         FlushBatch();
     }
-    currentBatch_.shader = Shader::Downsample;
+    ResetBatchPayloads(Shader::Downsample);
     currentBatch_.pattern = source;
-    currentBatch_.image = nullptr;
-    currentBatch_.shadow = nullptr;
-    currentBatch_.glyphs = nullptr;
-    currentBatch_.ramps = nullptr;
     currentBatch_.patternSampler.f.wrapMode = WrapMode::ClampToEdge;
     currentBatch_.patternSampler.f.minmagFilter = MinMagFilter::Linear;
-    AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
-    AssignColorEnable(currentBatch_.renderState, 1U);
 
     paintUniforms_[0] = static_cast<float>(sourceDimensions.width);
     paintUniforms_[1] = static_cast<float>(sourceDimensions.height);
     currentBatch_.pixelUniforms[0] = {paintUniforms_, 2U, 0U};
-    currentBatch_.pixelUniforms[1] = {};
 
     const Point points[4] = {
         {bounds.x, bounds.y},

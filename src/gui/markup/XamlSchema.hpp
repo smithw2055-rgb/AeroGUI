@@ -2214,6 +2214,97 @@ ResolvedMember MakeResolvedEventMember(
 // SECTION: XamlPropertyResolution
 // ============================================================================
 
+enum class QualifiedNameSplitStatus : std::uint8_t {
+    Ok = 0U,
+    MultipleColons,
+    MalformedPrefix
+};
+
+inline QualifiedNameSplitStatus SplitQualifiedXamlName(
+    Base::StringView name,
+    Base::StringView& outPrefix,
+    Base::StringView& outLocalName) noexcept {
+    std::uint32_t colon = name.SizeBytes();
+    for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
+        if (name[index] != ':') continue;
+        if (colon != name.SizeBytes()) {
+            return QualifiedNameSplitStatus::MultipleColons;
+        }
+        colon = index;
+    }
+    if (colon == name.SizeBytes()) {
+        outPrefix = {};
+        outLocalName = name;
+        return QualifiedNameSplitStatus::Ok;
+    }
+    if (colon == 0U || colon + 1U >= name.SizeBytes()) {
+        return QualifiedNameSplitStatus::MalformedPrefix;
+    }
+    outPrefix = name.Substr(0U, colon);
+    outLocalName = name.Substr(colon + 1U, name.SizeBytes() - colon - 1U);
+    return QualifiedNameSplitStatus::Ok;
+}
+
+inline void SplitRelaxedQualifiedXamlName(
+    Base::StringView name,
+    Base::StringView& outPrefix,
+    Base::StringView& outLocalName) noexcept {
+    outPrefix = {};
+    outLocalName = name;
+    for (std::uint32_t i = 0U; i < name.SizeBytes(); ++i) {
+        if (name[i] == ':') {
+            outPrefix = TrimAscii(name.Substr(0U, i));
+            outLocalName = TrimAscii(name.Substr(i + 1U, name.SizeBytes() - i - 1U));
+            return;
+        }
+    }
+}
+
+inline bool TryUnwrapTypeExtensionLiteral(
+    Base::StringView text,
+    Base::StringView& outTypeName) noexcept {
+    const Base::StringView trimmed = TrimAscii(text);
+    if (trimmed.SizeBytes() >= 2U &&
+        trimmed[0] == '{' &&
+        trimmed[trimmed.SizeBytes() - 1U] == '}') {
+        const Base::StringView inner = TrimAscii(
+            trimmed.Substr(1U, trimmed.SizeBytes() - 2U));
+        if (inner.SizeBytes() >= 7U && inner.Substr(0U, 7U) == "x:Type ") {
+            outTypeName = TrimAscii(inner.Substr(7U, inner.SizeBytes() - 7U));
+            return !outTypeName.Empty();
+        }
+        if (inner.SizeBytes() >= 5U && inner.Substr(0U, 5U) == "Type ") {
+            outTypeName = TrimAscii(inner.Substr(5U, inner.SizeBytes() - 5U));
+            return !outTypeName.Empty();
+        }
+    }
+    return false;
+}
+
+inline bool IsPassthroughMarkupPropertyValue(
+    const ::Aero::Meta::Value& value) noexcept {
+    if (value.IsDynamicResource()) {
+        return true;
+    }
+    return value.Kind() == ::Aero::Meta::ValueKind::Object &&
+        !value.IsNullObject() &&
+        (value.Type() == ::Aero::Data::Binding::StaticTypeId() ||
+         (value.AsObject() &&
+          value.AsObject()->RuntimeType() ==
+              ::Aero::Data::Binding::StaticTypeId()));
+}
+
+::Aero::Base::Result<::Aero::Meta::Value> BoxXamlStringAsObject(
+    ::Aero::Base::StringView text) noexcept;
+
+::Aero::Base::Status FormatMissingTargetPropertyStatus(
+    const char* scopeName,
+    const char* role,
+    ::Aero::Base::StringView property,
+    ::Aero::Meta::TypeId targetType,
+    const ::Aero::Meta::TypeRegistry& types,
+    ::Aero::Base::ErrorCode errorCode) noexcept;
+
 const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
     const ::Aero::Meta::DependencyPropertyRegistry& properties,
     ::Aero::Meta::TypeId targetType,

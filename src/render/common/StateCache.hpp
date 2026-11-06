@@ -6,6 +6,20 @@
 
 namespace Aero::Render {
 
+inline uint32_t HashBytesFNV1a(const void* data, std::size_t size) noexcept {
+    const auto* bytes = static_cast<const uint8_t*>(data);
+    uint32_t hash = 2166136261U;
+    for (std::size_t i = 0; i < size; ++i) {
+        hash ^= bytes[i];
+        hash *= 16777619U;
+    }
+    return hash != 0U ? hash : 1U;
+}
+
+inline uint32_t HashUniformDwords(const float* values, uint32_t numDwords) noexcept {
+    return HashBytesFNV1a(values, static_cast<std::size_t>(numDwords) * sizeof(float));
+}
+
 struct VertexOffsets {
     std::int8_t colorOffset = -1;
     std::int8_t tex0Offset = -1;
@@ -15,10 +29,12 @@ struct VertexOffsets {
     std::int8_t tileOffset = -1;
     std::int8_t imagePosOffset = -1;
     std::uint8_t stride = 0;
+    std::uint8_t format = Shader::Vertex::Format::Count;
 };
 
 constexpr VertexOffsets ComputeVertexOffsets(uint8_t format) noexcept {
     VertexOffsets offsets{};
+    offsets.format = format;
     if (format >= Shader::Vertex::Format::Count) {
         offsets.colorOffset = 8;
         offsets.tex0Offset = 12;
@@ -255,14 +271,23 @@ struct RingBufferTracker {
         currentDrawOffset = 0U;
     }
 
+    static constexpr uint32_t AlignUp(uint32_t value, uint32_t alignment) noexcept {
+        if (alignment <= 1U) return value;
+        if ((alignment & (alignment - 1U)) == 0U) {
+            return (value + alignment - 1U) & ~(alignment - 1U);
+        }
+        const uint32_t rem = value % alignment;
+        return rem == 0U ? value : (value + alignment - rem);
+    }
+
     // Returns true when a wrap-around occurs and the backend must orphan/discard the buffer
     [[nodiscard]] bool Allocate(uint32_t bytes, uint32_t alignment, uint32_t& outOffset) noexcept {
         if (capacity == 0U || bytes == 0U) {
             outOffset = 0U;
             return false;
         }
-        const uint32_t alignedBytes = (bytes + alignment - 1U) & ~(alignment - 1U);
-        const uint32_t alignedHead = (head + alignment - 1U) & ~(alignment - 1U);
+        const uint32_t alignedBytes = AlignUp(bytes, alignment);
+        const uint32_t alignedHead = AlignUp(head, alignment);
         if (alignedHead + alignedBytes > capacity) {
             outOffset = 0U;
             currentDrawOffset = 0U;

@@ -78,6 +78,13 @@ private:
     const char* truncatedMessage_ = "Binary payload is truncated";
 };
 
+Base::Result<void> AppendCompiledCacheIdentity(
+    Base::Vector<std::uint8_t>& output,
+    const CompiledCacheIdentity& identity) noexcept;
+
+Base::Result<CompiledCacheIdentity> ReadCompiledCacheIdentity(
+    Decoder& decoder) noexcept;
+
 // ============================================================================
 // XamlEventConnection
 // ============================================================================
@@ -129,7 +136,7 @@ struct CompiledTriggerSetter {
 };
 
 struct CompiledTriggerCondition {
-    std::uint32_t sourceSlot = UINT32_MAX;
+    std::int32_t sourceSlot = -1;
     Meta::DependencyPropertyHandle property;
     Base::Ref<Data::Binding> binding;
     Meta::PropertyValue value;
@@ -151,6 +158,13 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     ::Aero::Meta::Registry& runtime,
     Meta::DependencyPropertyRegistry& properties,
     Meta::TypeId controlTargetType = Meta::InvalidTypeId) noexcept;
+
+Base::Result<void> CompileAuthoredTemplateTriggers(
+    Aero::FrameworkTemplate& targetTemplate,
+    XamlBytecodeProgram& subProg,
+    ::Aero::Meta::Registry& runtime,
+    Meta::DependencyPropertyRegistry& properties,
+    bool isControlTemplate) noexcept;
 
 Base::Result<void> BuildCompiledTemplate(
     Controls::TemplateBuilder& context,
@@ -266,6 +280,14 @@ struct XamlBytecodeProgram {
     std::uint32_t FindSlotByName(Base::StringView name) const noexcept;
     std::int32_t FindPartIndexByName(Base::StringView name) const noexcept;
     Meta::TypeId GetSlotType(std::uint32_t slot) const noexcept;
+    NamespaceScope MakeNamespaceScope() const noexcept;
+    void CopyNamespacesFrom(const XamlBytecodeProgram& parent) noexcept;
+    void PropagateAmbientResourcesFrom(
+        const XamlBytecodeProgram& parent,
+        Base::Span<const Aero::ResourceDictionary* const> ambientStack = {},
+        Base::Span<const Base::Ref<Base::Object>> activeObjects = {},
+        const Schema* activeSchema = nullptr,
+        const LoadState* loadContext = nullptr) noexcept;
     bool IsValid() const noexcept;
     void Clear() noexcept;
 };

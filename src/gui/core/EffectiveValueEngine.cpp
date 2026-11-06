@@ -35,82 +35,6 @@
 
 namespace Aero {
 
-namespace {
-
-template <typename T, auto ConvertFn>
-Base::Result<Meta::PropertyValue> EncodeTextWithCodec(Base::StringView text) noexcept {
-    auto converted = ConvertFn(text);
-    if (!converted) return converted.GetStatus();
-    return Meta::ValueCodec<T>::Encode(converted.Value());
-}
-
-Base::Result<Meta::PropertyValue> TryConvertTextFallback(
-    const Meta::TypeRegistry* types,
-    Meta::TypeId targetType,
-    Base::StringView text) noexcept {
-    if (targetType == Meta::TypeOf<Base::String>()) {
-        return EncodeTextWithCodec<Base::String, &::Aero::Base::ValueConversion::ConvertString>(text);
-    }
-    if (targetType == Meta::TypeOf<::Aero::Nullable<bool>>()) {
-        return EncodeTextWithCodec<::Aero::Nullable<bool>, &::Aero::Base::ValueConversion::ConvertNullableBoolean>(text);
-    }
-    if (targetType == Meta::TypeOf<Media::Brush>() ||
-        targetType == Meta::TypeOf<Media::SolidColorBrush>()) {
-        auto color = ::Aero::Base::ValueConversion::ConvertColor(text);
-        if (!color) return color.GetStatus();
-        auto brush = ::Aero::Media::MakeSolidColorBrush(color.Value());
-        if (!brush) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Brush allocation failed");
-        }
-        return Meta::PropertyValue::FromObject(
-            targetType,
-            Base::Ref<Base::Object>(std::move(brush)));
-    }
-    if (targetType == Meta::TypeOf<Base::Color>()) {
-        return EncodeTextWithCodec<Base::Color, &::Aero::Base::ValueConversion::ConvertColor>(text);
-    }
-    if (targetType == Meta::TypeOf<Base::Thickness>()) {
-        return EncodeTextWithCodec<Base::Thickness, &::Aero::Base::ValueConversion::ConvertThickness>(text);
-    }
-    if (targetType == Meta::TypeOf<Base::CornerRadius>()) {
-        return EncodeTextWithCodec<Base::CornerRadius, &::Aero::Base::ValueConversion::ConvertCornerRadius>(text);
-    }
-    if (targetType == Meta::TypeOf<::Aero::Length>()) {
-        return EncodeTextWithCodec<::Aero::Length, &::Aero::Base::ValueConversion::ConvertLength>(text);
-    }
-    if (targetType == Meta::TypeOf<double>()) {
-        return EncodeTextWithCodec<double, &::Aero::Base::ValueConversion::ConvertDouble>(text);
-    }
-    if (targetType == Meta::TypeOf<bool>()) {
-        return EncodeTextWithCodec<bool, &::Aero::Base::ValueConversion::ConvertBoolean>(text);
-    }
-    if (targetType == Meta::TypeOf<std::int32_t>()) {
-        return EncodeTextWithCodec<std::int32_t, &::Aero::Base::ValueConversion::ConvertInteger<std::int32_t>>(text);
-    }
-    if (targetType == Meta::TypeOf<std::int64_t>()) {
-        return EncodeTextWithCodec<std::int64_t, &::Aero::Base::ValueConversion::ConvertInteger<std::int64_t>>(text);
-    }
-    if (targetType == Meta::TypeOf<std::uint32_t>()) {
-        return EncodeTextWithCodec<std::uint32_t, &::Aero::Base::ValueConversion::ConvertInteger<std::uint32_t>>(text);
-    }
-    if (targetType == Meta::TypeOf<std::uint64_t>()) {
-        return EncodeTextWithCodec<std::uint64_t, &::Aero::Base::ValueConversion::ConvertInteger<std::uint64_t>>(text);
-    }
-    if (types != nullptr) {
-        const Meta::TypeInfo* descriptor = types->FindType(targetType);
-        if (descriptor != nullptr && descriptor->Kind() == Meta::MetadataTypeKind::Enum) {
-            return Meta::Registry::ConvertEnumText(*descriptor, text);
-        }
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "Dependency-property text conversion is not supported for target type");
-}
-
-} // namespace
-
 Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
     Meta::Registry* metadata,
     const Meta::DependencyProperty& property,
@@ -130,29 +54,13 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
 
     const Meta::TypeId nullableBooleanType =
         Meta::TypeOf<::Aero::Nullable<bool>>();
-    if (targetType == nullableBooleanType) {
-        if (value.Kind() == Meta::ValueKind::Boolean &&
-            value.Type() == Meta::TypeOf<bool>()) {
-            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
-                ::Aero::Nullable<bool>{value.AsBoolean()});
+    if (targetType == nullableBooleanType ||
+        (targetType == Meta::TypeOf<bool>() && value.Type() == nullableBooleanType)) {
+        Base::Result<Meta::PropertyValue> nullableConverted =
+            Base::ValueConversion::ConvertNullableBooleanValue(value, targetType);
+        if (nullableConverted || value.Type() == nullableBooleanType) {
+            return nullableConverted;
         }
-        if (value.Kind() == Meta::ValueKind::Object &&
-            value.IsNullObject()) {
-            return Meta::ValueCodec<::Aero::Nullable<bool>>::Encode(
-                ::Aero::Nullable<bool>{});
-        }
-    } else if (targetType == Meta::TypeOf<bool>() &&
-        value.Type() == nullableBooleanType) {
-        Base::Result<::Aero::Nullable<bool>> decoded =
-            Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(value);
-        if (!decoded) return decoded.GetStatus();
-        if (!decoded.Value().GetHasValue()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Indeterminate Nullable Boolean cannot be assigned to Boolean");
-        }
-        return Meta::PropertyValue::FromBoolean(
-            targetType, decoded.Value().GetValue());
     }
 
     if (targetType == Meta::TypeOf<Base::String>() &&
@@ -161,40 +69,6 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
         return Meta::ValueCodec<Base::String>::Encode(Base::String{});
     }
 
-    const auto tryExtractNumeric = [](const Meta::PropertyValue& val, double& out) noexcept -> bool {
-        if (val.Kind() == Meta::ValueKind::Double) {
-            out = val.AsDouble();
-            return true;
-        }
-        if (val.Kind() == Meta::ValueKind::SignedInteger) {
-            out = static_cast<double>(val.AsSignedInteger());
-            return true;
-        }
-        if (val.Kind() == Meta::ValueKind::UnsignedInteger) {
-            out = static_cast<double>(val.AsUnsignedInteger());
-            return true;
-        }
-        return false;
-    };
-
-    double numericValue = 0.0;
-    if (tryExtractNumeric(value, numericValue)) {
-        if (targetType == Meta::TypeOf<Aero::Length>()) {
-            return Meta::ValueCodec<Aero::Length>::Encode(
-                Aero::Length::Pixels(numericValue));
-        }
-        if (targetType == Meta::TypeOf<Base::Thickness>()) {
-            return Meta::ValueCodec<Base::Thickness>::Encode(
-                Base::Thickness(numericValue));
-        }
-        if (targetType == Meta::TypeOf<Base::CornerRadius>()) {
-            return Meta::ValueCodec<Base::CornerRadius>::Encode(
-                Base::CornerRadius(numericValue));
-        }
-        if (targetType == Meta::TypeOf<double>()) {
-            return Meta::PropertyValue::FromDouble(targetType, numericValue);
-        }
-    }
     if (targetType == Meta::TypeOf<double>() &&
         value.Type() == Meta::TypeOf<Aero::Length>()) {
         Base::Result<Aero::Length> length =
@@ -202,6 +76,17 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
         if (!length) return length.GetStatus();
         return Meta::ValueCodec<double>::Encode(
             length.Value().isAuto ? 0.0 : length.Value().value);
+    }
+
+    if (targetType == Meta::TypeOf<Aero::Length>() ||
+        targetType == Meta::TypeOf<Base::Thickness>() ||
+        targetType == Meta::TypeOf<Base::CornerRadius>() ||
+        targetType == Meta::TypeOf<double>()) {
+        Base::Result<Meta::PropertyValue> metricConverted =
+            Base::ValueConversion::ConvertMetricValue(value, targetType);
+        if (metricConverted) {
+            return metricConverted;
+        }
     }
 
     if (value.Kind() == Meta::ValueKind::String) {
@@ -223,7 +108,7 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
              metadataError.code == Base::ErrorCode::Unsupported ||
              metadataError.code == Base::ErrorCode::NotFound)) {
             Base::Result<Meta::PropertyValue> fallback =
-                TryConvertTextFallback(types, targetType, text);
+                Base::ValueConversion::ConvertTextToValueFallback(types, targetType, text);
             if (fallback) {
                 value = std::move(fallback).Value();
             } else if (!metadataError.IsOk()) {
@@ -327,32 +212,50 @@ DependencyProperty::FindMetadataExact(TypeId forType) const noexcept {
 
 const PropertyMetadata* DependencyProperty::MetadataFor(
     TypeId forType) const noexcept {
-    if (typeRegistry_ == nullptr || forType == InvalidTypeId) {
+    if (typeRegistry_ == nullptr || forType == InvalidTypeId || metadata_.Empty()) {
         return nullptr;
     }
 
-    if (metadataCache_[0].forType == forType) {
-        return metadataCache_[0].metadata;
+    // Fast path 1: exact registered-owner match (metadata_[0] is always the registered owner).
+    if (forType == registeredOwnerType_) {
+        return &metadata_[0].metadata;
     }
-    for (std::uint32_t i = 1U; i < 4U; ++i) {
-        if (metadataCache_[i].forType == forType) {
-            const MetadataCacheEntry hit = metadataCache_[i];
-            for (std::uint32_t j = i; j > 0U; --j) {
-                metadataCache_[j] = metadataCache_[j - 1U];
-            }
-            metadataCache_[0] = hit;
-            return hit.metadata;
+
+    // Fast path 2: direct-mapped 8-slot cache lookup (zero element shifting).
+    const std::uint32_t cacheSlot =
+        static_cast<std::uint32_t>(forType ^ (forType >> 17U)) & (kMetadataCacheSlots - 1U);
+    if (metadataCache_[cacheSlot].forType == forType) {
+        return metadataCache_[cacheSlot].metadata;
+    }
+
+    // Fast path 3: attached property with no overrides applies its owner metadata to any valid type.
+    if (metadata_.Size() == 1U && IsAttached()) {
+        if (typeRegistry_->FindType(forType) != nullptr) {
+            const PropertyMetadata* attachedResult = &metadata_[0].metadata;
+            metadataCache_[cacheSlot].forType = forType;
+            metadataCache_[cacheSlot].metadata = attachedResult;
+            return attachedResult;
         }
+        return nullptr;
     }
 
     const PropertyMetadata* result = nullptr;
     const TypeInfo* info = typeRegistry_->FindType(forType);
     if (info != nullptr && !info->AncestorChain().Empty()) {
-        for (TypeId current : info->AncestorChain()) {
-            const MetadataEntry* exact = FindMetadataExact(current);
-            if (exact != nullptr) {
-                result = &exact->metadata;
-                break;
+        if (metadata_.Size() == 1U) {
+            for (TypeId current : info->AncestorChain()) {
+                if (current == registeredOwnerType_) {
+                    result = &metadata_[0].metadata;
+                    break;
+                }
+            }
+        } else {
+            for (TypeId current : info->AncestorChain()) {
+                const MetadataEntry* exact = FindMetadataExact(current);
+                if (exact != nullptr) {
+                    result = &exact->metadata;
+                    break;
+                }
             }
         }
     } else {
@@ -374,18 +277,12 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
         }
     }
     if (result == nullptr && IsAttached()) {
-        const MetadataEntry* owner = FindMetadataExact(registeredOwnerType_);
-        if (owner != nullptr) {
-            result = &owner->metadata;
-        }
+        result = &metadata_[0].metadata;
     }
 
     if (result != nullptr) {
-        for (std::uint32_t j = 3U; j > 0U; --j) {
-            metadataCache_[j] = metadataCache_[j - 1U];
-        }
-        metadataCache_[0].forType = forType;
-        metadataCache_[0].metadata = result;
+        metadataCache_[cacheSlot].forType = forType;
+        metadataCache_[cacheSlot].metadata = result;
     }
 
     return result;
@@ -702,6 +599,9 @@ DependencyPropertyRegistry::Register(
     }
 
     const std::uint32_t propertyIndex = properties_.Size();
+    property.globalIndex_ = propertyIndex < 0xFFFFU
+        ? static_cast<std::uint16_t>(propertyIndex)
+        : 0xFFFFU;
     properties_.PushBack(
         std::move(property));
 

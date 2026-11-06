@@ -258,6 +258,12 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform3D>, Transform3D);
     AERO_DEPENDENCY_PROPERTY(Point, RenderTransformOrigin);
 
+    bool HasEffect() const noexcept { return layout_.HasRenderRare(LayoutHot::kRenderRareEffect); }
+    bool HasClip() const noexcept { return layout_.HasRenderRare(LayoutHot::kRenderRareClip); }
+    bool HasOpacityMask() const noexcept { return layout_.HasRenderRare(LayoutHot::kRenderRareOpacityMask); }
+    bool HasRenderTransform() const noexcept { return layout_.HasRenderRare(LayoutHot::kRenderRareRenderTransform); }
+    bool HasTransform3D() const noexcept { return layout_.HasRenderRare(LayoutHot::kRenderRareTransform3D); }
+
 protected:
     void OnVisualChildrenChanged(::Aero::Media::Visual* visualAdded,
         ::Aero::Media::Visual* visualRemoved) noexcept override;
@@ -332,10 +338,19 @@ class EventRouter;
         Rect layoutSlot{};
         Rect layoutClip{};
         std::uint64_t layoutRevision = 0U;
-        // Cached from the dependency properties so measure and hit-testing
-        // do not look them up again.
+        // Cached from the dependency properties so measure, arrange, render,
+        // and hit-testing do not look them up again in the DP store.
+        static constexpr std::uint8_t kRenderRareEffect          = 1U << 0;
+        static constexpr std::uint8_t kRenderRareClip            = 1U << 1;
+        static constexpr std::uint8_t kRenderRareOpacityMask     = 1U << 2;
+        static constexpr std::uint8_t kRenderRareRenderTransform = 1U << 3;
+        static constexpr std::uint8_t kRenderRareTransform3D     = 1U << 4;
+
         float opacity = 1.0f;
         Visibility visibility = Visibility::Visible;
+        BlendMode blendMode = BlendMode::Normal;
+        bool clipToBounds = false;
+        std::uint8_t renderRareMask = 0U;
         bool layoutAttached : 1;
         bool measureValid : 1;
         bool arrangeValid : 1;
@@ -387,6 +402,16 @@ class EventRouter;
         }
         void InvalidateArrangeFlags() noexcept {
             arrangeValid = false;
+        }
+        bool HasRenderRare(std::uint8_t mask) const noexcept {
+            return (renderRareMask & mask) != 0U;
+        }
+        void SetRenderRare(std::uint8_t mask, bool present) noexcept {
+            if (present) {
+                renderRareMask = static_cast<std::uint8_t>(renderRareMask | mask);
+            } else {
+                renderRareMask = static_cast<std::uint8_t>(renderRareMask & ~mask);
+            }
         }
     };
 

@@ -66,7 +66,8 @@ bool ResolveTriggerSetterValue(
     const PropertyValue& rawValue,
     PropertyValue& resolvedValue,
     FrameworkElement* fallbackScope,
-    const ResourceDictionary* fallbackResources) noexcept {
+    const ResourceDictionary* fallbackResources,
+    bool fallbackToDefaultOnMissingResource) noexcept {
     Base::StringView dynamicKey;
     if (IsDynamicResourceSetterValue(rawValue, dynamicKey)) {
         resolvedValue = rawValue;
@@ -84,15 +85,28 @@ bool ResolveTriggerSetterValue(
             Base::Result<ResourceValue> res = fallbackResources->Lookup(dynamicKey);
             if (res) lookedUp = res.Value();
         }
+        const DependencyProperty* prop =
+            DependencyObjectAccess::PropertyRegistry(target).Find(property);
         if (!lookedUp.IsUnset()) {
-            const DependencyProperty* prop =
-                DependencyObjectAccess::PropertyRegistry(target).Find(property);
             if (prop != nullptr) {
                 Base::Result<PropertyValue> converted =
                     Markup::ConvertDynamicResourceValue(lookedUp, *prop);
                 if (converted) {
                     resolvedValue = std::move(converted).Value();
+                } else {
+                    resolvedValue = lookedUp;
                 }
+            } else {
+                resolvedValue = lookedUp;
+            }
+        } else if (fallbackToDefaultOnMissingResource && prop != nullptr) {
+            const Meta::PropertyMetadata* meta =
+                prop->MetadataFor(target.RuntimeType());
+            if (meta == nullptr) {
+                meta = prop->MetadataFor(prop->RegisteredOwnerType());
+            }
+            if (meta != nullptr && !meta->defaultValue.IsUnset()) {
+                resolvedValue = meta->defaultValue;
             }
         }
         return true;

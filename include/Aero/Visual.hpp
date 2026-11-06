@@ -166,6 +166,7 @@ private:
     FlagRef RenderValid() noexcept { return {&visualFlags_, kFlagRenderValid}; }
     FlagRef RenderQueued() noexcept { return {&visualFlags_, kFlagRenderQueued}; }
     FlagRef Rendering() noexcept { return {&visualFlags_, kFlagRendering}; }
+    FlagRef SubtreeRenderDirty() noexcept { return {&visualFlags_, kFlagSubtreeRenderDirty}; }
     Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
     std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
     std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
@@ -177,6 +178,7 @@ private:
     static constexpr std::uint8_t kFlagLoaded = 1U << 4U;
     static constexpr std::uint8_t kFlagIsOverlay = 1U << 5U;
     static constexpr std::uint8_t kFlagIsOverlayHost = 1U << 6U;
+    static constexpr std::uint8_t kFlagSubtreeRenderDirty = 1U << 7U;
     bool LoadedFlag() const noexcept { return (visualFlags_ & kFlagLoaded) != 0U; }
     bool IsOverlayFlag() const noexcept { return (visualFlags_ & kFlagIsOverlay) != 0U; }
 

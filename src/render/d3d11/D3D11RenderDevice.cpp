@@ -40,15 +40,7 @@ void SetD3DDebugName(ID3D11DeviceChild* resource, const char* label) noexcept {
 #define AERO_DX_END_EVENT(marker) ((void)0)
 #endif
 
-uint32_t HashBytesFNV1a(const void* data, size_t size) noexcept {
-    const auto* bytes = static_cast<const uint8_t*>(data);
-    uint32_t hash = 2166136261U;
-    for (size_t i = 0; i < size; ++i) {
-        hash ^= bytes[i];
-        hash *= 16777619U;
-    }
-    return hash != 0U ? hash : 1U;
-}
+// Uses shared HashBytesFNV1a and RingBufferTracker from StateCache.hpp
 
 std::pair<const char*, uint32_t> SemanticForAttr(uint32_t attr) noexcept {
     switch (attr) {
@@ -108,9 +100,7 @@ ID3D11InputLayout* D3D11RenderDevice::CreateLayout(
 
 Base::Result<void> D3D11RenderDevice::CreateBuffer(
     DynamicBuffer& buffer, uint32_t size, D3D11_BIND_FLAG flags, const char* label) noexcept {
-    buffer.size = size;
-    buffer.pos = 0U;
-    buffer.drawPos = 0U;
+    buffer.ring.Initialize(size);
     buffer.flags = flags;
     buffer.obj = nullptr;
     buffer.isMapped = false;
@@ -129,22 +119,18 @@ Base::Result<void> D3D11RenderDevice::CreateBuffer(
 }
 
 void* D3D11RenderDevice::MapBuffer(DynamicBuffer& buffer, uint32_t bytes) noexcept {
-    if (context_ == nullptr || buffer.obj == nullptr || bytes == 0U || bytes > buffer.size) {
+    if (context_ == nullptr || buffer.obj == nullptr || bytes == 0U || bytes > buffer.ring.capacity) {
         return nullptr;
     }
 
     D3D11_MAP mapType = D3D11_MAP_WRITE_NO_OVERWRITE;
     if (buffer.flags == D3D11_BIND_CONSTANT_BUFFER) {
         mapType = D3D11_MAP_WRITE_DISCARD;
-        buffer.drawPos = 0U;
+        buffer.ring.currentDrawOffset = 0U;
     } else {
-        const uint32_t alignedBytes = (bytes + 63U) & ~63U;
-        if (buffer.pos == 0U || buffer.pos + alignedBytes > buffer.size) {
-            mapType = D3D11_MAP_WRITE_DISCARD;
-            buffer.pos = 0U;
-        }
-        buffer.drawPos = buffer.pos;
-        buffer.pos += alignedBytes;
+        uint32_t allocOffset = 0U;
+        const bool discard = buffer.ring.Allocate(bytes, 64U, allocOffset);
+        mapType = discard ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE;
     }
 
     D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -152,7 +138,7 @@ void* D3D11RenderDevice::MapBuffer(DynamicBuffer& buffer, uint32_t bytes) noexce
         return nullptr;
     }
     buffer.isMapped = true;
-    return static_cast<uint8_t*>(mapped.pData) + buffer.drawPos;
+    return static_cast<uint8_t*>(mapped.pData) + buffer.ring.currentDrawOffset;
 }
 
 void D3D11RenderDevice::UnmapBuffer(DynamicBuffer& buffer) noexcept {
@@ -1082,7 +1068,7 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
     SetPixelShader(ps);
 
     // 2. 绑定 VB / IB 与基于 Hash 短路的 Constant Buffers
-    const uint32_t vbOffset = vertices_.drawPos + batch.vertexOffset;
+    const uint32_t vbOffset = vertices_.ring.currentDrawOffset + batch.vertexOffset;
     const uint32_t stride = vsEntry.stride != 0U ? vsEntry.stride : 24U;
     if (cachedVB_ != vertices_.obj || cachedVBStride_ != stride || cachedVBOffset_ != vbOffset) {
         context_->IASetVertexBuffers(0, 1, &vertices_.obj, &stride, &vbOffset);
@@ -1090,10 +1076,10 @@ void D3D11RenderDevice::DrawBatch(const Batch& batch) noexcept {
         cachedVBStride_ = stride;
         cachedVBOffset_ = vbOffset;
     }
-    if (cachedIB_ != indices_.obj || cachedIBOffset_ != indices_.drawPos) {
-        context_->IASetIndexBuffer(indices_.obj, DXGI_FORMAT_R16_UINT, indices_.drawPos);
+    if (cachedIB_ != indices_.obj || cachedIBOffset_ != indices_.ring.currentDrawOffset) {
+        context_->IASetIndexBuffer(indices_.obj, DXGI_FORMAT_R16_UINT, indices_.ring.currentDrawOffset);
         cachedIB_ = indices_.obj;
-        cachedIBOffset_ = indices_.drawPos;
+        cachedIBOffset_ = indices_.ring.currentDrawOffset;
     }
 
     for (uint32_t i = 0U; i < 2U; ++i) {

@@ -85,6 +85,7 @@ public:
     ~FrameworkElement() override;
 
     Base::ProjectiveTransform2D GetLocalVisualTransform() const noexcept;
+    bool HasLocalVisualTransform() const noexcept;
     bool TryGetViewboxTransform(Base::Transform2D& matrix) const noexcept;
     Base::Object* FindName(StringView name) noexcept;
     void RegisterName(StringView name, Base::Object& scopedElement) noexcept;
@@ -138,8 +139,8 @@ public:
     double GetHeight() const noexcept;
     void SetHeight(double value) noexcept;
     void ClearHeight() noexcept;
-    double GetActualWidth() const noexcept { return GetValue(ActualWidthProperty); }
-    double GetActualHeight() const noexcept { return GetValue(ActualHeightProperty); }
+    double GetActualWidth() const noexcept { return static_cast<double>(GetRenderSize().width); }
+    double GetActualHeight() const noexcept { return static_cast<double>(GetRenderSize().height); }
     Size GetMinSize() const noexcept;
     void SetMinSize(Size value) noexcept;
     Size GetMaxSize() const noexcept;
@@ -151,7 +152,7 @@ public:
     Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
     void SetFontFamily(Ref<Media::FontFamily> value) noexcept { SetValue(FontFamilyProperty, std::move(value)); }
     void SetFontFamily(StringView value) noexcept;
-    FlowDirection GetFlowDirection() const noexcept { return GetValue(FlowDirectionProperty); }
+    FlowDirection GetFlowDirection() const noexcept { return layoutScalars_.flowDirection; }
     void SetFlowDirection(FlowDirection value) noexcept { SetValue(FlowDirectionProperty, value); }
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
@@ -262,6 +263,12 @@ private:
         double minHeight = 0.0;
         double maxHeight = 1.0e12;
         Thickness margin{};
+        HorizontalAlignment horizontalAlignment = HorizontalAlignment::Stretch;
+        VerticalAlignment verticalAlignment = VerticalAlignment::Stretch;
+        FlowDirection flowDirection = FlowDirection::LeftToRight;
+        bool useLayoutRounding = false;
+        bool snapsToDevicePixels = false;
+        bool hasLayoutTransform = false;
     };
     // Authored triggers/behaviors, style prototypes, and viewbox projection
     // live off the hot instance. Empty elements pay one pointer.

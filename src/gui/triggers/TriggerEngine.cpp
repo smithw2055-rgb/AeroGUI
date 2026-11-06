@@ -15,56 +15,13 @@
 
 namespace Aero {
 
-namespace {
-
-bool TryExtractNumeric(const Meta::PropertyValue& value, long double& output) noexcept {
-    switch (value.Kind()) {
-    case Meta::ValueKind::SignedInteger:
-        output = static_cast<long double>(value.AsSignedInteger());
-        return true;
-    case Meta::ValueKind::UnsignedInteger:
-        output = static_cast<long double>(value.AsUnsignedInteger());
-        return true;
-    case Meta::ValueKind::Double:
-        output = static_cast<long double>(value.AsDouble());
-        return true;
-    case Meta::ValueKind::String: {
-        Base::StringView str = value.AsString();
-        if (str.Empty()) return false;
-        char buf[64];
-        if (str.SizeBytes() >= sizeof(buf)) return false;
-        std::memcpy(buf, str.Data(), str.SizeBytes());
-        buf[str.SizeBytes()] = '\0';
-        char* endPtr = nullptr;
-        output = std::strtold(buf, &endPtr);
-        if (endPtr != buf && *endPtr == '\0') {
-            return true;
-        }
-        return false;
-    }
-    default:
-        return false;
-    }
-}
-
-} // namespace
-
 bool ComparePropertyValues(
-    const Meta::PropertyValue& actual,
+    const Meta::PropertyValue& rawActual,
     Meta::PropertyValue expected,
     const Meta::Registry* metadata,
     PropertyComparisonOperator op) noexcept {
-    if (actual.Kind() == Meta::ValueKind::Object &&
-        !actual.IsNullObject() && actual.AsObject() &&
-        actual.AsObject()->RuntimeType() ==
-            ::Aero::Controls::BoxedItemValue::StaticTypeId()) {
-        return ComparePropertyValues(
-            static_cast<const ::Aero::Controls::BoxedItemValue&>(
-                *actual.AsObject()).Value(),
-            std::move(expected),
-            metadata,
-            op);
-    }
+    const Meta::PropertyValue actual =
+        Base::ValueConversion::UnboxItemValue(rawActual);
     const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
     if (expected.IsNullObject() || expected.IsUnset()) {
         bool eq = actual.IsNullObject() || actual.IsUnset();
@@ -90,21 +47,8 @@ bool ComparePropertyValues(
                 return ::Aero::Nullable<bool>{v.AsBoolean()};
             }
             if (v.Kind() == Meta::ValueKind::String) {
-                const Base::StringView s = v.AsString();
-                switch (s.SizeBytes()) {
-                case 4:
-                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "True")) return ::Aero::Nullable<bool>{true};
-                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "Null")) return ::Aero::Nullable<bool>{};
-                    break;
-                case 5:
-                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "False")) return ::Aero::Nullable<bool>{false};
-                    break;
-                case 8:
-                    if (Base::ValueConversion::EqualsAsciiInsensitive(s, "{x:Null}")) return ::Aero::Nullable<bool>{};
-                    break;
-                default:
-                    break;
-                }
+                auto parsed = Base::ValueConversion::ConvertNullableBoolean(v.AsString());
+                if (parsed) return parsed.Value();
             }
             return ::Aero::Nullable<bool>{};
         };
@@ -167,8 +111,8 @@ bool ComparePropertyValues(
 
     long double leftNumber = 0.0L;
     long double rightNumber = 0.0L;
-    if (TryExtractNumeric(leftValue, leftNumber) &&
-        TryExtractNumeric(rightValue, rightNumber)) {
+    if (Base::ValueConversion::TryExtractNumber(leftValue, leftNumber, true) &&
+        Base::ValueConversion::TryExtractNumber(rightValue, rightNumber, true)) {
         switch (op) {
         case PropertyComparisonOperator::Equal:
             return leftNumber == rightNumber;
@@ -277,31 +221,11 @@ void TriggerEngine::SubscribeTriggers(
     if (StyleRuntimeTriggerMask(style) == 0ULL) {
         return;
     }
-    const Base::Span<const TriggerPlan> triggers =
-        StyleRuntimeTriggers(style);
-    std::uint64_t subscribedMask = 0ULL;
-    for (std::uint32_t index = 0U;
-         index < triggers.Size();
-         ++index) {
-        const TriggerPlan& trigger =
-            triggers[index];
-        if (trigger.IsBindingTrigger()) continue;
-        const DependencyPropertyHandle property = trigger.property;
-        const std::uint64_t propMask = PropertyTriggerMask(property);
-        if ((subscribedMask & propMask) == propMask) {
-            bool first = true;
-            for (std::uint32_t previous = 0U;
-                 previous < index;
-                 ++previous) {
-                first = first &&
-                    (triggers[previous].IsBindingTrigger() ||
-                     triggers[previous].property != property);
-            }
-            if (!first) continue;
+    TriggerSubscriptionFilter filter;
+    for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
+        if (!trigger.IsBindingTrigger() && filter.TryAcquire(trigger.property)) {
+            object.AddValueChangedHandler(trigger.property, propertyChangedHandler_);
         }
-        subscribedMask |= propMask;
-        object.AddValueChangedHandler(
-            property, propertyChangedHandler_);
     }
 }
 
@@ -310,77 +234,32 @@ void TriggerEngine::UnsubscribeTriggers(
     if (StyleRuntimeTriggerMask(style) == 0ULL) {
         return;
     }
-    const Base::Span<const TriggerPlan> triggers =
-        StyleRuntimeTriggers(style);
-    std::uint64_t unsubscribedMask = 0ULL;
-    for (std::uint32_t index = 0U;
-         index < triggers.Size();
-         ++index) {
-        const TriggerPlan& trigger =
-            triggers[index];
-        if (trigger.IsBindingTrigger()) continue;
-        const DependencyPropertyHandle property = trigger.property;
-        const std::uint64_t propMask = PropertyTriggerMask(property);
-        if ((unsubscribedMask & propMask) == propMask) {
-            bool first = true;
-            for (std::uint32_t previous = 0U;
-                 previous < index;
-                 ++previous) {
-                first = first &&
-                    (triggers[previous].IsBindingTrigger() ||
-                     triggers[previous].property != property);
-            }
-            if (!first) continue;
+    TriggerSubscriptionFilter filter;
+    for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
+        if (!trigger.IsBindingTrigger() && filter.TryAcquire(trigger.property)) {
+            (void)object.RemoveValueChangedHandler(trigger.property, propertyChangedHandler_);
         }
-        unsubscribedMask |= propMask;
-        (void)object.RemoveValueChangedHandler(
-            property, propertyChangedHandler_);
     }
 }
 
 void TriggerEngine::EvaluateTriggers(
     DependencyObject& object, const Style& style) noexcept {
-    const std::uint32_t applicationIndex =
-        FindApplication(object);
+    const std::uint32_t applicationIndex = FindApplication(object);
     if (applicationIndex == UINT32_MAX) {
         return;
     }
-    StyleApplication& application =
-        applications_[applicationIndex];
-    const Base::Span<const TriggerPlan> triggers =
-        StyleRuntimeTriggers(style);
+    StyleApplication& application = applications_[applicationIndex];
+    const Base::Span<const TriggerPlan> triggers = StyleRuntimeTriggers(style);
     if (triggers.Empty()) {
         return;
     }
 
-    std::uint64_t activeMask = 0ULL;
-    Base::Vector<std::uint8_t> activeStatesFallback;
-    if (triggers.Size() > 64U) {
-        activeStatesFallback.Resize(triggers.Size(), 0U);
-    }
-    auto setActive = [&](std::uint32_t idx, bool act) {
-        if (idx < 64U) {
-            if (act) {
-                activeMask |= (UINT64_C(1) << idx);
-            }
-        } else {
-            activeStatesFallback[idx] = act ? 1U : 0U;
-        }
-    };
-    auto getActive = [&](std::uint32_t idx) -> bool {
-        if (idx < 64U) {
-            return (activeMask & (UINT64_C(1) << idx)) != 0ULL;
-        }
-        return activeStatesFallback[idx] != 0U;
-    };
-
+    TriggerActiveBitset activeStates(triggers.Size());
     bool anyStateChanged = !application.triggersInitialized;
     application.triggersInitialized = true;
 
-    for (std::uint32_t index = 0U;
-         index < triggers.Size(); ++index) {
-        const TriggerPlan& trigger =
-            triggers[index];
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        const TriggerPlan& trigger = triggers[index];
         bool active = false;
         const std::uint64_t bit = index < 64U ? (UINT64_C(1) << index) : 0ULL;
         if (trigger.IsBindingTrigger()) {
@@ -389,7 +268,7 @@ void TriggerEngine::EvaluateTriggers(
         } else {
             active = trigger.IsConditionMet(object);
         }
-        setActive(index, active);
+        activeStates.Set(index, active);
         if (!anyStateChanged) {
             const bool wasActive = (application.triggerStatesMask & bit) != 0ULL;
             if (active != wasActive) {
@@ -398,53 +277,41 @@ void TriggerEngine::EvaluateTriggers(
         }
     }
 
-    // Short-circuit: if no trigger flipped its active state, no setters or flush needed.
     if (!anyStateChanged) {
         return;
     }
 
-    // Incrementally clear setters only from triggers that were previously active.
     const std::uint64_t previousActiveMask = application.triggerStatesMask;
     if (previousActiveMask != 0ULL) {
-        std::uint64_t clearedMask = 0ULL;
+        TriggerSubscriptionFilter clearedFilter;
         for (std::uint32_t triggerIndex = 0U;
              triggerIndex < triggers.Size() && triggerIndex < 64U;
              ++triggerIndex) {
             if ((previousActiveMask & (UINT64_C(1) << triggerIndex)) == 0ULL) {
                 continue;
             }
-            const TriggerPlan& trigger = triggers[triggerIndex];
-            for (const StyleTriggerSetter& setter : trigger.setters) {
-                if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
-                    continue;
+            for (const StyleTriggerSetter& setter : triggers[triggerIndex].setters) {
+                if (ShouldApplyOrClearTriggerSetter(setter.value) &&
+                    clearedFilter.TryAcquire(setter.property)) {
+                    (void)values_.ClearTriggerValue(object, setter.property);
                 }
-                const std::uint64_t propMask = PropertyTriggerMask(setter.property);
-                clearedMask |= propMask;
-                (void)values_.ClearTriggerValue(object, setter.property);
             }
         }
-        (void)clearedMask;
     }
 
-    for (std::uint32_t index = 0U;
-         index < triggers.Size(); ++index) {
-        if (!getActive(index)) continue;
-        const TriggerPlan& trigger =
-            triggers[index];
-        for (const StyleTriggerSetter& setter : trigger.setters) {
+    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+        if (!activeStates.Get(index)) continue;
+        for (const StyleTriggerSetter& setter : triggers[index].setters) {
             PropertyValue setterValue;
-            if (!ResolveTriggerSetterValue(object, setter.property, setter.value, setterValue)) {
-                continue;
+            if (ResolveTriggerSetterValue(object, setter.property, setter.value, setterValue)) {
+                (void)values_.SetTriggerValue(object, setter.property, setterValue);
             }
-            (void)values_.SetTriggerValue(object, setter.property, setterValue);
         }
     }
     (void)values_.Flush();
-    for (std::uint32_t index = 0U;
-         index < triggers.Size() && index < 64U; ++index) {
-        const TriggerPlan& trigger =
-            triggers[index];
-        const bool active = getActive(index);
+    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
+        const TriggerPlan& trigger = triggers[index];
+        const bool active = activeStates.Get(index);
         const std::uint32_t currentAppIndex = FindApplication(object);
         if (currentAppIndex == UINT32_MAX || currentAppIndex >= applications_.Size()) {
             break;
@@ -460,18 +327,14 @@ void TriggerEngine::EvaluateTriggers(
         }
         ExecuteTriggerActions(
             object,
-            active
-                ? trigger.enterActions.AsSpan()
-                : trigger.exitActions.AsSpan());
+            active ? trigger.enterActions.AsSpan() : trigger.exitActions.AsSpan());
     }
 }
 
 void TriggerEngine::ExecuteTriggerActions(
     DependencyObject& object,
-    Base::Span<const Base::Ref<Base::Object>>
-        actions) noexcept {
-    if (actions.Empty() ||
-        triggerActionHandler_ == nullptr) {
+    Base::Span<const Base::Ref<Base::Object>> actions) noexcept {
+    if (actions.Empty() || triggerActionHandler_ == nullptr) {
         return;
     }
     Base::Result<void> res = triggerActionHandler_(
@@ -483,45 +346,13 @@ void TriggerEngine::ExecuteTriggerActions(
 
 void TriggerEngine::ClearTriggerSetters(
     DependencyObject& object, const Style& style) noexcept {
-    const Base::Span<const TriggerPlan> triggers =
-        StyleRuntimeTriggers(style);
-    std::uint64_t clearedMask = 0ULL;
-    for (std::uint32_t triggerIndex = 0U;
-         triggerIndex < triggers.Size();
-         ++triggerIndex) {
-        const TriggerPlan& trigger =
-            triggers[triggerIndex];
-        for (std::uint32_t setterIndex = 0U;
-             setterIndex < trigger.setters.Size();
-             ++setterIndex) {
-            if (!ShouldApplyOrClearTriggerSetter(trigger.setters[setterIndex].value)) {
-                continue;
+    TriggerSubscriptionFilter clearedFilter;
+    for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
+        for (const StyleTriggerSetter& setter : trigger.setters) {
+            if (ShouldApplyOrClearTriggerSetter(setter.value) &&
+                clearedFilter.TryAcquire(setter.property)) {
+                (void)values_.ClearTriggerValue(object, setter.property);
             }
-            const DependencyPropertyHandle property =
-                trigger.setters[setterIndex].property;
-            const std::uint64_t propMask = PropertyTriggerMask(property);
-            if ((clearedMask & propMask) == propMask) {
-                bool first = true;
-                for (std::uint32_t earlierTrigger = 0U;
-                     earlierTrigger <= triggerIndex;
-                     ++earlierTrigger) {
-                    const TriggerPlan& earlier =
-                        triggers[earlierTrigger];
-                    const std::uint32_t limit =
-                        earlierTrigger == triggerIndex
-                            ? setterIndex : earlier.setters.Size();
-                    for (std::uint32_t earlierSetter = 0U;
-                         earlierSetter < limit;
-                         ++earlierSetter) {
-                        first = first &&
-                            earlier.setters[earlierSetter].property !=
-                                property;
-                    }
-                }
-                if (!first) continue;
-            }
-            clearedMask |= propMask;
-            (void)values_.ClearTriggerValue(object, property);
         }
     }
 }

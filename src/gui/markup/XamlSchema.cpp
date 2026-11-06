@@ -123,15 +123,29 @@ const T* FindByPolicy(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors,
     ExactLookup&& lookup) noexcept {
+    if (const T* exact = lookup(type)) {
+        return exact;
+    }
     if constexpr (
         T::InheritancePolicy ==
         XamlFacetInheritancePolicy::ExactOnly) {
-        return lookup(type);
+        return nullptr;
     } else {
-        return FindInherited<T>(
-            type, descriptors,
-            std::forward<ExactLookup>(lookup));
+        const Meta::TypeInfo* descriptor = descriptors.FindType(type);
+        return descriptor != nullptr
+            ? FindInherited<T>(
+                  descriptor->BaseType(),
+                  descriptors,
+                  std::forward<ExactLookup>(lookup))
+            : nullptr;
     }
+}
+
+template<class Facet>
+const Facet* FacetColumnAt(
+    const Base::Vector<Facet>& column,
+    std::uint32_t index) noexcept {
+    return index < column.Size() ? &column[index] : nullptr;
 }
 
 } // namespace
@@ -567,135 +581,86 @@ const XamlLifecycleFacet* XamlFacets::FindLifecycle(
     const Meta::TypeRegistry& descriptors) const noexcept {
     return FindByPolicy<XamlLifecycleFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindLifecycleExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindLifecycleExact(current); });
 }
 
 const XamlNameScopeFacet* XamlFacets::FindNameScope(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
-    if (const XamlNameScopeFacet* exact = FindNameScopeExact(type)) {
-        return exact;
-    }
     return FindByPolicy<XamlNameScopeFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindNameScopeExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindNameScopeExact(current); });
 }
 
 const XamlResourceScopeFacet* XamlFacets::FindResourceScope(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
-    if (const XamlResourceScopeFacet* exact = FindResourceScopeExact(type)) {
-        return exact;
-    }
     return FindByPolicy<XamlResourceScopeFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindResourceScopeExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindResourceScopeExact(current); });
 }
 
 const XamlDeferredContentFacet* XamlFacets::FindDeferredContent(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
-    if (const XamlDeferredContentFacet* exact = FindDeferredContentExact(type)) {
-        return exact;
-    }
     return FindByPolicy<XamlDeferredContentFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindDeferredContentExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindDeferredContentExact(current); });
 }
 
 const XamlImplicitResourceKeyFacet*
 XamlFacets::FindImplicitResourceKey(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
-    if (const XamlImplicitResourceKeyFacet* exact = FindImplicitResourceKeyExact(type)) {
-        return exact;
-    }
     return FindByPolicy<XamlImplicitResourceKeyFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindImplicitResourceKeyExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindImplicitResourceKeyExact(current); });
 }
 
 const XamlPropertyTargetFacet* XamlFacets::FindPropertyTarget(
     Meta::TypeId type,
     const Meta::TypeRegistry& descriptors) const noexcept {
-    if (const XamlPropertyTargetFacet* exact = FindPropertyTargetExact(type)) {
-        return exact;
-    }
     return FindByPolicy<XamlPropertyTargetFacet>(
         type, descriptors,
-        [this](Meta::TypeId current) noexcept {
-            return FindPropertyTargetExact(current);
-        });
+        [this](Meta::TypeId current) noexcept { return FindPropertyTargetExact(current); });
 }
 
 const XamlMarkupExtensionFacet* XamlFacets::FindMarkupExtension(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(
-        type, FacetKind::MarkupExtension);
-    return index < markupExtensions_.Size()
-        ? &markupExtensions_[index]
-        : nullptr;
+    return FacetColumnAt(markupExtensions_, FindFacetIndex(type, FacetKind::MarkupExtension));
 }
 
 const XamlLifecycleFacet* XamlFacets::FindLifecycleExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(type, FacetKind::Lifecycle);
-    return index < lifecycles_.Size() ? &lifecycles_[index] : nullptr;
+    return FacetColumnAt(lifecycles_, FindFacetIndex(type, FacetKind::Lifecycle));
 }
 
 const XamlNameScopeFacet* XamlFacets::FindNameScopeExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(type, FacetKind::NameScope);
-    return index < nameScopes_.Size() ? &nameScopes_[index] : nullptr;
+    return FacetColumnAt(nameScopes_, FindFacetIndex(type, FacetKind::NameScope));
 }
 
 const XamlResourceScopeFacet* XamlFacets::FindResourceScopeExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(
-        type, FacetKind::ResourceScope);
-    return index < resourceScopes_.Size()
-        ? &resourceScopes_[index]
-        : nullptr;
+    return FacetColumnAt(resourceScopes_, FindFacetIndex(type, FacetKind::ResourceScope));
 }
 
 const XamlDeferredContentFacet*
 XamlFacets::FindDeferredContentExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(
-        type, FacetKind::DeferredContent);
-    return index < deferredContents_.Size()
-        ? &deferredContents_[index]
-        : nullptr;
+    return FacetColumnAt(deferredContents_, FindFacetIndex(type, FacetKind::DeferredContent));
 }
 
 const XamlImplicitResourceKeyFacet*
 XamlFacets::FindImplicitResourceKeyExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(
-        type, FacetKind::ImplicitResourceKey);
-    return index < implicitResourceKeys_.Size()
-        ? &implicitResourceKeys_[index]
-        : nullptr;
+    return FacetColumnAt(implicitResourceKeys_, FindFacetIndex(type, FacetKind::ImplicitResourceKey));
 }
 
 const XamlPropertyTargetFacet*
 XamlFacets::FindPropertyTargetExact(
     Meta::TypeId type) const noexcept {
-    const std::uint32_t index = FindFacetIndex(
-        type, FacetKind::PropertyTarget);
-    return index < propertyTargets_.Size()
-        ? &propertyTargets_[index]
-        : nullptr;
+    return FacetColumnAt(propertyTargets_, FindFacetIndex(type, FacetKind::PropertyTarget));
 }
 
 } // namespace Aero::Markup
@@ -1463,31 +1428,19 @@ Base::Result<Meta::TypeReference> ResolveTypeReference(
             Base::ErrorCode::InvalidArgument,
             "Type reference requires a qualified type name");
     }
-    std::uint32_t colon = name.SizeBytes();
-    for (std::uint32_t index = 0U;
-         index < name.SizeBytes();
-         ++index) {
-        if (name[index] != ':') continue;
-        if (colon != name.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Type reference contains multiple namespace prefixes");
-        }
-        colon = index;
-    }
     Base::StringView prefix;
-    Base::StringView localName = name;
-    if (colon != name.SizeBytes()) {
-        if (colon == 0U ||
-            colon + 1U >= name.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Type reference namespace prefix is malformed");
-        }
-        prefix = name.Substr(0U, colon);
-        localName = name.Substr(
-            colon + 1U,
-            name.SizeBytes() - colon - 1U);
+    Base::StringView localName;
+    switch (SplitQualifiedXamlName(name, prefix, localName)) {
+    case QualifiedNameSplitStatus::MultipleColons:
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Type reference contains multiple namespace prefixes");
+    case QualifiedNameSplitStatus::MalformedPrefix:
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidArgument,
+            "Type reference namespace prefix is malformed");
+    case QualifiedNameSplitStatus::Ok:
+        break;
     }
     Base::Result<Base::StringView> uri =
         services.namespaces.Lookup(prefix);
@@ -1556,15 +1509,7 @@ Base::Result<Meta::Value> Schema::ConvertText(
             Meta::TypeOf<Base::String>(), text);
     }
     if (type == Meta::TypeOf<Base::Object>()) {
-        Base::Result<Meta::Value> strVal =
-            Meta::Value::TryFromString(Meta::TypeOf<Base::String>(), text);
-        if (!strVal) return strVal.GetStatus();
-        Base::Result<Base::Ref<Controls::BoxedItemValue>> boxed =
-            Base::MakeRef<Controls::BoxedItemValue>(std::move(strVal).Value());
-        if (!boxed) return boxed.GetStatus();
-        return Meta::Value::FromObject(
-            type,
-            Base::Ref<Base::Object>(std::move(boxed).Value()));
+        return BoxXamlStringAsObject(text);
     }
     const bool fontFamilyValue =
         type == Meta::TypeOf<Media::FontFamily>();

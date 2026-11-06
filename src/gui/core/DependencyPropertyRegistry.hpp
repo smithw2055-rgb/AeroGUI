@@ -105,6 +105,12 @@ public:
     const DependencyProperty* Find(
         TypeId ownerType,
         StringView name) const noexcept;
+    const DependencyProperty* FindByIndex(
+        std::uint16_t globalIndex) const noexcept {
+        return globalIndex < properties_.Size()
+            ? &properties_[globalIndex]
+            : nullptr;
+    }
     // P2.3: registration-time canonicalization fast path. Aliases inserted
     // by Register/AddOwner resolve to the registered-owner (canonical)
     // handle with a single memberIndex_ hash lookup, without loading the

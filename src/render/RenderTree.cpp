@@ -1045,6 +1045,14 @@ Base::Result<void> RenderTree::Detach(
 
 void RenderTree::QueueDirty(
     ::Aero::Media::Visual& element) noexcept {
+    for (::Aero::Media::Visual* curr = &element;
+         curr != nullptr;
+         curr = curr->GetVisualParent()) {
+        if ((*curr).SubtreeRenderDirty() && curr != &element) {
+            break;
+        }
+        (*curr).SubtreeRenderDirty() = true;
+    }
     if ((element).RenderQueued()) return;
     Base::Result<Aero::VisualLease> lease =
         Aero::VisualLease::Acquire(element);
@@ -1089,9 +1097,17 @@ void RenderTree::RemoveDrawing(::Aero::Media::Visual& visual) noexcept {
     }
 }
 
-void RenderTree::MarkCommittedSubtree(
+bool RenderTree::MarkCommittedSubtree(
     ::Aero::Media::Visual& visual,
-    bool ancestorVisible) noexcept {
+    bool ancestorVisible,
+    bool pruneCleanSubtrees) noexcept {
+    if (pruneCleanSubtrees &&
+        !(visual).SubtreeRenderDirty() &&
+        !(visual).RenderQueued() &&
+        (visual).RenderValid() &&
+        (visual).RenderDirtyFlags() == 0U) {
+        return false;
+    }
     UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&visual);
     FrameworkElement* framework =
         ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
@@ -1117,12 +1133,17 @@ void RenderTree::MarkCommittedSubtree(
     (visual).RenderValid() =
         (visual).RenderDirtyFlags() == 0U;
     (visual).RenderQueued() = false;
+    bool subtreeDirty = !(visual).RenderValid();
     for (::Aero::Media::Visual* child :
          (visual).RenderChildren()) {
         if (child != nullptr) {
-            MarkCommittedSubtree(*child, visible);
+            if (MarkCommittedSubtree(*child, visible, pruneCleanSubtrees)) {
+                subtreeDirty = true;
+            }
         }
     }
+    (visual).SubtreeRenderDirty() = subtreeDirty;
+    return subtreeDirty;
 }
 
 void RenderTree::Invalidate(
@@ -1761,7 +1782,7 @@ Base::Result<void> RenderTree::DescribeVisual(
     snapshot.opacity = element != nullptr
         ? element->GetOpacity()
         : 1.0;
-    if (element != nullptr) {
+    if (element != nullptr && element->HasEffect()) {
         RenderEffectSnapshot effect = BuildEffectSnapshot(element->GetEffect().Get());
         if (effect.kind != RenderEffectKind::None) {
             snapshot.effectIndex = plan.effects_.Size();
@@ -1769,31 +1790,33 @@ Base::Result<void> RenderTree::DescribeVisual(
         }
     }
     if (element != nullptr) {
-        if (Base::Ref<Media::Geometry> clip = element->GetClip()) {
-            const std::uint64_t currentRevision = clip->GetRevision();
-            if (record->clipRevision != currentRevision || record->clipVertices.Empty()) {
-                record->clipVertices.Clear();
-                record->clipIndices.Clear();
-                if (Media::TessellateGeometryFill(*clip, record->clipVertices, record->clipIndices)) {
-                    record->clipRevision = currentRevision;
+        if (element->HasClip()) {
+            if (Base::Ref<Media::Geometry> clip = element->GetClip()) {
+                const std::uint64_t currentRevision = clip->GetRevision();
+                if (record->clipRevision != currentRevision || record->clipVertices.Empty()) {
+                    record->clipVertices.Clear();
+                    record->clipIndices.Clear();
+                    if (Media::TessellateGeometryFill(*clip, record->clipVertices, record->clipIndices)) {
+                        record->clipRevision = currentRevision;
+                    }
+                }
+                if (!record->clipVertices.Empty() && !record->clipIndices.Empty()) {
+                    snapshot.geometryClipVertexOffset = plan.geometryClipVertices_.Size();
+                    snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
+                    snapshot.geometryClipVertexCount = record->clipVertices.Size();
+                    snapshot.geometryClipIndexCount = record->clipIndices.Size();
+                    plan.geometryClipVertices_.Append(record->clipVertices.AsSpan());
+                    plan.geometryClipIndices_.Append(record->clipIndices.AsSpan());
+                    clippedOut = true;
                 }
             }
-            if (!record->clipVertices.Empty() && !record->clipIndices.Empty()) {
-                snapshot.geometryClipVertexOffset = plan.geometryClipVertices_.Size();
-                snapshot.geometryClipIndexOffset = plan.geometryClipIndices_.Size();
-                snapshot.geometryClipVertexCount = record->clipVertices.Size();
-                snapshot.geometryClipIndexCount = record->clipIndices.Size();
-                plan.geometryClipVertices_.Append(record->clipVertices.AsSpan());
-                plan.geometryClipIndices_.Append(record->clipIndices.AsSpan());
-                clippedOut = true;
-            }
-        } else {
+        } else if (record->clipRevision != 0U) {
             record->clipRevision = 0U;
             record->clipVertices.Clear();
             record->clipIndices.Clear();
         }
     }
-    if (element != nullptr) {
+    if (element != nullptr && element->HasOpacityMask()) {
         RenderMaskSnapshot mask = BuildMaskSnapshot(*element, plan);
         if (mask.kind != RenderMaskKind::None) {
             snapshot.maskIndex = plan.masks_.Size();
@@ -1806,96 +1829,102 @@ Base::Result<void> RenderTree::DescribeVisual(
         (visual).RenderRevision() +
         ((visual).RenderDirtyFlags() != 0U
          ? 1U : 0U);
-    if (element != nullptr) {
-        if (Media::Transform3D* localTransform3D =
-                element->GetTransform3D().Get()) {
-            const std::uint64_t extra =
-                (*localTransform3D).GetRevision();
-            if (UINT64_MAX - snapshot.elementRevision < extra) {
-                snapshot.elementRevision = UINT64_MAX;
-            } else {
-                snapshot.elementRevision += extra;
-            }
+    Base::Ref<Media::Transform3D> local3DRef =
+        (element != nullptr && element->HasTransform3D())
+            ? element->GetTransform3D()
+            : Base::Ref<Media::Transform3D>{};
+    Media::Transform3D* const local3D = local3DRef.Get();
+    if (local3D != nullptr) {
+        const std::uint64_t extra = (*local3D).GetRevision();
+        if (UINT64_MAX - snapshot.elementRevision < extra) {
+            snapshot.elementRevision = UINT64_MAX;
+        } else {
+            snapshot.elementRevision += extra;
         }
     }
 
-    Base::ProjectiveTransform2D overlayPlacement = Base::IdentityProjective();
-    if (overlayRoot) {
-        for (const OverlayRecord& overlay : overlays_) {
-            if (overlay.element == framework) {
-                overlayPlacement = Base::ToProjective(overlay.transform);
-                snapshot.layoutSlot.x = 0.0;
-                snapshot.layoutSlot.y = 0.0;
-                break;
-            }
-        }
-    }
-    const Base::ProjectiveTransform2D localVisual =
-        framework != nullptr
-        ? framework->GetLocalVisualTransform()
-        : Base::IdentityProjective();
-    Base::Transform2D viewboxMatrix{};
-    const Base::Transform2D* viewbox =
-        framework != nullptr && framework->TryGetViewboxTransform(viewboxMatrix)
-            ? &viewboxMatrix
-            : nullptr;
-    if (viewbox != nullptr) {
-        snapshot.hasViewboxTransform = true;
-        snapshot.viewboxTransform = viewboxMatrix;
-    }
-    Base::Transform3 innerVisual;
-    Base::Transform3 outerVisual;
-    Media::LiftLocalVisualWithViewbox(
-        localVisual, viewbox, innerVisual, outerVisual);
-    const Media::Transform3DContext childContext =
-        Media::AdvanceTransform3DContext(
-            transform3D,
-            element != nullptr ? element->GetTransform3D().Get() : nullptr,
-            innerVisual,
-            snapshot.layoutSlot,
-            snapshot.renderSize,
-            overlayRoot,
-            outerVisual);
-    Media::Transform3D* local3D =
-        element != nullptr ? element->GetTransform3D().Get() : nullptr;
-    const bool local3DActive =
-        local3D != nullptr &&
-        ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) == nullptr &&
-        !Base::LeavesZ0PlaneUnchanged(local3D->GetTransform3D());
     const bool parent3DActive =
         !Base::LeavesZ0PlaneUnchanged(transform3D.accumulated);
-    if (local3DActive) {
-        // Collapse this element's CompositeTransform3D in local pixels
-        // (CenterX/Y) and wrap Viewbox scale. Grid itself does not paint;
-        // descendants inherit this multiply (see parent3DActive below).
-        snapshot.renderTransform = Media::CollapseLocalTransform3D(
-            local3D,
-            snapshot.renderSize,
-            innerVisual,
-            outerVisual,
-            childContext.depth);
-    } else if (parent3DActive) {
-        // Parent already collapsed RotationY into renderTransform. Collapsing
-        // again with the window-sized camera sends a card-flip off-axis so
-        // the board vanishes at 90° instead of turning.
-        snapshot.renderTransform = localVisual;
+    const bool hasLocal2DTransform =
+        framework != nullptr && framework->HasLocalVisualTransform();
+    Media::Transform3DContext childContext = transform3D;
+
+    if (!overlayRoot && !parent3DActive && local3D == nullptr && !hasLocal2DTransform) {
+        // Fast path for plain 2D visuals (99%+ of typical UI trees):
+        // no local 2D/3D transform, no Viewbox, and parent is on the Z=0 plane.
+        snapshot.renderTransform = Base::IdentityProjective();
+        snapshot.isIdentityTransform = true;
+        childContext.accumulated.dx += snapshot.layoutSlot.x;
+        childContext.accumulated.dy += snapshot.layoutSlot.y;
     } else {
-        snapshot.renderTransform =
-            Media::CollapseRelativeToParent(
+        Base::ProjectiveTransform2D overlayPlacement = Base::IdentityProjective();
+        if (overlayRoot) {
+            for (const OverlayRecord& overlay : overlays_) {
+                if (overlay.element == framework) {
+                    overlayPlacement = Base::ToProjective(overlay.transform);
+                    snapshot.layoutSlot.x = 0.0;
+                    snapshot.layoutSlot.y = 0.0;
+                    break;
+                }
+            }
+        }
+        const Base::ProjectiveTransform2D localVisual =
+            hasLocal2DTransform
+                ? framework->GetLocalVisualTransform()
+                : Base::IdentityProjective();
+        Base::Transform2D viewboxMatrix{};
+        const Base::Transform2D* viewbox =
+            hasLocal2DTransform && framework->TryGetViewboxTransform(viewboxMatrix)
+                ? &viewboxMatrix
+                : nullptr;
+        if (viewbox != nullptr) {
+            snapshot.hasViewboxTransform = true;
+            snapshot.viewboxTransform = viewboxMatrix;
+        }
+        Base::Transform3 innerVisual;
+        Base::Transform3 outerVisual;
+        Media::LiftLocalVisualWithViewbox(
+            localVisual, viewbox, innerVisual, outerVisual);
+        childContext =
+            Media::AdvanceTransform3DContext(
                 transform3D,
-                childContext,
+                local3D,
+                innerVisual,
                 snapshot.layoutSlot,
-                localVisual,
-                false);
-    }
-    if (element != nullptr &&
-        ::Aero::TryCast<Media::PerspectiveTransform3D>(
-            element->GetTransform3D().Get()) != nullptr) {
-        snapshot.renderTransform = localVisual;
-    }
-    if (overlayRoot) {
-        snapshot.renderTransform =
-            Base::Compose(snapshot.renderTransform, overlayPlacement);
+                snapshot.renderSize,
+                overlayRoot,
+                outerVisual);
+        const bool local3DActive =
+            local3D != nullptr &&
+            ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) == nullptr &&
+            !Base::LeavesZ0PlaneUnchanged(local3D->GetTransform3D());
+        if (local3DActive) {
+            snapshot.renderTransform = Media::CollapseLocalTransform3D(
+                local3D,
+                snapshot.renderSize,
+                innerVisual,
+                outerVisual,
+                childContext.depth);
+        } else if (parent3DActive) {
+            snapshot.renderTransform = localVisual;
+        } else {
+            snapshot.renderTransform =
+                Media::CollapseRelativeToParent(
+                    transform3D,
+                    childContext,
+                    snapshot.layoutSlot,
+                    localVisual,
+                    false);
+        }
+        if (local3D != nullptr &&
+            ::Aero::TryCast<Media::PerspectiveTransform3D>(local3D) != nullptr) {
+            snapshot.renderTransform = localVisual;
+        }
+        if (overlayRoot) {
+            snapshot.renderTransform =
+                Base::Compose(snapshot.renderTransform, overlayPlacement);
+        }
+        snapshot.isIdentityTransform = false;
     }
 
     drawingOut = &list;
@@ -1942,6 +1971,10 @@ Base::Result<void> RenderTree::BuildSubtree(
         snapshot.payloadSize = 0U;
     }
     snapshot.drawing = (visible && drawing != nullptr) ? drawing : nullptr;
+    const std::uint32_t selfIndex = plan.nodes_.Size();
+    snapshot.subtreeEnd = selfIndex + 1U;
+    snapshot.subtreeCommandCount = snapshot.commandCount;
+    snapshot.descendantHasEffectOrMask = false;
     plan.nodes_.PushBack(snapshot);
 
     if (!visible) return {};
@@ -1951,6 +1984,7 @@ Base::Result<void> RenderTree::BuildSubtree(
             !IsEmittedChild(*child)) {
             continue;
         }
+        const std::uint32_t childIndex = plan.nodes_.Size();
         Base::Result<void> childResult =
             BuildSubtree(
                 *child,
@@ -1961,7 +1995,17 @@ Base::Result<void> RenderTree::BuildSubtree(
         if (!childResult) {
             return childResult;
         }
+        if (childIndex < plan.nodes_.Size()) {
+            const RenderNodeSnapshot& childNode = plan.nodes_[childIndex];
+            plan.nodes_[selfIndex].subtreeCommandCount += childNode.subtreeCommandCount;
+            if (childNode.effectIndex != UINT32_MAX ||
+                childNode.maskIndex != UINT32_MAX ||
+                childNode.descendantHasEffectOrMask) {
+                plan.nodes_[selfIndex].descendantHasEffectOrMask = true;
+            }
+        }
     }
+    plan.nodes_[selfIndex].subtreeEnd = plan.nodes_.Size();
     return {};
 }
 
@@ -1993,12 +2037,14 @@ Base::Result<void> RenderTree::RefreshInPlace(
 
     currentFrame_.effects_.Clear();
     currentFrame_.masks_.Clear();
+    currentFrame_.gradientRamps_.Clear();
     currentFrame_.geometryClipVertices_.Clear();
     currentFrame_.geometryClipIndices_.Clear();
 
     std::uint32_t cursor = 0U;
     bool fallback = false;
     bool needsCommandRepack = false;
+    bool anyUnqueuedDirty = false;
     Base::Status fatal;
     auto refresh = [&](auto&& self,
                        ::Aero::Media::Visual& visual,
@@ -2016,7 +2062,8 @@ Base::Result<void> RenderTree::RefreshInPlace(
             fallback = true;
             return {};
         }
-        RenderNodeSnapshot& stored = currentFrame_.nodes_[cursor];
+        const std::uint32_t selfIndex = cursor;
+        RenderNodeSnapshot& stored = currentFrame_.nodes_[selfIndex];
         // Layout writes sizes directly without render flags. A resized
         // visual needs its drawing re-recorded; force the Drawing bit so
         // DescribeVisual treats it exactly like a flagged visual (the full
@@ -2029,6 +2076,9 @@ Base::Result<void> RenderTree::RefreshInPlace(
                 nowSize.width != stored.renderSize.width ||
                 nowSize.height != stored.renderSize.height;
             if (sizeChanged) {
+                if (!(visual).RenderQueued()) {
+                    anyUnqueuedDirty = true;
+                }
                 (visual).RenderDirtyFlags() |=
                     static_cast<std::uint8_t>(
                         RenderInvalidation::Drawing);
@@ -2069,24 +2119,29 @@ Base::Result<void> RenderTree::RefreshInPlace(
             snapshot.commandOffset = stored.commandOffset;
             snapshot.payloadOffset = stored.payloadOffset;
             snapshot.payloadSize = stored.payloadSize;
-            if (snapshot.commandCount != 0U && (drawingDirty || sizeChanged)) {
-                if (newPayloadSize != 0U) {
-                    std::memcpy(
-                        currentFrame_.commandPayload_.Data() + stored.payloadOffset,
-                        drawing->Payload().Data(),
-                        newPayloadSize);
-                }
-                const auto fresh = drawing->Headers();
-                for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
-                    RenderCommandHeader h = fresh[i];
-                    h.payloadOffset += stored.payloadOffset;
-                    currentFrame_.commandHeaders_[stored.commandOffset + i] = h;
+            if (snapshot.commandCount != 0U) {
+                if (drawingDirty || sizeChanged) {
+                    if (newPayloadSize != 0U) {
+                        std::memcpy(
+                            currentFrame_.commandPayload_.Data() + stored.payloadOffset,
+                            drawing->Payload().Data(),
+                            newPayloadSize);
+                    }
+                    const auto fresh = drawing->Headers();
+                    for (std::uint32_t i = 0U; i < snapshot.commandCount; ++i) {
+                        RenderCommandHeader h = fresh[i];
+                        h.payloadOffset += stored.payloadOffset;
+                        currentFrame_.commandHeaders_[stored.commandOffset + i] = h;
+                    }
                 }
                 ResolveCommandGradients(
                     currentFrame_, stored.commandOffset,
                     snapshot.commandCount);
             }
         }
+        snapshot.subtreeEnd = selfIndex + 1U;
+        snapshot.subtreeCommandCount = snapshot.commandCount;
+        snapshot.descendantHasEffectOrMask = false;
         stored = snapshot;
         ++cursor;
 
@@ -2097,12 +2152,23 @@ Base::Result<void> RenderTree::RefreshInPlace(
                 !IsEmittedChild(*child)) {
                 continue;
             }
+            const std::uint32_t childIndex = cursor;
             Base::Result<void> childResult = self(
                 self, *child, (visual).NodeId(),
                 childContext);
             if (!childResult) return childResult.GetStatus();
             if (fallback) return {};
+            if (childIndex < cursor) {
+                const RenderNodeSnapshot& childNode = currentFrame_.nodes_[childIndex];
+                currentFrame_.nodes_[selfIndex].subtreeCommandCount += childNode.subtreeCommandCount;
+                if (childNode.effectIndex != UINT32_MAX ||
+                    childNode.maskIndex != UINT32_MAX ||
+                    childNode.descendantHasEffectOrMask) {
+                    currentFrame_.nodes_[selfIndex].descendantHasEffectOrMask = true;
+                }
+            }
         }
+        currentFrame_.nodes_[selfIndex].subtreeEnd = cursor;
         return {};
     };
 
@@ -2117,6 +2183,10 @@ Base::Result<void> RenderTree::RefreshInPlace(
         return {};
     }
     if (needsCommandRepack) {
+        if (!currentFrame_.masks_.Empty()) {
+            return {};
+        }
+        currentFrame_.gradientRamps_.Clear();
         currentFrame_.commandHeaders_.Clear();
         currentFrame_.commandPayload_.Clear();
         for (std::uint32_t i = 0U; i < currentFrame_.nodes_.Size(); ++i) {
@@ -2145,7 +2215,7 @@ Base::Result<void> RenderTree::RefreshInPlace(
     }
     currentFrame_.version_ = ++commitVersion_;
     currentFrame_.cachedHash_ = 0U;
-    MarkCommittedSubtree(*root_, true);
+    MarkCommittedSubtree(*root_, true, !anyUnqueuedDirty);
     dirty_.Clear();
     committedStructureVersion_ = structureVersion_;
     committedNodesOut = cursor;
@@ -2186,6 +2256,7 @@ Base::Result<std::uint32_t> RenderTree::RebuildFull() noexcept {
             continue;
         }
         const Size overlaySize = overlay->GetRenderSize();
+        const std::uint32_t overlayIndex = stagedFrame_.nodes_.Size();
         built = BuildSubtree(
             *overlay,
             (*root_).NodeId(),
@@ -2194,6 +2265,16 @@ Base::Result<std::uint32_t> RenderTree::RebuildFull() noexcept {
             Media::MakeImplicitViewRootContext(overlaySize));
         if (!built) {
             return built.GetStatus();
+        }
+        if (!stagedFrame_.nodes_.Empty() && overlayIndex < stagedFrame_.nodes_.Size()) {
+            const RenderNodeSnapshot& ovNode = stagedFrame_.nodes_[overlayIndex];
+            stagedFrame_.nodes_[0].subtreeEnd = stagedFrame_.nodes_.Size();
+            stagedFrame_.nodes_[0].subtreeCommandCount += ovNode.subtreeCommandCount;
+            if (ovNode.effectIndex != UINT32_MAX ||
+                ovNode.maskIndex != UINT32_MAX ||
+                ovNode.descendantHasEffectOrMask) {
+                stagedFrame_.nodes_[0].descendantHasEffectOrMask = true;
+            }
         }
     }
     const std::uint32_t committedNodes = stagedFrame_.nodes_.Size();

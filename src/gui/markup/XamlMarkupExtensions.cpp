@@ -88,21 +88,13 @@ enum class RelativeSourceKind : std::uint8_t {
 
 Base::Result<long double> ReadConstantBindingNumberImpl(
     const Meta::Value& value) noexcept {
-    switch (value.Kind()) {
-    case Meta::ValueKind::SignedInteger:
-        return static_cast<long double>(
-            value.AsSignedInteger());
-    case Meta::ValueKind::UnsignedInteger:
-        return static_cast<long double>(
-            value.AsUnsignedInteger());
-    case Meta::ValueKind::Double:
-        return static_cast<long double>(
-            value.AsDouble());
-    default:
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "Binding constant is not numeric");
+    long double number = 0.0L;
+    if (Base::ValueConversion::TryExtractNumber(value, number, false)) {
+        return number;
     }
+    return Base::Status::Failure(
+        Base::ErrorCode::InvalidArgument,
+        "Binding constant is not numeric");
 }
 
 Base::Result<Meta::Value> ConvertConstantBindingValueImpl(
@@ -112,29 +104,10 @@ Base::Result<Meta::Value> ConvertConstantBindingValueImpl(
         return value;
     }
     if (value.Type() == targetType) return value;
-
-    Base::Result<long double> number =
-        ReadConstantBindingNumberImpl(value);
-    if (!number) return number.GetStatus();
-    const double converted =
-        static_cast<double>(number.Value());
-    if (!std::isfinite(converted)) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Binding constant is outside the target range");
-    }
-    if (targetType ==
-            Meta::TypeOf<::Aero::GridLength>()) {
-        return Meta::ValueCodec<::Aero::GridLength>::Encode(
-            ::Aero::GridLength::Pixel(converted));
-    }
-    if (targetType == Meta::TypeOf<Aero::Length>()) {
-        return Meta::ValueCodec<Aero::Length>::Encode(
-            Aero::Length::Pixels(converted));
-    }
-    if (targetType == Meta::TypeOf<double>()) {
-        return Meta::Value::FromDouble(
-            targetType, converted);
+    if (targetType == Meta::TypeOf<::Aero::GridLength>() ||
+        targetType == Meta::TypeOf<Aero::Length>() ||
+        targetType == Meta::TypeOf<double>()) {
+        return Base::ValueConversion::ConvertMetricValue(value, targetType);
     }
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
@@ -413,13 +386,9 @@ Base::Result<void> ParseArguments(
                     Base::StringView typeName = TrimAscii(relativeMode.Substr(
                         AncestorPrefix.SizeBytes(),
                         relativeMode.SizeBytes() - AncestorPrefix.SizeBytes()));
-                    constexpr Base::StringView TypePrefix("{x:Type");
-                    if (typeName.SizeBytes() > TypePrefix.SizeBytes() + 1U &&
-                        typeName.Substr(0U, TypePrefix.SizeBytes()) == TypePrefix &&
-                        typeName[typeName.SizeBytes() - 1U] == '}') {
-                        typeName = TrimAscii(typeName.Substr(
-                            TypePrefix.SizeBytes(),
-                            typeName.SizeBytes() - TypePrefix.SizeBytes() - 1U));
+                    Base::StringView unwrappedType;
+                    if (TryUnwrapTypeExtensionLiteral(typeName, unwrappedType)) {
+                        typeName = unwrappedType;
                     }
                     if (typeName.Empty()) {
                         return Base::Status::Failure(
@@ -1703,29 +1672,12 @@ Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
         value.IsNullObject()) {
         return value;
     }
-    if (property.ValueType() == Meta::TypeOf<Aero::Length>()) {
-        Base::Result<long double> number = ReadConstantBindingNumber(value);
-        if (number) {
-            return Meta::ValueCodec<Aero::Length>::Encode(
-                Aero::Length::Pixels(
-                    static_cast<double>(number.Value())));
-        }
-    }
-    if (property.ValueType() == Meta::TypeOf<Aero::GridLength>()) {
-        Base::Result<long double> number = ReadConstantBindingNumber(value);
-        if (number) {
-            return Meta::ValueCodec<Aero::GridLength>::Encode(
-                Aero::GridLength::Pixel(
-                    static_cast<double>(number.Value())));
-        }
-    }
-    if (property.ValueType() == Meta::TypeOf<Base::Thickness>()) {
-        Base::Result<long double> number = ReadConstantBindingNumber(value);
-        if (number) {
-            const double size = static_cast<double>(number.Value());
-            return Meta::ValueCodec<Base::Thickness>::Encode(
-                Base::Thickness{size, size, size, size});
-        }
+    if (property.ValueType() == Meta::TypeOf<Aero::Length>() ||
+        property.ValueType() == Meta::TypeOf<Aero::GridLength>() ||
+        property.ValueType() == Meta::TypeOf<Base::Thickness>()) {
+        Base::Result<Meta::PropertyValue> metric =
+            Base::ValueConversion::ConvertMetricValue(value, property.ValueType());
+        if (metric) return metric;
     }
     if (value.Kind() == Meta::ValueKind::String) {
         return Meta::PropertyValue::TryFromString(
@@ -3241,31 +3193,19 @@ Base::Result<ProvidedValue> StaticExtension::ProvideValue(
         expression.Substr(
             memberSeparator + 1U,
             expression.SizeBytes() - memberSeparator - 1U);
-    std::uint32_t prefixSeparator = qualifiedType.SizeBytes();
-    for (std::uint32_t index = 0U;
-         index < qualifiedType.SizeBytes(); ++index) {
-        if (qualifiedType[index] == ':') {
-            if (prefixSeparator != qualifiedType.SizeBytes()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "x:Static type has multiple namespace separators");
-            }
-            prefixSeparator = index;
-        }
-    }
     Base::StringView prefix;
-    Base::StringView typeName = qualifiedType;
-    if (prefixSeparator != qualifiedType.SizeBytes()) {
-        if (prefixSeparator == 0U ||
-            prefixSeparator + 1U >= qualifiedType.SizeBytes()) {
-            return Base::Status::Failure(
-                Base::ErrorCode::ValidationFailed,
-                "x:Static type name is invalid");
-        }
-        prefix = qualifiedType.Substr(0U, prefixSeparator);
-        typeName = qualifiedType.Substr(
-            prefixSeparator + 1U,
-            qualifiedType.SizeBytes() - prefixSeparator - 1U);
+    Base::StringView typeName;
+    switch (SplitQualifiedXamlName(qualifiedType, prefix, typeName)) {
+    case QualifiedNameSplitStatus::MultipleColons:
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "x:Static type has multiple namespace separators");
+    case QualifiedNameSplitStatus::MalformedPrefix:
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "x:Static type name is invalid");
+    case QualifiedNameSplitStatus::Ok:
+        break;
     }
 
     Base::Result<Base::StringView> xamlNamespace =
