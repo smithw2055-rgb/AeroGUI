@@ -221,10 +221,10 @@ public:
 
     bool DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected) noexcept;
+        const Meta::PropertyValue& expected) noexcept;
     bool EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected,
+        const Meta::PropertyValue& expected,
         Base::StringView comparison) noexcept;
     Base::Object* ResolveDataTemplateConditionSource(
         Aero::Controls::DataTemplateTriggerInstance& context,

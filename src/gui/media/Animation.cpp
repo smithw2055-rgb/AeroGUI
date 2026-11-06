@@ -249,14 +249,14 @@ std::uint64_t KeyTime::ResolveMicroseconds(
     std::uint32_t count) const noexcept {
     switch (kind_) {
     case Kind::TimeSpan:
-        return timeSpan_.Microseconds();
+        return GetTimeSpan().Microseconds();
     case Kind::Percent: {
         if (durationMicroseconds == 0U ||
             durationMicroseconds == UINT64_MAX) {
             return 0U;
         }
         const double scaled =
-            percent_ * static_cast<double>(durationMicroseconds);
+            GetPercent() * static_cast<double>(durationMicroseconds);
         if (!std::isfinite(scaled) || scaled <= 0.0) return 0U;
         if (scaled >= static_cast<double>(UINT64_MAX)) return UINT64_MAX;
         return static_cast<std::uint64_t>(std::llround(scaled));
@@ -735,21 +735,21 @@ AERO_DESCRIBE(KeyFrameBase) {
 AERO_DESCRIBE(ObjectKeyFrame) {
     using namespace Aero::Meta;
     Register<ObjectKeyFrame>(context, TypeFlags::Abstract)
-            .Property<Value, &ObjectKeyFrame::GetValue, &ObjectKeyFrame::SetValue>("Value", PropertyFlags::AnyValue);
+            .Property<&ObjectKeyFrame::GetValue, &ObjectKeyFrame::SetValue>("Value");
 }
 
 AERO_DESCRIBE(TimerTrigger) {
     using namespace Aero::Meta;
     Register<TimerTrigger>(context)
-            .Property("TotalTicks", &TimerTrigger::GetTotalTicks, &TimerTrigger::SetTotalTicks)
-            .Property<Meta::PropertyValue, &TimerTrigger::GetMillisecondsPerTick, &TimerTrigger::SetMillisecondsPerTick>("MillisecondsPerTick", PropertyFlags::AnyValue)
+            .Property<&TimerTrigger::GetTotalTicks, &TimerTrigger::SetTotalTicks>("TotalTicks")
+            .Property<&TimerTrigger::GetMillisecondsPerTick, &TimerTrigger::SetMillisecondsPerTick>("MillisecondsPerTick")
             .Factory();
 }
 
 AERO_DESCRIBE(StoryboardCompletedTrigger) {
     using namespace Aero::Meta;
     Register<StoryboardCompletedTrigger>(context)
-            .Property("Storyboard", &StoryboardCompletedTrigger::GetStoryboard, &StoryboardCompletedTrigger::SetStoryboard)
+            .Property<&StoryboardCompletedTrigger::GetStoryboard, &StoryboardCompletedTrigger::SetStoryboard>("Storyboard")
             .Content<::Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddStoryboardCompletedTriggerAction, &::Aero::MetadataSupport::ClearStoryboardCompletedTriggerActions)
             .Factory();
 }
@@ -761,9 +761,9 @@ namespace Aero {
 AERO_DESCRIBE(EventTrigger) {
     using namespace Aero::Meta;
     Register<EventTrigger>(context)
-            .Property("RoutedEvent", &EventTrigger::GetRoutedEvent, &EventTrigger::SetRoutedEvent)
-            .Property("EventName", &EventTrigger::GetEventName, &EventTrigger::SetEventName)
-            .Property("SourceName", &EventTrigger::GetSourceName, &EventTrigger::SetSourceName)
+            .Property<&EventTrigger::GetRoutedEvent, &EventTrigger::SetRoutedEvent>("RoutedEvent")
+            .Property<&EventTrigger::GetEventName, &EventTrigger::SetEventName>("EventName")
+            .Property<&EventTrigger::GetSourceName, &EventTrigger::SetSourceName>("SourceName")
             .Content<::Aero::Interactivity::TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddEventTriggerAction, &::Aero::MetadataSupport::ClearEventTriggerActions)
             .Factory();
 }

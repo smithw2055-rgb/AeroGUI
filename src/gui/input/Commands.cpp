@@ -966,9 +966,9 @@ AERO_DESCRIBE(InputBinding) {
 AERO_DESCRIBE(CommandBinding) {
     using namespace Aero::Meta;
     Register<CommandBinding>(context)
-            .Property("Command", &CommandBinding::GetCommandName, &CommandBinding::SetCommandName)
-            .Property("Executed", &CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName)
-            .Property("CanExecute", &CommandBinding::GetCanExecuteName, &CommandBinding::SetCanExecuteName)
+            .Property<&CommandBinding::GetCommandName, &CommandBinding::SetCommandName>("Command")
+            .Property<&CommandBinding::GetExecutedName, &CommandBinding::SetExecutedName>("Executed")
+            .Property<&CommandBinding::GetCanExecuteName, &CommandBinding::SetCanExecuteName>("CanExecute")
             .Factory();
 }
 
@@ -980,16 +980,16 @@ AERO_DESCRIBE(ApplicationCommands) {
 AERO_DESCRIBE(KeyBinding) {
     using namespace Aero::Meta;
     Register<KeyBinding>(context)
-            .Property("Command", &KeyBinding::GetCommandName, &KeyBinding::SetCommandName)
-            .Property("Key", &KeyBinding::GetKeyName, &KeyBinding::SetKeyName)
-            .Property("Modifiers", &KeyBinding::GetModifiersName, &KeyBinding::SetModifiersName)
+            .Property<&KeyBinding::GetCommandName, &KeyBinding::SetCommandName>("Command")
+            .Property<&KeyBinding::GetKeyName, &KeyBinding::SetKeyName>("Key")
+            .Property<&KeyBinding::GetModifiersName, &KeyBinding::SetModifiersName>("Modifiers")
             .Factory();
 }
 
 AERO_DESCRIBE(MouseBinding) {
     using namespace Aero::Meta;
     Register<MouseBinding>(context)
-            .Property("Command", &MouseBinding::GetCommandName, &MouseBinding::SetCommandName)
+            .Property<&MouseBinding::GetCommandName, &MouseBinding::SetCommandName>("Command")
             .Factory();
 }
 

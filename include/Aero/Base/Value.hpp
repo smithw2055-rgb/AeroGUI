@@ -27,8 +27,11 @@
 namespace Aero::Base {
 
 struct Color;
+struct Point;
 struct Rect;
 struct Size;
+struct Thickness;
+struct CornerRadius;
 
 using TypeId = Base::MetaTypeId;
 using MemberId = Base::MetaMemberId;
@@ -120,6 +123,22 @@ public:
         const void* source,
         const Ref<ValueTypeSemantics>& semantics) noexcept;
 
+    template<class T>
+    static Value FromInlineCustom(TypeId type, const T& value) noexcept {
+        static_assert(std::is_trivially_copyable_v<T>, "Inline custom value must be trivially copyable");
+        static_assert(sizeof(T) <= InlineCapacity, "Inline custom value exceeds InlineCapacity");
+        static_assert(alignof(T) <= alignof(std::max_align_t), "Inline custom value alignment exceeds storage");
+        Value result;
+        result.type_ = type;
+        result.kind_ = ValueKind::Custom;
+        result.inlineCustom_ = true;
+        if constexpr (sizeof(T) < InlineCapacity) {
+            std::memset(result.storage_.inlineData, 0, InlineCapacity);
+        }
+        std::memcpy(result.storage_.inlineData, &value, sizeof(T));
+        return result;
+    }
+
     TypeId Type() const noexcept { return type_; }
     ValueKind Kind() const noexcept { return kind_; }
     bool IsUnset() const noexcept { return kind_ == ValueKind::Unset; }
@@ -135,12 +154,24 @@ public:
     StringView AsString() const noexcept;
     StringView AsDynamicResourceKey() const noexcept;
     const Ref<Base::Object>& AsObject() const noexcept;
-    const void* AsCustom() const noexcept;
-    void* MutableCustom() noexcept;
+    const void* AsCustom() const noexcept {
+        if (kind_ == ValueKind::Custom && inlineCustom_) {
+            return static_cast<const void*>(storage_.inlineData);
+        }
+        return AsBoxedCustom();
+    }
+    void* MutableCustom() noexcept {
+        if (kind_ == ValueKind::Custom && inlineCustom_) {
+            return static_cast<void*>(storage_.inlineData);
+        }
+        return MutableBoxedCustom();
+    }
     bool Equals(const Value& other) const noexcept;
     void Reset() noexcept;
 
 private:
+    const void* AsBoxedCustom() const noexcept;
+    void* MutableBoxedCustom() noexcept;
     TypeId type_ = InvalidTypeId;
     ValueKind kind_ = ValueKind::Unset;
     bool inlineCustom_ = false;

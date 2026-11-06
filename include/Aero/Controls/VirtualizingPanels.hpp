@@ -21,6 +21,13 @@ struct VirtualizationCacheLength {
     double cacheAfterViewport = 0.0;
 };
 
+constexpr VirtualizationCacheLength CanonicalizeInlineValue(
+    const VirtualizationCacheLength& value) noexcept {
+    return {
+        (value.cacheBeforeViewport == 0.0) ? 0.0 : value.cacheBeforeViewport,
+        (value.cacheAfterViewport == 0.0) ? 0.0 : value.cacheAfterViewport};
+}
+
 using ::Aero::Meta::TypeId;
 
 enum class ScrollUnit : std::uint8_t { Item = 0U, Pixel };

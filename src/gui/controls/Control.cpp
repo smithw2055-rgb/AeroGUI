@@ -1047,7 +1047,7 @@ AERO_DESCRIBE(ContentControl) {
         .Property(ContentControl::ContentProperty, FrameworkPropertyMetadata(Meta::Value::NullObject(Meta::TypeOf<Base::Object>()), AffectsMeasure).Structural())
         .Property(ContentControl::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentControl::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
-        .ContentAccessor(MakeMemberId(ContentControl::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
+        .ContentAccessor(ContentControl::ContentProperty, ContentKind::Single, &SetContentControlContent, &ClearContentControlContent, ContentFlags::Visual)
         .Factory<ContentControl>();
 }
 
@@ -1061,7 +1061,7 @@ AERO_DESCRIBE(ContentPresenter) {
         .Property(ContentPresenter::ContentTemplateProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentPresenter::ContentTemplateSelectorProperty, Base::Ref<Base::Object>{}, AffectsMeasure)
         .Property(ContentPresenter::ContentSourceProperty, std::move(defaultContentSource))
-        .ContentAccessor(MakeMemberId(ContentPresenter::StaticTypeId(), MemberKind::Property, "Content"), ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
+        .ContentAccessor(ContentPresenter::ContentProperty, ContentKind::Single, &SetContentPresenterContent, &ClearContentPresenterContent, ContentFlags::Visual)
         .Factory();
 }
 

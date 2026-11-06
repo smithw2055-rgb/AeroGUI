@@ -306,16 +306,16 @@ Base::Result<bool> InteractivityEngine::ConditionBehaviorsAllowExecution(
 
 bool InteractivityEngine::DataTemplateTriggerValuesMatch(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected) noexcept {
-    return ComparePropertyValues(actual, std::move(expected), Metadata());
+        const Meta::PropertyValue& expected) noexcept {
+    return EvaluatePropertyTriggerCondition(actual, expected, Metadata());
 }
 
 bool InteractivityEngine::EvaluateTriggerComparison(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected,
+        const Meta::PropertyValue& expected,
         Base::StringView comparison) noexcept {
     return ComparePropertyValues(
-        actual, std::move(expected), Metadata(), comparison);
+        actual, expected, Metadata(), comparison);
 }
 
 Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(

@@ -27,8 +27,10 @@ class DependencyPropertyRegistry;
 
 struct DependencyPropertyHandle {
     MemberId value = InvalidMemberId;
+    std::uint16_t globalIndex = 0xFFFFU;
 
     constexpr bool IsValid() const noexcept { return value != InvalidMemberId; }
+    constexpr bool HasGlobalIndex() const noexcept { return globalIndex != 0xFFFFU; }
 };
 
 constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(TypeId ownerType, StringView name) noexcept;

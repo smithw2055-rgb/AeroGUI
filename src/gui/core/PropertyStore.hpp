@@ -560,10 +560,15 @@ struct PropertyStore {
     struct Entries {
         static constexpr std::uint32_t InlineCapacity = 4U;
 
+        std::uint64_t bloomMask_ = 0ULL;
         std::uint32_t size_ = 0U;
         std::uint32_t capacity_ = InlineCapacity;
         PropertyStoreEntry* data_ = inlineEntries_;
         PropertyStoreEntry inlineEntries_[InlineCapacity];
+
+        static constexpr std::uint64_t KeyBloomBits(MemberId key) noexcept {
+            return (1ULL << (key & 63ULL)) | (1ULL << ((key >> 6U) & 63ULL));
+        }
 
         Entries() noexcept = default;
         ~Entries() noexcept { Clear(); }
@@ -581,8 +586,10 @@ struct PropertyStore {
                 data_ = other.data_;
                 other.data_ = other.inlineEntries_;
             }
+            bloomMask_ = other.bloomMask_;
             size_ = other.size_;
             capacity_ = other.capacity_;
+            other.bloomMask_ = 0ULL;
             other.size_ = 0U;
             other.capacity_ = InlineCapacity;
         }
@@ -599,8 +606,10 @@ struct PropertyStore {
                 data_ = other.data_;
                 other.data_ = other.inlineEntries_;
             }
+            bloomMask_ = other.bloomMask_;
             size_ = other.size_;
             capacity_ = other.capacity_;
+            other.bloomMask_ = 0ULL;
             other.size_ = 0U;
             other.capacity_ = InlineCapacity;
             return *this;
@@ -615,6 +624,18 @@ struct PropertyStore {
         const PropertyStoreEntry* end() const noexcept { return data_ + size_; }
 
         StoredValueEntry* Find(MemberId key) noexcept {
+            const std::uint64_t bits = KeyBloomBits(key);
+            if ((bloomMask_ & bits) != bits) {
+                return nullptr;
+            }
+            if (size_ <= 8U) {
+                for (std::uint32_t i = 0U; i < size_; ++i) {
+                    if (data_[i].key == key) {
+                        return &data_[i].value;
+                    }
+                }
+                return nullptr;
+            }
             const std::uint32_t idx = LowerBound(key);
             if (idx < size_ && data_[idx].key == key) {
                 return &data_[idx].value;
@@ -623,6 +644,18 @@ struct PropertyStore {
         }
 
         const StoredValueEntry* Find(MemberId key) const noexcept {
+            const std::uint64_t bits = KeyBloomBits(key);
+            if ((bloomMask_ & bits) != bits) {
+                return nullptr;
+            }
+            if (size_ <= 8U) {
+                for (std::uint32_t i = 0U; i < size_; ++i) {
+                    if (data_[i].key == key) {
+                        return &data_[i].value;
+                    }
+                }
+                return nullptr;
+            }
             const std::uint32_t idx = LowerBound(key);
             if (idx < size_ && data_[idx].key == key) {
                 return &data_[idx].value;
@@ -650,6 +683,7 @@ struct PropertyStore {
                 data_[j] = std::move(data_[j - 1U]);
             }
             ++size_;
+            bloomMask_ |= KeyBloomBits(key);
             PropertyStoreEntry* target = &data_[idx];
             target->key = key;
             target->value = std::move(entry);
@@ -664,6 +698,11 @@ struct PropertyStore {
                 }
                 --size_;
                 data_[size_] = PropertyStoreEntry{};
+                std::uint64_t rebuilt = 0ULL;
+                for (std::uint32_t i = 0U; i < size_; ++i) {
+                    rebuilt |= KeyBloomBits(data_[i].key);
+                }
+                bloomMask_ = rebuilt;
             }
         }
 
@@ -671,6 +710,7 @@ struct PropertyStore {
             for (std::uint32_t i = 0; i < size_; ++i) {
                 data_[i] = PropertyStoreEntry{};
             }
+            bloomMask_ = 0ULL;
             size_ = 0U;
             if (data_ != inlineEntries_) {
                 delete[] data_;

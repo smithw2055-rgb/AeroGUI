@@ -57,10 +57,10 @@ Base::Status InvalidTemplate(const char* message) noexcept {
 bool TemplateTriggerCondition::IsMet(
     DependencyObject& /*source*/,
     const PropertyValue& current) const noexcept {
-    // ComparePropertyValues already handles Nullable<bool> null-object sentinels
+    // EvaluatePropertyTriggerCondition handles Nullable<bool> null-object sentinels
     // (such as ToggleButton.IsChecked="{x:Null}"). Pass nullptr metadata so text
     // conversion failures fall back to false without aborting template checks.
-    return ComparePropertyValues(current, value, nullptr);
+    return EvaluatePropertyTriggerCondition(current, value, nullptr);
 }
 
 namespace {
@@ -588,25 +588,13 @@ void TemplateProgram::SetBaseUri(
     baseUri = value;
 }
 
-Base::Result<void> TemplateProgram::Seal() noexcept {
-    if (sealed) return {};
-    if (factory == nullptr) {
-        return InvalidTemplate(
-            "TemplateProgram requires an execution factory");
-    }
-    sealed = true;
-    return {};
-}
-
-
-
-Base::Result<void> DeferredObjectProgram::Configure(
+Base::Result<void> TemplateProgram::Configure(
     DeferredObjectFactory valueFactory,
     void* valueContext) noexcept {
     return Configure(valueFactory, valueContext, {});
 }
 
-Base::Result<void> DeferredObjectProgram::Configure(
+Base::Result<void> TemplateProgram::Configure(
     DeferredObjectFactory valueFactory,
     void* valueContext,
     Base::Ref<Base::Object> valueOwner) noexcept {
@@ -618,36 +606,31 @@ Base::Result<void> DeferredObjectProgram::Configure(
         return Base::Status::Failure(Base::ErrorCode::InvalidArgument,
             "Deferred object factory is null");
     }
-    factory = valueFactory;
-    context = valueContext;
+    deferredFactory = valueFactory;
+    factoryContext = valueContext;
     factoryOwner = std::move(valueOwner);
     return {};
 }
 
-void DeferredObjectProgram::SetBaseUri(
-    const Base::ResourceUri& value) noexcept {
-    AERO_ASSERT(!sealed && "Deferred object program is sealed");
-    baseUri = value;
-}
-
-Base::Result<void> DeferredObjectProgram::Seal() noexcept {
-    if (factory == nullptr) {
-        return Base::Status::Failure(Base::ErrorCode::InvalidState,
-            "Deferred object program has no factory");
+Base::Result<void> TemplateProgram::Seal() noexcept {
+    if (sealed) return {};
+    if (factory == nullptr && deferredFactory == nullptr) {
+        return InvalidTemplate(
+            "TemplateProgram requires an execution factory");
     }
     sealed = true;
     return {};
 }
 
-Base::Result<Base::Ref<Base::Object>> DeferredObjectProgram::Instantiate(
+Base::Result<Base::Ref<Base::Object>> TemplateProgram::Instantiate(
     const Base::Ref<Base::Object>& payload,
     Aero::BindingEngine* bindings) const noexcept {
-    if (factory == nullptr) {
+    if (deferredFactory == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState,
             "Deferred object program is not ready");
     }
     Base::Result<Base::Ref<Base::Object>> result =
-        factory(payload, context, bindings);
+        deferredFactory(payload, factoryContext, bindings);
     if (!result || result.Value()) return result;
     return Base::Status::Failure(Base::ErrorCode::InvalidState,
         "Deferred object factory returned null");
@@ -796,7 +779,7 @@ Base::Result<void> FrameworkTemplateState::Configure(
     Base::Ref<Base::Object> owner) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    return state->deferredProgram.Configure(factory, context, std::move(owner));
+    return state->program.Configure(factory, context, std::move(owner));
 }
 
 Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
@@ -804,16 +787,20 @@ Base::Result<Base::Ref<Base::Object>> FrameworkTemplateState::Instantiate(
     const Base::Ref<Base::Object>& item,
     Aero::BindingEngine* bindings) noexcept {
     const FrameworkTemplateState* state = State(value);
-    if (state == nullptr || state->deferredProgram.factory == nullptr) {
+    if (state == nullptr || state->program.deferredFactory == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::InvalidState, "FrameworkTemplate is not ready");
     }
-    return state->deferredProgram.Instantiate(item, bindings);
+    return state->program.Instantiate(item, bindings);
 }
 
 Base::Result<void> FrameworkTemplateState::Seal(FrameworkTemplate& value) noexcept {
     FrameworkTemplateState* state = State(value);
     if (state == nullptr) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "FrameworkTemplate state allocation failed");
-    Base::Result<void> program = state->deferredProgram.Seal();
+    if (state->program.deferredFactory == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::InvalidState,
+            "Deferred object program has no factory");
+    }
+    Base::Result<void> program = state->program.Seal();
     if (!program) return program.GetStatus();
     state->resources.Seal();
     return {};
@@ -1222,6 +1209,11 @@ TemplateFactoryCallback FrameworkTemplateState::Factory(const FrameworkTemplate&
     return state != nullptr ? state->program.factory : nullptr;
 }
 
+DeferredObjectFactory FrameworkTemplateState::DeferredFactory(const FrameworkTemplate& value) noexcept {
+    const FrameworkTemplateState* state = State(value);
+    return state != nullptr ? state->program.deferredFactory : nullptr;
+}
+
 void* FrameworkTemplateState::FactoryContext(const FrameworkTemplate& value) noexcept {
     const FrameworkTemplateState* state = State(value);
     return state != nullptr ? state->program.factoryContext : nullptr;
@@ -1243,7 +1235,6 @@ void FrameworkTemplateState::SetBaseUri(FrameworkTemplate& value, const Base::Re
     FrameworkTemplateState* state = State(value);
     if (state != nullptr) {
         state->program.SetBaseUri(uri);
-        state->deferredProgram.SetBaseUri(uri);
     }
 }
 
@@ -1344,42 +1335,18 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 }
             }
         }
-        if (!FrameworkTemplateState::Bindings(*baseTemplate).Empty()) {
-            const auto baseSpan = FrameworkTemplateState::Bindings(*baseTemplate);
-            Base::Vector<TemplateBindingPlan> merged;
-            merged.Reserve(baseSpan.Size() + templateState->program.bindings.Size());
+        const auto prependBasePlans = [](auto baseSpan, auto& derivedVec) {
+            if (baseSpan.Empty()) return;
+            std::remove_reference_t<decltype(derivedVec)> merged;
+            merged.Reserve(baseSpan.Size() + derivedVec.Size());
             merged.Append(baseSpan);
-            merged.Append(
-                templateState->program.bindings.AsSpan());
-            templateState->program.bindings = std::move(merged);
-        }
-        if (!FrameworkTemplateState::MetadataBindings(*baseTemplate).Empty()) {
-            const auto baseSpan = FrameworkTemplateState::MetadataBindings(*baseTemplate);
-            Base::Vector<TemplateMetadataBindingPlan> merged;
-            merged.Reserve(baseSpan.Size() + templateState->program.metadataBindings.Size());
-            merged.Append(baseSpan);
-            merged.Append(
-                templateState->program.metadataBindings.AsSpan());
-            templateState->program.metadataBindings = std::move(merged);
-        }
-        if (!FrameworkTemplateState::DynamicResources(*baseTemplate).Empty()) {
-            const auto baseSpan = FrameworkTemplateState::DynamicResources(*baseTemplate);
-            Base::Vector<TemplateDynamicResourcePlan> merged;
-            merged.Reserve(baseSpan.Size() + templateState->program.dynamicResources.Size());
-            merged.Append(baseSpan);
-            merged.Append(
-                templateState->program.dynamicResources.AsSpan());
-            templateState->program.dynamicResources = std::move(merged);
-        }
-        if (!FrameworkTemplateState::Triggers(*baseTemplate).Empty()) {
-            const auto baseSpan = FrameworkTemplateState::Triggers(*baseTemplate);
-            Base::Vector<TemplatePropertyTrigger> merged;
-            merged.Reserve(baseSpan.Size() + templateState->program.triggers.Size());
-            merged.Append(baseSpan);
-            merged.Append(
-                templateState->program.triggers.AsSpan());
-            templateState->program.triggers = std::move(merged);
-        }
+            merged.Append(derivedVec.AsSpan());
+            derivedVec = std::move(merged);
+        };
+        prependBasePlans(FrameworkTemplateState::Bindings(*baseTemplate), templateState->program.bindings);
+        prependBasePlans(FrameworkTemplateState::MetadataBindings(*baseTemplate), templateState->program.metadataBindings);
+        prependBasePlans(FrameworkTemplateState::DynamicResources(*baseTemplate), templateState->program.dynamicResources);
+        prependBasePlans(FrameworkTemplateState::Triggers(*baseTemplate), templateState->program.triggers);
         if (!FrameworkTemplateState::VisualStateGroups(*baseTemplate).Empty()) {
             const auto baseSpan = FrameworkTemplateState::VisualStateGroups(*baseTemplate);
             for (const VisualStateGroupPlan& baseGroup : baseSpan) {
@@ -1667,14 +1634,6 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     instance.parts = std::move(buildState.parts);
     instance.projections =
         std::move(buildState.projections);
-    for (const Aero::Controls::TemplatePart& part :
-         instance.parts) {
-        if (!part.name.Empty() && part.owner) {
-            instance.names.Register(
-                part.name.View(),
-                *part.owner);
-        }
-    }
     buildState.rootVisual = nullptr;
     buildState.rootElement = nullptr;
     const std::uint32_t newIndex = instances_.Size();
@@ -1819,22 +1778,14 @@ DependencyObject* TemplateEngine::FindTarget(
             return part.object;
         }
     }
-    Base::Object* named = instance.names.Find(name);
-    if (named != nullptr &&
-        properties_ != nullptr &&
-        properties_->Types().IsDerivedFrom(
-            named->RuntimeType(),
-            DependencyObject::StaticTypeId())) {
-        return static_cast<DependencyObject*>(named);
-    }
     for (const Aero::Controls::TemplatePart& part : instance.parts) {
         if (part.name.View() == name) return part.object;
     }
     return nullptr;
 }
 
-bool TemplateEngine::HasTemplateBinding(
-    DependencyObject& target,
+const TemplateEngine::Instance* TemplateEngine::FindBindingTargetInstance(
+    const DependencyObject& target,
     DependencyPropertyHandle property) const noexcept {
     const auto instanceHasTargetBinding = [&](const Instance& instance) noexcept -> bool {
         if (instance.plan == nullptr) return false;
@@ -1848,60 +1799,39 @@ bool TemplateEngine::HasTemplateBinding(
         return false;
     };
     if (const auto* fe = TryCast<FrameworkElement>(&target)) {
-        if (auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
+        if (const auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
             const std::uint32_t* idx = controlToInstance_.Find(templatedParent);
             if (idx != nullptr && *idx < instances_.Size()) {
-                return instanceHasTargetBinding(instances_[*idx]);
+                return instanceHasTargetBinding(instances_[*idx])
+                    ? &instances_[*idx]
+                    : nullptr;
             }
         }
         if (const auto* ctrl = TryCast<Control>(fe)) {
-            const std::uint32_t* idx = controlToInstance_.Find(const_cast<Control*>(ctrl));
+            const std::uint32_t* idx = controlToInstance_.Find(ctrl);
             if (idx != nullptr && *idx < instances_.Size() &&
                 instanceHasTargetBinding(instances_[*idx])) {
-                return true;
+                return &instances_[*idx];
             }
         }
     }
     for (const Instance& instance : instances_) {
-        if (instanceHasTargetBinding(instance)) return true;
+        if (instanceHasTargetBinding(instance)) return &instance;
     }
-    return false;
+    return nullptr;
+}
+
+bool TemplateEngine::HasTemplateBinding(
+    DependencyObject& target,
+    DependencyPropertyHandle property) const noexcept {
+    return FindBindingTargetInstance(target, property) != nullptr;
 }
 
 Base::Result<void> TemplateEngine::RefreshTemplateBinding(
     DependencyObject& target,
     DependencyPropertyHandle property) noexcept {
-    const auto instanceHasTargetBinding = [&](const Instance& instance) noexcept -> bool {
-        if (instance.plan == nullptr) return false;
-        for (const TemplateBindingPlan& binding :
-             Aero::Controls::FrameworkTemplateState::Bindings(*instance.plan)) {
-            if (binding.targetProperty != property) continue;
-            DependencyObject* found =
-                FindTarget(instance, binding.targetName.View(), binding.targetPartIndex);
-            if (found == &target) return true;
-        }
-        return false;
-    };
-    if (auto* fe = TryCast<FrameworkElement>(&target)) {
-        if (auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
-            const std::uint32_t* idx = controlToInstance_.Find(templatedParent);
-            if (idx != nullptr && *idx < instances_.Size() &&
-                instanceHasTargetBinding(instances_[*idx])) {
-                return ApplyBindings(instances_[*idx], property);
-            }
-        }
-        if (auto* ctrl = TryCast<Control>(fe)) {
-            const std::uint32_t* idx = controlToInstance_.Find(ctrl);
-            if (idx != nullptr && *idx < instances_.Size() &&
-                instanceHasTargetBinding(instances_[*idx])) {
-                return ApplyBindings(instances_[*idx], property);
-            }
-        }
-    }
-    for (Instance& instance : instances_) {
-        if (instanceHasTargetBinding(instance)) {
-            return ApplyBindings(instance, property);
-        }
+    if (const Instance* found = FindBindingTargetInstance(target, property)) {
+        return ApplyBindings(*const_cast<Instance*>(found), property);
     }
     return Base::Status::Failure(
         Base::ErrorCode::NotFound,

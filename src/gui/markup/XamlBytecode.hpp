@@ -12,6 +12,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Events.hpp>
+#include "gui/triggers/TriggerPlan.hpp"
 #include "gui/templates/TemplateProgram.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/DependencyPropertyRegistry.hpp"
@@ -129,25 +130,9 @@ struct TemplatePrototypeGradientStop {
     Base::String name;
 };
 
-struct CompiledTriggerSetter {
-    std::uint32_t target = 0U;
-    Meta::DependencyPropertyHandle property;
-    Meta::PropertyValue value;
-};
-
-struct CompiledTriggerCondition {
-    std::int32_t sourceSlot = -1;
-    Meta::DependencyPropertyHandle property;
-    Base::Ref<Data::Binding> binding;
-    Meta::PropertyValue value;
-    bool usesDataContext = false;
-};
-
-struct CompiledTriggerPlan {
-    Base::Ref<Aero::TriggerBase> trigger;
-    Base::Vector<CompiledTriggerCondition> conditions;
-    Base::Vector<CompiledTriggerSetter> setters;
-};
+using CompiledTriggerSetter = ::Aero::CompiledTriggerSetter;
+using CompiledTriggerCondition = ::Aero::CompiledTriggerCondition;
+using CompiledTriggerPlan = ::Aero::CompiledTriggerPlan;
 
 struct XamlBytecodeProgram;
 class XamlBytecodeContainer;

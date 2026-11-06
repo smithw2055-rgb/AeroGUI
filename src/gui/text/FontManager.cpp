@@ -461,8 +461,8 @@ namespace Aero::Media {
 AERO_DESCRIBE(FontFamily) {
     using namespace Aero::Meta;
     Register<FontFamily>(context)
-            .Property("Source", &FontFamily::GetSource, &FontFamily::SetSource, PropertyFlags::Structural)
-            .Content(MakeMemberId(FontFamily::StaticTypeId(), MemberKind::Property, "Source"))
+            .Property<&FontFamily::GetSource, &FontFamily::SetSource>("Source", PropertyFlags::Structural)
+            .Content("Source")
             .TextConverter(&::Aero::MetadataSupport::ConvertFontFamilyText)
             .Factory();
 }

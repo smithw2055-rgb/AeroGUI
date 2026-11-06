@@ -637,8 +637,8 @@ namespace Aero::Media {
 AERO_DESCRIBE(Geometry) {
     using namespace Aero::Meta;
     Register<Geometry>(context)
-            .Property("Transform", &Geometry::GetTransform, &Geometry::SetTransform, PropertyFlags::Structural)
-            .Content(MakeMemberId(Geometry::StaticTypeId(), MemberKind::Property, "Transform"))
+            .Property<&Geometry::GetTransform, &Geometry::SetTransform>("Transform", PropertyFlags::Structural)
+            .Content("Transform")
             .TextConverter(&::Aero::MetadataSupport::ConvertGeometryText)
             .Factory();
 }
@@ -702,21 +702,21 @@ AERO_DESCRIBE(ArcSegment) {
 AERO_DESCRIBE(PolyLineSegment) {
     using namespace Aero::Meta;
     Register<PolyLineSegment>(context)
-            .Property<Base::String, &PolyLineSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Property<&PolyLineSegment::SetPointsText>("Points")
             .Factory();
 }
 
 AERO_DESCRIBE(PolyBezierSegment) {
     using namespace Aero::Meta;
     Register<PolyBezierSegment>(context)
-            .Property<Base::String, &PolyBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Property<&PolyBezierSegment::SetPointsText>("Points")
             .Factory();
 }
 
 AERO_DESCRIBE(PolyQuadraticBezierSegment) {
     using namespace Aero::Meta;
     Register<PolyQuadraticBezierSegment>(context)
-            .Property<Base::String, &PolyQuadraticBezierSegment::SetPointsText>("Points", PropertyFlags::None)
+            .Property<&PolyQuadraticBezierSegment::SetPointsText>("Points")
             .Factory();
 }
 
@@ -756,8 +756,8 @@ AERO_DESCRIBE(GeometryGroup) {
 AERO_DESCRIBE(CombinedGeometry) {
     using namespace Aero::Meta;
     Register<CombinedGeometry>(context)
-            .Property("Geometry1", &CombinedGeometry::GetGeometry1, &CombinedGeometry::SetGeometry1, PropertyFlags::Structural)
-            .Property("Geometry2", &CombinedGeometry::GetGeometry2, &CombinedGeometry::SetGeometry2, PropertyFlags::Structural)
+            .Property<&CombinedGeometry::GetGeometry1, &CombinedGeometry::SetGeometry1>("Geometry1", PropertyFlags::Structural)
+            .Property<&CombinedGeometry::GetGeometry2, &CombinedGeometry::SetGeometry2>("Geometry2", PropertyFlags::Structural)
             .Property(CombinedGeometry::GeometryCombineModeProperty, GeometryCombineMode::Union, AffectsRender)
             .Factory();
 }

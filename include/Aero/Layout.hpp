@@ -31,8 +31,14 @@ struct Length {
     std::uint8_t reserved_[7]{};
 
     static constexpr Length Auto() noexcept { return {}; }
-    static constexpr Length Pixels(double value) noexcept { return {value, false, {}}; }
+    static constexpr Length Pixels(double value) noexcept {
+        return {(value == 0.0) ? 0.0 : value, false, {}};
+    }
 };
+
+constexpr Length CanonicalizeInlineValue(const Length& value) noexcept {
+    return value.isAuto ? Length::Auto() : Length::Pixels(value.value);
+}
 
 AERO_GUI_API bool IsFinite(Point value) noexcept;
 AERO_GUI_API bool IsFinite(Size value) noexcept;

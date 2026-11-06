@@ -268,16 +268,16 @@ AERO_DESCRIBE(SetterBase) {
 AERO_DESCRIBE(Setter) {
     using namespace Aero::Meta;
     Register<Setter>(context)
-            .Property("TargetName", &Setter::GetTargetName, &Setter::SetTargetName)
-            .Property("Property", &Setter::GetPropertyName, &Setter::SetPropertyName)
-            .Property<Value, &Setter::GetAuthoredValue, &Setter::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
+            .Property<&Setter::GetTargetName, &Setter::SetTargetName>("TargetName")
+            .Property<&Setter::GetPropertyName, &Setter::SetPropertyName>("Property")
+            .Property<&Setter::GetAuthoredValue, &Setter::SetAuthoredValue>("Value")
             .Factory();
 }
 
 AERO_DESCRIBE(EventSetter) {
     using namespace Aero::Meta;
     Register<EventSetter>(context)
-            .Property("Handler", &EventSetter::GetHandlerName, &EventSetter::SetHandlerName)
+            .Property<&EventSetter::GetHandlerName, &EventSetter::SetHandlerName>("Handler")
             .Factory();
 }
 
@@ -297,9 +297,9 @@ AERO_DESCRIBE(SetterTriggerBase) {
 AERO_DESCRIBE(Trigger) {
     using namespace Aero::Meta;
     Register<Trigger>(context)
-            .Property("Property", &Trigger::GetPropertyName, &Trigger::SetPropertyName)
-            .Property("SourceName", &Trigger::GetSourceName, &Trigger::SetSourceName)
-            .Property<Value, &Trigger::GetAuthoredValue, &Trigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
+            .Property<&Trigger::GetPropertyName, &Trigger::SetPropertyName>("Property")
+            .Property<&Trigger::GetSourceName, &Trigger::SetSourceName>("SourceName")
+            .Property<&Trigger::GetAuthoredValue, &Trigger::SetAuthoredValue>("Value")
             .Content<Setter, &SetterTriggerBase::AddAuthoredSetter, &SetterTriggerBase::ClearAuthoredSetters>("Setters")
             .Factory();
 }
@@ -307,9 +307,9 @@ AERO_DESCRIBE(Trigger) {
 AERO_DESCRIBE(DataTrigger) {
     using namespace Aero::Meta;
     Register<DataTrigger>(context)
-            .Property<Base::Ref<Data::Binding>, &DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
-            .Property<Value, &DataTrigger::GetAuthoredValue, &DataTrigger::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
-            .Property("Comparison", &DataTrigger::GetComparison, &DataTrigger::SetComparison)
+            .Property<&DataTrigger::SetBinding>("Binding", PropertyFlags::Structural)
+            .Property<&DataTrigger::GetAuthoredValue, &DataTrigger::SetAuthoredValue>("Value")
+            .Property<&DataTrigger::GetComparison, &DataTrigger::SetComparison>("Comparison")
             .Content<Base::Object>("Setters", ContentKind::Collection, &::Aero::MetadataSupport::AddDataTriggerContent, &::Aero::MetadataSupport::ClearDataTriggerContent)
             .Factory();
 }
@@ -317,10 +317,10 @@ AERO_DESCRIBE(DataTrigger) {
 AERO_DESCRIBE(Condition) {
     using namespace Aero::Meta;
     Register<Condition>(context)
-            .Property<Base::Ref<Data::Binding>, &Condition::SetBinding>("Binding", PropertyFlags::Structural)
-            .Property("Property", &Condition::GetPropertyName, &Condition::SetPropertyName)
-            .Property("SourceName", &Condition::GetSourceName, &Condition::SetSourceName)
-            .Property<Value, &Condition::GetAuthoredValue, &Condition::SetAuthoredValue>("Value", PropertyFlags::AnyValue)
+            .Property<&Condition::SetBinding>("Binding", PropertyFlags::Structural)
+            .Property<&Condition::GetPropertyName, &Condition::SetPropertyName>("Property")
+            .Property<&Condition::GetSourceName, &Condition::SetSourceName>("SourceName")
+            .Property<&Condition::GetAuthoredValue, &Condition::SetAuthoredValue>("Value")
             .Factory();
 }
 

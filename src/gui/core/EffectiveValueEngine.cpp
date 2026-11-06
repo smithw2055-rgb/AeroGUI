@@ -589,7 +589,13 @@ DependencyPropertyRegistry::Register(
 
     const MemberId member = MakeMemberId(
         registration.ownerType, MemberKind::Property, registration.name);
+    const std::uint32_t propertyIndex = properties_.Size();
+    const std::uint16_t assignedGlobalIndex = propertyIndex < 0xFFFFU
+        ? static_cast<std::uint16_t>(propertyIndex)
+        : 0xFFFFU;
+    property.globalIndex_ = assignedGlobalIndex;
     property.handle_.value = member;
+    property.handle_.globalIndex = assignedGlobalIndex;
     if (property.GetIsReadOnly()) {
         property.readOnlySecret_ = Base::MixHash64(
             property.handle_.value ^ nextReadOnlySecret_);
@@ -598,10 +604,6 @@ DependencyPropertyRegistry::Register(
         }
     }
 
-    const std::uint32_t propertyIndex = properties_.Size();
-    property.globalIndex_ = propertyIndex < 0xFFFFU
-        ? static_cast<std::uint16_t>(propertyIndex)
-        : 0xFFFFU;
     properties_.PushBack(
         std::move(property));
 
@@ -636,8 +638,8 @@ DependencyPropertyRegistry::Register(
     }
 
     DependencyPropertyRegistrationResult result;
-    result.property.value = member;
     const DependencyProperty& stored = properties_[propertyIndex];
+    result.property = stored.Handle();
     if (stored.GetIsReadOnly()) {
         result.readOnlyKey.registry_ = this;
         result.readOnlyKey.property_ = result.property;
@@ -852,17 +854,71 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
         property.ClearMetadataCache();
     }
 
+    RebuildFlatIndex();
     frozen_ = true;
     return {};
 }
 
+void DependencyPropertyRegistry::RebuildFlatIndex() noexcept {
+    flatIndex_.Clear();
+    const std::uint32_t entryCount = memberIndex_.Size();
+    if (entryCount == 0U) {
+        return;
+    }
+    std::uint32_t capacity = 64U;
+    while (capacity < entryCount * 4U) {
+        capacity <<= 1U;
+    }
+    flatIndex_.Resize(capacity);
+    if (flatIndex_.Size() < capacity) {
+        flatIndex_.Clear();
+        return;
+    }
+    const std::uint32_t mask = capacity - 1U;
+    for (const auto& kv : memberIndex_) {
+        const MemberId key = kv.Key();
+        const std::uint32_t val = kv.Value();
+        std::uint32_t slot =
+            static_cast<std::uint32_t>(key ^ (key >> 32U)) & mask;
+        while (flatIndex_[slot].member != InvalidMemberId) {
+            slot = (slot + 1U) & mask;
+        }
+        flatIndex_[slot].member = key;
+        flatIndex_[slot].index = val;
+    }
+}
+
 std::uint32_t DependencyPropertyRegistry::FindIndex(MemberId member) const noexcept {
+    if (member == InvalidMemberId) {
+        return InvalidIndex;
+    }
+    if (!flatIndex_.Empty()) {
+        const std::uint32_t mask = flatIndex_.Size() - 1U;
+        std::uint32_t slot =
+            static_cast<std::uint32_t>(member ^ (member >> 32U)) & mask;
+        for (;;) {
+            const FlatIndexSlot& entry = flatIndex_[slot];
+            if (entry.member == member) {
+                return entry.index;
+            }
+            if (entry.member == InvalidMemberId) {
+                return InvalidIndex;
+            }
+            slot = (slot + 1U) & mask;
+        }
+    }
     const std::uint32_t* index = memberIndex_.Find(member);
     return index != nullptr ? *index : InvalidIndex;
 }
 
 const DependencyProperty* DependencyPropertyRegistry::Find(
     DependencyPropertyHandle property) const noexcept {
+    if (property.globalIndex < properties_.Size()) {
+        const DependencyProperty& direct = properties_[property.globalIndex];
+        if (direct.handle_.value == property.value) {
+            return &direct;
+        }
+    }
     const std::uint32_t index = FindIndex(property.value);
     return index != InvalidIndex ? &properties_[index] : nullptr;
 }
@@ -881,6 +937,12 @@ const DependencyProperty* DependencyPropertyRegistry::Find(
 
 MemberId DependencyPropertyRegistry::CanonicalHandle(
     DependencyPropertyHandle property) const noexcept {
+    if (property.globalIndex < properties_.Size()) {
+        const DependencyProperty& direct = properties_[property.globalIndex];
+        if (direct.handle_.value == property.value) {
+            return direct.handle_.value;
+        }
+    }
     const std::uint32_t index = FindIndex(property.value);
     return index != InvalidIndex
         ? properties_[index].Handle().value
@@ -1040,15 +1102,20 @@ EffectiveValueEngine::EffectiveValueEngine(
     Dispatcher& dispatcher,
     DependencyPropertyRegistry& registry) noexcept
     : dispatcher_(&dispatcher),
-      registry_(&registry),
-      parents_() {}
+      registry_(&registry) {}
 
 void EffectiveValueEngine::Shutdown() noexcept {
     if (registry_ != nullptr) {
         registry_->SetInheritanceChangeSink(nullptr);
     }
     ClearQueueLinks();
-    parents_.Clear();
+    for (auto& kv : childrenByParent_) {
+        for (DependencyObject* child : kv.Value()) {
+            if (child != nullptr) {
+                child->inheritanceParent_ = nullptr;
+            }
+        }
+    }
     childrenByParent_.Clear();
 }
 
@@ -1286,11 +1353,8 @@ void EffectiveValueEngine::ClearQueueLinks() noexcept {
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
     const DependencyObject& child) const noexcept {
-    if (!parents_.Empty()) {
-        DependencyObject* key = const_cast<DependencyObject*>(&child);
-        if (DependencyObject* const* parent = parents_.Find(key)) {
-            return *parent;
-        }
+    if (child.inheritanceParent_ != nullptr) {
+        return child.inheritanceParent_;
     }
     if (const ::Aero::Media::Visual* visual =
             ::Aero::TryCast<::Aero::Media::Visual>(&child)) {
@@ -1331,12 +1395,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     DependencyObject* previousParent = InheritanceParent(child);
-    DependencyObject* explicitPrevious = nullptr;
-    if (!parents_.Empty()) {
-        if (DependencyObject* const* found = parents_.Find(&child)) {
-            explicitPrevious = *found;
-        }
-    }
+    DependencyObject* explicitPrevious = child.inheritanceParent_;
     const ::Aero::Media::Visual* childVisual =
         ::Aero::TryCast<::Aero::Media::Visual>(&child);
     const bool coveredByVisualTree =
@@ -1359,8 +1418,8 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
                 }
             }
         }
+        child.inheritanceParent_ = explicitTarget;
         if (explicitTarget != nullptr) {
-            parents_.Set(&child, explicitTarget);
             auto* list = childrenByParent_.Find(explicitTarget);
             if (list == nullptr) {
                 Base::Vector<DependencyObject*> emptyList;
@@ -1369,8 +1428,6 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             if (list != nullptr) {
                 list->PushBack(&child);
             }
-        } else {
-            parents_.Erase(&child);
         }
     }
 
@@ -2256,30 +2313,28 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
         }
     }
     object.unmaterializedQueueMask_ = 0U;
-    if (!parents_.Empty()) {
-        if (DependencyObject* const* found = parents_.Find(&object)) {
-            DependencyObject* previousParent = *found;
-            if (previousParent != nullptr && !childrenByParent_.Empty()) {
-                if (auto* list = childrenByParent_.Find(previousParent)) {
-                    for (std::uint32_t i = 0U; i < list->Size(); ++i) {
-                        if ((*list)[i] == &object) {
-                            list->Erase(i);
-                            break;
-                        }
-                    }
-                    if (list->Empty()) {
-                        childrenByParent_.Erase(previousParent);
+    if (object.inheritanceParent_ != nullptr) {
+        DependencyObject* previousParent = object.inheritanceParent_;
+        if (!childrenByParent_.Empty()) {
+            if (auto* list = childrenByParent_.Find(previousParent)) {
+                for (std::uint32_t i = 0U; i < list->Size(); ++i) {
+                    if ((*list)[i] == &object) {
+                        list->Erase(i);
+                        break;
                     }
                 }
+                if (list->Empty()) {
+                    childrenByParent_.Erase(previousParent);
+                }
             }
-            parents_.Erase(&object);
         }
+        object.inheritanceParent_ = nullptr;
     }
     if (!childrenByParent_.Empty()) {
         if (auto* list = childrenByParent_.Find(&object)) {
             for (DependencyObject* child : *list) {
                 if (child != nullptr) {
-                    parents_.Erase(child);
+                    child->inheritanceParent_ = nullptr;
                 }
             }
             childrenByParent_.Erase(&object);
@@ -2292,8 +2347,7 @@ bool EffectiveValueEngine::HasObjectState(
     if (object.unmaterializedQueueMask_ != 0U) {
         return true;
     }
-    if (!parents_.Empty() &&
-        parents_.Find(const_cast<DependencyObject*>(&object)) != nullptr) {
+    if (object.inheritanceParent_ != nullptr) {
         return true;
     }
     if (!childrenByParent_.Empty() &&

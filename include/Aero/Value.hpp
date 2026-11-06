@@ -3,7 +3,18 @@
 #include <Aero/Base/Value.hpp>
 #include <Aero/Base/ResourceUri.hpp>
 
-namespace Aero { template<class TOwner, class TArgs> class RoutedEventRef; }
+namespace Aero {
+template<class TOwner, class TArgs> class RoutedEventRef;
+struct Length;
+struct GridLength;
+namespace Controls { struct VirtualizationCacheLength; }
+namespace Media::Animation {
+struct TimeSpan;
+struct Duration;
+struct KeyTime;
+struct RepeatBehavior;
+}
+}
 namespace Aero {
 
 // WPF-shaped nullable value used by dependency properties such as
@@ -351,14 +362,44 @@ AERO_TYPE_VALUE_TRAITS(std::uint64_t, "UInt64");
 AERO_TYPE_VALUE_TRAITS(double, "Double");
 AERO_TYPE_VALUE_TRAITS(String, "String");
 
+template<class T> struct IsBuiltinInlineValueType : std::false_type {};
+template<> struct IsBuiltinInlineValueType<Base::Point> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<Base::Size> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<Base::Rect> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<Base::Thickness> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<Base::CornerRadius> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<Base::Color> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Length> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::GridLength> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Controls::VirtualizationCacheLength> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Media::Animation::TimeSpan> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Media::Animation::Duration> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Media::Animation::KeyTime> : std::true_type {};
+template<> struct IsBuiltinInlineValueType<::Aero::Media::Animation::RepeatBehavior> : std::true_type {};
+
+template<class T>
+constexpr T CanonicalizeInlineValue(const T& value) noexcept {
+    return value;
+}
+
 template<class T, class Enable = void> struct ValueCodec {
     static TypeId Type() noexcept { return TypeOf<T>(); }
 
     template<class TMetadata> static Result<Value> Encode(TMetadata& runtime, const T& value) noexcept {
-        return runtime.TryCreateValue(Type(), &value);
+        if constexpr (IsBuiltinInlineValueType<T>::value) {
+            return Value::FromInlineCustom(Type(), CanonicalizeInlineValue(value));
+        } else {
+            return runtime.TryCreateValue(Type(), &value);
+        }
     }
 
-    static Result<Value> Encode(const T& value) noexcept { return TryEncodeValue(Type(), &value); }
+    static Result<Value> Encode(const T& value) noexcept {
+        if constexpr (IsBuiltinInlineValueType<T>::value) {
+            return Value::FromInlineCustom(Type(), CanonicalizeInlineValue(value));
+        } else {
+            return TryEncodeValue(Type(), &value);
+        }
+    }
 
     template<class TMetadata> static Result<T> Decode(TMetadata&, const Value& value) noexcept { return Decode(value); }
 

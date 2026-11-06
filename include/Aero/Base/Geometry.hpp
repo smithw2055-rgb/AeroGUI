@@ -8,6 +8,10 @@
 
 namespace Aero::Base {
 
+constexpr float NormalizeNegativeZero(float value) noexcept {
+    return (value == 0.0f) ? 0.0f : value;
+}
+
 struct Point {
     float x = 0.0f;
     float y = 0.0f;
@@ -16,12 +20,14 @@ struct Point {
 
     template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
     constexpr explicit Point(T uniform) noexcept
-        : x(static_cast<float>(uniform)), y(static_cast<float>(uniform)) {}
+        : x(NormalizeNegativeZero(static_cast<float>(uniform))),
+          y(NormalizeNegativeZero(static_cast<float>(uniform))) {}
 
     template <typename T1 = float, typename T2 = float,
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
     constexpr Point(T1 x_, T2 y_) noexcept
-        : x(static_cast<float>(x_)), y(static_cast<float>(y_)) {}
+        : x(NormalizeNegativeZero(static_cast<float>(x_))),
+          y(NormalizeNegativeZero(static_cast<float>(y_))) {}
 
     constexpr bool operator==(const Point& o) const noexcept { return x == o.x && y == o.y; }
     constexpr bool operator!=(const Point& o) const noexcept { return !(*this == o); }
@@ -35,12 +41,14 @@ struct Size {
 
     template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
     constexpr explicit Size(T uniform) noexcept
-        : width(static_cast<float>(uniform)), height(static_cast<float>(uniform)) {}
+        : width(NormalizeNegativeZero(static_cast<float>(uniform))),
+          height(NormalizeNegativeZero(static_cast<float>(uniform))) {}
 
     template <typename T1 = float, typename T2 = float,
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
     constexpr Size(T1 w_, T2 h_) noexcept
-        : width(static_cast<float>(w_)), height(static_cast<float>(h_)) {}
+        : width(NormalizeNegativeZero(static_cast<float>(w_))),
+          height(NormalizeNegativeZero(static_cast<float>(h_))) {}
 
     constexpr bool operator==(const Size& o) const noexcept { return width == o.width && height == o.height; }
     constexpr bool operator!=(const Size& o) const noexcept { return !(*this == o); }
@@ -58,11 +66,16 @@ struct Rect {
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
                                std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
     constexpr Rect(T1 x_, T2 y_, T3 w_, T4 h_) noexcept
-        : x(static_cast<float>(x_)), y(static_cast<float>(y_)),
-          width(static_cast<float>(w_)), height(static_cast<float>(h_)) {}
+        : x(NormalizeNegativeZero(static_cast<float>(x_))),
+          y(NormalizeNegativeZero(static_cast<float>(y_))),
+          width(NormalizeNegativeZero(static_cast<float>(w_))),
+          height(NormalizeNegativeZero(static_cast<float>(h_))) {}
 
     constexpr Rect(Point p, Size s) noexcept
-        : x(p.x), y(p.y), width(s.width), height(s.height) {}
+        : x(NormalizeNegativeZero(p.x)),
+          y(NormalizeNegativeZero(p.y)),
+          width(NormalizeNegativeZero(s.width)),
+          height(NormalizeNegativeZero(s.height)) {}
 
     constexpr bool operator==(const Rect& o) const noexcept {
         return x == o.x && y == o.y && width == o.width && height == o.height;
@@ -80,21 +93,27 @@ struct Thickness {
 
     template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
     constexpr explicit Thickness(T uniform) noexcept
-        : left(static_cast<float>(uniform)), top(static_cast<float>(uniform)),
-          right(static_cast<float>(uniform)), bottom(static_cast<float>(uniform)) {}
+        : left(NormalizeNegativeZero(static_cast<float>(uniform))),
+          top(NormalizeNegativeZero(static_cast<float>(uniform))),
+          right(NormalizeNegativeZero(static_cast<float>(uniform))),
+          bottom(NormalizeNegativeZero(static_cast<float>(uniform))) {}
 
     template <typename T1 = float, typename T2 = float,
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2>, int> = 0>
     constexpr Thickness(T1 horiz, T2 vert) noexcept
-        : left(static_cast<float>(horiz)), top(static_cast<float>(vert)),
-          right(static_cast<float>(horiz)), bottom(static_cast<float>(vert)) {}
+        : left(NormalizeNegativeZero(static_cast<float>(horiz))),
+          top(NormalizeNegativeZero(static_cast<float>(vert))),
+          right(NormalizeNegativeZero(static_cast<float>(horiz))),
+          bottom(NormalizeNegativeZero(static_cast<float>(vert))) {}
 
     template <typename T1 = float, typename T2 = float, typename T3 = float, typename T4 = float,
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
                                std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
     constexpr Thickness(T1 l_, T2 t_, T3 r_, T4 b_) noexcept
-        : left(static_cast<float>(l_)), top(static_cast<float>(t_)),
-          right(static_cast<float>(r_)), bottom(static_cast<float>(b_)) {}
+        : left(NormalizeNegativeZero(static_cast<float>(l_))),
+          top(NormalizeNegativeZero(static_cast<float>(t_))),
+          right(NormalizeNegativeZero(static_cast<float>(r_))),
+          bottom(NormalizeNegativeZero(static_cast<float>(b_))) {}
 
     constexpr bool operator==(const Thickness& o) const noexcept {
         return left == o.left && top == o.top && right == o.right && bottom == o.bottom;
@@ -112,15 +131,19 @@ struct CornerRadius {
 
     template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
     constexpr explicit CornerRadius(T uniform) noexcept
-        : topLeft(static_cast<float>(uniform)), topRight(static_cast<float>(uniform)),
-          bottomRight(static_cast<float>(uniform)), bottomLeft(static_cast<float>(uniform)) {}
+        : topLeft(NormalizeNegativeZero(static_cast<float>(uniform))),
+          topRight(NormalizeNegativeZero(static_cast<float>(uniform))),
+          bottomRight(NormalizeNegativeZero(static_cast<float>(uniform))),
+          bottomLeft(NormalizeNegativeZero(static_cast<float>(uniform))) {}
 
     template <typename T1 = float, typename T2 = float, typename T3 = float, typename T4 = float,
               std::enable_if_t<std::is_arithmetic_v<T1> && std::is_arithmetic_v<T2> &&
                                std::is_arithmetic_v<T3> && std::is_arithmetic_v<T4>, int> = 0>
     constexpr CornerRadius(T1 tl, T2 tr, T3 br, T4 bl) noexcept
-        : topLeft(static_cast<float>(tl)), topRight(static_cast<float>(tr)),
-          bottomRight(static_cast<float>(br)), bottomLeft(static_cast<float>(bl)) {}
+        : topLeft(NormalizeNegativeZero(static_cast<float>(tl))),
+          topRight(NormalizeNegativeZero(static_cast<float>(tr))),
+          bottomRight(NormalizeNegativeZero(static_cast<float>(br))),
+          bottomLeft(NormalizeNegativeZero(static_cast<float>(bl))) {}
 
     constexpr bool operator==(const CornerRadius& o) const noexcept {
         return topLeft == o.topLeft && topRight == o.topRight &&
@@ -143,6 +166,29 @@ struct Color  {
         return !(*this == other);
     }
 };
+
+constexpr Point CanonicalizeInlineValue(const Point& v) noexcept {
+    return Point(v.x, v.y);
+}
+constexpr Size CanonicalizeInlineValue(const Size& v) noexcept {
+    return Size(v.width, v.height);
+}
+constexpr Rect CanonicalizeInlineValue(const Rect& v) noexcept {
+    return Rect(v.x, v.y, v.width, v.height);
+}
+constexpr Thickness CanonicalizeInlineValue(const Thickness& v) noexcept {
+    return Thickness(v.left, v.top, v.right, v.bottom);
+}
+constexpr CornerRadius CanonicalizeInlineValue(const CornerRadius& v) noexcept {
+    return CornerRadius(v.topLeft, v.topRight, v.bottomRight, v.bottomLeft);
+}
+constexpr Color CanonicalizeInlineValue(const Color& v) noexcept {
+    return Color{
+        NormalizeNegativeZero(v.red),
+        NormalizeNegativeZero(v.green),
+        NormalizeNegativeZero(v.blue),
+        NormalizeNegativeZero(v.alpha)};
+}
 
 struct Transform2D  {
     double m11 = 1.0;

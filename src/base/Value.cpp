@@ -246,13 +246,13 @@ const Base::Ref<Base::Object>& Value::AsObject() const noexcept {
     AERO_ASSERT(kind_ == ValueKind::Object);
     return storage_.storage;
 }
-const void* Value::AsCustom() const noexcept {
+const void* Value::AsBoxedCustom() const noexcept {
     AERO_ASSERT(kind_ == ValueKind::Custom);
     return inlineCustom_
         ? static_cast<const void*>(storage_.inlineData)
         : static_cast<const CustomValueStorage*>(storage_.storage.Get())->Data();
 }
-void* Value::MutableCustom() noexcept {
+void* Value::MutableBoxedCustom() noexcept {
     AERO_ASSERT(kind_ == ValueKind::Custom);
     return inlineCustom_
         ? static_cast<void*>(storage_.inlineData)

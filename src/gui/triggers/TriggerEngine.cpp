@@ -17,11 +17,26 @@ namespace Aero {
 
 bool ComparePropertyValues(
     const Meta::PropertyValue& rawActual,
-    Meta::PropertyValue expected,
+    const Meta::PropertyValue& expected,
     const Meta::Registry* metadata,
     PropertyComparisonOperator op) noexcept {
-    const Meta::PropertyValue actual =
-        Base::ValueConversion::UnboxItemValue(rawActual);
+    // Fast path for exact-type non-object scalar equality (Boolean, Int64, Double, Enum, etc.)
+    if (op == PropertyComparisonOperator::Equal &&
+        rawActual.Kind() == expected.Kind() &&
+        rawActual.Type() == expected.Type() &&
+        rawActual.Kind() != Meta::ValueKind::Object &&
+        rawActual.Kind() != Meta::ValueKind::Custom &&
+        !rawActual.IsUnset()) {
+        return rawActual == expected;
+    }
+
+    Meta::PropertyValue unboxedStorage;
+    const Meta::PropertyValue* actualPtr = &rawActual;
+    if (rawActual.Kind() == Meta::ValueKind::Object && !rawActual.IsNullObject()) {
+        unboxedStorage = Base::ValueConversion::UnboxItemValue(rawActual);
+        actualPtr = &unboxedStorage;
+    }
+    const Meta::PropertyValue& actual = *actualPtr;
     const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
     if (expected.IsNullObject() || expected.IsUnset()) {
         bool eq = actual.IsNullObject() || actual.IsUnset();
@@ -34,10 +49,7 @@ bool ComparePropertyValues(
         return false;
     }
 
-    Meta::PropertyValue leftValue = actual;
-    Meta::PropertyValue rightValue = std::move(expected);
-
-    if (leftValue.Type() == nullableBoolType || rightValue.Type() == nullableBoolType) {
+    if (actual.Type() == nullableBoolType || expected.Type() == nullableBoolType) {
         auto decodeNullable = [](const Meta::PropertyValue& v) -> ::Aero::Nullable<bool> {
             if (v.Type() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
                 auto r = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(v);
@@ -52,36 +64,45 @@ bool ComparePropertyValues(
             }
             return ::Aero::Nullable<bool>{};
         };
-        const auto leftNull = decodeNullable(leftValue);
-        const auto rightNull = decodeNullable(rightValue);
+        const auto leftNull = decodeNullable(actual);
+        const auto rightNull = decodeNullable(expected);
         const bool eq = (leftNull == rightNull);
         if (op == PropertyComparisonOperator::Equal) return eq;
         if (op == PropertyComparisonOperator::NotEqual) return !eq;
         return false;
     }
 
+    const Meta::PropertyValue* leftPtr = &actual;
+    const Meta::PropertyValue* rightPtr = &expected;
+    Meta::PropertyValue convertedStorage;
+
     const Meta::Registry* activeMetadata = metadata != nullptr
         ? metadata
         : Meta::CurrentObjectFactory().metadata;
-    if (rightValue.Kind() == Meta::ValueKind::String &&
-        leftValue.Kind() != Meta::ValueKind::String) {
+    if (expected.Kind() == Meta::ValueKind::String &&
+        actual.Kind() != Meta::ValueKind::String) {
         if (activeMetadata != nullptr) {
             Base::Result<Meta::PropertyValue> converted =
-                activeMetadata->TryConvertText(leftValue.Type(), rightValue.AsString());
+                activeMetadata->TryConvertText(actual.Type(), expected.AsString());
             if (converted) {
-                rightValue = std::move(converted).Value();
+                convertedStorage = std::move(converted).Value();
+                rightPtr = &convertedStorage;
             }
         }
-    } else if (leftValue.Kind() == Meta::ValueKind::String &&
-               rightValue.Kind() != Meta::ValueKind::String) {
+    } else if (actual.Kind() == Meta::ValueKind::String &&
+               expected.Kind() != Meta::ValueKind::String) {
         if (activeMetadata != nullptr) {
             Base::Result<Meta::PropertyValue> converted =
-                activeMetadata->TryConvertText(rightValue.Type(), leftValue.AsString());
+                activeMetadata->TryConvertText(expected.Type(), actual.AsString());
             if (converted) {
-                leftValue = std::move(converted).Value();
+                convertedStorage = std::move(converted).Value();
+                leftPtr = &convertedStorage;
             }
         }
     }
+
+    const Meta::PropertyValue& leftValue = *leftPtr;
+    const Meta::PropertyValue& rightValue = *rightPtr;
 
     if (leftValue == rightValue) {
         if (op == PropertyComparisonOperator::Equal) return true;
@@ -139,7 +160,7 @@ bool ComparePropertyValues(
 
 bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
-    Meta::PropertyValue expected,
+    const Meta::PropertyValue& expected,
     const Meta::Registry* metadata,
     Base::StringView comparison) noexcept {
     PropertyComparisonOperator op = PropertyComparisonOperator::Equal;
@@ -190,7 +211,7 @@ bool ComparePropertyValues(
             return false;
         }
     }
-    return ComparePropertyValues(actual, std::move(expected), metadata, op);
+    return ComparePropertyValues(actual, expected, metadata, op);
 }
 
 bool TriggerPlan::IsConditionMet(
@@ -198,7 +219,7 @@ bool TriggerPlan::IsConditionMet(
     Base::Result<PropertyValue> current = object.GetValue(property);
     if (!current) return false;
     const Meta::Registry* metadata = Meta::CurrentObjectFactory().metadata;
-    return ComparePropertyValues(current.Value(), value, metadata);
+    return EvaluatePropertyTriggerCondition(current.Value(), value, metadata);
 }
 
 TriggerEngine::TriggerEngine(

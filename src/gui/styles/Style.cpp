@@ -842,9 +842,11 @@ Base::Result<void> Style::Seal(
                 return validValue.GetStatus();
             }
         }
+        const DependencyPropertyHandle canonicalHandle = property->Handle();
         bool replaced = false;
         for (StyleSetter& inherited : next) {
-            if (inherited.property == setter.property) {
+            if (inherited.property == canonicalHandle) {
+                inherited.property = canonicalHandle;
                 inherited.value = normalizedValue;
                 replaced = true;
                 break;
@@ -852,7 +854,7 @@ Base::Result<void> Style::Seal(
         }
         if (!replaced) {
             next.PushBack({
-                setter.property, normalizedValue});
+                canonicalHandle, normalizedValue});
         }
     }
     Base::Vector<TriggerPlan> nextTriggers;
@@ -887,6 +889,7 @@ Base::Result<void> Style::Seal(
                     Base::ErrorCode::NotFound,
                     "Style trigger condition does not apply to TargetType");
             }
+            trigger.property = condition->Handle();
             Base::Result<void> validCondition = properties.ValidateValueFor(
                 trigger.property, targetType_, trigger.value);
             if (!validCondition) return validCondition.GetStatus();
@@ -894,7 +897,7 @@ Base::Result<void> Style::Seal(
         for (std::uint32_t index = 0U;
              index < trigger.setters.Size();
              ++index) {
-            const StyleTriggerSetter& setter = trigger.setters[index];
+            StyleTriggerSetter& setter = trigger.setters[index];
             const Meta::DependencyProperty* property =
                 properties.Find(setter.property);
             if (property == nullptr ||
@@ -903,6 +906,7 @@ Base::Result<void> Style::Seal(
                     Base::ErrorCode::NotFound,
                     "Style trigger setter does not apply to TargetType");
             }
+            setter.property = property->Handle();
             if (!IsDeferredBindingSetterValue(setter.value)) {
                 Base::Result<void> validValue = properties.ValidateValueFor(
                     setter.property, targetType_, setter.value);

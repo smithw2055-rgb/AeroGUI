@@ -127,11 +127,18 @@ private:
     friend class ::Aero::Meta::Registry;
     friend class ::Aero::DependencyObject;
 
+    struct FlatIndexSlot {
+        MemberId member = InvalidMemberId;
+        std::uint32_t index = UINT32_MAX;
+    };
+
     TypeRegistry* typeRegistry_ = nullptr;
     BehaviorTable* behaviorRegistrations_ = nullptr;
     Base::Vector<DependencyProperty> properties_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
+    Base::Vector<FlatIndexSlot> flatIndex_;
     Base::Vector<DependencyPropertyHandle> inheritableProperties_;
+    void RebuildFlatIndex() noexcept;
     IInheritanceChangeSink* inheritanceSink_ = nullptr;
     static Base::Ref<RegistryLifetime> CreateLifetime() noexcept {
         return Base::MakeRef<RegistryLifetime>();

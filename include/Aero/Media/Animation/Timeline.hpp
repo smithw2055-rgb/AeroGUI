@@ -87,13 +87,13 @@ struct KeyTime {
     static constexpr KeyTime FromTimeSpan(TimeSpan time) noexcept {
         KeyTime value{};
         value.kind_ = Kind::TimeSpan;
-        value.timeSpan_ = time;
+        value.payload_.timeSpan = time;
         return value;
     }
     static constexpr KeyTime FromPercent(double percent) noexcept {
         KeyTime value{};
         value.kind_ = Kind::Percent;
-        value.percent_ = percent;
+        value.payload_.percent = (percent == 0.0) ? 0.0 : percent;
         return value;
     }
     static constexpr KeyTime Uniform() noexcept {
@@ -112,23 +112,34 @@ struct KeyTime {
     constexpr bool IsPercent() const noexcept { return kind_ == Kind::Percent; }
     constexpr bool IsUniform() const noexcept { return kind_ == Kind::Uniform; }
     constexpr bool IsPaced() const noexcept { return kind_ == Kind::Paced; }
-    constexpr TimeSpan GetTimeSpan() const noexcept { return timeSpan_; }
-    constexpr double GetPercent() const noexcept { return percent_; }
+    constexpr TimeSpan GetTimeSpan() const noexcept {
+        return kind_ == Kind::TimeSpan ? payload_.timeSpan : TimeSpan::Zero();
+    }
+    constexpr double GetPercent() const noexcept {
+        return kind_ == Kind::Percent ? payload_.percent : 0.0;
+    }
 
     static Result<KeyTime> TryParse(StringView text) noexcept;
     std::uint64_t ResolveMicroseconds(std::uint64_t durationMicroseconds, std::uint32_t index,
         std::uint32_t count) const noexcept;
 
     friend constexpr bool operator==(KeyTime left, KeyTime right) noexcept {
-        return left.kind_ == right.kind_ && left.timeSpan_ == right.timeSpan_ && left.percent_ == right.percent_;
+        if (left.kind_ != right.kind_) return false;
+        if (left.kind_ == Kind::TimeSpan) return left.payload_.timeSpan == right.payload_.timeSpan;
+        if (left.kind_ == Kind::Percent) return left.payload_.percent == right.payload_.percent;
+        return true;
     }
     friend constexpr bool operator!=(KeyTime left, KeyTime right) noexcept { return !(left == right); }
 
 private:
     Kind kind_ = Kind::TimeSpan;
-    TimeSpan timeSpan_{};
-    double percent_ = 0.0;
+    std::uint8_t reserved_[7]{};
+    union Payload {
+        TimeSpan timeSpan{};
+        double percent;
+    } payload_{};
 };
+static_assert(sizeof(KeyTime) <= Value::InlineCapacity, "KeyTime must fit inline in Value");
 
 struct RepeatBehavior {
     enum class Kind : std::uint8_t {
@@ -140,19 +151,19 @@ struct RepeatBehavior {
     static constexpr RepeatBehavior Count(double value) noexcept {
         RepeatBehavior result{};
         result.kind_ = Kind::Count;
-        result.count_ = value;
+        result.payload_.count = (value == 0.0) ? 0.0 : value;
         return result;
     }
     static constexpr RepeatBehavior Forever() noexcept {
         RepeatBehavior result{};
         result.kind_ = Kind::Forever;
-        result.count_ = 1.0;
+        result.payload_.duration = TimeSpan::Zero();
         return result;
     }
     static constexpr RepeatBehavior FromDuration(TimeSpan time) noexcept {
         RepeatBehavior result{};
         result.kind_ = Kind::Duration;
-        result.duration_ = time;
+        result.payload_.duration = time;
         return result;
     }
     static constexpr RepeatBehavior Once() noexcept { return Count(1.0); }
@@ -161,21 +172,32 @@ struct RepeatBehavior {
     constexpr bool HasCount() const noexcept { return kind_ == Kind::Count; }
     constexpr bool IsForever() const noexcept { return kind_ == Kind::Forever; }
     constexpr bool HasDuration() const noexcept { return kind_ == Kind::Duration; }
-    constexpr double GetCount() const noexcept { return count_; }
-    constexpr TimeSpan GetDuration() const noexcept { return duration_; }
+    constexpr double GetCount() const noexcept {
+        return kind_ == Kind::Count ? payload_.count : 1.0;
+    }
+    constexpr TimeSpan GetDuration() const noexcept {
+        return kind_ == Kind::Duration ? payload_.duration : TimeSpan::Zero();
+    }
 
     static Result<RepeatBehavior> TryParse(StringView text) noexcept;
 
     friend constexpr bool operator==(RepeatBehavior left, RepeatBehavior right) noexcept {
-        return left.kind_ == right.kind_ && left.count_ == right.count_ && left.duration_ == right.duration_;
+        if (left.kind_ != right.kind_) return false;
+        if (left.kind_ == Kind::Count) return left.payload_.count == right.payload_.count;
+        if (left.kind_ == Kind::Duration) return left.payload_.duration == right.payload_.duration;
+        return true;
     }
     friend constexpr bool operator!=(RepeatBehavior left, RepeatBehavior right) noexcept { return !(left == right); }
 
 private:
     Kind kind_ = Kind::Count;
-    double count_ = 1.0;
-    TimeSpan duration_{};
+    std::uint8_t reserved_[7]{};
+    union Payload {
+        double count = 1.0;
+        TimeSpan duration;
+    } payload_{};
 };
+static_assert(sizeof(RepeatBehavior) <= Value::InlineCapacity, "RepeatBehavior must fit inline in Value");
 
 using AnimationTime = std::uint64_t;
 

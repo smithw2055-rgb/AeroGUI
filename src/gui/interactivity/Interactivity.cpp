@@ -349,40 +349,40 @@ AERO_DESCRIBE(TriggerAction) {
 AERO_DESCRIBE(ChangePropertyAction) {
     using namespace Aero::Meta;
     Register<ChangePropertyAction>(context)
-            .Property("TargetName", &ChangePropertyAction::GetTargetName, &ChangePropertyAction::SetTargetName)
-            .Property<Base::Ref<Data::Binding>, &ChangePropertyAction::GetTargetObject, &ChangePropertyAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
-            .Property("PropertyName", &ChangePropertyAction::GetPropertyName, &ChangePropertyAction::SetPropertyName)
-            .Property<Meta::PropertyValue, &ChangePropertyAction::GetValue, &ChangePropertyAction::SetValue>("Value", PropertyFlags::AnyValue)
+            .Property<&ChangePropertyAction::GetTargetName, &ChangePropertyAction::SetTargetName>("TargetName")
+            .Property<&ChangePropertyAction::GetTargetObject, &ChangePropertyAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+            .Property<&ChangePropertyAction::GetPropertyName, &ChangePropertyAction::SetPropertyName>("PropertyName")
+            .Property<&ChangePropertyAction::GetValue, &ChangePropertyAction::SetValue>("Value")
             .Factory();
 }
 
 AERO_DESCRIBE(SetFocusAction) {
     using namespace Aero::Meta;
     Register<SetFocusAction>(context)
-            .Property("TargetName", &SetFocusAction::GetTargetName, &SetFocusAction::SetTargetName)
-            .Property<Base::Ref<Data::Binding>, &SetFocusAction::GetTargetObject, &SetFocusAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
-            .Property("Engage", &SetFocusAction::GetEngage, &SetFocusAction::SetEngage)
+            .Property<&SetFocusAction::GetTargetName, &SetFocusAction::SetTargetName>("TargetName")
+            .Property<&SetFocusAction::GetTargetObject, &SetFocusAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+            .Property<&SetFocusAction::GetEngage, &SetFocusAction::SetEngage>("Engage")
             .Factory();
 }
 
 AERO_DESCRIBE(LaunchUriOrFileAction) {
     using namespace Aero::Meta;
     Register<LaunchUriOrFileAction>(context)
-            .Property("Path", &LaunchUriOrFileAction::GetPath, &LaunchUriOrFileAction::SetPath)
+            .Property<&LaunchUriOrFileAction::GetPath, &LaunchUriOrFileAction::SetPath>("Path")
             .Factory();
 }
 
 AERO_DESCRIBE(RemoveElementAction) {
     using namespace Aero::Meta;
     Register<RemoveElementAction>(context)
-            .Property<Base::Ref<Data::Binding>, &RemoveElementAction::GetTargetObject, &RemoveElementAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
+            .Property<&RemoveElementAction::GetTargetObject, &RemoveElementAction::SetTargetObject>("TargetObject", PropertyFlags::Structural)
             .Factory();
 }
 
 AERO_DESCRIBE(PropertyChangedTrigger) {
     using namespace Aero::Meta;
     Register<PropertyChangedTrigger>(context)
-            .Property<Base::Ref<Data::Binding>, &PropertyChangedTrigger::GetBinding, &PropertyChangedTrigger::SetBinding>("Binding")
+            .Property<&PropertyChangedTrigger::GetBinding, &PropertyChangedTrigger::SetBinding>("Binding")
             .Content<TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddPropertyChangedTriggerAction, &::Aero::MetadataSupport::ClearPropertyChangedTriggerActions)
             .Factory();
 }
@@ -390,8 +390,8 @@ AERO_DESCRIBE(PropertyChangedTrigger) {
 AERO_DESCRIBE(KeyTrigger) {
     using namespace Aero::Meta;
     Register<KeyTrigger>(context)
-            .Property("Key", &KeyTrigger::GetKey, &KeyTrigger::SetKey)
-            .Property("ActiveOnFocus", &KeyTrigger::GetActiveOnFocus, &KeyTrigger::SetActiveOnFocus)
+            .Property<&KeyTrigger::GetKey, &KeyTrigger::SetKey>("Key")
+            .Property<&KeyTrigger::GetActiveOnFocus, &KeyTrigger::SetActiveOnFocus>("ActiveOnFocus")
             .Content<TriggerAction>("Actions", ContentKind::Collection, &::Aero::MetadataSupport::AddKeyTriggerAction, &::Aero::MetadataSupport::ClearKeyTriggerActions)
             .Factory();
 }
@@ -399,8 +399,8 @@ AERO_DESCRIBE(KeyTrigger) {
 AERO_DESCRIBE(InvokeCommandAction) {
     using namespace Aero::Meta;
     Register<InvokeCommandAction>(context)
-            .Property("Command", &InvokeCommandAction::GetCommand, &InvokeCommandAction::SetCommand)
-            .Property<Meta::PropertyValue, &InvokeCommandAction::GetCommandParameter, &InvokeCommandAction::SetCommandParameter>("CommandParameter", PropertyFlags::AnyValue)
+            .Property<&InvokeCommandAction::GetCommand, &InvokeCommandAction::SetCommand>("Command")
+            .Property<&InvokeCommandAction::GetCommandParameter, &InvokeCommandAction::SetCommandParameter>("CommandParameter")
             .Factory();
 }
 
@@ -419,8 +419,8 @@ AERO_DESCRIBE(SelectAllAction) {
 AERO_DESCRIBE(PlaySoundAction) {
     using namespace Aero::Meta;
     Register<PlaySoundAction>(context)
-            .Property("Source", &PlaySoundAction::GetSource, &PlaySoundAction::SetSource)
-            .Property("Volume", &PlaySoundAction::GetVolume, &PlaySoundAction::SetVolume)
+            .Property<&PlaySoundAction::GetSource, &PlaySoundAction::SetSource>("Source")
+            .Property<&PlaySoundAction::GetVolume, &PlaySoundAction::SetVolume>("Volume")
             .Property(PlaySoundAction::IsEnabledProperty, true)
             .Factory();
 }
@@ -428,16 +428,16 @@ AERO_DESCRIBE(PlaySoundAction) {
 AERO_DESCRIBE(ComparisonCondition) {
     using namespace Aero::Meta;
     Register<ComparisonCondition>(context)
-            .Property<Base::Ref<Data::Binding>, &ComparisonCondition::GetLeftOperand, &ComparisonCondition::SetLeftOperand>("LeftOperand")
-            .Property<Meta::PropertyValue, &ComparisonCondition::GetRightOperand, &ComparisonCondition::SetRightOperand>("RightOperand", PropertyFlags::AnyValue)
-            .Property("Operator", &ComparisonCondition::GetComparisonOperator, &ComparisonCondition::SetComparisonOperator)
+            .Property<&ComparisonCondition::GetLeftOperand, &ComparisonCondition::SetLeftOperand>("LeftOperand")
+            .Property<&ComparisonCondition::GetRightOperand, &ComparisonCondition::SetRightOperand>("RightOperand")
+            .Property<&ComparisonCondition::GetComparisonOperator, &ComparisonCondition::SetComparisonOperator>("Operator")
             .Factory();
 }
 
 AERO_DESCRIBE(ConditionalExpression) {
     using namespace Aero::Meta;
     Register<ConditionalExpression>(context)
-            .Property("ForwardChaining", &ConditionalExpression::GetChaining, &ConditionalExpression::SetChaining)
+            .Property<&ConditionalExpression::GetChaining, &ConditionalExpression::SetChaining>("ForwardChaining")
             .Content<ComparisonCondition>("Conditions", ContentKind::Collection, &::Aero::MetadataSupport::AddConditionalComparison, &::Aero::MetadataSupport::ClearConditionalComparisons)
             .Factory();
 }

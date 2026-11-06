@@ -202,6 +202,7 @@ private:
     Base::Ref<Meta::RegistryLifetime> registryLifetime_;
     TypeId runtimeType_ = InvalidTypeId;
     void* valueStore_ = nullptr;
+    DependencyObject* inheritanceParent_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
     std::uint32_t unmaterializedQueueMask_ = 0U;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;

@@ -73,6 +73,8 @@ private:
         std::uint64_t templateValue = 0U;
         Base::String groupName;
         Base::String stateName;
+        const VisualStateGroupPlan* groupPlan = nullptr;
+        const VisualStatePlan* statePlan = nullptr;
         Base::Vector<Aero::Media::Animation::Model::AnimationHandle> animations;
         std::uint32_t providerOrigin = 0U;
         std::uint32_t nextOrdinal = 0U;
@@ -666,122 +668,40 @@ Base::Result<void> VisualStateManagerState::CaptureStoryboardTimeline(
                 to});
         return {};
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::DoubleAnimationUsingKeyFrames::
-                StaticTypeId()) {
-        auto& authored = static_cast<
-            Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline);
-        const Media::Animation::DoubleKeyFrame* frame =
-            Aero::Media::Animation::ResolveFinalKeyFrame(
-                authored.GetKeyFrames(),
-                ComposeTiming(authored, {}).durationMicroseconds);
-        if (!frame) {
-            return {};
-        }
-        Base::Result<PropertyValue> to =
-            ValueCodec<double>::Encode(frame->GetValue());
+    const auto appendEncodedTo = [&](auto rawTo) -> Base::Result<void> {
+        using ValueType = std::decay_t<decltype(rawTo)>;
+        Base::Result<PropertyValue> to = ValueCodec<ValueType>::Encode(rawTo);
         if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
+        values.PushBack(TransitionValue{
+            target, property, from.Value(), std::move(to).Value()});
         return {};
+    };
+    const auto captureKeyFrames = [&](auto& authored) -> Base::Result<void> {
+        const auto* frame = Aero::Media::Animation::ResolveFinalKeyFrame(
+            authored.GetKeyFrames(),
+            ComposeTiming(authored, {}).durationMicroseconds);
+        return frame != nullptr ? appendEncodedTo(frame->GetValue()) : Base::Result<void>{};
+    };
+
+    const Meta::TypeId timelineType = timeline.RuntimeType();
+    if (timelineType == Media::Animation::DoubleAnimationUsingKeyFrames::StaticTypeId()) {
+        return captureKeyFrames(static_cast<Media::Animation::DoubleAnimationUsingKeyFrames&>(timeline));
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::ColorAnimationUsingKeyFrames::
-                StaticTypeId()) {
-        auto& authored = static_cast<
-            Media::Animation::ColorAnimationUsingKeyFrames&>(timeline);
-        const Media::Animation::ColorKeyFrame* frame =
-            Aero::Media::Animation::ResolveFinalKeyFrame(
-                authored.GetKeyFrames(),
-                ComposeTiming(authored, {}).durationMicroseconds);
-        if (!frame) {
-            return {};
-        }
-        Base::Result<PropertyValue> to =
-            ValueCodec<Base::Color>::Encode(frame->GetValue());
-        if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
-        return {};
+    if (timelineType == Media::Animation::ColorAnimationUsingKeyFrames::StaticTypeId()) {
+        return captureKeyFrames(static_cast<Media::Animation::ColorAnimationUsingKeyFrames&>(timeline));
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::DoubleAnimation::StaticTypeId()) {
-        auto& authored =
-            static_cast<Media::Animation::DoubleAnimation&>(timeline);
-        if (!authored.GetHasTo()) {
-            return {};
-        }
-        Base::Result<PropertyValue> to =
-            ValueCodec<double>::Encode(authored.GetTo());
-        if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
-        return {};
+    if (timelineType == Media::Animation::PointAnimationUsingKeyFrames::StaticTypeId()) {
+        return captureKeyFrames(static_cast<Media::Animation::PointAnimationUsingKeyFrames&>(timeline));
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::ColorAnimation::StaticTypeId()) {
-        auto& authored =
-            static_cast<Media::Animation::ColorAnimation&>(timeline);
-        Base::Result<PropertyValue> to =
-            ValueCodec<Base::Color>::Encode(authored.GetTo());
-        if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
-        return {};
+    if (timelineType == Media::Animation::DoubleAnimation::StaticTypeId()) {
+        auto& authored = static_cast<Media::Animation::DoubleAnimation&>(timeline);
+        return authored.GetHasTo() ? appendEncodedTo(authored.GetTo()) : Base::Result<void>{};
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::PointAnimationUsingKeyFrames::
-                StaticTypeId()) {
-        auto& authored = static_cast<
-            Media::Animation::PointAnimationUsingKeyFrames&>(timeline);
-        const Media::Animation::PointKeyFrame* frame =
-            Aero::Media::Animation::ResolveFinalKeyFrame(
-                authored.GetKeyFrames(),
-                ComposeTiming(authored, {}).durationMicroseconds);
-        if (!frame) {
-            return {};
-        }
-        Base::Result<PropertyValue> to =
-            ValueCodec<Base::Point>::Encode(frame->GetValue());
-        if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
-        return {};
+    if (timelineType == Media::Animation::ColorAnimation::StaticTypeId()) {
+        return appendEncodedTo(static_cast<Media::Animation::ColorAnimation&>(timeline).GetTo());
     }
-    if (timeline.RuntimeType() ==
-            Media::Animation::PointAnimation::StaticTypeId()) {
-        auto& authored =
-            static_cast<Media::Animation::PointAnimation&>(timeline);
-        Base::Result<PropertyValue> to =
-            ValueCodec<Base::Point>::Encode(authored.GetTo());
-        if (!to) return to.GetStatus();
-        values.PushBack(
-            TransitionValue{
-                target,
-                property,
-                from.Value(),
-                std::move(to).Value()});
-        return {};
+    if (timelineType == Media::Animation::PointAnimation::StaticTypeId()) {
+        return appendEncodedTo(static_cast<Media::Animation::PointAnimation&>(timeline).GetTo());
     }
     // Unsupported timeline kind for a generated transition: leave it to the
     // state's own Storyboard (no fade for this property).
@@ -841,11 +761,23 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
     if (transition.generatedDurationMicroseconds == 0U) {
         return {};
     }
-    const EasingFunction easing =
-        transition.generatedEasingFunction
-        ? Aero::Media::Animation::Easing(
-                *transition.generatedEasingFunction)
-        : EasingFunction{};
+    Media::Animation::Model::TimelineTiming timing;
+    timing.durationMicroseconds = transition.generatedDurationMicroseconds;
+    timing.fillBehavior = FillBehavior::HoldEnd;
+
+    const auto beginGeneratedTimeline = [&](
+        const TransitionValue& value,
+        auto&& makeTimeline) -> Base::Result<AnimationHandle> {
+        auto authored = makeTimeline();
+        if (!authored) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to allocate transition timeline");
+        }
+        if (transition.generatedEasingFunction) {
+            authored->SetEasingFunction(transition.generatedEasingFunction);
+        }
+        return animations_->BeginTimeline(*value.target, value.property, *authored, timing);
+    };
+
     for (const TransitionValue& value : values) {
         if (value.target == nullptr ||
             !value.property.IsValid()) {
@@ -859,90 +791,47 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 "Generated VisualTransition value type is unsupported");
         if (value.from.Kind() == ValueKind::Double ||
             value.from.Type() == Meta::TypeOf<Length>()) {
-            Base::Result<double> fromDouble =
-                DecodeDoubleOrLength(value.from);
-            Base::Result<double> toDouble =
-                DecodeDoubleOrLength(value.to);
+            Base::Result<double> fromDouble = DecodeDoubleOrLength(value.from);
+            Base::Result<double> toDouble = DecodeDoubleOrLength(value.to);
             if (fromDouble && toDouble) {
-                if (fromDouble.Value() == toDouble.Value()) {
-                    continue;
-                }
-                auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
-                authored->SetFrom(fromDouble.Value());
-                authored->SetTo(toDouble.Value());
-                if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
-                    authored->SetEasingFunction(std::move(ease));
-                }
-                Media::Animation::Model::TimelineTiming timing;
-                timing.durationMicroseconds =
-                    transition.generatedDurationMicroseconds;
-                timing.fillBehavior =
-                    FillBehavior::HoldEnd;
-                started = animations_->BeginTimeline(
-                    *value.target,
-                    value.property,
-                    *authored,
-                    timing);
+                if (fromDouble.Value() == toDouble.Value()) continue;
+                started = beginGeneratedTimeline(value, [&]() {
+                    auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
+                    if (authored) {
+                        authored->SetFrom(fromDouble.Value());
+                        authored->SetTo(toDouble.Value());
+                    }
+                    return authored;
+                });
             }
         } else if (value.from.Type() == Meta::TypeOf<Base::Color>()) {
-            Base::Result<Base::Color> fromColor =
-                ValueCodec<Base::Color>::Decode(
-                    value.from);
-            Base::Result<Base::Color> toColor =
-                ValueCodec<Base::Color>::Decode(
-                    value.to);
-            if (!fromColor || !toColor) {
-                continue;
-            }
-            if (fromColor.Value() == toColor.Value()) {
-                continue;
-            }
-            auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
-            authored->SetFrom(fromColor.Value());
-            authored->SetTo(toColor.Value());
-            if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
-                authored->SetEasingFunction(std::move(ease));
-            }
-            Media::Animation::Model::TimelineTiming timing;
-            timing.durationMicroseconds =
-                transition.generatedDurationMicroseconds;
-            timing.fillBehavior =
-                FillBehavior::HoldEnd;
-            started = animations_->BeginTimeline(
-                *value.target,
-                value.property,
-                *authored,
-                timing);
+            Base::Result<Base::Color> fromColor = ValueCodec<Base::Color>::Decode(value.from);
+            Base::Result<Base::Color> toColor = ValueCodec<Base::Color>::Decode(value.to);
+            if (!fromColor || !toColor || fromColor.Value() == toColor.Value()) continue;
+            started = beginGeneratedTimeline(value, [&]() {
+                auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
+                if (authored) {
+                    authored->SetFrom(fromColor.Value());
+                    authored->SetTo(toColor.Value());
+                }
+                return authored;
+            });
         } else if (value.from.Type() == Meta::TypeOf<Base::Point>()) {
-            Base::Result<Base::Point> fromPoint =
-                ValueCodec<Base::Point>::Decode(
-                    value.from);
-            Base::Result<Base::Point> toPoint =
-                ValueCodec<Base::Point>::Decode(
-                    value.to);
-            if (!fromPoint || !toPoint) {
+            Base::Result<Base::Point> fromPoint = ValueCodec<Base::Point>::Decode(value.from);
+            Base::Result<Base::Point> toPoint = ValueCodec<Base::Point>::Decode(value.to);
+            if (!fromPoint || !toPoint ||
+                (fromPoint.Value().x == toPoint.Value().x &&
+                 fromPoint.Value().y == toPoint.Value().y)) {
                 continue;
             }
-            if (fromPoint.Value().x == toPoint.Value().x &&
-                fromPoint.Value().y == toPoint.Value().y) {
-                continue;
-            }
-            auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
-            authored->SetFrom(fromPoint.Value());
-            authored->SetTo(toPoint.Value());
-            if (auto ease = Media::Animation::EngineSupport::MakeEasingFunction(easing)) {
-                authored->SetEasingFunction(std::move(ease));
-            }
-            Media::Animation::Model::TimelineTiming timing;
-            timing.durationMicroseconds =
-                transition.generatedDurationMicroseconds;
-            timing.fillBehavior =
-                FillBehavior::HoldEnd;
-            started = animations_->BeginTimeline(
-                *value.target,
-                value.property,
-                *authored,
-                timing);
+            started = beginGeneratedTimeline(value, [&]() {
+                auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
+                if (authored) {
+                    authored->SetFrom(fromPoint.Value());
+                    authored->SetTo(toPoint.Value());
+                }
+                return authored;
+            });
         } else {
             continue;
         }
@@ -950,8 +839,7 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             ClearStateAnimations(active);
             return started.GetStatus();
         }
-        active.animations.PushBack(
-                started.Value());
+        active.animations.PushBack(started.Value());
     }
     return {};
 }
@@ -1023,13 +911,10 @@ bool VisualStateManagerState::GoToState(
 
     std::uint32_t activeIndex = FindActive(handle, groupName);
     if (activeIndex != UINT32_MAX &&
-        active_[activeIndex].stateName.View() == stateName) {
+        (active_[activeIndex].statePlan == next ||
+         active_[activeIndex].stateName.View() == stateName)) {
         return false;
     }
-    Base::String nextGroup;
-    nextGroup.Assign(groupName);
-    Base::String nextName;
-    nextName.Assign(stateName);
     bool addedRecord = false;
     if (activeIndex == UINT32_MAX) {
         if (!active_.Empty()) {
@@ -1039,15 +924,17 @@ bool VisualStateManagerState::GoToState(
         if (activeIndex == UINT32_MAX) {
             ActiveGroup active;
             active.templateValue = handle.value;
-            active.groupName = std::move(nextGroup);
+            static_cast<void>(active.groupName.Assign(groupName));
+            active.groupPlan = group;
             active_.PushBack(std::move(active));
             activeIndex = active_.Size() - 1U;
             addedRecord = true;
         }
     }
+    active_[activeIndex].groupPlan = group;
 
-    const VisualStatePlan* previous = nullptr;
-    if (!active_[activeIndex].stateName.Empty()) {
+    const VisualStatePlan* previous = active_[activeIndex].statePlan;
+    if (previous == nullptr && !active_[activeIndex].stateName.Empty()) {
         previous = FindState(
             *group, active_[activeIndex].stateName.View());
     }
@@ -1206,7 +1093,8 @@ bool VisualStateManagerState::GoToState(
         return false;
     }
 
-    active_[activeIndex].stateName = std::move(nextName);
+    static_cast<void>(active_[activeIndex].stateName.Assign(stateName));
+    active_[activeIndex].statePlan = next;
     return true;
 }
 
@@ -1220,13 +1108,16 @@ bool VisualStateManagerState::ClearState(
     const std::uint32_t activeIndex =
         FindActive(handle, groupName);
     if (activeIndex == UINT32_MAX) return false;
-    const ControlTemplate* plan =
-        templates_->AppliedTemplate(handle);
-    const VisualStateGroupPlan* group = plan != nullptr
-        ? FindGroup(*plan, groupName) : nullptr;
-    const VisualStatePlan* state = group != nullptr
-        ? FindState(*group, active_[activeIndex].stateName.View())
-        : nullptr;
+    const VisualStatePlan* state = active_[activeIndex].statePlan;
+    if (state == nullptr) {
+        const ControlTemplate* plan =
+            templates_->AppliedTemplate(handle);
+        const VisualStateGroupPlan* group = plan != nullptr
+            ? FindGroup(*plan, groupName) : nullptr;
+        state = group != nullptr
+            ? FindState(*group, active_[activeIndex].stateName.View())
+            : nullptr;
+    }
     if (state != nullptr) {
         ClearStateAnimations(active_[activeIndex]);
         static_cast<void>(
@@ -1262,10 +1153,13 @@ std::uint32_t VisualStateManagerState::Clear(
             }
             continue;
         }
-        const VisualStateGroupPlan* group = plan != nullptr
-            ? FindGroup(*plan, entry.groupName.View()) : nullptr;
-        const VisualStatePlan* state = group != nullptr
-            ? FindState(*group, entry.stateName.View()) : nullptr;
+        const VisualStatePlan* state = entry.statePlan;
+        if (state == nullptr) {
+            const VisualStateGroupPlan* group = plan != nullptr
+                ? FindGroup(*plan, entry.groupName.View()) : nullptr;
+            state = group != nullptr
+                ? FindState(*group, entry.stateName.View()) : nullptr;
+        }
         if (state != nullptr) {
             ClearStateAnimations(entry);
             static_cast<void>(

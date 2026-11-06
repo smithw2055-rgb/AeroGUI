@@ -1017,8 +1017,11 @@ Base::Result<void> StoreInternal(
         doc = std::move(cloned).Value();
     }
 
+    doc.ReleaseNodesAfterBytecode();
     const std::uint64_t serializedSize =
-        static_cast<std::uint64_t>(doc.Nodes().Size()) * sizeof(Node) + sizeof(CompiledDocument);
+        !doc.Nodes().Empty()
+            ? static_cast<std::uint64_t>(doc.Nodes().Size()) * sizeof(Node) + sizeof(CompiledDocument)
+            : static_cast<std::uint64_t>(doc.CachedNodeCount()) * sizeof(XamlInstruction) + sizeof(CompiledDocument);
 
     Base::Result<Base::String> key = MakeKey(uri, *allocator);
     if (!key) return key.GetStatus();

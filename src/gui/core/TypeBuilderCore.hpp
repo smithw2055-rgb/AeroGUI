@@ -111,6 +111,111 @@ struct MemberPointerTraits<Member> {
     using FieldType = Field;
 };
 
+template<class TParam>
+using NormalizePropertyValueType = std::conditional_t<
+    std::is_same_v<std::remove_cv_t<std::remove_reference_t<TParam>>, Base::StringView>,
+    Base::String,
+    std::remove_cv_t<std::remove_reference_t<TParam>>>;
+
+template<class TSetter>
+struct SetterParamTraits;
+
+template<class TOwner, class TResult, class TParam>
+struct SetterParamTraits<TResult (TOwner::*)(TParam)> {
+    using ValueType = NormalizePropertyValueType<TParam>;
+};
+
+template<class TOwner, class TResult, class TParam>
+struct SetterParamTraits<TResult (TOwner::*)(TParam) noexcept> {
+    using ValueType = NormalizePropertyValueType<TParam>;
+};
+
+template<class TOwner, class TResult, class TParam>
+struct SetterParamTraits<TResult (*)(TOwner&, TParam)> {
+    using ValueType = NormalizePropertyValueType<TParam>;
+};
+
+template<class TOwner, class TResult, class TParam>
+struct SetterParamTraits<TResult (*)(TOwner&, TParam) noexcept> {
+    using ValueType = NormalizePropertyValueType<TParam>;
+};
+
+template<class THandler>
+struct EventHandlerArgTraits;
+
+template<class TOwner, class TSender, class TArgs>
+struct EventHandlerArgTraits<void (TOwner::*)(TSender*, TArgs&)> {
+    using ArgsType = std::remove_cv_t<TArgs>;
+};
+
+template<class TOwner, class TSender, class TArgs>
+struct EventHandlerArgTraits<void (TOwner::*)(TSender*, TArgs&) noexcept> {
+    using ArgsType = std::remove_cv_t<TArgs>;
+};
+
+template<class TOwner, class TSender, class TArgs>
+struct EventHandlerArgTraits<void (*)(TOwner&, TSender*, TArgs&)> {
+    using ArgsType = std::remove_cv_t<TArgs>;
+};
+
+template<class TOwner, class TSender, class TArgs>
+struct EventHandlerArgTraits<void (*)(TOwner&, TSender*, TArgs&) noexcept> {
+    using ArgsType = std::remove_cv_t<TArgs>;
+};
+
+template<class TValue, auto Callback>
+struct PropertyChangedMemberTraits;
+
+template<class TValue, class TOwner, void (TOwner::*Method)(const DependencyPropertyChangedEventArgs&)>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept {
+        (static_cast<TOwner&>(object).*Method)(args);
+    }
+};
+
+template<class TValue, class TOwner, void (TOwner::*Method)(const DependencyPropertyChangedEventArgs&) noexcept>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept {
+        (static_cast<TOwner&>(object).*Method)(args);
+    }
+};
+
+template<class TValue, class TOwner, void (TOwner::*Method)(const TValue&, const TValue&)>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept {
+        Base::Result<TValue> oldVal = ValueCodec<TValue>::Decode(args.GetOldValue());
+        Base::Result<TValue> newVal = ValueCodec<TValue>::Decode(args.GetNewValue());
+        if (oldVal && newVal) {
+            (static_cast<TOwner&>(object).*Method)(oldVal.Value(), newVal.Value());
+        }
+    }
+};
+
+template<class TValue, class TOwner, void (TOwner::*Method)(const TValue&, const TValue&) noexcept>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept {
+        Base::Result<TValue> oldVal = ValueCodec<TValue>::Decode(args.GetOldValue());
+        Base::Result<TValue> newVal = ValueCodec<TValue>::Decode(args.GetNewValue());
+        if (oldVal && newVal) {
+            (static_cast<TOwner&>(object).*Method)(oldVal.Value(), newVal.Value());
+        }
+    }
+};
+
+template<class TValue, class TOwner, void (TOwner::*Method)()>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs&) noexcept {
+        (static_cast<TOwner&>(object).*Method)();
+    }
+};
+
+template<class TValue, class TOwner, void (TOwner::*Method)() noexcept>
+struct PropertyChangedMemberTraits<TValue, Method> {
+    static void Invoke(DependencyObject& object, const DependencyPropertyChangedEventArgs&) noexcept {
+        (static_cast<TOwner&>(object).*Method)();
+    }
+};
+
 template<class Owner, class Field, Field Owner::*Member>
 Base::Result<Value> GetField(
     const void* object,

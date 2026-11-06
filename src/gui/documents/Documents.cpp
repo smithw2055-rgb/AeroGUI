@@ -806,8 +806,8 @@ void PopulateDocumentsMetadata(::Aero::Meta::Registration& context) noexcept {
         .Factory();
 
     Register<Span>(context)
-        .Property<Value, &Span::GetMetadataInlines, &Span::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(Span::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
+        .Property<&Span::GetMetadataInlines, &Span::SetInlineValue>("Inlines", PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor("Inlines", ContentKind::Collection, &AddSpanInline, &ClearSpanInlines, ContentFlags::None)
         .Factory();
 
     Register<Bold>(context)

@@ -2442,37 +2442,37 @@ AERO_DESCRIBE(BindingBase) {
 AERO_DESCRIBE(RelativeSource) {
     using namespace Aero::Meta;
     Register<RelativeSource>(context)
-            .Property("Mode", &RelativeSource::GetMode, &RelativeSource::SetMode)
-            .Property("AncestorType", &RelativeSource::GetAncestorType, &RelativeSource::SetAncestorType)
-            .Property("AncestorLevel", &RelativeSource::GetAncestorLevel, &RelativeSource::SetAncestorLevel)
+            .Property<&RelativeSource::GetMode, &RelativeSource::SetMode>("Mode")
+            .Property<&RelativeSource::GetAncestorType, &RelativeSource::SetAncestorType>("AncestorType")
+            .Property<&RelativeSource::GetAncestorLevel, &RelativeSource::SetAncestorLevel>("AncestorLevel")
             .Factory();
 }
 
 AERO_DESCRIBE(Binding) {
     using namespace Aero::Meta;
     Register<Binding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
-            .Property("Path", &Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath))
-            .Property("ElementName", &Binding::GetElementName, &Binding::SetElementName)
-            .Property("Mode", &Binding::GetMode, &Binding::SetMode)
-            .Property("UpdateSourceTrigger", &Binding::GetUpdateSourceTrigger, &Binding::SetUpdateSourceTrigger)
-            .Property("StringFormat", &Binding::GetStringFormat, &Binding::SetStringFormat)
-            .Property<Value, &Binding::GetFallbackValue, &Binding::SetFallbackValue>("FallbackValue", PropertyFlags::AnyValue)
-            .Property<Value, &Binding::GetTargetNullValue, &Binding::SetTargetNullValue>("TargetNullValue", PropertyFlags::AnyValue)
-            .Property("Source", &Binding::GetSource, &Binding::SetSource)
-            .Property("RelativeSource", &Binding::GetRelativeSource, &Binding::SetRelativeSource)
-            .Property("Converter", &Binding::GetConverter, &Binding::SetConverter)
-            .Property<Value, &Binding::GetConverterParameter, &Binding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+            .Property<&Binding::GetPathText, static_cast<void (Binding::*)(Base::StringView) noexcept>(&Binding::SetPath)>("Path")
+            .Property<&Binding::GetElementName, &Binding::SetElementName>("ElementName")
+            .Property<&Binding::GetMode, &Binding::SetMode>("Mode")
+            .Property<&Binding::GetUpdateSourceTrigger, &Binding::SetUpdateSourceTrigger>("UpdateSourceTrigger")
+            .Property<&Binding::GetStringFormat, &Binding::SetStringFormat>("StringFormat")
+            .Property<&Binding::GetFallbackValue, &Binding::SetFallbackValue>("FallbackValue")
+            .Property<&Binding::GetTargetNullValue, &Binding::SetTargetNullValue>("TargetNullValue")
+            .Property<&Binding::GetSource, &Binding::SetSource>("Source")
+            .Property<&Binding::GetRelativeSource, &Binding::SetRelativeSource>("RelativeSource")
+            .Property<&Binding::GetConverter, &Binding::SetConverter>("Converter")
+            .Property<&Binding::GetConverterParameter, &Binding::SetConverterParameter>("ConverterParameter")
             .Factory();
 }
 
 AERO_DESCRIBE(MultiBinding) {
     using namespace Aero::Meta;
     Register<MultiBinding>(context, TypeFlags::MarkupExtension | TypeFlags::Sealed)
-            .Property("StringFormat", &MultiBinding::GetStringFormat, &MultiBinding::SetStringFormat)
-            .Property<Value, &MultiBinding::GetFallbackValue, &MultiBinding::SetFallbackValue>("FallbackValue", PropertyFlags::AnyValue)
-            .Property<Value, &MultiBinding::GetTargetNullValue, &MultiBinding::SetTargetNullValue>("TargetNullValue", PropertyFlags::AnyValue)
-            .Property("Converter", &MultiBinding::GetConverter, &MultiBinding::SetConverter)
-            .Property<Value, &MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter", PropertyFlags::AnyValue)
+            .Property<&MultiBinding::GetStringFormat, &MultiBinding::SetStringFormat>("StringFormat")
+            .Property<&MultiBinding::GetFallbackValue, &MultiBinding::SetFallbackValue>("FallbackValue")
+            .Property<&MultiBinding::GetTargetNullValue, &MultiBinding::SetTargetNullValue>("TargetNullValue")
+            .Property<&MultiBinding::GetConverter, &MultiBinding::SetConverter>("Converter")
+            .Property<&MultiBinding::GetConverterParameter, &MultiBinding::SetConverterParameter>("ConverterParameter")
             .Content<Binding>("Bindings", ContentKind::Collection,
                 [](Base::Object& owner,
                    const Base::Ref<Base::Object>& value,

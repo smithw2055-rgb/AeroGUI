@@ -6,6 +6,7 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Vector.hpp>
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 
@@ -179,10 +180,10 @@ private:
     DispatcherWakeCallback wake_ = nullptr;
     void* wakeContext_ = nullptr;
     std::uint64_t nextTaskHandle_ = 1U;
-    std::uint32_t guardDepth_ = 0U;
+    std::atomic<std::uint32_t> guardDepth_{0U};
     DispatcherFrameTimings frameTimings_;
     bool pumping_ = false;
-    bool shuttingDown_ = false;
+    std::atomic<bool> shuttingDown_{false};
 
     Result<DispatcherTaskHandle> Enqueue(DispatcherTime dueTimeMicroseconds, bool delayed, DispatcherPriority priority,
         DispatcherCallback callback,

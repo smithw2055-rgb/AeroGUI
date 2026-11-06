@@ -368,8 +368,8 @@ namespace Aero::Media {
 AERO_DESCRIBE(StreamGeometry) {
     using namespace Aero::Meta;
     Register<StreamGeometry>(context)
-            .Property("Data", &StreamGeometry::GetData, &StreamGeometry::SetData, PropertyFlags::Structural)
-            .Content(MakeMemberId(StreamGeometry::StaticTypeId(), MemberKind::Property, "Data"))
+            .Property<&StreamGeometry::GetData, &StreamGeometry::SetData>("Data", PropertyFlags::Structural)
+            .Content("Data")
             .TextConverter(&::Aero::MetadataSupport::ConvertGeometryText)
             .Factory();
 }

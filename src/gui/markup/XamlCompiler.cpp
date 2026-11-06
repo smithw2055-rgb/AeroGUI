@@ -778,6 +778,9 @@ Base::Result<void> CompiledDocument::ValidateSchema(
             Base::ErrorCode::InvalidState,
             "Compiled XAML validation requires a frozen runtime schema");
     }
+    if (nodes_.Empty() && bytecodeProgram_ != nullptr) {
+        return ValidateCompiledCacheIdentity(identity_, schema.Domain());
+    }
     return ValidateSchemaCore(*this, schema);
 }
 
@@ -787,6 +790,9 @@ Base::Result<void> CompiledDocument::BindSchema(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "AXB2 binding requires a frozen runtime schema");
+    }
+    if (nodes_.Empty() && bytecodeProgram_ != nullptr) {
+        return ValidateCompiledCacheIdentity(identity_, schema.Domain());
     }
     bytecodeProgram_.Reset();
     Base::Result<void> valid = ValidateSchemaCore(*this, schema, true);
@@ -808,6 +814,9 @@ Base::Result<void> CompiledDocument::ValidateSchema(
             Base::ErrorCode::ValidationFailed,
             "Compiled XAML identity does not match the schema manifest");
     }
+    if (nodes_.Empty() && bytecodeProgram_ != nullptr) {
+        return {};
+    }
     return ValidateSchemaCore(*this, manifest);
 }
 
@@ -823,6 +832,9 @@ Base::Result<void> CompiledDocument::BindSchema(
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "AXB2 identity does not match the schema manifest");
+    }
+    if (nodes_.Empty() && bytecodeProgram_ != nullptr) {
+        return {};
     }
     bytecodeProgram_.Reset();
     return ValidateSchemaCore(*this, manifest, true);
@@ -1890,6 +1902,7 @@ CompiledDocument::Clone() const noexcept {
     document.originUri_ = originUri_;
     document.dependencies_ = dependencies_;
     document.bytecodeProgram_ = bytecodeProgram_;
+    document.cachedNodeCount_ = cachedNodeCount_;
     document.nodes_.Reserve(nodes_.Size());
     for (const Node& node : nodes_) {
         Base::Result<Node> cloned = Node::Clone(node);
@@ -1954,7 +1967,7 @@ Base::Result<void> CompiledDocument::AddDependency(
 Base::Result<Base::Vector<std::uint8_t>>
 CompiledDocument::Serialize(
     const CompiledDocumentSerializeOptions& options) const noexcept {
-    if (!IsValid()) {
+    if (!IsValid() || nodes_.Empty()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "AXB2 document is not valid");

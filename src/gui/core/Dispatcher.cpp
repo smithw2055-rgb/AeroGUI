@@ -139,8 +139,8 @@ Dispatcher::~Dispatcher() noexcept {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         AERO_ASSERT(!pumping_);
-        AERO_ASSERT(guardDepth_ == 0U);
-        shuttingDown_ = true;
+        AERO_ASSERT(guardDepth_.load(std::memory_order_relaxed) == 0U);
+        shuttingDown_.store(true, std::memory_order_release);
 
         for (std::uint32_t index = readyHead_;
              index < ready_.Size();
@@ -293,7 +293,7 @@ Base::Result<DispatcherTaskHandle> Dispatcher::Enqueue(
     DispatcherTaskHandle handle;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (shuttingDown_) {
+        if (shuttingDown_.load(std::memory_order_relaxed)) {
             return DispatcherShuttingDownStatus();
         }
         if (nextTaskHandle_ == 0U ||
@@ -335,7 +335,7 @@ bool Dispatcher::Cancel(
     bool cancelled = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (shuttingDown_) {
+        if (shuttingDown_.load(std::memory_order_relaxed)) {
             return false;
         }
 
@@ -404,10 +404,10 @@ Base::Result<std::uint32_t> Dispatcher::ProcessPending(
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (shuttingDown_) {
+        if (shuttingDown_.load(std::memory_order_acquire)) {
             return DispatcherShuttingDownStatus();
         }
-        if (pumping_ || guardDepth_ != 0U) {
+        if (pumping_ || guardDepth_.load(std::memory_order_relaxed) != 0U) {
             return InvalidDispatcherStateStatus();
         }
         pumping_ = true;
@@ -468,11 +468,8 @@ Base::Result<std::uint32_t> Dispatcher::ProcessPending(
         }
         ++callbackCount;
 
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (guardDepth_ != 0U) {
-                break;
-            }
+        if (guardDepth_.load(std::memory_order_relaxed) != 0U) {
+            break;
         }
     }
 
@@ -500,18 +497,16 @@ Dispatcher::EnterReentrancyGuard() noexcept {
         return access.GetStatus();
     }
 
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (shuttingDown_) {
-            return DispatcherShuttingDownStatus();
-        }
-        if (guardDepth_ == UINT32_MAX) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Dispatcher reentrancy depth limit reached");
-        }
-        ++guardDepth_;
+    if (shuttingDown_.load(std::memory_order_acquire)) {
+        return DispatcherShuttingDownStatus();
     }
+    const std::uint32_t depth = guardDepth_.load(std::memory_order_relaxed);
+    if (depth == UINT32_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Dispatcher reentrancy depth limit reached");
+    }
+    guardDepth_.store(depth + 1U, std::memory_order_relaxed);
     return DispatcherReentrancyGuard(this);
 }
 
@@ -542,8 +537,7 @@ bool Dispatcher::IsPumping() const noexcept {
 }
 
 std::uint32_t Dispatcher::ReentrancyDepth() const noexcept {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return guardDepth_;
+    return guardDepth_.load(std::memory_order_relaxed);
 }
 
 void Dispatcher::InsertReadyLocked(
@@ -677,9 +671,9 @@ void Dispatcher::DiscardCompletedDelayedPrefixLocked() noexcept {
 
 void Dispatcher::LeaveReentrancyGuard() noexcept {
     AERO_ASSERT(CheckAccess());
-    std::lock_guard<std::mutex> lock(mutex_);
-    AERO_ASSERT(guardDepth_ > 0U);
-    --guardDepth_;
+    const std::uint32_t depth = guardDepth_.load(std::memory_order_relaxed);
+    AERO_ASSERT(depth > 0U);
+    guardDepth_.store(depth - 1U, std::memory_order_relaxed);
 }
 
 void Dispatcher::NotifyWake() const noexcept {

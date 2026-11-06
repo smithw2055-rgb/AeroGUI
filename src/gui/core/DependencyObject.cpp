@@ -968,9 +968,15 @@ PropertyValue DependencyObject::ReadLocalValue(
 
 const PropertyValue* DependencyObject::FindEffectiveValuePtr(
     DependencyPropertyHandle propertyHandle) const noexcept {
-    Base::Result<void> ready = VerifyReady();
-    if (!ready) {
-        return nullptr;
+    if (typeVerified_) {
+        if (!CheckAccess()) {
+            return nullptr;
+        }
+    } else {
+        Base::Result<void> ready = VerifyReady();
+        if (!ready) {
+            return nullptr;
+        }
     }
 
     // Canonical-handle hot path: probe the store by the incoming MemberId

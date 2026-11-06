@@ -22,6 +22,7 @@ class DependencyObject;
 class FrameworkElement;
 class ResourceDictionary;
 class Style;
+class TriggerBase;
 
 namespace Meta {
 class Registry;
@@ -132,9 +133,29 @@ struct StyleTriggerSetter {
     PropertyValue value;
 };
 
+struct CompiledTriggerSetter {
+    std::uint32_t target = 0U;
+    DependencyPropertyHandle property;
+    PropertyValue value;
+};
+
 struct TriggerBindingCondition {
     Base::Ref<Data::Binding> binding;
     PropertyValue value;
+};
+
+struct CompiledTriggerCondition {
+    std::int32_t sourceSlot = -1;
+    DependencyPropertyHandle property;
+    Base::Ref<Data::Binding> binding;
+    PropertyValue value;
+    bool usesDataContext = false;
+};
+
+struct CompiledTriggerPlan {
+    Base::Ref<Aero::TriggerBase> trigger;
+    Base::Vector<CompiledTriggerCondition> conditions;
+    Base::Vector<CompiledTriggerSetter> setters;
 };
 
 struct TriggerPlan {
@@ -165,15 +186,22 @@ enum class PropertyComparisonOperator : std::uint8_t {
 
 bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
-    Meta::PropertyValue expected,
+    const Meta::PropertyValue& expected,
     const Meta::Registry* metadata = nullptr,
     PropertyComparisonOperator op = PropertyComparisonOperator::Equal) noexcept;
 
 bool ComparePropertyValues(
     const Meta::PropertyValue& actual,
-    Meta::PropertyValue expected,
+    const Meta::PropertyValue& expected,
     const Meta::Registry* metadata,
     Base::StringView comparison) noexcept;
+
+inline bool EvaluatePropertyTriggerCondition(
+    const Meta::PropertyValue& current,
+    const Meta::PropertyValue& expected,
+    const Meta::Registry* metadata = nullptr) noexcept {
+    return ComparePropertyValues(current, expected, metadata);
+}
 
 inline bool IsTriggerConditionMet(
     const DependencyObject& object,

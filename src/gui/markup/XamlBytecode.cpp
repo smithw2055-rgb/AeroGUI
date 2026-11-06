@@ -1477,45 +1477,44 @@ Base::Result<void> AttachCompiledTemplateTriggers(
         if (!authored) continue;
         DataTemplatePropertyTrigger runtimeTrigger;
         if (authored->RuntimeType() == Trigger::StaticTypeId()) {
-            if (!plan.conditions.Empty() && plan.conditions[0U].property.IsValid()) {
-                const CompiledTriggerCondition& cc = plan.conditions[0U];
-                Base::Object* source = (cc.sourceSlot >= 0 && static_cast<std::uint32_t>(cc.sourceSlot) < objects.Size())
-                    ? objects[static_cast<std::uint32_t>(cc.sourceSlot)].Get()
-                    : (templatedParent != nullptr ? static_cast<Base::Object*>(templatedParent) : static_cast<Base::Object*>(root));
-                if (source == nullptr ||
-                    !program.runtime->Types().IsDerivedFrom(
-                        source->RuntimeType(),
-                        DependencyObject::StaticTypeId())) {
-                    return InvalidTemplateCompiler(
-                        "Template action trigger source was not found");
-                }
-                DataTemplateTriggerCondition condition;
-                condition.source = Base::WeakRef<Base::Object>(
-                    Base::Ref<Base::Object>::FromBorrowed(*source));
-                condition.dependencySource =
-                    Base::WeakRef<DependencyObject>(
-                        Base::Ref<DependencyObject>::FromBorrowed(
-                            *static_cast<DependencyObject*>(source)));
-                condition.property = cc.property;
-                condition.value = cc.value;
-                runtimeTrigger.conditions.PushBack(std::move(condition));
+            const auto& property = static_cast<const Trigger&>(*authored);
+            const CompiledTriggerCondition* precompiled =
+                (!plan.conditions.Empty() && plan.conditions[0U].property.IsValid())
+                    ? &plan.conditions[0U]
+                    : nullptr;
+            Base::Object* source = nullptr;
+            if (precompiled != nullptr) {
+                source = (precompiled->sourceSlot >= 0 &&
+                          static_cast<std::uint32_t>(precompiled->sourceSlot) < objects.Size())
+                    ? objects[static_cast<std::uint32_t>(precompiled->sourceSlot)].Get()
+                    : (templatedParent != nullptr
+                           ? static_cast<Base::Object*>(templatedParent)
+                           : static_cast<Base::Object*>(root));
+            } else if (!property.GetSourceName().Empty()) {
+                source = triggerContext->FindName(property.GetSourceName());
             } else {
-                const auto& property = static_cast<const Trigger&>(*authored);
-                Base::Object* source = nullptr;
-                if (!property.GetSourceName().Empty()) {
-                    source = triggerContext->FindName(property.GetSourceName());
-                } else if (templatedParent != nullptr) {
-                    source = templatedParent;
-                } else {
-                    source = root;
-                }
-                if (source == nullptr ||
-                    !program.runtime->Types().IsDerivedFrom(
-                        source->RuntimeType(),
-                        DependencyObject::StaticTypeId())) {
-                    return InvalidTemplateCompiler(
-                        "Template action trigger source was not found");
-                }
+                source = templatedParent != nullptr
+                    ? static_cast<Base::Object*>(templatedParent)
+                    : static_cast<Base::Object*>(root);
+            }
+            if (source == nullptr ||
+                !program.runtime->Types().IsDerivedFrom(
+                    source->RuntimeType(),
+                    DependencyObject::StaticTypeId())) {
+                return InvalidTemplateCompiler(
+                    "Template action trigger source was not found");
+            }
+            DataTemplateTriggerCondition condition;
+            condition.source = Base::WeakRef<Base::Object>(
+                Base::Ref<Base::Object>::FromBorrowed(*source));
+            condition.dependencySource =
+                Base::WeakRef<DependencyObject>(
+                    Base::Ref<DependencyObject>::FromBorrowed(
+                        *static_cast<DependencyObject*>(source)));
+            if (precompiled != nullptr) {
+                condition.property = precompiled->property;
+                condition.value = precompiled->value;
+            } else {
                 const TypeId sourceType = source->RuntimeType();
                 const DependencyProperty* sourceProperty =
                     ResolveTemplateProperty(
@@ -1528,21 +1527,14 @@ Base::Result<void> AttachCompiledTemplateTriggers(
                         property.GetPropertyName(), sourceType,
                         program.runtime->Types());
                 }
-                DataTemplateTriggerCondition condition;
-                condition.source = Base::WeakRef<Base::Object>(
-                    Base::Ref<Base::Object>::FromBorrowed(*source));
-                condition.dependencySource =
-                    Base::WeakRef<DependencyObject>(
-                        Base::Ref<DependencyObject>::FromBorrowed(
-                            *static_cast<DependencyObject*>(source)));
-                condition.property = sourceProperty->Handle();
                 Base::Result<Value> converted = ConvertTriggerValue(
                     property.GetAuthoredValue(), sourceType, *sourceProperty,
                     *program.runtime, *program.properties);
                 if (!converted) return converted.GetStatus();
+                condition.property = sourceProperty->Handle();
                 condition.value = std::move(converted).Value();
-                runtimeTrigger.conditions.PushBack(std::move(condition));
             }
+            runtimeTrigger.conditions.PushBack(std::move(condition));
         } else if (authored->RuntimeType() == DataTrigger::StaticTypeId() ||
                    authored->RuntimeType() == MultiDataTrigger::StaticTypeId()) {
             for (const CompiledTriggerCondition& cc : plan.conditions) {
@@ -2106,6 +2098,44 @@ CompileInheritedControlTemplate(
     return {};
 }
 
+namespace {
+
+Base::Result<void> ExecuteCompiledTemplateBytecode(
+    const XamlBytecodeProgram& program,
+    TemplateBuilder* templateBuilder,
+    const Base::Ref<Base::Object>& payload,
+    BindingEngine* bindings,
+    Base::Vector<Base::Ref<Base::Object>>& outObjects) noexcept {
+    if (templateBuilder != nullptr) {
+        Base::Result<void> executed = XamlVM::Execute(
+            program, *program.runtime, templateBuilder, outObjects, nullptr);
+        if (!executed) return executed.GetStatus();
+        return AttachCompiledTemplateTriggers(
+            program, outObjects,
+            program.controlTemplateDataTriggers,
+            program.controlTemplateEventTriggers,
+            &templateBuilder->TemplatedParent(), {}, false);
+    }
+
+    XamlVMContext vmContext;
+    vmContext.runtime = program.runtime;
+    vmContext.schema = program.schema;
+    vmContext.dataItemPayload = payload;
+    vmContext.bindings = bindings;
+
+    Base::Result<void> executed = XamlVM::Execute(
+        program, vmContext, outObjects, nullptr);
+    if (!executed) return executed.GetStatus();
+
+    static const Base::Vector<Base::Ref<EventTrigger>> noEventTriggers;
+    return AttachCompiledTemplateTriggers(
+        program, outObjects,
+        program.dataTemplateTriggers,
+        noEventTriggers, nullptr, payload, true);
+}
+
+} // namespace
+
 Base::Result<void> BuildCompiledTemplate(
     TemplateBuilder& context,
     void* factoryContext) noexcept {
@@ -2113,17 +2143,8 @@ Base::Result<void> BuildCompiledTemplate(
     if (program == nullptr || !program->IsValid()) {
         return InvalidTemplateCompiler("Compiled template bytecode is invalid");
     }
-
     Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> executed = XamlVM::Execute(
-        *program, *program->runtime, &context, objects, nullptr);
-    if (!executed) return executed.GetStatus();
-
-    return AttachCompiledTemplateTriggers(
-        *program, objects,
-        program->controlTemplateDataTriggers,
-        program->controlTemplateEventTriggers,
-        &context.TemplatedParent(), {}, false);
+    return ExecuteCompiledTemplateBytecode(*program, &context, {}, nullptr, objects);
 }
 
 Base::Result<Base::Ref<Base::Object>>
@@ -2135,28 +2156,11 @@ BuildCompiledDeferredTemplate(
     if (program == nullptr || !program->IsValid()) {
         return InvalidTemplateCompiler("Deferred template bytecode is invalid");
     }
-
-    XamlVMContext vmContext;
-    vmContext.runtime = program->runtime;
-    vmContext.schema = program->schema;
-    vmContext.dataItemPayload = payload;
-    vmContext.bindings = bindings;
-
     Base::Vector<Base::Ref<Base::Object>> objects;
-    Base::Result<void> executed = XamlVM::Execute(
-        *program, vmContext, objects, nullptr);
+    Base::Result<void> executed =
+        ExecuteCompiledTemplateBytecode(*program, nullptr, payload, bindings, objects);
     if (!executed) return executed.GetStatus();
-
-    Base::Ref<Base::Object> root = objects[0U];
-
-    static const Base::Vector<Base::Ref<EventTrigger>> noEventTriggers;
-    Base::Result<void> triggered = AttachCompiledTemplateTriggers(
-        *program, objects,
-        program->dataTemplateTriggers,
-        noEventTriggers, nullptr, payload, true);
-    if (!triggered) return triggered.GetStatus();
-
-    return root;
+    return objects[0U];
 }
 
 } // namespace Aero::Markup

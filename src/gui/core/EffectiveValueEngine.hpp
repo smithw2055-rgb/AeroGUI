@@ -162,7 +162,6 @@ private:
     std::uint32_t queueCount_ = 0U;
     DependencyObject* activePropagatingObject_ = nullptr;
     DependencyPropertyHandle activePropagatingProperty_{};
-    Base::HashMap<DependencyObject*, DependencyObject*> parents_;
     Base::HashMap<DependencyObject*, Base::Vector<DependencyObject*>> childrenByParent_;
     PropertyProviderOriginAllocator providerOrigins_;
     Base::Vector<DependencyObject*> frontier_;

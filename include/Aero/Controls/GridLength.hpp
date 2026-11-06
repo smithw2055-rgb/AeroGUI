@@ -22,7 +22,7 @@ struct GridLength {
 
     template <typename T = float, std::enable_if_t<std::is_arithmetic_v<T>, int> = 0>
     constexpr GridLength(T val, GridUnitType u = GridUnitType::Pixel) noexcept
-        : value(static_cast<float>(val)), unit(u) {}
+        : value((static_cast<float>(val) == 0.0f) ? 0.0f : static_cast<float>(val)), unit(u) {}
 
     constexpr float GetValue() const noexcept { return value; }
     constexpr GridUnitType GetGridUnitType() const noexcept { return unit; }
@@ -43,6 +43,10 @@ struct GridLength {
         return !(*this == other);
     }
 };
+
+constexpr GridLength CanonicalizeInlineValue(const GridLength& value) noexcept {
+    return GridLength(value.value, value.unit);
+}
 
 } // namespace Aero
 

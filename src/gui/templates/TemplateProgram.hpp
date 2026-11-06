@@ -145,16 +145,28 @@ namespace Aero { class FrameworkTemplate; }
 
 namespace Aero::Controls {
 
+struct TemplateBuildState;
+
+using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
+    const Base::Ref<Base::Object>& item, void* context,
+    Aero::BindingEngine* bindings) noexcept;
+
 struct TemplateProgram {
     TemplateProgram() noexcept = default;
     TemplateProgram(TemplateFactoryCallback valueFactory, void* valueFactoryContext = nullptr) noexcept
         : factory(valueFactory), factoryContext(valueFactoryContext) {}
 
     Base::Result<void> Configure(TemplateFactoryCallback valueFactory, void* valueFactoryContext = nullptr, Base::Ref<Base::Object> valueFactoryOwner = {}) noexcept;
+    Base::Result<void> Configure(DeferredObjectFactory valueFactory, void* valueFactoryContext = nullptr) noexcept;
+    Base::Result<void> Configure(DeferredObjectFactory valueFactory, void* valueFactoryContext, Base::Ref<Base::Object> valueFactoryOwner) noexcept;
     void SetBaseUri(const Base::ResourceUri& value) noexcept;
     Base::Result<void> Seal() noexcept;
+    Base::Result<Base::Ref<Base::Object>> Instantiate(
+        const Base::Ref<Base::Object>& payload = {},
+        Aero::BindingEngine* bindings = nullptr) const noexcept;
 
     TemplateFactoryCallback factory = nullptr;
+    DeferredObjectFactory deferredFactory = nullptr;
     void* factoryContext = nullptr;
     Base::Ref<Base::Object> factoryOwner;
     Base::ResourceUri baseUri;
@@ -167,27 +179,7 @@ struct TemplateProgram {
     bool sealed = false;
 };
 
-struct TemplateBuildState;
-
-using DeferredObjectFactory = Base::Result<Base::Ref<Base::Object>> (*)(
-    const Base::Ref<Base::Object>& item, void* context,
-    Aero::BindingEngine* bindings) noexcept;
-
-struct DeferredObjectProgram {
-    Base::Result<void> Configure(DeferredObjectFactory factory, void* context = nullptr) noexcept;
-    Base::Result<void> Configure(DeferredObjectFactory factory, void* context, Base::Ref<Base::Object> factoryOwner) noexcept;
-    void SetBaseUri(const Base::ResourceUri& value) noexcept;
-    Base::Result<void> Seal() noexcept;
-    Base::Result<Base::Ref<Base::Object>> Instantiate(
-        const Base::Ref<Base::Object>& payload = {},
-        Aero::BindingEngine* bindings = nullptr) const noexcept;
-
-    DeferredObjectFactory factory = nullptr;
-    void* context = nullptr;
-    Base::Ref<Base::Object> factoryOwner;
-    Base::ResourceUri baseUri;
-    bool sealed = false;
-};
+using DeferredObjectProgram = TemplateProgram;
 
 struct FrameworkTemplateState {
     static FrameworkTemplateState* State(FrameworkTemplate& value) noexcept;
@@ -225,6 +217,7 @@ struct FrameworkTemplateState {
     static const NameScope& AuthoredNames(const FrameworkTemplate& value) noexcept;
     static Base::Span<const Base::Ref<Base::Object>> AuthoredTriggers(const FrameworkTemplate& value) noexcept;
     static TemplateFactoryCallback Factory(const FrameworkTemplate& value) noexcept;
+    static DeferredObjectFactory DeferredFactory(const FrameworkTemplate& value) noexcept;
     static void* FactoryContext(const FrameworkTemplate& value) noexcept;
     static const Base::Ref<Base::Object>& FactoryOwner(const FrameworkTemplate& value) noexcept;
     static const Base::ResourceUri& BaseUri(const FrameworkTemplate& value) noexcept;
@@ -279,10 +272,9 @@ struct FrameworkTemplateState {
         return VisualStateManagerExecution::CurrentState(manager, control, groupName);
     }
 
-    bool IsSealed() const noexcept { return program.sealed || deferredProgram.sealed; }
+    bool IsSealed() const noexcept { return program.sealed; }
 
     TemplateProgram program;
-    DeferredObjectProgram deferredProgram;
     ResourceDictionary resources;
 
     // Optional inheritance link. When set, Seal() requires the base template

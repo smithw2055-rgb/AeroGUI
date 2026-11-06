@@ -1149,15 +1149,25 @@ public:
     Base::Result<void> AddDependency(
         const Base::ResourceUri& dependency) noexcept;
     bool IsValid() const noexcept {
-        return !nodes_.Empty() &&
-            nodes_.Back().Kind() ==
-                NodeKind::EndOfDocument;
+        return bytecodeProgram_ != nullptr ||
+            (!nodes_.Empty() &&
+             nodes_.Back().Kind() ==
+                 NodeKind::EndOfDocument);
     }
     Base::Ref<Base::Object> BytecodeProgram() const noexcept {
         return bytecodeProgram_;
     }
     void SetBytecodeProgram(Base::Ref<Base::Object> program) const noexcept {
         bytecodeProgram_ = std::move(program);
+    }
+    void ReleaseNodesAfterBytecode() const noexcept {
+        if (bytecodeProgram_ != nullptr && !nodes_.Empty()) {
+            cachedNodeCount_ = nodes_.Size();
+            nodes_ = Base::Vector<Node>();
+        }
+    }
+    std::uint32_t CachedNodeCount() const noexcept {
+        return !nodes_.Empty() ? nodes_.Size() : cachedNodeCount_;
     }
 
 private:
@@ -1173,8 +1183,9 @@ private:
     CompiledCacheIdentity identity_;
     Base::ResourceUri originUri_;
     Base::Vector<Base::ResourceUri> dependencies_;
-    Base::Vector<Node> nodes_;
+    mutable Base::Vector<Node> nodes_;
     mutable Base::Ref<Base::Object> bytecodeProgram_;
+    mutable std::uint32_t cachedNodeCount_ = 0U;
 };
 
 } // namespace Aero::Markup

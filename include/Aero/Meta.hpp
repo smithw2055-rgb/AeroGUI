@@ -323,6 +323,11 @@ public:
         };
         return *this;
     }
+    template<auto Callback>
+    FrameworkPropertyMetadata& Changed() noexcept {
+        changed_ = &PropertyChangedMemberTraits<TValue, Callback>::Invoke;
+        return *this;
+    }
 
     const TValue& DefaultValue() const noexcept { return defaultValue_; }
     FrameworkPropertyMetadataOptions Flags() const noexcept { return flags_; }
@@ -400,17 +405,25 @@ public:
     TypeBuilder& Property(const TPropertyRef& property,
         FrameworkPropertyMetadataOptions options) noexcept {
         using TVal = typename TPropertyRef::ValueType;
-        if constexpr (std::is_same_v<TVal, Value>) {
-            return Property(property, Value::NullObject(TypeOf<Object>()), options);
+        if constexpr (std::is_same_v<TVal, ::Aero::Meta::Value>) {
+            return Property(property, ::Aero::Meta::Value::NullObject(TypeOf<Object>()), options);
         } else {
             return Property(property, TVal{}, options);
         }
+    }
+
+    template<class TPropertyRef>
+    TypeBuilder& Property(const TPropertyRef& property) noexcept {
+        return Property(property, FrameworkPropertyMetadataOptions::None);
     }
 
     template< class TValue, auto Getter, auto Setter>
     TypeBuilder& Property(StringView name, PropertyFlags flags = PropertyFlags::None) noexcept {
         static_assert(std::is_invocable_v< decltype(Getter), const T&>,
             "Metadata property getter must be invocable on the described type");
+        if constexpr (std::is_same_v<TValue, ::Aero::Meta::Value>) {
+            flags = flags | PropertyFlags::AnyValue;
+        }
         PropertyRegistration registration;
         registration.name = name;
         registration.valueType = ValueCodec<TValue>::Type();
@@ -424,8 +437,12 @@ public:
 
     template<class TValue, auto Setter> TypeBuilder& Property(StringView name,
         PropertyFlags flags = PropertyFlags::None) noexcept {
-        static_assert(std::is_invocable_v< decltype(Setter), T&, TValue>,
+        static_assert(std::is_invocable_v< decltype(Setter), T&, TValue> ||
+            (std::is_same_v<TValue, String> && std::is_invocable_v<decltype(Setter), T&, StringView>),
             "Metadata property setter is incompatible with the described type");
+        if constexpr (std::is_same_v<TValue, ::Aero::Meta::Value>) {
+            flags = flags | PropertyFlags::AnyValue;
+        }
         PropertyRegistration registration;
         registration.name = name;
         registration.valueType = ValueCodec<TValue>::Type();
@@ -436,11 +453,41 @@ public:
         return *this;
     }
 
+    template<auto Setter> TypeBuilder& Property(StringView name,
+        PropertyFlags flags = PropertyFlags::None) noexcept {
+        using TValue = typename SetterParamTraits<decltype(Setter)>::ValueType;
+        return Property<TValue, Setter>(name, flags);
+    }
+
     template<auto Getter, auto Setter> TypeBuilder& Property(StringView name,
         PropertyFlags flags = PropertyFlags::None) noexcept {
         using GetterResult = std::invoke_result_t< decltype(Getter), const T&>;
-        using TValue = std::remove_cv_t< std::remove_reference_t<GetterResult>>;
+        using TValue = NormalizePropertyValueType<GetterResult>;
         return Property<TValue, Getter, Setter>(name, flags);
+    }
+
+    template<class TValue, auto Getter> TypeBuilder& PropertyReadOnly(StringView name,
+        PropertyFlags flags = PropertyFlags::None) noexcept {
+        static_assert(std::is_invocable_v<decltype(Getter), const T&>,
+            "Metadata read-only property getter must be invocable on the described type");
+        if constexpr (std::is_same_v<TValue, ::Aero::Meta::Value>) {
+            flags = flags | PropertyFlags::AnyValue;
+        }
+        PropertyRegistration registration;
+        registration.name = name;
+        registration.valueType = ValueCodec<TValue>::Type();
+        registration.flags = flags | PropertyFlags::ReadOnly;
+        registration.access = PropertyAccessKind::Ordinary;
+        registration.get = &GetOrdinaryProperty<T, TValue, Getter>;
+        builder_.Property(registration);
+        return *this;
+    }
+
+    template<auto Getter> TypeBuilder& PropertyReadOnly(StringView name,
+        PropertyFlags flags = PropertyFlags::None) noexcept {
+        using GetterResult = std::invoke_result_t<decltype(Getter), const T&>;
+        using TValue = NormalizePropertyValueType<GetterResult>;
+        return PropertyReadOnly<TValue, Getter>(name, flags);
     }
 
     template<class TGetter, class TSetter> TypeBuilder& Property(StringView name, TGetter getter, TSetter setter,
@@ -551,6 +598,11 @@ public:
         return *this;
     }
 
+    template<auto Handler> TypeBuilder& EventHandler(StringView name) noexcept {
+        using TArgs = typename EventHandlerArgTraits<decltype(Handler)>::ArgsType;
+        return EventHandler<TArgs, Handler>(name);
+    }
+
     // Declares a named visual part expected from this control template
     // (Noesis TemplatePart parity, ADR-0006), resolved at runtime with
     // Control::GetTemplateChild. Recorded per type; base-type parts apply.
@@ -558,6 +610,10 @@ public:
         if (!builder_.Ok()) return *this;
         builder_.TemplatePart(name, partType);
         return *this;
+    }
+
+    template<class TPart> TypeBuilder& TemplatePart(StringView name) noexcept {
+        return TemplatePart(name, TypeOf<TPart>());
     }
 
     template<class TOwner, class TValue> TypeBuilder& Override(const DependencyPropertyRef<TOwner, TValue>& property,
@@ -848,12 +904,42 @@ public:
         return *this;
     }
 
+    TypeBuilder& Content(StringView propertyName) noexcept {
+        return Content(MakeMemberId(TypeOf<T>(), MemberKind::Property, propertyName));
+    }
+
+    template<class TPropertyRef,
+        std::enable_if_t<!std::is_convertible_v<const TPropertyRef&, StringView> &&
+                         !std::is_same_v<TPropertyRef, MemberId>, int> = 0>
+    TypeBuilder& Content(const TPropertyRef& property) noexcept {
+        return Content(property.Id());
+    }
+
     TypeBuilder& ContentAccessor(MemberId member, ContentKind kind, ContentWriteCallback write,
         ContentClearCallback clear,
         ContentFlags flags = ContentFlags::None,
         void* callbackContext = nullptr) noexcept {
         builder_.ContentAccessor(member, kind, write, clear, flags, callbackContext);
         return *this;
+    }
+
+    TypeBuilder& ContentAccessor(StringView propertyName, ContentKind kind, ContentWriteCallback write,
+        ContentClearCallback clear,
+        ContentFlags flags = ContentFlags::None,
+        void* callbackContext = nullptr) noexcept {
+        return ContentAccessor(
+            MakeMemberId(TypeOf<T>(), MemberKind::Property, propertyName),
+            kind, write, clear, flags, callbackContext);
+    }
+
+    template<class TPropertyRef,
+        std::enable_if_t<!std::is_convertible_v<const TPropertyRef&, StringView> &&
+                         !std::is_same_v<TPropertyRef, MemberId>, int> = 0>
+    TypeBuilder& ContentAccessor(const TPropertyRef& property, ContentKind kind, ContentWriteCallback write,
+        ContentClearCallback clear,
+        ContentFlags flags = ContentFlags::None,
+        void* callbackContext = nullptr) noexcept {
+        return ContentAccessor(property.Id(), kind, write, clear, flags, callbackContext);
     }
 
     TypeBuilder& ValueSemantics(const ValueTypeRegistration& registration) noexcept {

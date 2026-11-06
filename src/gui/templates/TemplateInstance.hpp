@@ -119,7 +119,6 @@ private:
         UIElement* rootElement = nullptr;
         Base::Vector<Aero::Controls::TemplatePart> parts;
         Base::Vector<Aero::Controls::TemplateContentProjection> projections;
-        NameScope names;
         Base::Vector<Data::BindingHandle>
             metadataBindings;
         Base::Vector<DependencyObject*> dynamicResourceTargets;
@@ -155,6 +154,9 @@ private:
         const Instance& instance,
         Base::StringView name,
         std::int32_t partIndex = -1) const noexcept;
+    const Instance* FindBindingTargetInstance(
+        const DependencyObject& target,
+        DependencyPropertyHandle property) const noexcept;
     Base::Result<void> Subscribe(
         Instance& instance) noexcept;
     void Unsubscribe(Instance& instance) noexcept;

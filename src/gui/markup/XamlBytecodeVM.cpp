@@ -1050,14 +1050,14 @@ Base::Result<void> XamlVM::Execute(
             }
         } else if (auto* ft = ::Aero::TryCast<Aero::FrameworkTemplate>(obj)) {
             if (!ft->GetIsSealed()) {
-                if (auto* ftState = ::Aero::Controls::FrameworkTemplateState::State(*ft)) {
-                    if (ftState->deferredProgram.factory == &BuildCompiledDeferredTemplate &&
-                        ftState->deferredProgram.context != nullptr && runtime != nullptr) {
-                        auto* subProg = static_cast<XamlBytecodeProgram*>(ftState->deferredProgram.context);
-                        Base::Result<void> dtTriggers = CompileAuthoredTemplateTriggers(
-                            *ft, *subProg, *runtime, *propRegistry, false);
-                        if (!dtTriggers) return dtTriggers.GetStatus();
-                    }
+                if (::Aero::Controls::FrameworkTemplateState::DeferredFactory(*ft) == &BuildCompiledDeferredTemplate &&
+                    ::Aero::Controls::FrameworkTemplateState::FactoryContext(*ft) != nullptr &&
+                    runtime != nullptr) {
+                    auto* subProg = static_cast<XamlBytecodeProgram*>(
+                        ::Aero::Controls::FrameworkTemplateState::FactoryContext(*ft));
+                    Base::Result<void> dtTriggers = CompileAuthoredTemplateTriggers(
+                        *ft, *subProg, *runtime, *propRegistry, false);
+                    if (!dtTriggers) return dtTriggers.GetStatus();
                 }
                 return ::Aero::Controls::FrameworkTemplateState::Seal(*ft);
             }

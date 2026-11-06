@@ -98,6 +98,7 @@ Base::Result<LoaderResult> ExecuteCompiledDocumentOnVM(
             Base::ErrorCode::InvalidState,
             "Failed to compile XAML document to valid bytecode");
     }
+    document.ReleaseNodesAfterBytecode();
 
     const XamlBytecodeProgram& program = *bytecodeReady.Value();
     XamlDocumentExecutionContext vmContext;

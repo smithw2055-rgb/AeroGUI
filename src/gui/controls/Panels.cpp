@@ -880,8 +880,8 @@ AERO_DESCRIBE(Panel) {
             FrameworkPropertyMetadata(std::int32_t{0}, AffectsParentArrange)
                 .Changed(&OnZIndexPropertyChanged))
         .Property(Panel::IsItemsHostProperty, false)
-        .Property<Base::Ref<Base::Object>, &Panel::GetChildrenObject, &Panel::SetChildrenObject>("Children", PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(Panel::StaticTypeId(), MemberKind::Property, "Children"), ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
+        .Property<&Panel::GetChildrenObject, &Panel::SetChildrenObject>("Children", PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor("Children", ContentKind::Collection, &SetPanelContent, &ClearPanelContent, ContentFlags::Visual);
 }
 
 AERO_DESCRIBE(StackPanel) {

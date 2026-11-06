@@ -1053,15 +1053,15 @@ namespace Aero::Media::Animation {
 AERO_DESCRIBE(ControllableStoryboardAction) {
     using namespace Aero::Meta;
     Register<ControllableStoryboardAction>(context, TypeFlags::Abstract)
-            .Property("BeginStoryboardName", &ControllableStoryboardAction::GetBeginStoryboardName, &ControllableStoryboardAction::SetBeginStoryboardName);
+            .Property<&ControllableStoryboardAction::GetBeginStoryboardName, &ControllableStoryboardAction::SetBeginStoryboardName>("BeginStoryboardName");
 }
 
 AERO_DESCRIBE(BeginStoryboard) {
     using namespace Aero::Meta;
     Register<BeginStoryboard>(context)
-            .Property("Name", &BeginStoryboard::GetName, &BeginStoryboard::SetName)
-            .Property("Storyboard", &BeginStoryboard::GetStoryboard, &BeginStoryboard::SetStoryboard, PropertyFlags::Structural)
-            .ContentAccessor(MakeMemberId(BeginStoryboard::StaticTypeId(), MemberKind::Property, "Storyboard"),
+            .Property<&BeginStoryboard::GetName, &BeginStoryboard::SetName>("Name")
+            .Property<&BeginStoryboard::GetStoryboard, &BeginStoryboard::SetStoryboard>("Storyboard", PropertyFlags::Structural)
+            .ContentAccessor("Storyboard",
                              ContentKind::Single,
                              &::Aero::MetadataSupport::SetBeginStoryboardContent,
                              &::Aero::MetadataSupport::ClearBeginStoryboardContent)
@@ -1071,8 +1071,8 @@ AERO_DESCRIBE(BeginStoryboard) {
 AERO_DESCRIBE(ControlStoryboardAction) {
     using namespace Aero::Meta;
     Register<ControlStoryboardAction>(context)
-            .Property("Storyboard", &ControlStoryboardAction::GetStoryboard, &ControlStoryboardAction::SetStoryboard)
-            .Property("ControlStoryboardOption", &ControlStoryboardAction::GetControlOption, &ControlStoryboardAction::SetControlOption)
+            .Property<&ControlStoryboardAction::GetStoryboard, &ControlStoryboardAction::SetStoryboard>("Storyboard")
+            .Property<&ControlStoryboardAction::GetControlOption, &ControlStoryboardAction::SetControlOption>("ControlStoryboardOption")
             .Factory();
 }
 
@@ -1099,28 +1099,28 @@ AERO_DESCRIBE(RemoveStoryboard) {
 AERO_DESCRIBE(SeekStoryboard) {
     using namespace Aero::Meta;
     Register<SeekStoryboard>(context)
-            .Property("Offset", &SeekStoryboard::GetOffset, &SeekStoryboard::SetOffset)
+            .Property<&SeekStoryboard::GetOffset, &SeekStoryboard::SetOffset>("Offset")
             .Factory();
 }
 
 AERO_DESCRIBE(PlayMediaAction) {
     using namespace Aero::Meta;
     Register<PlayMediaAction>(context)
-            .Property("TargetName", &PlayMediaAction::GetTargetName, &PlayMediaAction::SetTargetName)
+            .Property<&PlayMediaAction::GetTargetName, &PlayMediaAction::SetTargetName>("TargetName")
             .Factory();
 }
 
 AERO_DESCRIBE(PauseMediaAction) {
     using namespace Aero::Meta;
     Register<PauseMediaAction>(context)
-            .Property("TargetName", &PauseMediaAction::GetTargetName, &PauseMediaAction::SetTargetName)
+            .Property<&PauseMediaAction::GetTargetName, &PauseMediaAction::SetTargetName>("TargetName")
             .Factory();
 }
 
 AERO_DESCRIBE(StopMediaAction) {
     using namespace Aero::Meta;
     Register<StopMediaAction>(context)
-            .Property("TargetName", &StopMediaAction::GetTargetName, &StopMediaAction::SetTargetName)
+            .Property<&StopMediaAction::GetTargetName, &StopMediaAction::SetTargetName>("TargetName")
             .Factory();
 }
 

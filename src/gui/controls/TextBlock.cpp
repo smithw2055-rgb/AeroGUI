@@ -860,8 +860,8 @@ AERO_DESCRIBE(TextBlock) {
         .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
         .Property(TextBlock::LineHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
         .Property(TextBlock::PaddingProperty, Aero::Thickness{}, AffectsMeasure | AffectsArrange, &ValidateThicknessValue)
-        .Property<Value, &TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::AnyValue | PropertyFlags::Collection | PropertyFlags::Structural)
-        .ContentAccessor(MakeMemberId(TextBlock::StaticTypeId(), MemberKind::Property, "Inlines"), ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
+        .Property<&TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::Collection | PropertyFlags::Structural)
+        .ContentAccessor("Inlines", ContentKind::Collection, &AddTextBlockInline, &ClearTextBlockInlines, ContentFlags::None)
         .Factory();
 
     ::Aero::Documents::PopulateDocumentsMetadata(context);
