@@ -1121,11 +1121,7 @@ Base::Result<void> StyleEngine::Apply(
         application.object = &object;
         application.style = &style;
         application.triggerPropertyMask = StyleRuntimeTriggerMask(style);
-        if (triggerCount != 0U) {
-            application.triggerStates.Resize(triggerCount, 0U);
-            application.bindingTriggerStates.Resize(triggerCount, 0U);
-            application.bindingTriggerKnown.Resize(triggerCount, 0U);
-        }
+        application.triggersInitialized = (triggerCount != 0U);
         const std::uint32_t newIndex = applications_.Size();
         applications_.PushBack(
                 std::move(application));
@@ -1134,9 +1130,10 @@ Base::Result<void> StyleEngine::Apply(
         StyleApplication& application = applications_[existing];
         application.style = &style;
         application.triggerPropertyMask = StyleRuntimeTriggerMask(style);
-        application.triggerStates.Resize(triggerCount, 0U);
-        application.bindingTriggerStates.Resize(triggerCount, 0U);
-        application.bindingTriggerKnown.Resize(triggerCount, 0U);
+        application.triggerStatesMask = 0ULL;
+        application.bindingTriggerStatesMask = 0ULL;
+        application.bindingTriggerKnownMask = 0ULL;
+        application.triggersInitialized = (triggerCount != 0U);
     }
     if (requiresSubscription) {
         Base::Result<void> attached = AttachSetterBindings(object, style);

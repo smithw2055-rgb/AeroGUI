@@ -53,6 +53,8 @@ public:
         AnimationTime offsetMicroseconds) noexcept;
     bool Stop(AnimationHandle handle) noexcept;
     bool Remove(AnimationHandle handle) noexcept;
+    std::uint32_t RemoveBatch(
+        Base::Span<const AnimationHandle> handles) noexcept;
     bool HasTarget(
         const ::Aero::DependencyObject& target) const noexcept;
     std::uint32_t RemoveTarget(

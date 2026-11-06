@@ -45,9 +45,10 @@ struct StyleApplication {
     DependencyObject* object = nullptr;
     const Style* style = nullptr;
     std::uint64_t triggerPropertyMask = 0ULL;
-    Base::Vector<std::uint8_t> triggerStates;
-    Base::Vector<std::uint8_t> bindingTriggerStates;
-    Base::Vector<std::uint8_t> bindingTriggerKnown;
+    std::uint64_t triggerStatesMask = 0ULL;
+    std::uint64_t bindingTriggerStatesMask = 0ULL;
+    std::uint64_t bindingTriggerKnownMask = 0ULL;
+    bool triggersInitialized = false;
     Base::Vector<Data::BindingHandle> setterBindings;
 };
 

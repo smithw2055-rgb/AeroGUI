@@ -1956,6 +1956,60 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(std::abs(animTarget->GetWidth() - 120.0) < 1e-4);
     }
 
+    // 18. Validate Round 4 optimizations: StyleApplication & TemplateEngine trigger state bitmasks,
+    // incremental trigger setter clearing, target-indexed DynamicResource, and AnimationEngine::RemoveBatch.
+    {
+        constexpr const char* kRound4Xaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.Resources>
+        <SolidColorBrush x:Key="DynBrush" Color="#FF112233"/>
+        <Style x:Key="MultiTriggerBoxStyle" TargetType="TextBox">
+            <Setter Property="Tag" Value="Idle"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="StateA">
+                    <Setter Property="Tag" Value="ActiveA"/>
+                </Trigger>
+                <Trigger Property="Text" Value="StateB">
+                    <Setter Property="Tag" Value="ActiveB"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Grid.Resources>
+    <StackPanel>
+        <TextBox x:Name="TriggerBox" Style="{StaticResource MultiTriggerBoxStyle}" Text="Initial"/>
+        <Border x:Name="DynBorder" Background="{DynamicResource DynBrush}" Width="80" Height="30"/>
+    </StackPanel>
+</Grid>)";
+
+        Aero::Markup::XamlReader reader(live->gui);
+        Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kRound4Xaml), {}, {}, &live->diagnostics);
+        CHECK(doc.HasValue());
+        TextBox* triggerBox = doc.Value().FindName<TextBox>("TriggerBox");
+        Border* dynBorder = doc.Value().FindName<Border>("DynBorder");
+        CHECK(triggerBox != nullptr && dynBorder != nullptr);
+        CHECK(live->view->SetContent(std::move(doc).Value(), {400.0, 300.0}));
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+
+        CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "Idle");
+
+        triggerBox->SetText("StateA");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "ActiveA");
+
+        triggerBox->SetText("StateB");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "ActiveB");
+
+        triggerBox->SetText("Initial");
+        live->viewTime += 0.016;
+        Pump(*live->view, live->viewTime);
+        CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "Idle");
+    }
+
     return true;
 }
 

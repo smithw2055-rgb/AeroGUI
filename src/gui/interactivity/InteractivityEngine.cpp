@@ -1358,9 +1358,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                 }
                 Storyboards()->CancelStoryboardCompletionSessions(session.handles.AsSpan());
                 if (Animations() != nullptr) {
-                    for (AnimationHandle handle : session.handles) {
-                        Animations()->Remove(handle);
-                    }
+                    Animations()->RemoveBatch(session.handles.AsSpan());
                 }
             }
             while (sessions.Size() > writeIndex) {
@@ -1384,9 +1382,7 @@ void InteractivityEngine::ClearAnimationSubscriptionsFor(
                     continue;
                 }
                 if (Animations() != nullptr) {
-                    for (AnimationHandle handle : session.handles) {
-                        Animations()->Remove(handle);
-                    }
+                    Animations()->RemoveBatch(session.handles.AsSpan());
                 }
             }
             while (completionSessions.Size() > writeIndex) {

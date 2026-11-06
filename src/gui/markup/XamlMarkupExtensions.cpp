@@ -1830,25 +1830,43 @@ void ResourceChanged(
     static_cast<void>(state->engine->Invalidate(*state->target, state->property));
 }
 
-Base::Vector<DynamicResourceState*>& LiveDynamicResources() noexcept {
-    static Base::Vector<DynamicResourceState*> states;
-    return states;
+using DynamicResourceBucketMap =
+    Base::HashMap<const ::Aero::DependencyObject*, Base::Vector<DynamicResourceState*>>;
+
+DynamicResourceBucketMap& LiveDynamicResourcesByTarget() noexcept {
+    static DynamicResourceBucketMap map;
+    return map;
 }
 
 void TrackDynamicResource(DynamicResourceState* state) noexcept {
-    if (state == nullptr) return;
-    for (DynamicResourceState* existing : LiveDynamicResources()) {
-        if (existing == state) return;
+    if (state == nullptr || state->target == nullptr) return;
+    DynamicResourceBucketMap& map = LiveDynamicResourcesByTarget();
+    if (Base::Vector<DynamicResourceState*>* bucket = map.Find(state->target)) {
+        for (DynamicResourceState* existing : *bucket) {
+            if (existing == state) return;
+        }
+        bucket->PushBack(state);
+        return;
     }
-    LiveDynamicResources().PushBack(state);
+    Base::Vector<DynamicResourceState*> created;
+    created.PushBack(state);
+    static_cast<void>(map.Insert(state->target, std::move(created)));
 }
 
 void UntrackDynamicResource(DynamicResourceState* state) noexcept {
-    Base::Vector<DynamicResourceState*>& states = LiveDynamicResources();
-    for (std::uint32_t index = 0U; index < states.Size(); ++index) {
-        if (states[index] != state) continue;
-        states[index] = states[states.Size() - 1U];
-        states.PopBack();
+    if (state == nullptr || state->target == nullptr) return;
+    DynamicResourceBucketMap& map = LiveDynamicResourcesByTarget();
+    Base::Vector<DynamicResourceState*>* bucket = map.Find(state->target);
+    if (bucket == nullptr) return;
+    for (std::uint32_t index = 0U; index < bucket->Size(); ++index) {
+        if ((*bucket)[index] != state) continue;
+        if (index + 1U != bucket->Size()) {
+            (*bucket)[index] = (*bucket)[bucket->Size() - 1U];
+        }
+        bucket->PopBack();
+        if (bucket->Empty()) {
+            map.Erase(state->target);
+        }
         return;
     }
 }
@@ -2141,24 +2159,33 @@ static bool IsSameOrDescendant(
 
 void NotifyDynamicResourceScopeChanged(
     DependencyObject& object) noexcept {
-    for (DynamicResourceState* state : LiveDynamicResources()) {
-        if (state == nullptr || state->engine == nullptr || state->target == nullptr) {
+    DynamicResourceBucketMap& map = LiveDynamicResourcesByTarget();
+    if (map.Empty()) return;
+    for (auto& entry : map) {
+        const DependencyObject* target = entry.Key();
+        if (target == nullptr ||
+            !IsSameOrDescendant(const_cast<DependencyObject*>(target), &object)) {
             continue;
         }
-        if (IsSameOrDescendant(state->target, &object)) {
-            static_cast<void>(
-                state->engine->Invalidate(*state->target, state->property));
+        for (DynamicResourceState* state : entry.Value()) {
+            if (state != nullptr && state->engine != nullptr && state->target != nullptr) {
+                static_cast<void>(
+                    state->engine->Invalidate(*state->target, state->property));
+            }
         }
     }
 }
 
 void NotifyAllDynamicResourcesChanged() noexcept {
-    for (DynamicResourceState* state : LiveDynamicResources()) {
-        if (state == nullptr || state->engine == nullptr || state->target == nullptr) {
-            continue;
+    DynamicResourceBucketMap& map = LiveDynamicResourcesByTarget();
+    if (map.Empty()) return;
+    for (auto& entry : map) {
+        for (DynamicResourceState* state : entry.Value()) {
+            if (state != nullptr && state->engine != nullptr && state->target != nullptr) {
+                static_cast<void>(
+                    state->engine->Invalidate(*state->target, state->property));
+            }
         }
-        static_cast<void>(
-            state->engine->Invalidate(*state->target, state->property));
     }
 }
 

@@ -2319,9 +2319,10 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
     const Base::Span<const TemplatePropertyTrigger> triggers =
         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
-    const bool firstEval = instance.triggerStates.Size() != triggers.Size();
+    const bool firstEval = !instance.triggersEvaluated;
     if (firstEval) {
-        instance.triggerStates.Resize(triggers.Size(), 0U);
+        instance.triggersEvaluated = true;
+        instance.triggerStatesMask = 0ULL;
         for (const TemplatePropertyTrigger& trigger : triggers) {
             for (const TemplateTriggerSetter& setter : trigger.setters) {
                 if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
@@ -2389,7 +2390,8 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             }
         }
         setActive(index, active);
-        const bool wasActive = instance.triggerStates[index] != 0U;
+        const std::uint64_t bit = index < 64U ? (UINT64_C(1) << index) : 0ULL;
+        const bool wasActive = (instance.triggerStatesMask & bit) != 0ULL;
         if (active != wasActive) {
             anyStateChanged = true;
         }
@@ -2399,8 +2401,9 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
         return {};
     }
 
-    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
-        if (instance.triggerStates[index] == 0U) {
+    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
+        const std::uint64_t bit = (UINT64_C(1) << index);
+        if ((instance.triggerStatesMask & bit) == 0ULL) {
             continue;
         }
         const TemplatePropertyTrigger& trigger = triggers[index];
@@ -2420,10 +2423,10 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
                     *target, setter.property);
             if (!cleared) return cleared.GetStatus();
         }
-        instance.triggerStates[index] = 0U;
+        instance.triggerStatesMask &= ~bit;
     }
 
-    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
+    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
         const bool active = getActive(index);
         if (!active) continue;
         const TemplatePropertyTrigger& trigger = triggers[index];
@@ -2437,7 +2440,7 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
             Base::Result<void> applied = values_->SetTriggerValue(*target, setter.property, setterValue);
             if (!applied) return applied.GetStatus();
         }
-        instance.triggerStates[index] = 1U;
+        instance.triggerStatesMask |= (UINT64_C(1) << index);
     }
     Base::Result<std::uint32_t> flushed = values_->Flush();
     if (!flushed) return flushed.GetStatus();
@@ -2462,9 +2465,8 @@ Base::Result<void> TemplateEngine::ClearProviders(
     }
     const Base::Span<const TemplatePropertyTrigger> triggers =
         Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
-    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
-        if (index < instance.triggerStates.Size() &&
-            instance.triggerStates[index] == 0U) {
+    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
+        if ((instance.triggerStatesMask & (UINT64_C(1) << index)) == 0ULL) {
             continue;
         }
         const TemplatePropertyTrigger& trigger = triggers[index];
@@ -2541,30 +2543,16 @@ Base::Result<void> TemplateEngine::ClearAt(
             (void)tree_->DetachElement(mount);
         }
     }
-    if (instance.rootVisual != nullptr) {
-        Base::Vector<Media::Visual*> templateVisuals;
-        templateVisuals.Reserve(instance.parts.Size());
-        auto collectVisuals = [&templateVisuals](auto& self, Media::Visual* node) -> void {
-            if (node == nullptr) return;
-            templateVisuals.PushBack(node);
-            const std::uint32_t count = Media::VisualTreeHelper::GetChildrenCount(*node);
-            for (std::uint32_t i = 0U; i < count; ++i) {
-                self(self, Media::VisualTreeHelper::GetChild(*node, i));
+    for (std::uint32_t partIndex = instance.parts.Size();
+         partIndex > 0U; --partIndex) {
+        Aero::Controls::TemplatePart& part =
+            instance.parts[partIndex - 1U];
+        if (part.visual != nullptr) {
+            (void)values_->DetachObject(*part.visual);
+            if (tree_ != nullptr) {
+                tree_->InvalidateNodeHandle(*part.visual);
             }
-        };
-        collectVisuals(collectVisuals, instance.rootVisual);
-        for (std::uint32_t i = templateVisuals.Size(); i > 0U; --i) {
-            Media::Visual* v = templateVisuals[i - 1U];
-            if (v != nullptr) {
-                (void)values_->DetachObject(*v);
-                if (tree_ != nullptr) {
-                    tree_->InvalidateNodeHandle(*v);
-                }
-            }
-        }
-    }
-    for (Aero::Controls::TemplatePart& part : instance.parts) {
-        if (part.object != nullptr && part.visual == nullptr) {
+        } else if (part.object != nullptr) {
             (void)values_->DetachObject(*part.object);
         }
     }

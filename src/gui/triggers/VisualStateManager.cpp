@@ -453,23 +453,28 @@ void VisualStateManagerState::RemoveActiveAt(
 }
 
 void VisualStateManagerState::PruneStale() noexcept {
-    for (std::uint32_t index = active_.Size();
-        index > 0U; --index) {
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U;
+         readIndex < active_.Size();
+         ++readIndex) {
         TemplateHandle handle;
-        handle.value = active_[index - 1U].templateValue;
-        if (templates_->AppliedTemplate(handle) == nullptr) {
-            RemoveActiveAt(index - 1U);
+        handle.value = active_[readIndex].templateValue;
+        if (templates_->AppliedTemplate(handle) != nullptr) {
+            if (writeIndex != readIndex) {
+                active_[writeIndex] = std::move(active_[readIndex]);
+            }
+            ++writeIndex;
         }
     }
+    static_cast<void>(active_.Resize(writeIndex));
 }
 
 void VisualStateManagerState::ClearStateAnimations(
     ActiveGroup& active) noexcept {
-    for (Aero::Media::Animation::Model::AnimationHandle animation :
-         active.animations) {
-        animations_->Remove(animation);
+    if (!active.animations.Empty()) {
+        animations_->RemoveBatch(active.animations.AsSpan());
+        active.animations.Clear();
     }
-    active.animations.Clear();
 }
 
 Base::Result<void> VisualStateManagerState::StartStateAnimations(
@@ -1233,21 +1238,42 @@ bool VisualStateManagerState::ClearState(
 
 std::uint32_t VisualStateManagerState::Clear(
     Control& control) noexcept {
-    PruneStale();
     const TemplateHandle handle =
         templates_->AppliedHandle(control);
-    if (!handle.IsValid()) return 0U;
+    if (!handle.IsValid()) {
+        PruneStale();
+        return 0U;
+    }
+    const ControlTemplate* plan =
+        templates_->AppliedTemplate(handle);
     std::uint32_t clearedCount = 0U;
-    for (std::uint32_t index = active_.Size();
-        index > 0U; --index) {
-        if (active_[index - 1U].templateValue != handle.value) {
+    std::uint32_t writeIndex = 0U;
+    for (std::uint32_t readIndex = 0U;
+         readIndex < active_.Size();
+         ++readIndex) {
+        ActiveGroup& entry = active_[readIndex];
+        if (entry.templateValue != handle.value) {
+            TemplateHandle otherHandle{entry.templateValue};
+            if (templates_->AppliedTemplate(otherHandle) != nullptr) {
+                if (writeIndex != readIndex) {
+                    active_[writeIndex] = std::move(entry);
+                }
+                ++writeIndex;
+            }
             continue;
         }
-        if (ClearState(
-            control, active_[index - 1U].groupName.View())) {
-            ++clearedCount;
+        const VisualStateGroupPlan* group = plan != nullptr
+            ? FindGroup(*plan, entry.groupName.View()) : nullptr;
+        const VisualStatePlan* state = group != nullptr
+            ? FindState(*group, entry.stateName.View()) : nullptr;
+        if (state != nullptr) {
+            ClearStateAnimations(entry);
+            static_cast<void>(
+                ClearStateValues(control, handle, *state, entry));
         }
+        ++clearedCount;
     }
+    static_cast<void>(active_.Resize(writeIndex));
     return clearedCount;
 }
 

@@ -374,28 +374,24 @@ void TriggerEngine::EvaluateTriggers(
         return activeStatesFallback[idx] != 0U;
     };
 
-    bool anyStateChanged = false;
-    if (application.triggerStates.Size() < triggers.Size()) {
-        anyStateChanged = true;
-    }
+    bool anyStateChanged = !application.triggersInitialized;
+    application.triggersInitialized = true;
 
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
         const TriggerPlan& trigger =
             triggers[index];
         bool active = false;
+        const std::uint64_t bit = index < 64U ? (UINT64_C(1) << index) : 0ULL;
         if (trigger.IsBindingTrigger()) {
-            active = index < application.bindingTriggerKnown.Size() &&
-                index < application.bindingTriggerStates.Size() &&
-                application.bindingTriggerKnown[index] != 0U &&
-                application.bindingTriggerStates[index] != 0U;
+            active = (application.bindingTriggerKnownMask & bit) != 0ULL &&
+                (application.bindingTriggerStatesMask & bit) != 0ULL;
         } else {
             active = trigger.IsConditionMet(object);
         }
         setActive(index, active);
         if (!anyStateChanged) {
-            const bool wasActive = index < application.triggerStates.Size() &&
-                application.triggerStates[index] != 0U;
+            const bool wasActive = (application.triggerStatesMask & bit) != 0ULL;
             if (active != wasActive) {
                 anyStateChanged = true;
             }
@@ -407,7 +403,28 @@ void TriggerEngine::EvaluateTriggers(
         return;
     }
 
-    ClearTriggerSetters(object, style);
+    // Incrementally clear setters only from triggers that were previously active.
+    const std::uint64_t previousActiveMask = application.triggerStatesMask;
+    if (previousActiveMask != 0ULL) {
+        std::uint64_t clearedMask = 0ULL;
+        for (std::uint32_t triggerIndex = 0U;
+             triggerIndex < triggers.Size() && triggerIndex < 64U;
+             ++triggerIndex) {
+            if ((previousActiveMask & (UINT64_C(1) << triggerIndex)) == 0ULL) {
+                continue;
+            }
+            const TriggerPlan& trigger = triggers[triggerIndex];
+            for (const StyleTriggerSetter& setter : trigger.setters) {
+                if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
+                    continue;
+                }
+                const std::uint64_t propMask = PropertyTriggerMask(setter.property);
+                clearedMask |= propMask;
+                (void)values_.ClearTriggerValue(object, setter.property);
+            }
+        }
+        (void)clearedMask;
+    }
 
     for (std::uint32_t index = 0U;
          index < triggers.Size(); ++index) {
@@ -424,7 +441,7 @@ void TriggerEngine::EvaluateTriggers(
     }
     (void)values_.Flush();
     for (std::uint32_t index = 0U;
-         index < triggers.Size(); ++index) {
+         index < triggers.Size() && index < 64U; ++index) {
         const TriggerPlan& trigger =
             triggers[index];
         const bool active = getActive(index);
@@ -433,14 +450,14 @@ void TriggerEngine::EvaluateTriggers(
             break;
         }
         StyleApplication& currentApp = applications_[currentAppIndex];
-        if (index >= currentApp.triggerStates.Size()) {
-            break;
-        }
-        const bool wasActive =
-            currentApp.triggerStates[index] != 0U;
+        const std::uint64_t bit = (UINT64_C(1) << index);
+        const bool wasActive = (currentApp.triggerStatesMask & bit) != 0ULL;
         if (active == wasActive) continue;
-        currentApp.triggerStates[index] =
-            active ? 1U : 0U;
+        if (active) {
+            currentApp.triggerStatesMask |= bit;
+        } else {
+            currentApp.triggerStatesMask &= ~bit;
+        }
         ExecuteTriggerActions(
             object,
             active
@@ -614,8 +631,15 @@ void TriggerEngine::SetBindingTriggerState(
         return;
     }
     StyleApplication& application = applications_[applicationIndex];
-    application.bindingTriggerKnown[triggerIndex] = 1U;
-    application.bindingTriggerStates[triggerIndex] = active ? 1U : 0U;
+    if (triggerIndex < 64U) {
+        const std::uint64_t bit = (UINT64_C(1) << triggerIndex);
+        application.bindingTriggerKnownMask |= bit;
+        if (active) {
+            application.bindingTriggerStatesMask |= bit;
+        } else {
+            application.bindingTriggerStatesMask &= ~bit;
+        }
+    }
     EvaluateTriggers(object, style);
 }
 

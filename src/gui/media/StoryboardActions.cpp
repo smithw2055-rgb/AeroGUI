@@ -433,10 +433,7 @@ StoryboardHost::ExecuteAnimationAction(
                 }
                 CancelStoryboardCompletionSessions(
                     existing.handles.AsSpan());
-                for (Model::AnimationHandle handle :
-                     existing.handles) {
-                    Animations()->Remove(handle);
-                }
+                Animations()->RemoveBatch(existing.handles.AsSpan());
                 for (std::uint32_t next = index + 1U;
                      next < storyboardSessions.Size();
                      ++next) {
@@ -458,10 +455,7 @@ StoryboardHost::ExecuteAnimationAction(
                 &completion.handles,
                 dataTemplateContext);
         if (!started) {
-            for (Model::AnimationHandle handle :
-                 completion.handles) {
-                Animations()->Remove(handle);
-            }
+            Animations()->RemoveBatch(completion.handles.AsSpan());
             return started.GetStatus();
         }
         if (completion.handles.Empty()) {
@@ -473,10 +467,7 @@ StoryboardHost::ExecuteAnimationAction(
             Base::Result<void> named =
                 namedSession.name.Assign(begin.GetName());
             if (!named) {
-                for (Model::AnimationHandle handle :
-                     completion.handles) {
-                    Animations()->Remove(handle);
-                }
+                Animations()->RemoveBatch(completion.handles.AsSpan());
                 return named.GetStatus();
             }
             namedSession.handles.Append(

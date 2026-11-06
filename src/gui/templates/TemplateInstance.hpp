@@ -126,7 +126,8 @@ private:
         std::uint64_t bindingPropertyMask = 0ULL;
         std::uint64_t parentTriggerPropertyMask = 0ULL;
         std::uint64_t childTriggerPropertyMask = 0ULL;
-        Base::Vector<std::uint8_t> triggerStates;
+        std::uint64_t triggerStatesMask = 0ULL;
+        bool triggersEvaluated = false;
     };
 
     ElementTree* tree_ = nullptr;

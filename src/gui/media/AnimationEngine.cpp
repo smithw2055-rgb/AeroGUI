@@ -232,6 +232,38 @@ bool AnimationEngine::Remove(
     return true;
 }
 
+std::uint32_t AnimationEngine::RemoveBatch(
+    Base::Span<const AnimationHandle> handles) noexcept {
+    if (handles.Empty() || trackCount_ == 0U) return 0U;
+    if (dispatcher_ != nullptr && !dispatcher_->CheckAccess()) return 0U;
+    std::uint32_t removed = 0U;
+    bool clearedAnyValue = false;
+    for (std::uint32_t index = 0U; index < trackCount_; ++index) {
+        Track& track = tracks_[index];
+        if (track.state == AnimationState::Stopped) continue;
+        bool match = false;
+        for (AnimationHandle handle : handles) {
+            if (track.handle == handle) {
+                match = true;
+                break;
+            }
+        }
+        if (!match) continue;
+        clearedAnyValue = clearedAnyValue || track.valueApplied;
+        ClearTrackValue(track);
+        track.state = AnimationState::Stopped;
+        track.target = nullptr;
+        ++removed;
+    }
+    if (removed != 0U) {
+        CompactStopped();
+        if (clearedAnyValue && !values_->IsFlushing()) {
+            static_cast<void>(values_->Flush());
+        }
+    }
+    return removed;
+}
+
 bool AnimationEngine::HasTarget(
     const ::Aero::DependencyObject& target) const noexcept {
     for (std::uint32_t index = 0U; index < trackCount_; ++index) {
