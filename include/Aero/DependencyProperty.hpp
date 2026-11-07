@@ -285,7 +285,7 @@ private:
         DependencyPropertyFlags flags = DependencyPropertyFlags::None;
     };
 
-    static constexpr std::uint32_t kMetadataCacheSlots = 8U;
+    static constexpr std::uint32_t kMetadataCacheSlots = 32U;
 
     DependencyProperty() noexcept : name_(), metadata_() {}
 
@@ -347,11 +347,18 @@ using Meta::TypeId;
 namespace Meta {
 template<typename T>
 struct PropParamTraits {
+    using GetReturn = T;
     using SetParam = std::conditional_t<
         (std::is_scalar_v<T> || sizeof(T) <= 8),
         T,
         const T&
     >;
+};
+
+template<>
+struct PropParamTraits<Base::String> {
+    using GetReturn = Base::StringView;
+    using SetParam = Base::StringView;
 };
 } // namespace Meta
 
@@ -372,14 +379,27 @@ using Meta::ValueCodec;
 
 #define AERO_DEPENDENCY_PROPERTY2(type, name) \
     inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}; \
-    type Get##name() const noexcept { return this->GetValue(name##Property); } \
+    typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name() const noexcept { return this->GetValue(name##Property); } \
     void Set##name(typename ::Aero::Meta::PropParamTraits<type>::SetParam value) noexcept { \
         this->SetValue(name##Property, value); \
     }
 
 #define AERO_READONLY_PROPERTY2(type, name) \
     inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}; \
-    type Get##name() const noexcept { return this->GetValue(name##Property); }
+    typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name() const noexcept { return this->GetValue(name##Property); }
+
+#define AERO_ATTACHED_PROPERTY2(type, name) \
+    inline static constexpr ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}; \
+    static typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name(const ::Aero::DependencyObject& element) noexcept { \
+        return element.GetValue(name##Property); \
+    } \
+    static void Set##name(::Aero::DependencyObject& element, typename ::Aero::Meta::PropParamTraits<type>::SetParam value) noexcept { \
+        element.SetValue(name##Property, value); \
+    }
+
+#define AERO_DEPENDENCY_PROPERTY_INLINE(type, name) AERO_DEPENDENCY_PROPERTY2(type, name)
+#define AERO_READONLY_PROPERTY_INLINE(type, name) AERO_READONLY_PROPERTY2(type, name)
+#define AERO_ATTACHED_PROPERTY_INLINE(type, name) AERO_ATTACHED_PROPERTY2(type, name)
 
 // Backward compatibility aliases
 #define AERO_DEPENDENCY_PROPERTY_WITH_ACCESSORS(type, name) AERO_DEPENDENCY_PROPERTY2(type, name)

@@ -24,6 +24,8 @@ class Animatable;
 class BindingEngine;
 class AnimationEngine;
 class ElementTree;
+class StyleEngine;
+class TriggerEngine;
 namespace Controls { class VisualStateManagerState; }
 namespace Meta { class EffectiveValueEngine; }
 
@@ -122,6 +124,9 @@ private:
     friend class Meta::EffectiveValueEngine;
     friend class AnimationEngine;
     friend class ElementTree;
+    friend class FrameworkElement;
+    friend class StyleEngine;
+    friend class TriggerEngine;
     friend class Controls::VisualStateManagerState;
 
     enum class ChangeKind : std::uint8_t {
@@ -195,8 +200,15 @@ private:
     bool ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
     Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
     bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
+    bool HasChangeHandlers() const noexcept;
+    void NotifyReadOnlyRedirectedChange(
+        DependencyPropertyHandle property,
+        const PropertyValue& oldValue,
+        const PropertyValue& newValue) noexcept;
 
     void RemoveChangeHandler(std::uint32_t index) noexcept;
+    std::uint32_t StyleApplicationIndex() const noexcept { return styleAppIndex_; }
+    void SetStyleApplicationIndex(std::uint32_t index) noexcept { styleAppIndex_ = index; }
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     Base::Ref<Meta::RegistryLifetime> registryLifetime_;
@@ -205,6 +217,7 @@ private:
     DependencyObject* inheritanceParent_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
     std::uint32_t unmaterializedQueueMask_ = 0U;
+    std::uint32_t styleAppIndex_ = UINT32_MAX;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     bool objectServicesAvailable_ = false;
     mutable bool typeVerified_ = false;
@@ -225,6 +238,18 @@ template<class TOwner> StringView DependencyObject::GetValue(
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
     const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
+    if constexpr (std::is_same_v<TValue, double>) {
+        constexpr MemberId kActualWidthId =
+            Meta::MakeMemberId(Base::MakeMetaTypeId("FrameworkElement"), Meta::MemberKind::Property, "ActualWidth");
+        constexpr MemberId kActualHeightId =
+            Meta::MakeMemberId(Base::MakeMetaTypeId("FrameworkElement"), Meta::MemberKind::Property, "ActualHeight");
+        if (property.Id() == kActualWidthId || property.Id() == kActualHeightId) {
+            const PropertyValue redirected = GetValue(property.Handle());
+            if (redirected.IsUnset()) return PropertyAccess<TValue>{};
+            Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(redirected);
+            return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
+        }
+    }
     const PropertyValue* stored = FindEffectiveValuePtr(property.Handle());
     if (stored == nullptr) return PropertyAccess<TValue>{};
     Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(*stored);

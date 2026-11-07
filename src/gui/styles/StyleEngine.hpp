@@ -162,7 +162,6 @@ private:
     EffectiveValueEngine* effectiveValuesEngine_ = nullptr;
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<StyleApplication> applications_;
-    Base::HashMap<const DependencyObject*, std::uint32_t> objectIndexMap_;
     Base::Result<void> VerifyTarget(
         const DependencyObject& object,
         const Style& style) const noexcept;
@@ -175,6 +174,8 @@ private:
         DependencyObject& object,
         const Style& style) noexcept;
     void DetachSetterBindings(DependencyObject& object) noexcept;
+    static void OnObjectDestroyedHook(void* context, DependencyObject& object) noexcept;
+    void OnObjectDestroyed(DependencyObject& object) noexcept;
 
     // Owned trigger-evaluation engine. StyleEngine delegates all trigger
     // state, subscription and deferred-evaluation behavior to it.

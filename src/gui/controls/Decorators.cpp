@@ -154,29 +154,9 @@ inline Size Inflate(Size value, Thickness delta) noexcept {
 
 // ---------------- Image Implementation ----------------
 
-Base::Ref<ImageSource> Image::GetSource() const noexcept {
-    return GetValue(SourceProperty);
-}
-
-Stretch Image::GetStretch() const noexcept {
-    return GetValue(StretchProperty);
-}
-
-StretchDirection Image::GetStretchDirection() const noexcept {
-    return GetValue(StretchDirectionProperty);
-}
-
 void Image::SetSource(Base::Ref<ImageSource> value) noexcept {
     SetValue(SourceProperty, std::move(value));
     Media::NotifyImageSourceChanged();
-}
-
-void Image::SetStretch(Stretch value) noexcept {
-    SetValue(StretchProperty, value);
-}
-
-void Image::SetStretchDirection(StretchDirection value) noexcept {
-    SetValue(StretchDirectionProperty, value);
 }
 
 void Image::SetRuntimeData(
@@ -274,22 +254,6 @@ void Image::OnRender(::Aero::Media::DrawingContext& context) noexcept {
 
 // ---------------- Viewbox Implementation ----------------
 
-Stretch Viewbox::GetStretch() const noexcept {
-    return GetValue(StretchProperty);
-}
-
-StretchDirection Viewbox::GetStretchDirection() const noexcept {
-    return GetValue(StretchDirectionProperty);
-}
-
-void Viewbox::SetStretch(Stretch value) noexcept {
-    SetValue(StretchProperty, value);
-}
-
-void Viewbox::SetStretchDirection(StretchDirection value) noexcept {
-    SetValue(StretchDirectionProperty, value);
-}
-
 Size Viewbox::MeasureOverride(Size availableSize) noexcept {
     UIElement* child = GetChild();
     if (child == nullptr) {
@@ -363,54 +327,6 @@ Size Viewbox::ArrangeOverride(Size finalSize) noexcept {
 // ---------------- Border Implementation ----------------
 
 Border::Border() noexcept : Decorator(StaticTypeId()) {}
-
-Base::Ref<Brush> Border::GetBackground() const noexcept {
-    return GetValue(BackgroundProperty);
-}
-
-Base::Ref<Brush> Border::GetBorderBrush() const noexcept {
-    return GetValue(BorderBrushProperty);
-}
-
-Thickness Border::GetBorderThickness() const noexcept {
-    return GetValue(BorderThicknessProperty);
-}
-
-CornerRadius Border::GetCornerRadius() const noexcept {
-    return GetValue(CornerRadiusProperty);
-}
-
-Thickness Border::GetPadding() const noexcept {
-    return GetValue(PaddingProperty);
-}
-
-void Border::SetBackground(Base::Ref<Brush> value) noexcept {
-    SetValue(BackgroundProperty, std::move(value));
-}
-
-void Border::SetBorderBrush(Base::Ref<Brush> value) noexcept {
-    SetValue(BorderBrushProperty, std::move(value));
-}
-
-void Border::SetBorderThickness(Thickness value) noexcept {
-    SetValue(BorderThicknessProperty, value);
-}
-
-void Border::SetBorderThickness(double value) noexcept {
-    SetBorderThickness({value, value, value, value});
-}
-
-void Border::SetCornerRadius(CornerRadius value) noexcept {
-    SetValue(CornerRadiusProperty, value);
-}
-
-void Border::SetCornerRadius(double value) noexcept {
-    SetCornerRadius({value, value, value, value});
-}
-
-void Border::SetPadding(Thickness value) noexcept {
-    SetValue(PaddingProperty, value);
-}
 
 Size Border::MeasureOverride(Size availableSize) noexcept {
     const Thickness border = GetBorderThickness();

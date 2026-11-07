@@ -58,12 +58,7 @@ StackPanel::StackPanel(TypeId runtimeType, Orientation orientation) noexcept
         SetOrientation(orientation);
     }
 }
-Orientation StackPanel::GetOrientation() const noexcept {
-    return GetValue(OrientationProperty);
-}
-void StackPanel::SetOrientation(Orientation value) noexcept {
-    SetValue(OrientationProperty, value);
-}
+
 Size StackPanel::MeasureOverride(Size availableSize) noexcept {
     Size desired;
     const Orientation orientation = GetOrientation();
@@ -102,13 +97,7 @@ Size StackPanel::ArrangeOverride(Size finalSize) noexcept {
     }
     return finalSize;
 }
-bool DockPanel::GetLastChildFill() const noexcept {
-    return GetValue(LastChildFillProperty);
-}
-void DockPanel::SetLastChildFill(
-    bool value) noexcept {
-    SetValue(LastChildFillProperty, value);
-}
+
 void DockPanel::SetChildDock(
     UIElement& child,
     Dock value) noexcept {
@@ -215,19 +204,7 @@ Size DockPanel::ArrangeOverride(
     }
     return finalSize;
 }
-Orientation WrapPanel::GetOrientation() const noexcept {
-    return GetValue(OrientationProperty);
-}
-void WrapPanel::SetOrientation(
-    Orientation value) noexcept {
-    SetValue(OrientationProperty, value);
-}
-double WrapPanel::GetItemWidth() const noexcept {
-    return GetValue(ItemWidthProperty);
-}
-double WrapPanel::GetItemHeight() const noexcept {
-    return GetValue(ItemHeightProperty);
-}
+
 void WrapPanel::SetItemWidth(
     double value) noexcept {
     if (!std::isfinite(value) || value < 0.0) {
@@ -332,27 +309,7 @@ Size WrapPanel::ArrangeOverride(
     }
     return finalSize;
 }
-std::uint32_t UniformGrid::GetRows() const noexcept {
-    return GetValue(RowsProperty);
-}
-std::uint32_t UniformGrid::GetColumns() const noexcept {
-    return GetValue(ColumnsProperty);
-}
-std::uint32_t UniformGrid::GetFirstColumn() const noexcept {
-    return GetValue(FirstColumnProperty);
-}
-void UniformGrid::SetRows(
-    std::uint32_t value) noexcept {
-    SetValue(RowsProperty, value);
-}
-void UniformGrid::SetColumns(
-    std::uint32_t value) noexcept {
-    SetValue(ColumnsProperty, value);
-}
-void UniformGrid::SetFirstColumn(
-    std::uint32_t value) noexcept {
-    SetValue(FirstColumnProperty, value);
-}
+
 void UniformGrid::ResolveDimensions(
     std::uint32_t childCount,
     std::uint32_t& rows,

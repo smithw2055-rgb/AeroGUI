@@ -23,6 +23,19 @@ using DestroyObjectFn = void(*)(Object* object, IAllocator* allocator) noexcept;
 struct AdoptRefTag {};
 inline constexpr AdoptRefTag AdoptRef{};
 
+enum CoreTypeFlags : std::uint16_t {
+    kCoreTypeNone             = 0U,
+    kCoreTypeDependencyObject = 1U << 0U,
+    kCoreTypeVisual           = 1U << 1U,
+    kCoreTypeUIElement        = 1U << 2U,
+    kCoreTypeFrameworkElement = 1U << 3U,
+    kCoreTypeControl          = 1U << 4U,
+    kCoreTypePanel            = 1U << 5U,
+    kCoreTypeShape            = 1U << 6U,
+    kCoreTypeContentElement   = 1U << 7U,
+    kCoreTypeFreezable        = 1U << 8U,
+};
+
 class AERO_BASE_API Object {
 public:
     Object(const Object&) = delete;
@@ -35,14 +48,19 @@ public:
     // This accessor has no mutable state and intentionally does not make plain
     // Object instances report a runtime type.
     static constexpr MetaTypeId StaticTypeId() noexcept { return MakeMetaTypeId("Object"); }
+    std::uint16_t CoreTypeMask() const noexcept { return coreTypeMask_; }
 
 protected:
     Object() noexcept = default;
     virtual ~Object();
     void ExpireWeakReferences() noexcept;
+    void AddCoreTypeFlag(std::uint16_t flag) noexcept {
+        coreTypeMask_ = static_cast<std::uint16_t>(coreTypeMask_ | flag);
+    }
 
 private:
     mutable std::atomic<std::uint32_t> strongCount_{0U};
+    std::uint16_t coreTypeMask_ = 0U;
     mutable std::atomic<void*> control_{nullptr};
     IAllocator* allocator_ = nullptr;
     DestroyObjectFn destroy_ = nullptr;

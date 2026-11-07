@@ -72,7 +72,12 @@ public:
 
     template<class TOwner, class TArgs> Event<TArgs> GetEvent(
         const Aero::RoutedEventRef<TOwner, TArgs>& event) noexcept { return Event<TArgs>(*this, event.Handle()); }
-    UIElement* LayoutParent() const noexcept;
+    UIElement* LayoutParent() const noexcept {
+        ::Aero::Media::Visual* parent = GetVisualParent();
+        return (parent != nullptr && (parent->CoreTypeMask() & Base::kCoreTypeUIElement) != 0U)
+            ? static_cast<UIElement*>(parent)
+            : nullptr;
+    }
     void InvalidateMeasure() noexcept;
     void InvalidateArrange() noexcept;
     void InvalidateVisual() noexcept;

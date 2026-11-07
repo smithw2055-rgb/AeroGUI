@@ -429,6 +429,7 @@ void DetachViewUi(
                     } else {
                         if (state.Animations() != nullptr) state.Animations()->RemoveTarget(*child);
                         if (state.Bindings() != nullptr) (void)state.Bindings()->DetachObject(*child);
+                        if (state.Styles() != nullptr) (void)state.Styles()->DetachObject(*child);
                         if (state.Values() != nullptr) (void)state.Values()->DetachObject(*child);
                     }
                 }

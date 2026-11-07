@@ -110,7 +110,19 @@ RoutedEventTable& Events(void* state) noexcept {
 } // namespace
 
 Media::Visual::Visual(TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType) {}
+    : DependencyObject(runtimeType) {
+    AddCoreTypeFlag(Base::kCoreTypeVisual);
+}
+
+void Media::Visual::UpdateSubtreeDepth(std::uint16_t depth) noexcept {
+    treeDepth_ = depth;
+    const std::uint16_t nextDepth = depth < 0xFFFEU
+        ? static_cast<std::uint16_t>(depth + 1U)
+        : depth;
+    for (Visual* cur = firstVisualChild_; cur != nullptr; cur = cur->nextVisualSibling_) {
+        cur->UpdateSubtreeDepth(nextDepth);
+    }
+}
 
 void Media::Visual::AddVisualChild(Visual* child) noexcept {
     if (child == nullptr || child == this) return;
@@ -124,6 +136,9 @@ void Media::Visual::AddVisualChild(Visual* child) noexcept {
         firstVisualChild_->prevVisualSibling_ = child;
     }
     firstVisualChild_ = child;
+    child->UpdateSubtreeDepth(treeDepth_ < 0xFFFEU
+        ? static_cast<std::uint16_t>(treeDepth_ + 1U)
+        : treeDepth_);
     child->OnVisualParentChanged(oldParent);
     OnVisualChildrenChanged(child, nullptr);
     if (tree_ != nullptr && child->tree_ != tree_) {
@@ -146,6 +161,7 @@ void Media::Visual::RemoveVisualChild(Visual* child) noexcept {
         child->prevVisualSibling_ = nullptr;
         child->nextVisualSibling_ = nullptr;
         child->visualParent_ = nullptr;
+        child->UpdateSubtreeDepth(0U);
         if (tree_ != nullptr && child->tree_ == tree_ && child->logicalParent_ == nullptr) {
             ElementTree::CleanVisualChildStorage(*this, *child);
             if (child->LoadedFlag()) {
@@ -454,9 +470,7 @@ void ElementTree::InvalidateNodeHandle(
             curBindings, values_, Animations(), detachedProps);
     }
     if (auto* curStyles = Styles(); curStyles != nullptr) {
-        if (auto* element = ::Aero::TryCast<UIElement>(&node)) {
-            static_cast<void>(curStyles->DetachObject(*element));
-        }
+        static_cast<void>(curStyles->DetachObject(node));
     }
     if (values_ != nullptr) {
         static_cast<void>(values_->DetachObject(node));

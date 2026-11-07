@@ -40,8 +40,7 @@ public:
     void AddChildCore(const Ref<Base::Object>& childObject, UIElement& child) noexcept;
     bool RemoveChildCore(UIElement& child) noexcept;
 
-    Ref<Aero::Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
-    void SetBackground(Ref<Aero::Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Media::Brush>, Background);
     bool HitTestCore() const noexcept override { return GetBackground() != nullptr; }
     Ref<Base::Object> GetChildrenObject() const noexcept;
     void SetChildrenObject(Ref<Base::Object>) noexcept {}
@@ -49,13 +48,11 @@ public:
     const UIElementCollection& GetChildren() const noexcept { return children_; }
     void ClearChildrenCore() noexcept;
     void InvalidateZOrder() noexcept { zOrderDirty_ = true; }
-
-    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
     AERO_DEPENDENCY_PROPERTY(bool, IsItemsHost);
     AERO_ATTACHED_PROPERTY(std::int32_t, ZIndex);
 
 protected:
-    explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType), children_(*this), ownedChildren_() {}
+    explicit Panel(TypeId runtimeType) noexcept : FrameworkElement(runtimeType), children_(*this), ownedChildren_() { AddCoreTypeFlag(Base::kCoreTypePanel); }
     ~Panel() override;
 
     std::uint32_t GetVisualChildrenCount() const noexcept override;
@@ -82,9 +79,7 @@ class AERO_GUI_API StackPanel : public Panel {
 public:
     StackPanel() noexcept;
     explicit StackPanel(Orientation orientation) noexcept;
-    Orientation GetOrientation() const noexcept;
-    void SetOrientation(Orientation value) noexcept;
-    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY2(Orientation, Orientation);
 
 protected:
     StackPanel(TypeId runtimeType, Orientation orientation = Orientation::Vertical) noexcept;
@@ -114,11 +109,9 @@ class AERO_GUI_API DockPanel : public Panel {
 
 public:
     DockPanel() noexcept : Panel(StaticTypeId()) {}
-    bool GetLastChildFill() const noexcept;
-    void SetLastChildFill(bool value) noexcept;
     void SetChildDock(UIElement& child, Dock value) noexcept;
     Dock GetChildDock(const UIElement& child) const noexcept;
-    AERO_DEPENDENCY_PROPERTY(bool, LastChildFill);
+    AERO_DEPENDENCY_PROPERTY2(bool, LastChildFill);
     AERO_ATTACHED_PROPERTY(Dock, Dock);
 
 protected:
@@ -131,13 +124,11 @@ class AERO_GUI_API WrapPanel : public Panel {
 
 public:
     WrapPanel() noexcept : Panel(StaticTypeId()) {}
-    Orientation GetOrientation() const noexcept;
-    void SetOrientation(Orientation value) noexcept;
-    double GetItemWidth() const noexcept;
-    double GetItemHeight() const noexcept;
+    double GetItemWidth() const noexcept { return GetValue(ItemWidthProperty); }
+    double GetItemHeight() const noexcept { return GetValue(ItemHeightProperty); }
     void SetItemWidth(double value) noexcept;
     void SetItemHeight(double value) noexcept;
-    AERO_DEPENDENCY_PROPERTY(Orientation, Orientation);
+    AERO_DEPENDENCY_PROPERTY2(Orientation, Orientation);
     AERO_DEPENDENCY_PROPERTY(double, ItemWidth);
     AERO_DEPENDENCY_PROPERTY(double, ItemHeight);
 
@@ -151,15 +142,9 @@ class AERO_GUI_API UniformGrid : public Panel {
 
 public:
     UniformGrid() noexcept : Panel(StaticTypeId()) {}
-    std::uint32_t GetRows() const noexcept;
-    std::uint32_t GetColumns() const noexcept;
-    std::uint32_t GetFirstColumn() const noexcept;
-    void SetRows(std::uint32_t value) noexcept;
-    void SetColumns(std::uint32_t value) noexcept;
-    void SetFirstColumn(std::uint32_t value) noexcept;
-    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Rows);
-    AERO_DEPENDENCY_PROPERTY(std::uint32_t, Columns);
-    AERO_DEPENDENCY_PROPERTY(std::uint32_t, FirstColumn);
+    AERO_DEPENDENCY_PROPERTY2(std::uint32_t, Rows);
+    AERO_DEPENDENCY_PROPERTY2(std::uint32_t, Columns);
+    AERO_DEPENDENCY_PROPERTY2(std::uint32_t, FirstColumn);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

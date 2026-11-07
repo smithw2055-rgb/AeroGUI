@@ -75,6 +75,32 @@ PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
     return change;
 }
 
+bool DependencyObject::HasChangeHandlers() const noexcept {
+    return rare_ != nullptr && !rare_->changeHandlers.Empty();
+}
+
+void DependencyObject::NotifyReadOnlyRedirectedChange(
+    DependencyPropertyHandle property,
+    const PropertyValue& oldValue,
+    const PropertyValue& newValue) noexcept {
+    const bool hasHandlers = HasChangeHandlers();
+    if (hasHandlers && registry_ != nullptr) {
+        if (const Meta::DependencyProperty* registered = registry_->Find(property)) {
+            property = registered->Handle();
+        }
+    }
+    const DependencyPropertyChangedEventArgs args{
+        property,
+        oldValue,
+        newValue,
+        EffectiveValueSource::Local,
+        EffectiveValueSource::Local};
+    if (hasHandlers) {
+        NotifyValueChanged(args);
+    }
+    OnPropertyChanged(args);
+}
+
 void DependencyObject::NotifyValueChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     if (rare_ == nullptr || rare_->changeHandlers.Empty()) {
@@ -1010,6 +1036,20 @@ const PropertyValue* DependencyObject::FindEffectiveValuePtr(
 
 PropertyValue DependencyObject::GetValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
+    if (propertyHandle.value == FrameworkElement::ActualWidthProperty.Id() ||
+        propertyHandle.value == FrameworkElement::ActualHeightProperty.Id()) {
+        const bool ready = typeVerified_ ? CheckAccess() : static_cast<bool>(VerifyReady());
+        if (ready) {
+            if (const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(this)) {
+                const Size renderSize = fe->GetRenderSize();
+                const double scalar = (propertyHandle.value == FrameworkElement::ActualWidthProperty.Id())
+                    ? static_cast<double>(renderSize.width)
+                    : static_cast<double>(renderSize.height);
+                return PropertyValue::FromDouble(Meta::TypeOf<double>(), scalar);
+            }
+        }
+        return PropertyValue::Unset();
+    }
     const PropertyValue* val = FindEffectiveValuePtr(propertyHandle);
     return val != nullptr ? *val : PropertyValue::Unset();
 }

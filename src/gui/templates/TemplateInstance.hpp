@@ -140,7 +140,6 @@ private:
     Aero::BindingEngine* bindings_ = nullptr;
     Aero::ResourceDictionary* resources_ = nullptr;
     Base::Vector<Instance> instances_;
-    Base::HashMap<const Control*, std::uint32_t> controlToInstance_;
     Base::HashMap<std::uint64_t, std::uint32_t> handleToInstance_;
     Base::HashMap<const DependencyObject*, std::uint32_t> triggerSourceToInstance_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;

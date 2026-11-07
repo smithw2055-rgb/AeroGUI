@@ -35,7 +35,7 @@ public:
     AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
 
 protected:
-    explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) {}
+    explicit Shape(TypeId runtimeType) noexcept : FrameworkElement(runtimeType) { AddCoreTypeFlag(Base::kCoreTypeShape); }
     ~Shape() override = default;
 
     virtual void InvalidateGeometry() noexcept {}

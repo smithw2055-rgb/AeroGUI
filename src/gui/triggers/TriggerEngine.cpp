@@ -225,12 +225,10 @@ bool TriggerPlan::IsConditionMet(
 TriggerEngine::TriggerEngine(
     StyleProviderSession& values,
     DependencyPropertyRegistry& properties,
-    Base::Vector<StyleApplication>& applications,
-    const Base::HashMap<const DependencyObject*, std::uint32_t>& objectIndexMap) noexcept
+    Base::Vector<StyleApplication>& applications) noexcept
     : values_(values),
       properties_(properties),
       applications_(applications),
-      objectIndexMap_(objectIndexMap),
       propertyChangedHandler_(this, &TriggerEngine::OnPropertyChanged) {}
 
 TriggerEngine::~TriggerEngine() noexcept {
@@ -507,8 +505,10 @@ const Base::Status& TriggerEngine::LastActionStatus() const noexcept {
 
 std::uint32_t TriggerEngine::FindApplication(
     const DependencyObject& object) const noexcept {
-    const std::uint32_t* found = objectIndexMap_.Find(&object);
-    return found != nullptr ? *found : UINT32_MAX;
+    const std::uint32_t idx = object.StyleApplicationIndex();
+    return (idx < applications_.Size() && applications_[idx].object == &object)
+        ? idx
+        : UINT32_MAX;
 }
 
 } // namespace Aero

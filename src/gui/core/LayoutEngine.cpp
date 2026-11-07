@@ -909,13 +909,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     arrangedCount_ = 0U;
 
     const auto computeDepth = [](const UIElement& node) noexcept -> std::uint32_t {
-        std::uint32_t depth = 0U;
-        for (const UIElement* cur = node.GetIsLayoutAttached() ? node.LayoutParent() : nullptr;
-             cur != nullptr && depth < 256U;
-             cur = cur->GetIsLayoutAttached() ? cur->LayoutParent() : nullptr) {
-            ++depth;
-        }
-        return depth;
+        return node.TreeDepth();
     };
 
     const auto sortWorkQueueByDepth = [&](Base::Vector<VisualHandle>& work) noexcept {

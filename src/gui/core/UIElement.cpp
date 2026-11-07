@@ -921,12 +921,11 @@ UIElement* UIElementChildRange::operator[](std::uint32_t index) const noexcept {
 }
 
 UIElement::UIElement(TypeId runtimeType) noexcept
-    : ::Aero::Media::Visual(runtimeType) {}
-
-UIElement* UIElement::LayoutParent() const noexcept {
-    ::Aero::Media::Visual* parent = GetVisualParent();
-    return parent != nullptr ? ::Aero::TryCast<UIElement>(parent) : nullptr;
+    : ::Aero::Media::Visual(runtimeType) {
+    AddCoreTypeFlag(Base::kCoreTypeUIElement);
 }
+
+
 
 UIElement::~UIElement() {
     layout_.SetFlag(LayoutFlags::LayoutAttached, false);

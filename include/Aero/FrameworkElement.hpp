@@ -262,6 +262,8 @@ private:
         double maxWidth = 1.0e12;
         double minHeight = 0.0;
         double maxHeight = 1.0e12;
+        float actualWidth = 0.0f;
+        float actualHeight = 0.0f;
         Thickness margin{};
         HorizontalAlignment horizontalAlignment = HorizontalAlignment::Stretch;
         VerticalAlignment verticalAlignment = VerticalAlignment::Stretch;
@@ -278,12 +280,7 @@ private:
     FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
     void SyncLayoutScalarProperty(DependencyPropertyHandle property, const Meta::PropertyValue& newValue) noexcept;
     static void OnLayoutScalarChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
-    void SetActualSize(double width, double height) noexcept {
-        Meta::PropertyValue widthVal(width);
-        Meta::PropertyValue heightVal(height);
-        SetReadOnlyCurrentValue(ActualWidthProperty.Handle(), widthVal);
-        SetReadOnlyCurrentValue(ActualHeightProperty.Handle(), heightVal);
-    }
+    void SetActualSize(double width, double height) noexcept;
     void SetTemplatedParent(DependencyObject* value) noexcept {
         Result<void> access = VerifyAccess();
         if (!access) return;

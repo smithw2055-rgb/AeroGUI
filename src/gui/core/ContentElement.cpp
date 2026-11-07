@@ -21,7 +21,9 @@
 namespace Aero {
 
 ContentElement::ContentElement(Meta::TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType) {}
+    : DependencyObject(runtimeType) {
+    AddCoreTypeFlag(Base::kCoreTypeContentElement);
+}
 
 ContentElement::~ContentElement() {
     AERO_ASSERT(logicalParent_ == nullptr);

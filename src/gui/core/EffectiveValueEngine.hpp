@@ -59,6 +59,12 @@ public:
     void OnObjectDestroyed(
         DependencyObject& object) noexcept override;
 
+    using ObjectDestroyedHook = void (*)(void* context, DependencyObject& object) noexcept;
+    void SetStyleObjectDestroyedHook(ObjectDestroyedHook hook, void* context) noexcept {
+        styleDestroyHook_ = hook;
+        styleDestroyContext_ = context;
+    }
+
     // Allocates a process-local provider origin unique to this value engine.
     // Provider sessions allocate lazily on the owning Dispatcher and retain the
     // origin for the lifetime of their Style, Theme or Template application.
@@ -166,6 +172,8 @@ private:
     PropertyProviderOriginAllocator providerOrigins_;
     Base::Vector<DependencyObject*> frontier_;
     Base::HashSet<DependencyObject*> visited_;
+    ObjectDestroyedHook styleDestroyHook_ = nullptr;
+    void* styleDestroyContext_ = nullptr;
     bool initialized_ = false;
     bool flushing_ = false;
 

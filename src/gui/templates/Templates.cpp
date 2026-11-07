@@ -1639,7 +1639,7 @@ Base::Result<TemplateHandle> TemplateEngine::Apply(
     const std::uint32_t newIndex = instances_.Size();
     instances_.PushBack(std::move(instance));
     Instance& stored = instances_.Back();
-    static_cast<void>(controlToInstance_.Insert(stored.parent, newIndex));
+    stored.parent->SetTemplateInstanceIndex(newIndex);
     static_cast<void>(handleToInstance_.Insert(stored.handle.value, newIndex));
     Base::Result<void> subscribed = Subscribe(stored);
     if (!subscribed) {
@@ -1761,8 +1761,10 @@ std::uint32_t TemplateEngine::FindInstance(
 
 std::uint32_t TemplateEngine::FindInstance(
     const Control& control) const noexcept {
-    const std::uint32_t* found = controlToInstance_.Find(&control);
-    return found != nullptr ? *found : UINT32_MAX;
+    const std::uint32_t idx = control.TemplateInstanceIndex();
+    return (idx < instances_.Size() && instances_[idx].parent == &control)
+        ? idx
+        : UINT32_MAX;
 }
 
 DependencyObject* TemplateEngine::FindTarget(
@@ -1800,18 +1802,18 @@ const TemplateEngine::Instance* TemplateEngine::FindBindingTargetInstance(
     };
     if (const auto* fe = TryCast<FrameworkElement>(&target)) {
         if (const auto* templatedParent = TryCast<Control>(fe->GetTemplatedParent())) {
-            const std::uint32_t* idx = controlToInstance_.Find(templatedParent);
-            if (idx != nullptr && *idx < instances_.Size()) {
-                return instanceHasTargetBinding(instances_[*idx])
-                    ? &instances_[*idx]
+            const std::uint32_t idx = FindInstance(*templatedParent);
+            if (idx != UINT32_MAX) {
+                return instanceHasTargetBinding(instances_[idx])
+                    ? &instances_[idx]
                     : nullptr;
             }
         }
         if (const auto* ctrl = TryCast<Control>(fe)) {
-            const std::uint32_t* idx = controlToInstance_.Find(ctrl);
-            if (idx != nullptr && *idx < instances_.Size() &&
-                instanceHasTargetBinding(instances_[*idx])) {
-                return &instances_[*idx];
+            const std::uint32_t idx = FindInstance(*ctrl);
+            if (idx != UINT32_MAX &&
+                instanceHasTargetBinding(instances_[idx])) {
+                return &instances_[idx];
             }
         }
     }
@@ -1880,9 +1882,12 @@ Base::Result<void> TemplateEngine::Subscribe(
                 }
             } else {
                 instance.childTriggerPropertyMask |= propMask;
-                const std::uint32_t instanceIndex =
-                    static_cast<std::uint32_t>(&instance - instances_.Data());
-                static_cast<void>(triggerSourceToInstance_.Insert(source, instanceIndex));
+                const auto* feSource = TryCast<FrameworkElement>(source);
+                if (feSource == nullptr || feSource->GetTemplatedParent() != instance.parent) {
+                    const std::uint32_t instanceIndex =
+                        static_cast<std::uint32_t>(&instance - instances_.Data());
+                    static_cast<void>(triggerSourceToInstance_.Insert(source, instanceIndex));
+                }
                 bool duplicate = false;
                 for (const SourcePropertyPair& existing : childSubscriptions) {
                     if (existing.source == source && existing.property == condition.property) {
@@ -1930,7 +1935,10 @@ void TemplateEngine::Unsubscribe(
                     continue;
                 }
             } else {
-                triggerSourceToInstance_.Erase(source);
+                const auto* feSource = TryCast<FrameworkElement>(source);
+                if (feSource == nullptr || feSource->GetTemplatedParent() != instance.parent) {
+                    triggerSourceToInstance_.Erase(source);
+                }
                 bool duplicate = false;
                 for (const SourcePropertyPair& existing : childSubscriptions) {
                     if (existing.source == source && existing.property == condition.property) {
@@ -2364,11 +2372,15 @@ Base::Result<void> TemplateEngine::ClearAt(
             (void)values_->DetachObject(*part.object);
         }
     }
-    controlToInstance_.Erase(instance.parent);
+    if (instance.parent != nullptr) {
+        instance.parent->SetTemplateInstanceIndex(UINT32_MAX);
+    }
     handleToInstance_.Erase(instance.handle.value);
     if (index + 1U != instances_.Size()) {
         instances_[index] = std::move(instances_[instances_.Size() - 1U]);
-        static_cast<void>(controlToInstance_.Set(instances_[index].parent, index));
+        if (instances_[index].parent != nullptr) {
+            instances_[index].parent->SetTemplateInstanceIndex(index);
+        }
         static_cast<void>(handleToInstance_.Set(instances_[index].handle.value, index));
         if (instances_[index].plan != nullptr) {
             for (const TemplatePropertyTrigger& trigger :
@@ -2377,7 +2389,10 @@ Base::Result<void> TemplateEngine::ClearAt(
                     DependencyObject* source = FindTarget(
                         instances_[index], condition.sourceName.View(), condition.sourcePartIndex);
                     if (source != nullptr && source != instances_[index].parent) {
-                        static_cast<void>(triggerSourceToInstance_.Set(source, index));
+                        const auto* feSource = TryCast<FrameworkElement>(source);
+                        if (feSource == nullptr || feSource->GetTemplatedParent() != instances_[index].parent) {
+                            static_cast<void>(triggerSourceToInstance_.Set(source, index));
+                        }
                     }
                 }
             }
@@ -2393,9 +2408,9 @@ void TemplateEngine::OnPropertyChanged(
     const DependencyPropertyHandle changedProp = args.GetProperty();
     const std::uint64_t propMask = PropertyTriggerMask(changedProp);
     if (auto* ctrl = TryCast<Control>(&object)) {
-        const std::uint32_t* found = controlToInstance_.Find(ctrl);
-        if (found != nullptr && *found < instances_.Size()) {
-            Instance& instance = instances_[*found];
+        const std::uint32_t found = FindInstance(*ctrl);
+        if (found != UINT32_MAX) {
+            Instance& instance = instances_[found];
             if ((instance.bindingPropertyMask & propMask) == propMask) {
                 (void)ApplyBindings(instance, changedProp);
             }
@@ -2423,9 +2438,20 @@ void TemplateEngine::OnPropertyChanged(
         }
     }
 
-    const std::uint32_t* triggerInstance = triggerSourceToInstance_.Find(&object);
-    if (triggerInstance != nullptr && *triggerInstance < instances_.Size()) {
-        Instance& instance = instances_[*triggerInstance];
+    std::uint32_t childInstIdx = UINT32_MAX;
+    if (const auto* fe = TryCast<FrameworkElement>(&object)) {
+        if (const auto* parentCtrl = TryCast<Control>(fe->GetTemplatedParent())) {
+            childInstIdx = FindInstance(*parentCtrl);
+        }
+    }
+    if (childInstIdx == UINT32_MAX) {
+        const std::uint32_t* triggerInstance = triggerSourceToInstance_.Find(&object);
+        if (triggerInstance != nullptr && *triggerInstance < instances_.Size()) {
+            childInstIdx = *triggerInstance;
+        }
+    }
+    if (childInstIdx != UINT32_MAX) {
+        Instance& instance = instances_[childInstIdx];
         if ((instance.childTriggerPropertyMask & propMask) != propMask) {
             return;
         }

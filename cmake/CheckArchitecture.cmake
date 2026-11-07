@@ -1233,7 +1233,7 @@ foreach(aero_public_hpp_file IN LISTS aero_public_hpp)
         file(RELATIVE_PATH aero_public_hpp_relative
             "${AERO_SOURCE_DIR}" "${aero_public_hpp_file}")
         message(FATAL_ERROR
-            "Property declarations must use AERO_DEPENDENCY_PROPERTY / AERO_ATTACHED_PROPERTY / AERO_READONLY_PROPERTY: ${aero_public_hpp_relative}")
+            "Property declarations must use AERO_DEPENDENCY_PROPERTY / AERO_DEPENDENCY_PROPERTY_INLINE / AERO_ATTACHED_PROPERTY / AERO_READONLY_PROPERTY: ${aero_public_hpp_relative}")
     endif()
     if(aero_public_hpp_content MATCHES "GetValueOr")
         file(RELATIVE_PATH aero_public_hpp_relative

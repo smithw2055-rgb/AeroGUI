@@ -770,8 +770,9 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
             Base::ErrorCode::AlreadyExists,
             "Dependency property already has exact metadata for this type");
     }
-    if (type->BaseType() == InvalidTypeId ||
-        property.MetadataFor(type->BaseType()) == nullptr) {
+    const PropertyMetadata* baseMetadata =
+        type->BaseType() != InvalidTypeId ? property.MetadataFor(type->BaseType()) : nullptr;
+    if (baseMetadata == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Metadata can only be overridden on a derived property owner type");
@@ -792,6 +793,9 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     entry.forType = forType;
     entry.owner = false;
     entry.metadata = metadata;
+    if (entry.metadata.changed.Empty() && !baseMetadata->changed.Empty()) {
+        entry.metadata.changed = baseMetadata->changed;
+    }
     property.metadata_.PushBack(std::move(entry));
     property.ClearMetadataCache();
     return {};
@@ -1031,7 +1035,9 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       runtimeType_(runtimeType),
       valueStore_(nullptr),
       rare_(nullptr),
-      objectServicesAvailable_(HasObjectFactory()) {}
+      objectServicesAvailable_(HasObjectFactory()) {
+    AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
+}
 
 DependencyObject::~DependencyObject() {
     if (registry_ != nullptr && registryLifetime_ && registryLifetime_->isAlive) {
@@ -2283,6 +2289,9 @@ Base::Result<void> EffectiveValueEngine::Invalidate(
 }
 
 void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept {
+    if (object.StyleApplicationIndex() != UINT32_MAX && styleDestroyHook_ != nullptr) {
+        styleDestroyHook_(styleDestroyContext_, object);
+    }
     if (queueHead_ != nullptr && (flushing_ || object.unmaterializedQueueMask_ != 0U)) {
         PropertyStore* store = object.Store();
         QueueLink* previous = nullptr;

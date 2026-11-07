@@ -117,6 +117,7 @@ public:
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
     ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
+    std::uint16_t TreeDepth() const noexcept { return treeDepth_; }
 
 
 
@@ -206,9 +207,12 @@ private:
     std::uint64_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
+    void UpdateSubtreeDepth(std::uint16_t depth) noexcept;
+
     std::uint32_t drawingIndex_ = UINT32_MAX;
     std::uint8_t renderDirtyFlags_ = 0x07U;
     std::uint8_t visualFlags_ = 0U;
+    std::uint16_t treeDepth_ = 0U;
 };
 
 } // namespace Aero::Media

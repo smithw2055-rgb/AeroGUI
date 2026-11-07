@@ -11,7 +11,7 @@
 // class RatingControl : public Aero::Controls::Control {
 //     AERO_DECLARE_TYPE(RatingControl, Aero::Controls::Control)
 // public:
-//     AERO_DEPENDENCY_PROPERTY(double, Rating);
+//     AERO_DEPENDENCY_PROPERTY_INLINE(double, Rating);
 //     static void DescribeComponent(
 //         Aero::Meta::TypeBuilder<RatingControl>& type) noexcept;
 // protected:

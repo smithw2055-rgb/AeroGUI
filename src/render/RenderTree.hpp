@@ -225,6 +225,7 @@ private:
     Base::Vector<RenderCommandHeader> commandHeaders_;
     Base::Vector<std::uint8_t> commandPayload_;
     Base::Vector<RenderGradientRampSnapshot> gradientRamps_;
+    Base::Vector<RenderGradientRampSnapshot> cachedGradientRamps_;
     Base::Vector<RenderMaskSnapshot> masks_;
     Base::Vector<RenderEffectSnapshot> effects_;
     Base::Vector<Point> geometryClipVertices_;

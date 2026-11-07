@@ -74,7 +74,10 @@ private: \
 public: \
     const type& Get##name() const noexcept { return name##_; } \
     bool Set##name(const type& value) noexcept { \
-        return this->SetProperty(name##_, value, #name); \
+        if (::Aero::MvvmPropertyEquals(name##_, value)) return false; \
+        name##_ = value; \
+        this->RaisePropertyChanged(#name); \
+        return true; \
     }
 
 #define AERO_RELAY_COMMAND(name, ...) \

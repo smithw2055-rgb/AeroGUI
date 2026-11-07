@@ -1129,7 +1129,7 @@ Base::Result<void> StyleEngine::Apply(
         const std::uint32_t newIndex = applications_.Size();
         applications_.PushBack(
                 std::move(application));
-        static_cast<void>(objectIndexMap_.Insert(&object, newIndex));
+        object.SetStyleApplicationIndex(newIndex);
     } else if (requiresSubscription) {
         StyleApplication& application = applications_[existing];
         application.style = &style;
@@ -1180,10 +1180,12 @@ Base::Result<void> StyleEngine::Clear(
     }
     if (existing != UINT32_MAX) {
         triggerEngine_->RemovePendingTriggerEvaluation(object);
-        objectIndexMap_.Erase(&object);
+        object.SetStyleApplicationIndex(UINT32_MAX);
         if (existing + 1U != applications_.Size()) {
             applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
-            static_cast<void>(objectIndexMap_.Set(applications_[existing].object, existing));
+            if (applications_[existing].object != nullptr) {
+                applications_[existing].object->SetStyleApplicationIndex(existing);
+            }
         }
         applications_.PopBack();
     }
@@ -1203,10 +1205,12 @@ bool StyleEngine::DetachObject(
         triggerEngine_->ClearTriggerSetters(object, style);
     }
     (void)ClearSetters(object, style);
-    objectIndexMap_.Erase(&object);
+    object.SetStyleApplicationIndex(UINT32_MAX);
     if (existing + 1U != applications_.Size()) {
         applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
-        static_cast<void>(objectIndexMap_.Set(applications_[existing].object, existing));
+        if (applications_[existing].object != nullptr) {
+            applications_[existing].object->SetStyleApplicationIndex(existing);
+        }
     }
     applications_.PopBack();
     return true;
@@ -1224,8 +1228,10 @@ const Style* StyleEngine::AppliedStyle(
 
 std::uint32_t StyleEngine::FindApplication(
     const DependencyObject& object) const noexcept {
-    const std::uint32_t* found = objectIndexMap_.Find(&object);
-    return found != nullptr ? *found : UINT32_MAX;
+    const std::uint32_t idx = object.StyleApplicationIndex();
+    return (idx < applications_.Size() && applications_[idx].object == &object)
+        ? idx
+        : UINT32_MAX;
 }
 
 Base::Result<void> StyleEngine::ClearSetters(
@@ -1402,12 +1408,49 @@ StyleEngine::StyleEngine(
       effectiveValuesEngine_(&values),
       properties_(&properties),
       applications_(),
-      objectIndexMap_(),
       triggerEngine_(new TriggerEngine(
-          *values_, *properties_, applications_, objectIndexMap_)) {}
+          *values_, *properties_, applications_)) {
+    effectiveValuesEngine_->SetStyleObjectDestroyedHook(
+        &StyleEngine::OnObjectDestroyedHook, this);
+}
 
 StyleEngine::~StyleEngine() noexcept {
+    if (effectiveValuesEngine_ != nullptr) {
+        effectiveValuesEngine_->SetStyleObjectDestroyedHook(nullptr, nullptr);
+    }
+    for (StyleApplication& app : applications_) {
+        if (app.object != nullptr) {
+            app.object->SetStyleApplicationIndex(UINT32_MAX);
+        }
+    }
     delete triggerEngine_;
+}
+
+void StyleEngine::OnObjectDestroyedHook(
+    void* context,
+    DependencyObject& object) noexcept {
+    static_cast<StyleEngine*>(context)->OnObjectDestroyed(object);
+}
+
+void StyleEngine::OnObjectDestroyed(
+    DependencyObject& object) noexcept {
+    const std::uint32_t existing = FindApplication(object);
+    if (existing == UINT32_MAX) {
+        object.SetStyleApplicationIndex(UINT32_MAX);
+        return;
+    }
+    if (triggerEngine_ != nullptr) {
+        triggerEngine_->RemovePendingTriggerEvaluation(object);
+    }
+    DetachSetterBindings(object);
+    object.SetStyleApplicationIndex(UINT32_MAX);
+    if (existing + 1U != applications_.Size()) {
+        applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
+        if (applications_[existing].object != nullptr) {
+            applications_[existing].object->SetStyleApplicationIndex(existing);
+        }
+    }
+    applications_.PopBack();
 }
 
 void StyleEngine::SetTriggerActionHandler(

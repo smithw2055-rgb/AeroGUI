@@ -104,8 +104,7 @@ public:
 
     UIElement* GetBullet() const noexcept { return bullet_.Get(); }
     UIElement* GetChild() const noexcept { return child_.Get(); }
-    Ref<Media::Brush> GetBackground() const noexcept { return GetValue(BackgroundProperty); }
-    void SetBackground(Ref<Media::Brush> value) noexcept { SetValue(BackgroundProperty, std::move(value)); }
+    AERO_DEPENDENCY_PROPERTY2(Ref<Media::Brush>, Background);
     bool HitTestCore() const noexcept override { return GetBackground() != nullptr; }
     void SetBullet(Ref<UIElement> value) noexcept {
         UIElement* previous = bullet_.Get();
@@ -127,8 +126,6 @@ public:
         child_ = std::move(value);
         if (child_) AddVisualChild(child_.Get());
     }
-
-    AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, Background);
 
 protected:
     std::uint32_t GetVisualChildrenCount() const noexcept override {
@@ -204,24 +201,13 @@ public:
         return GetBackground() != nullptr || GetBorderBrush() != nullptr;
     }
 
-    Ref<Brush> GetBackground() const noexcept;
-    void SetBackground(Ref<Brush> value) noexcept;
-    Ref<Brush> GetBorderBrush() const noexcept;
-    void SetBorderBrush(Ref<Brush> value) noexcept;
-    Thickness GetBorderThickness() const noexcept;
-    void SetBorderThickness(Thickness value) noexcept;
-    void SetBorderThickness(double value) noexcept;
-    CornerRadius GetCornerRadius() const noexcept;
-    void SetCornerRadius(CornerRadius value) noexcept;
-    void SetCornerRadius(double value) noexcept;
-    Thickness GetPadding() const noexcept;
-    void SetPadding(Thickness value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
-    AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, BorderBrush);
-    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, BorderThickness);
-    AERO_DEPENDENCY_PROPERTY(Aero::Base::CornerRadius, CornerRadius);
-    AERO_DEPENDENCY_PROPERTY(Aero::Base::Thickness, Padding);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Media::Brush>, BorderBrush);
+    AERO_DEPENDENCY_PROPERTY2(Aero::Base::Thickness, BorderThickness);
+    void SetBorderThickness(double value) noexcept { SetBorderThickness({value, value, value, value}); }
+    AERO_DEPENDENCY_PROPERTY2(Aero::Base::CornerRadius, CornerRadius);
+    void SetCornerRadius(double value) noexcept { SetCornerRadius({value, value, value, value}); }
+    AERO_DEPENDENCY_PROPERTY2(Aero::Base::Thickness, Padding);
 
 protected:
     explicit Border(TypeId runtimeType) noexcept : Decorator(runtimeType) {}
@@ -239,13 +225,8 @@ class AERO_GUI_API Viewbox : public Decorator {
 public:
     Viewbox() noexcept : Decorator(StaticTypeId()) {}
 
-    Stretch GetStretch() const noexcept;
-    StretchDirection GetStretchDirection() const noexcept;
-    void SetStretch(Stretch value) noexcept;
-    void SetStretchDirection(StretchDirection value) noexcept;
-
-    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
-    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
+    AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY2(StretchDirection, StretchDirection);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;
@@ -278,20 +259,16 @@ public:
 
     bool HitTestCore() const noexcept override { return GetSource() != nullptr; }
 
-    Ref<ImageSource> GetSource() const noexcept;
-    Stretch GetStretch() const noexcept;
-    StretchDirection GetStretchDirection() const noexcept;
+    Ref<ImageSource> GetSource() const noexcept { return GetValue(SourceProperty); }
     void SetSource(Ref<ImageSource> value) noexcept;
-    void SetStretch(Stretch value) noexcept;
-    void SetStretchDirection(StretchDirection value) noexcept;
     void SetRuntimeData(
         std::uint64_t renderImage,
         std::uint32_t pixelWidth,
         std::uint32_t pixelHeight) noexcept;
 
     AERO_DEPENDENCY_PROPERTY(Ref<ImageSource>, Source);
-    AERO_DEPENDENCY_PROPERTY(Stretch, Stretch);
-    AERO_DEPENDENCY_PROPERTY(StretchDirection, StretchDirection);
+    AERO_DEPENDENCY_PROPERTY2(Stretch, Stretch);
+    AERO_DEPENDENCY_PROPERTY2(StretchDirection, StretchDirection);
 
 protected:
     Size MeasureOverride(Size availableSize) noexcept override;

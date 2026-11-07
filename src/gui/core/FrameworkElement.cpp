@@ -45,7 +45,9 @@ using namespace Aero::Threading;
 namespace Aero {
 
 FrameworkElement::FrameworkElement(TypeId runtimeType) noexcept
-    : UIElement(runtimeType) {}
+    : UIElement(runtimeType) {
+    AddCoreTypeFlag(Base::kCoreTypeFrameworkElement);
+}
 
 struct FrameworkElement::FrameworkRare {
     Base::Vector<Ref<Base::Object>> authoredTriggers;
@@ -278,6 +280,30 @@ void FrameworkElement::SyncLayoutScalarProperty(
     }
 }
 
+void FrameworkElement::SetActualSize(double width, double height) noexcept {
+    const float w = static_cast<float>(width);
+    const float h = static_cast<float>(height);
+    const float oldW = layoutScalars_.actualWidth;
+    const float oldH = layoutScalars_.actualHeight;
+    if (w == oldW && h == oldH) {
+        return;
+    }
+    layoutScalars_.actualWidth = w;
+    layoutScalars_.actualHeight = h;
+    if (w != oldW) {
+        NotifyReadOnlyRedirectedChange(
+            ActualWidthProperty.Handle(),
+            Meta::PropertyValue::FromDouble(Meta::TypeOf<double>(), static_cast<double>(oldW)),
+            Meta::PropertyValue::FromDouble(Meta::TypeOf<double>(), width));
+    }
+    if (h != oldH) {
+        NotifyReadOnlyRedirectedChange(
+            ActualHeightProperty.Handle(),
+            Meta::PropertyValue::FromDouble(Meta::TypeOf<double>(), static_cast<double>(oldH)),
+            Meta::PropertyValue::FromDouble(Meta::TypeOf<double>(), height));
+    }
+}
+
 void FrameworkElement::OnLayoutScalarChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
@@ -287,7 +313,6 @@ void FrameworkElement::OnLayoutScalarChanged(
 
 void FrameworkElement::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    SyncLayoutScalarProperty(args.GetProperty(), args.GetNewValue());
     UIElement::OnPropertyChanged(args);
 }
 
@@ -821,11 +846,6 @@ void ClearFrameworkEventTriggers(
             static_cast<FrameworkElement&>(owner)));
 }
 
-void OnLayoutTransformChanged(
-    DependencyObject&,
-    const DependencyPropertyChangedEventArgs&) noexcept {
-}
-
 } // namespace
 
 AERO_DESCRIBE(FrameworkElement) {
@@ -852,7 +872,8 @@ AERO_DESCRIBE(FrameworkElement) {
             Base::Ref<Media::FontFamily>{}, Inherits | AffectsMeasure)
         .Property(
             FrameworkElement::FlowDirectionProperty,
-            FlowDirection::LeftToRight, Inherits | AffectsMeasure)
+            FrameworkPropertyMetadata(FlowDirection::LeftToRight, Inherits | AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Property(
             FrameworkElement::CursorProperty,
             Base::String{}, Inherits)
@@ -919,20 +940,24 @@ AERO_DESCRIBE(FrameworkElement) {
                 .Validate(&ValidateMarginValue))
         .Property(
             FrameworkElement::HorizontalAlignmentProperty,
-            HorizontalAlignment::Stretch, AffectsArrange)
+            FrameworkPropertyMetadata(HorizontalAlignment::Stretch, AffectsArrange)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Property(
             FrameworkElement::VerticalAlignmentProperty,
-            VerticalAlignment::Stretch, AffectsArrange)
+            FrameworkPropertyMetadata(VerticalAlignment::Stretch, AffectsArrange)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Property(
             FrameworkElement::UseLayoutRoundingProperty,
-            false, AffectsMeasure)
+            FrameworkPropertyMetadata(false, AffectsMeasure)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Property(
             FrameworkElement::SnapsToDevicePixelsProperty,
-            false, Inherits | AffectsArrange | AffectsRender)
+            FrameworkPropertyMetadata(false, Inherits | AffectsArrange | AffectsRender)
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Property(
             FrameworkElement::LayoutTransformProperty,
             FrameworkPropertyMetadata(Base::Ref<Transform>{}, AffectsMeasure)
-                .Changed(&OnLayoutTransformChanged))
+                .Changed(&FrameworkElement::OnLayoutScalarChanged))
         .Collection<Media::Animation::EventTrigger>(
             "Triggers",
             &AddFrameworkEventTrigger,

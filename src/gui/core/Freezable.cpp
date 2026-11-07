@@ -154,7 +154,9 @@ void RemoveConsumerAt(
 } // namespace
 
 Freezable::Freezable(Meta::TypeId runtimeType) noexcept
-    : DependencyObject(runtimeType) {}
+    : DependencyObject(runtimeType) {
+    AddCoreTypeFlag(Base::kCoreTypeFreezable);
+}
 
 bool Freezable::EnsureState() noexcept {
     if (state_ != nullptr) return true;

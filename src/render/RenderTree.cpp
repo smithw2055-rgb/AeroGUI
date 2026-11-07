@@ -466,6 +466,7 @@ void RenderFrame::Clear() noexcept {
     commandHeaders_.Clear();
     commandPayload_.Clear();
     gradientRamps_.Clear();
+    cachedGradientRamps_.Clear();
     masks_.Clear();
     effects_.Clear();
     geometryClipVertices_.Clear();
@@ -1461,6 +1462,11 @@ std::uint32_t RenderTree::AppendGradientRamp(
     const std::uintptr_t brushIdentity =
         reinterpret_cast<std::uintptr_t>(&brush);
     std::uint64_t revision = brush.GetRevision();
+    const double brushOpacity = brush.GetOpacity();
+    std::uint64_t opacityBits = 0U;
+    std::memcpy(&opacityBits, &brushOpacity, sizeof(opacityBits));
+    revision = Base::MixHash64(
+        revision ^ opacityBits ^ static_cast<std::uint64_t>(brush.GetSpreadMethod()));
     for (const auto& stop : brush.GetGradientStops()) {
         if (stop) {
             revision = Base::MixHash64(revision ^ stop->GetRevision());
@@ -1492,6 +1498,16 @@ std::uint32_t RenderTree::AppendGradientRamp(
         }
         targetIndex = i;
         break;
+    }
+
+    if (targetIndex == UINT32_MAX) {
+        for (std::uint32_t i = 0U; i < plan.cachedGradientRamps_.Size(); ++i) {
+            if (plan.cachedGradientRamps_[i].brushIdentity == brushIdentity &&
+                plan.cachedGradientRamps_[i].revision == revision) {
+                static_cast<void>(plan.gradientRamps_.PushBack(plan.cachedGradientRamps_[i]));
+                return plan.gradientRamps_.Size() - 1U;
+            }
+        }
     }
 
     RenderGradientRampSnapshot* dst = nullptr;
@@ -2035,6 +2051,9 @@ Base::Result<void> RenderTree::RefreshInPlace(
         return {};
     }
 
+    if (!currentFrame_.gradientRamps_.Empty()) {
+        currentFrame_.cachedGradientRamps_ = std::move(currentFrame_.gradientRamps_);
+    }
     currentFrame_.effects_.Clear();
     currentFrame_.masks_.Clear();
     currentFrame_.gradientRamps_.Clear();
@@ -2064,6 +2083,51 @@ Base::Result<void> RenderTree::RefreshInPlace(
         }
         const std::uint32_t selfIndex = cursor;
         RenderNodeSnapshot& stored = currentFrame_.nodes_[selfIndex];
+        if (!needsCommandRepack &&
+            visual.RenderChildren().Empty() &&
+            !(visual).RenderQueued() &&
+            (visual).RenderValid() &&
+            (visual).RenderDirtyFlags() == 0U &&
+            stored.isIdentityTransform &&
+            stored.effectIndex == UINT32_MAX &&
+            stored.maskIndex == UINT32_MAX &&
+            stored.geometryClipVertexCount == 0U &&
+            stored.subtreeEnd == selfIndex + 1U &&
+            stored.commandOffset + stored.commandCount <= currentFrame_.commandHeaders_.Size() &&
+            Base::LeavesZ0PlaneUnchanged(transform3D.accumulated)) {
+            UIElement* cleanEl = ::Aero::TryCast<::Aero::UIElement>(&visual);
+            FrameworkElement* cleanFe = ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
+            const bool cleanVisible = cleanEl == nullptr ||
+                cleanEl->GetVisibility() == Visibility::Visible;
+            if (cleanVisible &&
+                (cleanFe == nullptr || !cleanFe->HasLocalVisualTransform()) &&
+                (cleanEl == nullptr ||
+                 (cleanEl->GetRenderSize() == stored.renderSize &&
+                  cleanEl->GetLayoutSlot() == stored.layoutSlot &&
+                  cleanEl->GetLayoutClip() == stored.clip &&
+                  cleanEl->GetClipToBounds() == stored.clipsToBounds &&
+                  cleanEl->GetHasLayoutClip() == stored.hasLayoutClip &&
+                  cleanEl->GetOpacity() == stored.opacity &&
+                  cleanEl->GetBlendMode() == stored.blendMode &&
+                  !cleanEl->HasEffect() &&
+                  !cleanEl->HasOpacityMask() &&
+                  !cleanEl->HasClip() &&
+                  !cleanEl->HasTransform3D()))) {
+                DrawingRecord* rec = FindDrawing(visual);
+                if (cleanFe == nullptr ||
+                    (rec != nullptr && rec->valid && rec->recordedSize == stored.renderSize)) {
+                    stored.drawing = (rec != nullptr && rec->valid) ? &rec->drawing : nullptr;
+                    if (stored.commandCount != 0U) {
+                        ResolveCommandGradients(
+                            currentFrame_,
+                            stored.commandOffset,
+                            stored.commandCount);
+                    }
+                    ++cursor;
+                    return {};
+                }
+            }
+        }
         // Layout writes sizes directly without render flags. A resized
         // visual needs its drawing re-recorded; force the Drawing bit so
         // DescribeVisual treats it exactly like a flagged visual (the full
