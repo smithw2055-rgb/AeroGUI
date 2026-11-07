@@ -342,7 +342,7 @@ class EventRouter;
         Size previousMeasureConstraint{};
         Rect layoutSlot{};
         Rect layoutClip{};
-        std::uint64_t layoutRevision = 0U;
+        std::uint32_t layoutRevision = 0U;
         // Cached from the dependency properties so measure, arrange, render,
         // and hit-testing do not look them up again in the DP store.
         static constexpr std::uint8_t kRenderRareEffect          = 1U << 0;

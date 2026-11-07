@@ -1098,6 +1098,11 @@ Base::Result<void> StyleEngine::Apply(
         return verified.GetStatus();
     }
     const std::uint32_t existing = FindApplication(object);
+    if (existing == UINT32_MAX && applications_.Size() >= UINT16_MAX) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "StyleEngine active style application capacity exceeded");
+    }
     const bool requiresSubscription =
         existing == UINT32_MAX ||
         applications_[existing].style != &style;

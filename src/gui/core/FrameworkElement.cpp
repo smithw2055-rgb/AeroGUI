@@ -233,24 +233,34 @@ void FrameworkElement::ClearDataContext() noexcept {
 void FrameworkElement::SyncLayoutScalarProperty(
     DependencyPropertyHandle property,
     const Meta::PropertyValue& newValue) noexcept {
+    constexpr auto clampScalar = [](double v) noexcept -> float {
+        if (!std::isfinite(v) || v <= 0.0) return 0.0f;
+        return v >= 1.0e12 ? 1.0e12f : static_cast<float>(v);
+    };
     if (property == WidthProperty.Handle()) {
         Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
-        if (decoded) layoutScalars_.width = decoded.Value();
+        if (decoded) {
+            layoutScalars_.hasWidth = !decoded.Value().isAuto;
+            layoutScalars_.width = decoded.Value().isAuto ? 0.0f : clampScalar(decoded.Value().value);
+        }
     } else if (property == HeightProperty.Handle()) {
         Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
-        if (decoded) layoutScalars_.height = decoded.Value();
+        if (decoded) {
+            layoutScalars_.hasHeight = !decoded.Value().isAuto;
+            layoutScalars_.height = decoded.Value().isAuto ? 0.0f : clampScalar(decoded.Value().value);
+        }
     } else if (property == MinWidthProperty.Handle()) {
         Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.minWidth = decoded.Value();
+        if (decoded) layoutScalars_.minWidth = clampScalar(decoded.Value());
     } else if (property == MaxWidthProperty.Handle()) {
         Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.maxWidth = decoded.Value();
+        if (decoded) layoutScalars_.maxWidth = clampScalar(decoded.Value());
     } else if (property == MinHeightProperty.Handle()) {
         Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.minHeight = decoded.Value();
+        if (decoded) layoutScalars_.minHeight = clampScalar(decoded.Value());
     } else if (property == MaxHeightProperty.Handle()) {
         Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.maxHeight = decoded.Value();
+        if (decoded) layoutScalars_.maxHeight = clampScalar(decoded.Value());
     } else if (property == MarginProperty.Handle()) {
         Base::Result<Thickness> decoded = Meta::ValueCodec<Thickness>::Decode(newValue);
         if (decoded) layoutScalars_.margin = decoded.Value();
@@ -579,22 +589,22 @@ Size FrameworkElement::GetMinSize() const noexcept {
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetHeight() const noexcept {
-    return layoutScalars_.height.isAuto ? 0.0 : layoutScalars_.height.value;
+    return layoutScalars_.hasHeight ? static_cast<double>(layoutScalars_.height) : 0.0;
 }
 
 // from src/gui/controls/Layout.cpp
 double FrameworkElement::GetWidth() const noexcept {
-    return layoutScalars_.width.isAuto ? 0.0 : layoutScalars_.width.value;
+    return layoutScalars_.hasWidth ? static_cast<double>(layoutScalars_.width) : 0.0;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasHeight() const noexcept {
-    return !layoutScalars_.height.isAuto;
+    return layoutScalars_.hasHeight;
 }
 
 // from src/gui/controls/Layout.cpp
 bool FrameworkElement::GetHasWidth() const noexcept {
-    return !layoutScalars_.width.isAuto;
+    return layoutScalars_.hasWidth;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -621,11 +631,15 @@ void FrameworkElement::SetUseLayoutRounding(
     double dpiScale) noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    if (!std::isfinite(dpiScale) || dpiScale <= 0.0) {
+    if (!std::isfinite(dpiScale) || dpiScale <= 0.0 || dpiScale > 1.0e6) {
         return;
     }
-    const bool scaleChanged = dpiScale_ != dpiScale;
-    dpiScale_ = dpiScale;
+    const float scale = static_cast<float>(dpiScale);
+    if (!std::isfinite(scale) || scale <= 0.0f) {
+        return;
+    }
+    const bool scaleChanged = layoutScalars_.dpiScale != scale;
+    layoutScalars_.dpiScale = scale;
     SetValue(UseLayoutRoundingProperty, enabled);
     if (scaleChanged && enabled) InvalidateMeasure();
 }

@@ -85,21 +85,14 @@ struct EnumReflector {
             std::integer_sequence<std::int64_t, (static_cast<std::int64_t>(Is) - 1)...>{});
     }
 
-    template <class E>
+    template <class E, std::size_t MaxContiguous = 32>
     static void RegisterEnumProbes(TypeBuilder<E>& builder) noexcept {
-        // 1. 扫描常用连续整数区间 [-1, 64]
-        RegisterEnumContiguous(builder, std::make_index_sequence<66>{});
-
-        // 2. 扫描常用位掩码 (1<<6 到 1<<30)
-        RegisterEnumSequence(builder, std::integer_sequence<std::int64_t,
-            (1LL << 6),  (1LL << 7),  (1LL << 8),  (1LL << 9),
-            (1LL << 10), (1LL << 11), (1LL << 12), (1LL << 13),
-            (1LL << 14), (1LL << 15), (1LL << 16), (1LL << 20),
-            (1LL << 24), (1LL << 28), (1LL << 30)>{});
+        // 扫描紧凑连续枚举区间 [-1, MaxContiguous]（覆盖全部 WPF 标准枚举）
+        RegisterEnumContiguous(builder, std::make_index_sequence<MaxContiguous + 2>{});
     }
 };
 
-template <class E>
+template <class E, std::size_t MaxContiguous = 32>
 Base::Result<void> AutoRegisterEnum(
     Registration& context,
     Base::StringView customName = {}) noexcept {
@@ -109,7 +102,7 @@ Base::Result<void> AutoRegisterEnum(
     }
     const Base::StringView name = customName.Empty() ? TypeTraits<E>::Name() : customName;
     auto builder = Register<E>(context, name);
-    EnumReflector::RegisterEnumProbes(builder);
+    EnumReflector::RegisterEnumProbes<E, MaxContiguous>(builder);
     return builder.Result();
 }
 

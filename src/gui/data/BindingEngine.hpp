@@ -294,6 +294,9 @@ public:
     bool IsFlushing() const noexcept {
         return flushing_;
     }
+    bool HasDirtyBindings() const noexcept {
+        return hasDirtyBindings_ || !dirtyQueue_.Empty() || !pollingQueue_.Empty();
+    }
     Meta::Registry* Metadata() const noexcept {
         return metadata_;
     }

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="Aero::Base::StringView">
+    <DisplayString>{data_,[size_]s8}</DisplayString>
+    <StringView>data_,[size_]s8</StringView>
+    <Expand>
+      <Item Name="[size]">size_</Item>
+      <Item Name="[data]">data_,[size_]s8</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Base::String">
+    <DisplayString>{data_,[size_]s8}</DisplayString>
+    <StringView>data_,[size_]s8</StringView>
+    <Expand>
+      <Item Name="[size]">size_</Item>
+      <Item Name="[capacity]">capacity_</Item>
+      <Item Name="[inline]">data_ == inlineStorage_</Item>
+      <Item Name="[data]">data_,[size_]s8</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Base::Ref&lt;*&gt;">
+    <SmartPointer Usage="Minimal">object_</SmartPointer>
+    <DisplayString Condition="object_ == nullptr">null</DisplayString>
+    <DisplayString>{*object_}</DisplayString>
+    <Expand>
+      <ExpandedItem Condition="object_ != nullptr">object_</ExpandedItem>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Base::Span&lt;*&gt;">
+    <DisplayString>{{ size={size_} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">size_</Item>
+      <ArrayItems>
+        <Size>size_</Size>
+        <ValuePointer>data_</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Base::BasicVector&lt;*,*&gt;">
+    <DisplayString>{{ size={size_}, capacity={capacity_} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">size_</Item>
+      <Item Name="[capacity]">capacity_</Item>
+      <ArrayItems>
+        <Size>size_</Size>
+        <ValuePointer>data_</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Base::Value">
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::Unset">Unset</DisplayString>
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::Boolean">{*(bool*)storage_.inlineData}</DisplayString>
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::SignedInteger">{*(__int64*)storage_.inlineData} (type={type_,x})</DisplayString>
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::UnsignedInteger">{*(unsigned __int64*)storage_.inlineData} (type={type_,x})</DisplayString>
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::Double">{*(double*)storage_.inlineData}</DisplayString>
+    <DisplayString Condition="(kind_ == Aero::Base::ValueKind::String || kind_ == Aero::Base::ValueKind::DynamicResource) &amp;&amp; isShortString_">{(const char*)storage_.inlineData,[stringLength_]s8}</DisplayString>
+    <DisplayString Condition="kind_ == Aero::Base::ValueKind::Object">{storage_.storage}</DisplayString>
+    <DisplayString>{{ kind={kind_}, type={type_,x} }}</DisplayString>
+    <Expand>
+      <Item Name="[kind]">kind_</Item>
+      <Item Name="[type]">type_,x</Item>
+      <Item Name="[inlineCustom]">inlineCustom_</Item>
+      <Item Name="[shortString]">isShortString_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::PropertyStore::Entries">
+    <DisplayString>{{ size={size_}, capacity={capacity_} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]">size_</Item>
+      <Item Name="[capacity]">capacity_</Item>
+      <ArrayItems>
+        <Size>size_</Size>
+        <ValuePointer>data_</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::DependencyObject">
+    <DisplayString>{{ runtimeType={runtimeType_,x}, invalidations={invalidations_} }}</DisplayString>
+    <Expand>
+      <Item Name="[runtimeType]">runtimeType_,x</Item>
+      <Item Name="[store]">(Aero::PropertyStore*)valueStore_</Item>
+      <Item Name="[inheritanceParent]">inheritanceParent_</Item>
+      <Item Name="[rare]">rare_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::UIElement">
+    <DisplayString>{{ renderSize=({layout_.renderSize.width}, {layout_.renderSize.height}), visibility={layout_.visibility} }}</DisplayString>
+    <Expand>
+      <Item Name="[desiredSize]">layout_.desiredSize</Item>
+      <Item Name="[renderSize]">layout_.renderSize</Item>
+      <Item Name="[layoutSlot]">layout_.layoutSlot</Item>
+      <Item Name="[opacity]">layout_.opacity</Item>
+      <Item Name="[visibility]">layout_.visibility</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::FrameworkElement">
+    <DisplayString>{{ actual=({layoutScalars_.actualWidth}, {layoutScalars_.actualHeight}), margin={layoutScalars_.margin} }}</DisplayString>
+    <Expand>
+      <Item Name="[width]" Condition="layoutScalars_.hasWidth">layoutScalars_.width</Item>
+      <Item Name="[height]" Condition="layoutScalars_.hasHeight">layoutScalars_.height</Item>
+      <Item Name="[actualWidth]">layoutScalars_.actualWidth</Item>
+      <Item Name="[actualHeight]">layoutScalars_.actualHeight</Item>
+      <Item Name="[margin]">layoutScalars_.margin</Item>
+      <Item Name="[horizontalAlignment]">layoutScalars_.horizontalAlignment</Item>
+      <Item Name="[verticalAlignment]">layoutScalars_.verticalAlignment</Item>
+      <Item Name="[templatedParent]">templatedParent_</Item>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

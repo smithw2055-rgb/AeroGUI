@@ -207,8 +207,12 @@ private:
         const PropertyValue& newValue) noexcept;
 
     void RemoveChangeHandler(std::uint32_t index) noexcept;
-    std::uint32_t StyleApplicationIndex() const noexcept { return styleAppIndex_; }
-    void SetStyleApplicationIndex(std::uint32_t index) noexcept { styleAppIndex_ = index; }
+    std::uint32_t StyleApplicationIndex() const noexcept {
+        return styleAppIndex_ == UINT16_MAX ? UINT32_MAX : static_cast<std::uint32_t>(styleAppIndex_);
+    }
+    void SetStyleApplicationIndex(std::uint32_t index) noexcept {
+        styleAppIndex_ = index >= UINT16_MAX ? UINT16_MAX : static_cast<std::uint16_t>(index);
+    }
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     Base::Ref<Meta::RegistryLifetime> registryLifetime_;
@@ -217,10 +221,10 @@ private:
     DependencyObject* inheritanceParent_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
     std::uint32_t unmaterializedQueueMask_ = 0U;
-    std::uint32_t styleAppIndex_ = UINT32_MAX;
+    std::uint16_t styleAppIndex_ = UINT16_MAX;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
-    bool objectServicesAvailable_ = false;
-    mutable bool typeVerified_ = false;
+    bool objectServicesAvailable_ : 1;
+    mutable bool typeVerified_ : 1;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(

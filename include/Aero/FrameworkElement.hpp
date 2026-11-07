@@ -207,7 +207,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(Ref<Media::Transform>, LayoutTransform);
     AERO_DEPENDENCY_PROPERTY(Ref<Media::Brush>, Foreground);
 
-    double GetDpiScale() const noexcept { return dpiScale_; }
+    double GetDpiScale() const noexcept { return static_cast<double>(layoutScalars_.dpiScale); }
     DependencyObject* GetTemplatedParent() const noexcept { return templatedParent_; }
 
 protected:
@@ -256,18 +256,21 @@ private:
     friend class FrameworkElementSeams;
 
     struct LayoutScalars {
-        Length width{};
-        Length height{};
-        double minWidth = 0.0;
-        double maxWidth = 1.0e12;
-        double minHeight = 0.0;
-        double maxHeight = 1.0e12;
+        float width = 0.0f;
+        float height = 0.0f;
+        float minWidth = 0.0f;
+        float maxWidth = 1.0e12f;
+        float minHeight = 0.0f;
+        float maxHeight = 1.0e12f;
         float actualWidth = 0.0f;
         float actualHeight = 0.0f;
         Thickness margin{};
+        float dpiScale = 1.0f;
         HorizontalAlignment horizontalAlignment = HorizontalAlignment::Stretch;
         VerticalAlignment verticalAlignment = VerticalAlignment::Stretch;
         FlowDirection flowDirection = FlowDirection::LeftToRight;
+        bool hasWidth = false;
+        bool hasHeight = false;
         bool useLayoutRounding = false;
         bool snapsToDevicePixels = false;
         bool hasLayoutTransform = false;
@@ -308,7 +311,6 @@ private:
 
     LayoutScalars layoutScalars_{};
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
-    double dpiScale_ = 1.0;
     DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
     FrameworkRare* frameworkRare_ = nullptr;

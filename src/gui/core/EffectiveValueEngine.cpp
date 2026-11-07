@@ -243,10 +243,17 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
     const TypeInfo* info = typeRegistry_->FindType(forType);
     if (info != nullptr && !info->AncestorChain().Empty()) {
         if (metadata_.Size() == 1U) {
-            for (TypeId current : info->AncestorChain()) {
-                if (current == registeredOwnerType_) {
+            const TypeInfo* ownerInfo = typeRegistry_->FindType(registeredOwnerType_);
+            if (ownerInfo != nullptr && info->TreeIn() != 0U && ownerInfo->TreeIn() != 0U) {
+                if (info->IsSubtreeOf(*ownerInfo)) {
                     result = &metadata_[0].metadata;
-                    break;
+                }
+            } else {
+                for (TypeId current : info->AncestorChain()) {
+                    if (current == registeredOwnerType_) {
+                        result = &metadata_[0].metadata;
+                        break;
+                    }
                 }
             }
         } else {
@@ -1035,7 +1042,8 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       runtimeType_(runtimeType),
       valueStore_(nullptr),
       rare_(nullptr),
-      objectServicesAvailable_(HasObjectFactory()) {
+      objectServicesAvailable_(HasObjectFactory()),
+      typeVerified_(false) {
     AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
 }
 

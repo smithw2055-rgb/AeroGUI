@@ -1212,4 +1212,15 @@ Base::Result<void> PopulateAnimationTypes(
     return {};
 }
 
+void PopulateAnimationEnums(
+    Meta::Registration& context) noexcept {
+    using namespace Media::Animation;
+    using Media::Animation::FillBehavior;
+    using Media::Animation::EasingMode;
+
+    AERO_AUTO_REGISTER_ENUM(FillBehavior);
+    AERO_AUTO_REGISTER_ENUM(EasingMode);
+    AERO_AUTO_REGISTER_NAMED_ENUM(ControlStoryboardAction::Option, "ControlStoryboardOption");
+}
+
 } // namespace Aero

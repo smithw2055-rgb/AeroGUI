@@ -35,13 +35,29 @@ namespace Aero {
 BindingEngine* ElementTree::BindingsOf(const DependencyObject& object) noexcept {
     const DependencyObject* current = &object;
     for (std::uint32_t depth = 0U; depth < 32U && current != nullptr; ++depth) {
-        if (const UIElement* element = TryCast<const UIElement>(current)) {
-            if (ElementTree* tree = Of(*element)) {
+        if (const Media::Visual* visual = TryCast<const Media::Visual>(current)) {
+            if (ElementTree* tree = Of(*visual)) {
                 return tree->Bindings();
             }
+            if (const DependencyObject* logical = visual->GetLogicalParent()) {
+                current = logical;
+                continue;
+            }
+            if (const FrameworkElement* fe = TryCast<const FrameworkElement>(visual)) {
+                if (const DependencyObject* templated = fe->GetTemplatedParent()) {
+                    current = templated;
+                    continue;
+                }
+            }
+            current = visual->GetVisualParent();
+            continue;
         }
         if (const Freezable* freezable = TryCast<const Freezable>(current)) {
             current = freezable->Parent();
+            continue;
+        }
+        if (const DependencyObject* inherited = current->inheritanceParent_) {
+            current = inherited;
             continue;
         }
         current = LogicalTreeHelper::GetParent(*current);
@@ -235,32 +251,24 @@ Media::PointHitTestResult Media::VisualTreeHelper::HitTest(
 
 DependencyObject* LogicalTreeHelper::GetParent(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return static_cast<const FrameworkContentElement&>(object).GetParent();
+    if (const auto* visual = ::Aero::TryCast<Media::Visual>(&object)) {
+        return visual->GetLogicalParent();
     }
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkElement::StaticTypeId())) {
-        return static_cast<const FrameworkElement&>(object).GetParent();
-    }
-    if (types.IsDerivedFrom(object.RuntimeType(), Media::Visual::StaticTypeId())) {
-        return static_cast<const ::Aero::Media::Visual&>(object).GetLogicalParent();
+    if (const auto* ce = ::Aero::TryCast<ContentElement>(&object)) {
+        return ce->GetParent();
     }
     return nullptr;
 }
 
 std::uint32_t LogicalTreeHelper::GetChildrenCount(
     const DependencyObject& object) noexcept {
-    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return (static_cast<const FrameworkContentElement&>(object)).LogicalChildCount();
+    if (const auto* fe = ::Aero::TryCast<FrameworkElement>(&object)) {
+        return fe->GetLogicalChildrenCount();
     }
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkElement::StaticTypeId())) {
-        return static_cast<const FrameworkElement&>(object)
-            .GetLogicalChildrenCount();
+    if (::Aero::TryCast<ContentElement>(&object) != nullptr) {
+        if (const auto* fce = ::Aero::TryCast<FrameworkContentElement>(&object)) {
+            return fce->LogicalChildCount();
+        }
     }
     return 0U;
 }
@@ -268,15 +276,13 @@ std::uint32_t LogicalTreeHelper::GetChildrenCount(
 DependencyObject* LogicalTreeHelper::GetChild(
     const DependencyObject& object,
     std::uint32_t index) noexcept {
-    const TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkContentElement::StaticTypeId())) {
-        return (static_cast<const FrameworkContentElement&>(object)).LogicalChildAt( index);
+    if (const auto* fe = ::Aero::TryCast<FrameworkElement>(&object)) {
+        return fe->GetLogicalChild(index);
     }
-    if (types.IsDerivedFrom(
-            object.RuntimeType(), FrameworkElement::StaticTypeId())) {
-        return static_cast<const FrameworkElement&>(object)
-            .GetLogicalChild(index);
+    if (::Aero::TryCast<ContentElement>(&object) != nullptr) {
+        if (const auto* fce = ::Aero::TryCast<FrameworkContentElement>(&object)) {
+            return fce->LogicalChildAt(index);
+        }
     }
     return nullptr;
 }

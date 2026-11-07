@@ -30,8 +30,7 @@ set(_aero_gui_data_sources
     src/gui/data/BindingEngine.cpp
     src/gui/data/BindingExpression.cpp
     src/gui/data/NotifyPropertyChanged.cpp
-    src/gui/data/CollectionView.cpp
-    src/gui/data/DataEnumsDescribe.cpp)
+    src/gui/data/CollectionView.cpp)
 
 set(_aero_gui_styles_sources
     src/gui/styles/Resources.cpp
@@ -47,8 +46,7 @@ set(_aero_gui_input_sources
     src/gui/input/DragDrop.cpp
     src/gui/input/Clipboard.cpp
     src/gui/input/OverlayHost.cpp
-    src/gui/input/FocusHost.cpp
-    src/gui/input/InputEnumsDescribe.cpp)
+    src/gui/input/FocusHost.cpp)
 
 set(_aero_gui_triggers_sources
     src/gui/triggers/Triggers.cpp
@@ -58,8 +56,7 @@ set(_aero_gui_triggers_sources
 set(_aero_gui_interactivity_sources
     src/gui/interactivity/Interactivity.cpp
     src/gui/interactivity/InteractivityEngine.cpp
-    src/gui/interactivity/BlendBehaviors.cpp
-    src/gui/interactivity/InteractivityEnumsDescribe.cpp)
+    src/gui/interactivity/BlendBehaviors.cpp)
 
 set(_aero_gui_media_sources
     src/gui/media/AnimationEngine.cpp
@@ -81,9 +78,7 @@ set(_aero_gui_media_sources
     src/gui/media/AnimationPathResolver.cpp
     src/gui/media/StoryboardHost.cpp
     src/gui/media/StoryboardClock.cpp
-    src/gui/media/StoryboardActions.cpp
-    src/gui/media/AnimationEnumsDescribe.cpp
-    src/gui/media/MediaEnumsDescribe.cpp)
+    src/gui/media/StoryboardActions.cpp)
 
 set(_aero_gui_controls_sources
     src/gui/controls/RichText.cpp
@@ -102,8 +97,7 @@ set(_aero_gui_controls_sources
     src/gui/controls/TextBox.cpp
     src/gui/controls/TextBlock.cpp
     src/gui/controls/TreeView.cpp
-    src/gui/controls/VirtualizingPanels.cpp
-    src/gui/controls/ControlsEnumsDescribe.cpp)
+    src/gui/controls/VirtualizingPanels.cpp)
 
 set(_aero_gui_markup_sources
     src/gui/markup/XamlBytecode.cpp
@@ -124,8 +118,7 @@ set(_aero_gui_text_sources
     src/gui/text/TextPipeline.cpp
     src/gui/text/TextTypes.cpp
     src/gui/text/freetype/FreeTypeAdapter.cpp
-    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp
-    src/gui/text/TextEnumsDescribe.cpp)
+    src/gui/text/harfbuzz/HarfBuzzAdapter.cpp)
 
 set(_aero_gui_diagnostics_sources
     src/gui/diagnostics/Diagnostics.cpp
@@ -141,8 +134,7 @@ set(_aero_gui_documents_sources
 
 set(_aero_gui_shapes_sources
     src/gui/shapes/Path.cpp
-    src/gui/shapes/Shapes.cpp
-    src/gui/shapes/ShapesEnumsDescribe.cpp)
+    src/gui/shapes/Shapes.cpp)
 
 set(_aero_gui_render_contract_sources
     src/gui/media/DrawingContext.cpp
@@ -211,7 +203,8 @@ source_group("gui\\headers" FILES ${_aero_gui_internal_headers})
 add_library(AeroGui ${AERO_LIBRARY_TYPE}
     ${_aero_gui_sources}
     ${_aero_gui_inlines}
-    ${_aero_gui_internal_headers})
+    ${_aero_gui_internal_headers}
+    "$<$<CXX_COMPILER_ID:MSVC>:${CMAKE_CURRENT_SOURCE_DIR}/AeroGUI.natvis>")
 add_library(Aero::Gui ALIAS AeroGui)
 target_include_directories(AeroGui
     PUBLIC

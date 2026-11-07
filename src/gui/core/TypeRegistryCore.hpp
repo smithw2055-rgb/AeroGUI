@@ -109,7 +109,9 @@ public:
         , contentMember_(other.contentMember_)
         , ancestorChain_(std::move(other.ancestorChain_))
         , ancestorIndices_(std::move(other.ancestorIndices_))
-        , rare_(other.rare_) {
+        , rare_(other.rare_)
+        , treeIn_(other.treeIn_)
+        , treeOut_(other.treeOut_) {
         other.rare_ = nullptr;
     }
 
@@ -130,6 +132,8 @@ public:
             ancestorChain_ = std::move(other.ancestorChain_);
             ancestorIndices_ = std::move(other.ancestorIndices_);
             rare_ = other.rare_;
+            treeIn_ = other.treeIn_;
+            treeOut_ = other.treeOut_;
             other.rare_ = nullptr;
         }
         return *this;
@@ -174,6 +178,13 @@ public:
     Base::Span<const std::uint32_t> AncestorIndices() const noexcept {
         return {ancestorIndices_.Data(), ancestorIndices_.Size()};
     }
+    std::uint16_t TreeIn() const noexcept { return treeIn_; }
+    std::uint16_t TreeOut() const noexcept { return treeOut_; }
+    bool IsSubtreeOf(const TypeInfo& ancestor) const noexcept {
+        return treeIn_ != 0U && ancestor.treeIn_ != 0U &&
+            static_cast<std::uint32_t>(treeIn_) - static_cast<std::uint32_t>(ancestor.treeIn_) <=
+            static_cast<std::uint32_t>(ancestor.treeOut_) - static_cast<std::uint32_t>(ancestor.treeIn_);
+    }
 private:
     friend class TypeRegistry;
     TypeInfo() noexcept = default;
@@ -197,6 +208,8 @@ private:
     Base::Vector<TypeId> ancestorChain_;
     Base::Vector<std::uint32_t> ancestorIndices_;
     TypeRareData* rare_ = nullptr;
+    std::uint16_t treeIn_ = 0U;
+    std::uint16_t treeOut_ = 0U;
 };
 
 class TypeRegistry {
@@ -288,10 +301,16 @@ private:
     Base::Result<void> SetFactory(BehaviorTable& behaviors, TypeId type, ObjectFactory factory) noexcept;
     Base::Result<void> SetContentMember(TypeId type, MemberId member) noexcept;
     struct MemberLocation { std::uint32_t typeIndex = 0U; std::uint32_t memberIndex = 0U; MemberKind kind = MemberKind::Property; };
+    struct FlatTypeSlot {
+        TypeId id = InvalidTypeId;
+        std::uint32_t index = UINT32_MAX;
+    };
     Base::Vector<TypeInfo> types_;
     Base::HashMap<TypeId, std::uint32_t> typeIndex_;
+    Base::Vector<FlatTypeSlot> flatTypeIndex_;
     Base::HashMap<MemberId, MemberLocation> memberIndex_;
     bool frozen_ = false;
+    void RebuildFlatTypeIndex() noexcept;
     TypeInfo* MutableType(TypeId id) noexcept;
     const TypeInfo* TypeAt(std::uint32_t index) const noexcept;
     const PropertyInfo* PropertyAt(const MemberLocation& location) const noexcept;

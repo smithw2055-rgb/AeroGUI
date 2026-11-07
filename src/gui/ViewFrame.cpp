@@ -97,10 +97,14 @@ void ViewFrame::TrackItemsControl(Controls::ItemsControl& itemsControl) noexcept
     }
 
 void ViewFrame::UntrackVisualNode(const Aero::Media::Visual& node) noexcept {
+        if (trackedItemsControls.Empty()) return;
         for (std::uint32_t i = 0U; i < trackedItemsControls.Size(); ++i) {
             if (static_cast<const void*>(trackedItemsControls[i]) ==
                 static_cast<const void*>(&node)) {
                 trackedItemsControls.Erase(i);
+                if (trackedItemsControls.Empty()) {
+                    hasUnattachedItemsControls = false;
+                }
                 break;
             }
         }
@@ -210,13 +214,7 @@ Base::Result<void> ResourceHost::RebuildDynamicEnvironment() noexcept {
     }
 
 Aero::Media::Visual* ViewFrame::RootVisual() noexcept {
-        if (!root) return nullptr;
-        if (!metadata->Types().IsDerivedFrom(
-                root->RuntimeType(),
-                Aero::Media::Visual::StaticTypeId())) {
-            return nullptr;
-        }
-        return static_cast<Aero::Media::Visual*>(root.Get());
+        return root ? ::Aero::TryCast<Aero::Media::Visual>(root.Get()) : nullptr;
     }
 
 Aero::Media::Visual* ViewFrame::ResolveVisual(
@@ -932,17 +930,21 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         Aero::BindingEngine::DataBindHook(state.Bindings());
     }
     {
-        if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
-            Base::Result<void> generators =
-                state.AttachPendingItemGenerators(*rootVisual);
-            if (!generators) {
-                return generators.GetStatus();
+        if (!state.trackedItemsControls.Empty()) {
+            if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
+                Base::Result<void> generators =
+                    state.AttachPendingItemGenerators(*rootVisual);
+                if (!generators) {
+                    return generators.GetStatus();
+                }
             }
         }
-        Base::Result<void> generatedVisualsFlushed =
-            state.FlushGeneratedVisuals();
-        if (!generatedVisualsFlushed) {
-            return generatedVisualsFlushed.GetStatus();
+        if (!state.pendingGeneratedVisuals.Empty()) {
+            Base::Result<void> generatedVisualsFlushed =
+                state.FlushGeneratedVisuals();
+            if (!generatedVisualsFlushed) {
+                return generatedVisualsFlushed.GetStatus();
+            }
         }
         if (state.Styles() != nullptr) {
             state.Styles()->Flush();
@@ -1037,7 +1039,8 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
         }
         if (state.Layout() != nullptr &&
             state.Layout()->Diagnostics().arrangedCount != 0U) {
-            if (!flushedGeneratedAfterLayout && state.Bindings() != nullptr) {
+            if (!flushedGeneratedAfterLayout && state.Bindings() != nullptr &&
+                state.Bindings()->HasDirtyBindings()) {
                 Base::Result<std::uint32_t> rebound =
                     state.Bindings()->Flush();
                 if (!rebound) return rebound.GetStatus();

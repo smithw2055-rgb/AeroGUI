@@ -783,6 +783,8 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         TypeInfo& type = types_[selfIndex];
         type.ancestorChain_.Clear();
         type.ancestorIndices_.Clear();
+        type.treeIn_ = 0U;
+        type.treeOut_ = 0U;
         std::uint32_t currentIdx = selfIndex;
         for (std::uint32_t depth = 0U; depth <= types_.Size(); ++depth) {
             const TypeInfo& info = types_[currentIdx];
@@ -795,8 +797,67 @@ Base::Result<void> TypeRegistry::Freeze() noexcept {
         }
     }
 
+    // Build DFS Euler tour interval [treeIn_, treeOut_] for O(1) hierarchy checks.
+    const std::uint32_t n = types_.Size();
+    if (n > 0U && n < 0xFFFEU) {
+        Base::Vector<std::uint32_t> head;
+        Base::Vector<std::uint32_t> nextSibling;
+        head.Resize(n, UINT32_MAX);
+        nextSibling.Resize(n, UINT32_MAX);
+        if (head.Size() == n && nextSibling.Size() == n) {
+            for (std::uint32_t i = 0U; i < n; ++i) {
+                const TypeId baseId = types_[i].BaseType();
+                if (baseId != InvalidTypeId) {
+                    if (const std::uint32_t* bIdx = typeIndex_.Find(baseId)) {
+                        nextSibling[i] = head[*bIdx];
+                        head[*bIdx] = i;
+                    }
+                }
+            }
+            std::uint16_t timer = 0U;
+            auto dfs = [&](auto& self, std::uint32_t u) noexcept -> void {
+                types_[u].treeIn_ = ++timer;
+                for (std::uint32_t c = head[u]; c != UINT32_MAX; c = nextSibling[c]) {
+                    self(self, c);
+                }
+                types_[u].treeOut_ = timer;
+            };
+            for (std::uint32_t i = 0U; i < n; ++i) {
+                if (types_[i].BaseType() == InvalidTypeId) {
+                    dfs(dfs, i);
+                }
+            }
+        }
+    }
+
+    RebuildFlatTypeIndex();
     frozen_ = true;
     return {};
+}
+
+void TypeRegistry::RebuildFlatTypeIndex() noexcept {
+    flatTypeIndex_.Clear();
+    const std::uint32_t count = types_.Size();
+    if (count == 0U) return;
+    std::uint32_t cap = 64U;
+    while (cap < count * 4U) {
+        cap <<= 1U;
+    }
+    flatTypeIndex_.Resize(cap);
+    if (flatTypeIndex_.Size() < cap) {
+        flatTypeIndex_.Clear();
+        return;
+    }
+    const std::uint32_t mask = cap - 1U;
+    for (std::uint32_t i = 0U; i < count; ++i) {
+        const TypeId id = types_[i].Id();
+        std::uint32_t slot = static_cast<std::uint32_t>(id ^ (id >> 32U)) & mask;
+        while (flatTypeIndex_[slot].id != InvalidTypeId) {
+            slot = (slot + 1U) & mask;
+        }
+        flatTypeIndex_[slot].id = id;
+        flatTypeIndex_[slot].index = i;
+    }
 }
 
 Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
@@ -904,6 +965,17 @@ Base::Result<Base::HashCode> TypeRegistry::ComputeHash() const noexcept {
 }
 
 const TypeInfo* TypeRegistry::FindType(TypeId id) const noexcept {
+    if (id == InvalidTypeId) return nullptr;
+    if (!flatTypeIndex_.Empty()) {
+        const std::uint32_t mask = flatTypeIndex_.Size() - 1U;
+        std::uint32_t slot = static_cast<std::uint32_t>(id ^ (id >> 32U)) & mask;
+        for (;;) {
+            const FlatTypeSlot& entry = flatTypeIndex_[slot];
+            if (entry.id == id) return &types_[entry.index];
+            if (entry.id == InvalidTypeId) return nullptr;
+            slot = (slot + 1U) & mask;
+        }
+    }
     const std::uint32_t* index = typeIndex_.Find(id);
     return index != nullptr ? TypeAt(*index) : nullptr;
 }
@@ -1142,6 +1214,10 @@ bool TypeRegistry::IsDerivedFrom(
     if (info == nullptr) return false;
 
     if (frozen_) {
+        const TypeInfo* baseInfo = FindType(expectedBase);
+        if (baseInfo != nullptr && info->TreeIn() != 0U && baseInfo->TreeIn() != 0U) {
+            return info->IsSubtreeOf(*baseInfo);
+        }
         for (TypeId ancestor : info->ancestorChain_) {
             if (ancestor == expectedBase) return true;
         }

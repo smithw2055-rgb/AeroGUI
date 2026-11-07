@@ -154,7 +154,7 @@ constexpr bool HasFlag(DependencyPropertyFlags value, DependencyPropertyFlags fl
     return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
 }
 
-enum class PropertyInvalidationFlags : std::uint32_t {
+enum class PropertyInvalidationFlags : std::uint8_t {
     None = 0U,
     Measure = 1U << 0U, Arrange = 1U << 1U, Render = 1U << 2U, Inheritance = 1U << 3U,
     ParentMeasure = 1U << 4U, ParentArrange = 1U << 5U
@@ -162,7 +162,7 @@ enum class PropertyInvalidationFlags : std::uint32_t {
 
 constexpr PropertyInvalidationFlags operator|(PropertyInvalidationFlags left,
     PropertyInvalidationFlags right) noexcept {
-    return static_cast<PropertyInvalidationFlags>(static_cast<std::uint32_t>(left) | static_cast<std::uint32_t>(right));
+    return static_cast<PropertyInvalidationFlags>(static_cast<std::uint8_t>(left) | static_cast<std::uint8_t>(right));
 }
 
 inline PropertyInvalidationFlags& operator|=(PropertyInvalidationFlags& left,
@@ -172,7 +172,7 @@ inline PropertyInvalidationFlags& operator|=(PropertyInvalidationFlags& left,
 }
 
 constexpr bool HasFlag(PropertyInvalidationFlags value, PropertyInvalidationFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) & static_cast<std::uint32_t>(flag)) != 0U;
+    return (static_cast<std::uint8_t>(value) & static_cast<std::uint8_t>(flag)) != 0U;
 }
 
 class DependencyPropertyChangedEventArgs {
@@ -400,9 +400,4 @@ using Meta::ValueCodec;
 #define AERO_DEPENDENCY_PROPERTY_INLINE(type, name) AERO_DEPENDENCY_PROPERTY2(type, name)
 #define AERO_READONLY_PROPERTY_INLINE(type, name) AERO_READONLY_PROPERTY2(type, name)
 #define AERO_ATTACHED_PROPERTY_INLINE(type, name) AERO_ATTACHED_PROPERTY2(type, name)
-
-// Backward compatibility aliases
-#define AERO_DEPENDENCY_PROPERTY_WITH_ACCESSORS(type, name) AERO_DEPENDENCY_PROPERTY2(type, name)
-#define AERO_READONLY_PROPERTY_WITH_ACCESSORS(type, name) AERO_READONLY_PROPERTY2(type, name)
-
 

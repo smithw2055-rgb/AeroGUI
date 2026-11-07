@@ -484,3 +484,16 @@ AERO_DESCRIBE(Interaction) {
 
 } // namespace Aero::Interactivity
 
+#include "gui/core/EnumRegistration.hpp"
+
+namespace Aero {
+
+void PopulateInteractivityEnums(
+    Meta::Registration& context) noexcept {
+    using namespace Interactivity;
+
+    AERO_AUTO_REGISTER_NAMED_ENUM(ComparisonCondition::Operator, "ComparisonConditionOperator");
+    AERO_AUTO_REGISTER_NAMED_ENUM(ConditionalExpression::ForwardChaining, "ForwardChaining");
+}
+
+} // namespace Aero

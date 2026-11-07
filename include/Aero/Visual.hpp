@@ -203,8 +203,8 @@ private:
     Visual* firstVisualChild_ = nullptr;
     Visual* nextVisualSibling_ = nullptr;
     Visual* prevVisualSibling_ = nullptr;
-    Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
     std::uint64_t renderRevision_ = 0U;
+    Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
     void UpdateSubtreeDepth(std::uint16_t depth) noexcept;
