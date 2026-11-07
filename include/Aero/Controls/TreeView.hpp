@@ -67,18 +67,10 @@ protected:
 private:
     friend class ItemsControl;
     friend class TreeView;
-    TextBlock* headerText_ = nullptr;
-    TextBlock* iconText_ = nullptr;
-    TextBlock* expanderGlyph_ = nullptr;
-    ItemsControl* childItems_ = nullptr;
-    UIElement* itemsBorder_ = nullptr;
-    UIElement* itemsHostPresenter_ = nullptr;
-    Primitives::ToggleButton* expandButton_ = nullptr;
-    Ref<Base::Object> hierarchicalItemsSource_;
-    Ref<Data::Binding> hierarchicalItemsBinding_;
-    Ref<Base::Object> hierarchicalBindingSource_;
-    Ref<DataTemplate> hierarchicalItemTemplate_;
-    Base::Delegate<void(Base::Object*, RoutedEventArgs&)> expandClickHandler_;
+    struct TreeItemRare;
+    TreeItemRare* EnsureItemRare() noexcept;
+
+    TreeItemRare* itemRare_ = nullptr;
     bool expanderGestureActive_ = false;
     bool expanderGestureTarget_ = false;
     bool expanderGestureArmed_ = false;

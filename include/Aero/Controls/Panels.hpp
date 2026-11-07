@@ -67,7 +67,7 @@ private:
     UIElementCollection children_;
     Base::Vector<Ref<Base::Object>> ownedChildren_;
     mutable Base::Ref<Base::Object> childrenView_;
-    mutable Base::Vector<UIElement*> zOrderCache_;
+    mutable Base::Vector<UIElement*>* zOrderCache_ = nullptr;
     mutable bool zOrderDirty_ = true;
     void EnsureZOrderCache() const noexcept;
     void NotifyChildrenViewReset() noexcept;

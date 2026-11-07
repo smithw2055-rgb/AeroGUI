@@ -789,8 +789,7 @@ void HeaderedContentControl::OnApplyTemplate() noexcept {
 // ============================================================================
 
 Expander::Expander() noexcept
-    : HeaderedContentControl(StaticTypeId()),
-      headerCheckedHandler_(this, &Expander::OnHeaderCheckedChanged) {}
+    : HeaderedContentControl(StaticTypeId()) {}
 
 Expander::~Expander() {
     UnbindHeaderToggle();
@@ -863,7 +862,7 @@ void Expander::UnbindHeaderToggle() noexcept {
     }
     static_cast<void>(headerToggle_->RemoveValueChangedHandler(
         ToggleButton::IsCheckedProperty,
-        headerCheckedHandler_));
+        DependencyPropertyChangedEventHandler(this, &Expander::OnHeaderCheckedChanged)));
     headerToggle_ = nullptr;
 }
 
@@ -895,7 +894,7 @@ void Expander::BindHeaderToggle() noexcept {
     }
     static_cast<void>(headerToggle_->AddValueChangedHandler(
         ToggleButton::IsCheckedProperty,
-        headerCheckedHandler_));
+        DependencyPropertyChangedEventHandler(this, &Expander::OnHeaderCheckedChanged)));
     const Nullable<bool> isChecked = headerToggle_->GetIsChecked();
     const bool checked = isChecked.GetHasValue() ? isChecked.GetValue() : false;
     if (checked != GetIsExpanded()) {

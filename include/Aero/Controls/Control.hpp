@@ -379,7 +379,6 @@ protected:
     Size ArrangeOverride(Size finalSize) noexcept override;
 
 private:
-    DependencyPropertyChangedEventHandler headerCheckedHandler_;
     Primitives::ToggleButton* headerToggle_ = nullptr;
     bool synchronizingHeader_ = false;
     void OnHeaderCheckedChanged(DependencyObject& sender, const DependencyPropertyChangedEventArgs& args) noexcept;

@@ -47,7 +47,7 @@ public:
     ~Setter() override = default;
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
-    const PropertyValue& GetValue() const noexcept { return !value_.IsUnset() ? value_ : authoredValue_; }
+    const PropertyValue& GetValue() const noexcept { return value_; }
     void SetProperty(DependencyPropertyHandle value) noexcept {
         if (!value.IsValid()) return;
         property_ = value;
@@ -75,8 +75,8 @@ public:
     void SetTargetName(StringView value) noexcept;
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     StringView GetTargetName() const noexcept { return targetName_.View(); }
-    const PropertyValue& GetAuthoredValue() const noexcept { return !authoredValue_.IsUnset() ? authoredValue_ : value_; }
-    bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && (!authoredValue_.IsUnset() || !value_.IsUnset()); }
+    const PropertyValue& GetAuthoredValue() const noexcept { return value_; }
+    bool GetIsAuthored() const noexcept { return !propertyName_.Empty() && !value_.IsUnset(); }
     void ReleaseAuthored() noexcept;
 
 private:
@@ -91,7 +91,6 @@ private:
     PropertyValue value_;
     Base::String propertyName_;
     Base::String targetName_;
-    PropertyValue authoredValue_;
 };
 
 class AERO_GUI_API TriggerBase : public Base::Object {
@@ -101,28 +100,24 @@ public:
     TypeId RuntimeType() const noexcept override { return runtimeType_; }
     void AddEnterAction(Ref<Base::Object> action) noexcept;
     void AddExitAction(Ref<Base::Object> action) noexcept;
-    void ClearEnterActions() noexcept { enterActions_.Clear(); }
-    void ClearExitActions() noexcept { exitActions_.Clear(); }
-    Span<const Ref<Base::Object>> GetEnterActions() const noexcept {
-        return {enterActions_.Data(), enterActions_.Size()};
-    }
-    Span<const Ref<Base::Object>> GetExitActions() const noexcept { return {exitActions_.Data(), exitActions_.Size()}; }
-    void AddBehavior(Ref<Base::Object> behavior) noexcept {
-        if (!behavior) { AERO_ASSERT(false); return; }
-        behaviors_.PushBack(std::move(behavior));
-    }
-    void ClearBehaviors() noexcept { behaviors_.Clear(); }
-    Span<const Ref<Base::Object>> GetBehaviors() const noexcept { return {behaviors_.Data(), behaviors_.Size()}; }
+    void ClearEnterActions() noexcept;
+    void ClearExitActions() noexcept;
+    Span<const Ref<Base::Object>> GetEnterActions() const noexcept;
+    Span<const Ref<Base::Object>> GetExitActions() const noexcept;
+    void AddBehavior(Ref<Base::Object> behavior) noexcept;
+    void ClearBehaviors() noexcept;
+    Span<const Ref<Base::Object>> GetBehaviors() const noexcept;
 
 protected:
     explicit TriggerBase(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
-    ~TriggerBase() override = default;
+    ~TriggerBase() override;
 
 private:
+    struct ActionStorage;
+    ActionStorage* EnsureActions() noexcept;
+
     TypeId runtimeType_ = StaticTypeId();
-    Base::Vector<Ref<Base::Object>> enterActions_;
-    Base::Vector<Ref<Base::Object>> exitActions_;
-    Base::Vector<Ref<Base::Object>> behaviors_;
+    ActionStorage* actionStorage_ = nullptr;
 };
 
 class AERO_GUI_API SetterTriggerBase : public TriggerBase {
@@ -189,7 +184,7 @@ public:
     ~Trigger() override = default;
 
     DependencyPropertyHandle GetProperty() const noexcept { return property_; }
-    const PropertyValue& GetValue() const noexcept { return !value_.IsUnset() ? value_ : authoredValue_; }
+    const PropertyValue& GetValue() const noexcept { return value_; }
     void SetProperty(DependencyPropertyHandle value) noexcept;
     void SetValue(const PropertyValue& value) noexcept;
     void AddSetter(const Setter& setter) noexcept;
@@ -197,17 +192,15 @@ public:
     StringView GetSourceName() const noexcept { return sourceName_.View(); }
     void SetSourceName(StringView value) noexcept;
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
-    const PropertyValue& GetAuthoredValue() const noexcept { return !authoredValue_.IsUnset() ? authoredValue_ : value_; }
+    const PropertyValue& GetAuthoredValue() const noexcept { return value_; }
     bool GetIsAuthored() const noexcept {
-        return (!propertyName_.Empty() || property_.IsValid()) &&
-               (!authoredValue_.IsUnset() || !value_.IsUnset());
+        return (!propertyName_.Empty() || property_.IsValid()) && !value_.IsUnset();
     }
     void ReleaseAuthored() noexcept {
         property_ = {};
         value_ = {};
         propertyName_.Clear();
         sourceName_.Clear();
-        authoredValue_ = {};
     }
 
 private:
@@ -221,7 +214,6 @@ private:
     PropertyValue value_;
     String propertyName_;
     String sourceName_;
-    PropertyValue authoredValue_;
 };
 
 class AERO_GUI_API DataTrigger : public SetterTriggerBase {
@@ -305,11 +297,8 @@ public:
     Span<const Ref<Interactivity::TriggerAction>> GetActions() const noexcept {
         return {actions_.Data(), actions_.Size()};
     }
-    void AddConditionBehavior(Ref<Base::Object> value) noexcept { behaviors_.PushBack(std::move(value)); }
-    void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
-    Span<const Ref<Base::Object>> GetBehaviors() const noexcept {
-        return {behaviors_.Data(), behaviors_.Size()};
-    }
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept { AddBehavior(std::move(value)); }
+    void ClearConditionBehaviors() noexcept { ClearBehaviors(); }
 
 protected:
     explicit EventTrigger(Meta::TypeId runtimeType) noexcept : TriggerBase(runtimeType) {}
@@ -318,7 +307,6 @@ private:
     String routedEvent_;
     String sourceName_;
     Base::Vector<Ref<Interactivity::TriggerAction>> actions_;
-    Base::Vector<Ref<Base::Object>> behaviors_;
 };
 
 } // namespace Aero

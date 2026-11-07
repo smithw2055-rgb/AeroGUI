@@ -536,7 +536,8 @@ private:
 };
 
 Panel::~Panel() {
-    zOrderCache_.Clear();
+    delete zOrderCache_;
+    zOrderCache_ = nullptr;
     Base::Vector<Base::Ref<Base::Object>> children = std::move(ownedChildren_);
     ownedChildren_.Clear();
     for (std::uint32_t index = 0U; index < children.Size(); ++index) {
@@ -606,7 +607,7 @@ void UIElementCollection::Clear() noexcept {
 }
 std::uint32_t Panel::GetVisualChildrenCount() const noexcept {
     EnsureZOrderCache();
-    return zOrderCache_.Size();
+    return zOrderCache_ != nullptr ? zOrderCache_->Size() : ownedChildren_.Size();
 }
 
 namespace {
@@ -621,18 +622,45 @@ void Panel::EnsureZOrderCache() const noexcept {
     if (!zOrderDirty_) {
         return;
     }
-    zOrderCache_.Clear();
     bool hasNonZeroZ = false;
+    bool allAttached = true;
+    for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
+        UIElement* child = ownedChildren_[childIndex]
+            ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
+            : nullptr;
+        if (child == nullptr || child->GetVisualParent() != this) {
+            allAttached = false;
+            continue;
+        }
+        if (child->GetValue(ZIndexProperty) != 0) {
+            hasNonZeroZ = true;
+        }
+    }
+    if (allAttached && !hasNonZeroZ) {
+        delete zOrderCache_;
+        zOrderCache_ = nullptr;
+        zOrderDirty_ = false;
+        return;
+    }
+    if (zOrderCache_ == nullptr) {
+        zOrderCache_ = new (std::nothrow) Base::Vector<UIElement*>();
+        if (zOrderCache_ == nullptr) {
+            zOrderDirty_ = false;
+            return;
+        }
+    } else {
+        zOrderCache_->Clear();
+    }
     std::uint32_t document = 0U;
-    Base::Vector<PanelZOrder> ordered;
+    Base::BasicVector<PanelZOrder, 16U> ordered;
+    ordered.Reserve(ownedChildren_.Size());
     for (std::uint32_t childIndex = 0U; childIndex < ownedChildren_.Size(); ++childIndex) {
         UIElement* child = ownedChildren_[childIndex]
             ? static_cast<UIElement*>(ownedChildren_[childIndex].Get())
             : nullptr;
         if (child == nullptr || child->GetVisualParent() != this) continue;
         PanelZOrder record;
-        record.z = child->GetValue(ZIndexProperty);
-        if (record.z != 0) hasNonZeroZ = true;
+        record.z = hasNonZeroZ ? child->GetValue(ZIndexProperty) : 0;
         record.document = document++;
         record.child = child;
         ordered.PushBack(record);
@@ -646,16 +674,21 @@ void Panel::EnsureZOrderCache() const noexcept {
                 return left.document < right.document;
             });
     }
-    zOrderCache_.Reserve(ordered.Size());
+    zOrderCache_->Reserve(ordered.Size());
     for (std::uint32_t i = 0U; i < ordered.Size(); ++i) {
-        zOrderCache_.PushBack(ordered[i].child);
+        zOrderCache_->PushBack(ordered[i].child);
     }
     zOrderDirty_ = false;
 }
 
 ::Aero::Media::Visual* Panel::GetVisualChild(std::uint32_t index) const noexcept {
     EnsureZOrderCache();
-    return index < zOrderCache_.Size() ? zOrderCache_[index] : nullptr;
+    if (zOrderCache_ != nullptr) {
+        return index < zOrderCache_->Size() ? (*zOrderCache_)[index] : nullptr;
+    }
+    return index < ownedChildren_.Size()
+        ? static_cast<UIElement*>(ownedChildren_[index].Get())
+        : nullptr;
 }
 
 std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
@@ -664,7 +697,7 @@ std::uint32_t Panel::GetLayoutChildrenCount() const noexcept {
 
 UIElement* Panel::GetLayoutChild(std::uint32_t index) const noexcept {
     EnsureZOrderCache();
-    if (zOrderCache_.Size() == ownedChildren_.Size()) {
+    if (zOrderCache_ == nullptr || zOrderCache_->Size() == ownedChildren_.Size()) {
         if (index < ownedChildren_.Size()) {
             return static_cast<UIElement*>(ownedChildren_[index].Get());
         }
@@ -783,7 +816,8 @@ void Panel::ClearChildrenCore() noexcept {
     }
     ownedChildren_.Clear();
     zOrderDirty_ = true;
-    zOrderCache_.Clear();
+    delete zOrderCache_;
+    zOrderCache_ = nullptr;
     NotifyChildrenViewReset();
     InvalidateMeasure();
 }

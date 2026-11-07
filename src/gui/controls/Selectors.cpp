@@ -98,22 +98,61 @@ bool EqualIndices(
 
 } // namespace
 
+struct Selector::SelectionStorage {
+    Base::Vector<std::uint32_t> selectedIndices;
+    Ref<Base::Object> pendingSelectedItem;
+    SelectionChangedHandler selectionChanged;
+    Data::CollectionView* subscribedView = nullptr;
+};
+
+Selector::SelectionStorage* Selector::EnsureSelectionStorage() noexcept {
+    if (selectionStorage_ == nullptr) {
+        selectionStorage_ = new (std::nothrow) SelectionStorage();
+    }
+    return selectionStorage_;
+}
+
+void Selector::AddSelectionChanged(const SelectionChangedHandler& handler) noexcept {
+    if (SelectionStorage* s = EnsureSelectionStorage()) {
+        s->selectionChanged.Add(handler);
+    }
+}
+
+bool Selector::RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
+    return selectionStorage_ != nullptr ? selectionStorage_->selectionChanged.Remove(handler) : false;
+}
+
+Span<const std::uint32_t> Selector::GetSelectedIndices() const noexcept {
+    if (selectionStorage_ != nullptr && !selectionStorage_->selectedIndices.Empty()) {
+        return {selectionStorage_->selectedIndices.Data(), selectionStorage_->selectedIndices.Size()};
+    }
+    if (primaryIndex_ != UINT32_MAX) {
+        return {&primaryIndex_, 1U};
+    }
+    return {};
+}
+
+std::uint32_t Selector::GetSelectedCount() const noexcept {
+    return GetSelectedIndices().Size();
+}
+
+Base::Status Selector::LastSelectionError() const noexcept {
+    if (lastSelectionErrorCode_ == Base::ErrorCode::Ok) {
+        return Base::Status::Ok();
+    }
+    return Base::Status::Failure(lastSelectionErrorCode_, "Selector selection error");
+}
+
 Selector::Selector() noexcept
     : Selector(StaticTypeId()) {}
 
 Selector::Selector(TypeId runtimeType) noexcept
-    : ItemsControl(runtimeType),
-      itemsChangedHandler_(
-          this, &Selector::OnItemsChanged),
-      currentChangedHandler_(
-          this, &Selector::OnViewCurrentChanged) {
-    AddItemsChanged(itemsChangedHandler_);
-}
+    : ItemsControl(runtimeType) {}
 
 Selector::~Selector() {
     UnhookCurrentView();
-    static_cast<void>(
-        RemoveItemsChanged(itemsChangedHandler_));
+    delete selectionStorage_;
+    selectionStorage_ = nullptr;
 }
 
 SelectionMode Selector::GetSelectionMode() const noexcept {
@@ -136,10 +175,7 @@ Selector::GetSelectedValue() const noexcept {
 
 bool Selector::GetIsSelected(
     std::uint32_t index) const noexcept {
-    return ContainsIndex(
-        {selectedIndices_.Data(),
-         selectedIndices_.Size()},
-        index);
+    return ContainsIndex(GetSelectedIndices(), index);
 }
 
 std::uint32_t Selector::GetIndexOfItem(
@@ -154,14 +190,14 @@ std::uint32_t Selector::GetIndexOfItem(
 
 void Selector::SetSelectionMode(
     SelectionMode value) noexcept {
-    lastSelectionError_ = {};
+    lastSelectionErrorCode_ = Base::ErrorCode::Ok;
     SetValue(SelectionModeProperty, value);
     if (value == SelectionMode::Single &&
-        selectedIndices_.Size() > 1U) {
+        GetSelectedCount() > 1U) {
         const std::uint32_t selected =
             primaryIndex_ != UINT32_MAX
             ? primaryIndex_
-            : selectedIndices_[0U];
+            : GetSelectedIndices()[0U];
         const std::uint32_t values[] = {
             selected};
         ApplySelection(values, selected);
@@ -172,16 +208,14 @@ void Selector::SetSelectedIndex(
     std::uint32_t index) noexcept {
     if (index != UINT32_MAX &&
         index >= GetCount()) {
-        lastSelectionError_ = Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Selector selected index is out of range");
+        lastSelectionErrorCode_ = Base::ErrorCode::OutOfRange;
         return;
     }
     if (index == UINT32_MAX) {
         ClearSelection();
         return;
     }
-    pendingSelectedItem_.Reset();
+    if (selectionStorage_ != nullptr) selectionStorage_->pendingSelectedItem.Reset();
     const std::uint32_t values[] = {index};
     ApplySelection(values, index);
 }
@@ -195,13 +229,11 @@ void Selector::SetSelectedItem(
     const std::uint32_t index =
         GetIndexOfItem(item.Get());
     if (index == UINT32_MAX) {
-        pendingSelectedItem_ = std::move(item);
-        lastSelectionError_ = Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Selector selected item is pending ItemsSource materialization");
+        if (SelectionStorage* s = EnsureSelectionStorage()) s->pendingSelectedItem = std::move(item);
+        lastSelectionErrorCode_ = Base::ErrorCode::NotFound;
         return;
     }
-    pendingSelectedItem_.Reset();
+    if (selectionStorage_ != nullptr) selectionStorage_->pendingSelectedItem.Reset();
     SetSelectedIndex(index);
 }
 
@@ -221,9 +253,7 @@ void Selector::SetIsSynchronizedWithCurrentItem(bool value) noexcept {
 bool Selector::Select(
     std::uint32_t index) noexcept {
     if (index >= GetCount()) {
-        lastSelectionError_ = Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Selector select index is out of range");
+        lastSelectionErrorCode_ = Base::ErrorCode::OutOfRange;
         return false;
     }
     if (GetSelectionMode() == SelectionMode::Single) {
@@ -231,10 +261,9 @@ bool Selector::Select(
         return ApplySelection(values, index);
     }
     Base::Vector<std::uint32_t> selection;
-    selection.Reserve(
-            selectedIndices_.Size() + 1U);
-    for (std::uint32_t selected :
-        selectedIndices_) {
+    const Span<const std::uint32_t> currentIndices = GetSelectedIndices();
+    selection.Reserve(currentIndices.Size() + 1U);
+    for (std::uint32_t selected : currentIndices) {
         selection.PushBack(selected);
     }
     InsertSortedUnique(selection, index);
@@ -246,20 +275,17 @@ bool Selector::Select(
 bool Selector::Unselect(
     std::uint32_t index) noexcept {
     if (index >= GetCount()) {
-        lastSelectionError_ = Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Selector unselect index is out of range");
+        lastSelectionErrorCode_ = Base::ErrorCode::OutOfRange;
         return false;
     }
     if (!GetIsSelected(index)) {
-        lastSelectionError_ = Base::Status::Ok();
+        lastSelectionErrorCode_ = Base::ErrorCode::Ok;
         return false;
     }
     Base::Vector<std::uint32_t> selection;
-    selection.Reserve(
-            selectedIndices_.Size() - 1U);
-    for (std::uint32_t selected :
-        selectedIndices_) {
+    const Span<const std::uint32_t> currentIndices = GetSelectedIndices();
+    selection.Reserve(currentIndices.Size() - 1U);
+    for (std::uint32_t selected : currentIndices) {
         if (selected == index) continue;
         selection.PushBack(selected);
     }
@@ -287,9 +313,7 @@ bool Selector::SelectRange(
     bool preserveExisting) noexcept {
     if (first >= GetCount() ||
         last >= GetCount()) {
-        lastSelectionError_ = Base::Status::Failure(
-            Base::ErrorCode::OutOfRange,
-            "Selector range is out of range");
+        lastSelectionErrorCode_ = Base::ErrorCode::OutOfRange;
         return false;
     }
     if (GetSelectionMode() == SelectionMode::Single) {
@@ -301,14 +325,14 @@ bool Selector::SelectRange(
     const std::uint32_t end =
         std::max(first, last);
     Base::Vector<std::uint32_t> selection;
+    const Span<const std::uint32_t> currentIndices = GetSelectedIndices();
     selection.Reserve(
             (preserveExisting
-                ? selectedIndices_.Size()
+                ? currentIndices.Size()
                 : 0U) +
             (end - begin + 1U));
     if (preserveExisting) {
-        for (std::uint32_t selected :
-            selectedIndices_) {
+        for (std::uint32_t selected : currentIndices) {
             selection.PushBack(selected);
         }
     }
@@ -322,7 +346,7 @@ bool Selector::SelectRange(
 }
 
 void Selector::ClearSelection() noexcept {
-    pendingSelectedItem_.Reset();
+    if (selectionStorage_ != nullptr) selectionStorage_->pendingSelectedItem.Reset();
     ApplySelection({}, UINT32_MAX);
 }
 
@@ -333,9 +357,7 @@ bool Selector::ApplySelection(
     normalized.Reserve(indices.Size());
     for (std::uint32_t index : indices) {
         if (index >= GetCount()) {
-            lastSelectionError_ = Base::Status::Failure(
-                Base::ErrorCode::OutOfRange,
-                "Selector selection contains an invalid index");
+            lastSelectionErrorCode_ = Base::ErrorCode::OutOfRange;
             return false;
         }
         InsertSortedUnique(normalized, index);
@@ -358,24 +380,22 @@ bool Selector::ApplySelection(
             primaryIndex)) {
         primaryIndex = normalized.Back();
     }
-    const Base::Span<const std::uint32_t> oldSelection(
-        selectedIndices_.Data(),
-        selectedIndices_.Size());
+    const Base::Span<const std::uint32_t> oldSelection = GetSelectedIndices();
     const Base::Span<const std::uint32_t> newSelection(
         normalized.Data(),
         normalized.Size());
     if (pendingIndex_ == UINT32_MAX &&
         primaryIndex_ == primaryIndex &&
         EqualIndices(oldSelection, newSelection)) {
-        lastSelectionError_ = Base::Status::Ok();
+        lastSelectionErrorCode_ = Base::ErrorCode::Ok;
         return false;
     }
 
     Base::Vector<std::uint32_t> removed;
     Base::Vector<std::uint32_t> added;
-    removed.Reserve(selectedIndices_.Size());
+    removed.Reserve(oldSelection.Size());
     added.Reserve(normalized.Size());
-    for (std::uint32_t index : selectedIndices_) {
+    for (std::uint32_t index : oldSelection) {
         if (!ContainsIndex(newSelection, index)) {
             removed.PushBack(index);
         }
@@ -392,7 +412,15 @@ bool Selector::ApplySelection(
         oldPrimary < GetCount()
         ? GetItem(oldPrimary)
         : Base::Ref<Base::Object>();
-    selectedIndices_ = std::move(normalized);
+    if (normalized.Size() > 1U) {
+        SelectionStorage* s = EnsureSelectionStorage();
+        if (s == nullptr) {
+            return false;
+        }
+        s->selectedIndices = std::move(normalized);
+    } else if (selectionStorage_ != nullptr) {
+        selectionStorage_->selectedIndices.Clear();
+    }
     primaryIndex_ = primaryIndex;
     pendingIndex_ = UINT32_MAX;
     PublishProperties();
@@ -411,14 +439,14 @@ bool Selector::ApplySelection(
         ? GetItem(primaryIndex_)
         : Base::Ref<Base::Object>();
     OnSelectionChanged(event);
-    if (!selectionChanged_.Empty()) {
-        selectionChanged_.Invoke(*this, event);
+    if (selectionStorage_ != nullptr && !selectionStorage_->selectionChanged.Empty()) {
+        selectionStorage_->selectionChanged.Invoke(*this, event);
     }
     RoutedEventArgs routedArgs;
     RaiseEvent(
         SelectionChangedRoutedEvent,
         &routedArgs);
-    lastSelectionError_ = {};
+    lastSelectionErrorCode_ = Base::ErrorCode::Ok;
     return true;
 }
 
@@ -485,8 +513,10 @@ void Selector::HookCurrentView() noexcept {
     Data::CollectionView* view =
         Data::CollectionViewSource::GetDefaultView(GetItemsSourceCore());
     if (view == nullptr) return;
-    view->AddCurrentChanged(currentChangedHandler_);
-    subscribedView_ = view;
+    SelectionStorage* s = EnsureSelectionStorage();
+    if (s == nullptr) return;
+    view->AddCurrentChanged(Base::Delegate<void()>(this, &Selector::OnViewCurrentChanged));
+    s->subscribedView = view;
     if (GetSelectedItem()) {
         PushSelectionToCurrent();
         return;
@@ -499,10 +529,11 @@ void Selector::HookCurrentView() noexcept {
 }
 
 void Selector::UnhookCurrentView() noexcept {
-    if (subscribedView_ == nullptr) return;
+    if (selectionStorage_ == nullptr || selectionStorage_->subscribedView == nullptr) return;
     static_cast<void>(
-        subscribedView_->RemoveCurrentChanged(currentChangedHandler_));
-    subscribedView_ = nullptr;
+        selectionStorage_->subscribedView->RemoveCurrentChanged(
+            Base::Delegate<void()>(this, &Selector::OnViewCurrentChanged)));
+    selectionStorage_->subscribedView = nullptr;
 }
 
 void Selector::PushSelectionToCurrent() noexcept {
@@ -510,7 +541,8 @@ void Selector::PushSelectionToCurrent() noexcept {
         !GetIsSynchronizedWithCurrentItem()) {
         return;
     }
-    Data::CollectionView* view = subscribedView_;
+    Data::CollectionView* view =
+        selectionStorage_ != nullptr ? selectionStorage_->subscribedView : nullptr;
     if (view == nullptr) {
         view = Data::CollectionViewSource::GetDefaultView(
             GetItemsSourceCore());
@@ -524,11 +556,12 @@ void Selector::PushSelectionToCurrent() noexcept {
 void Selector::OnViewCurrentChanged() noexcept {
     if (synchronizingCurrent_ ||
         !GetIsSynchronizedWithCurrentItem() ||
-        subscribedView_ == nullptr) {
+        selectionStorage_ == nullptr ||
+        selectionStorage_->subscribedView == nullptr) {
         return;
     }
     synchronizingCurrent_ = true;
-    SetSelectedItem(subscribedView_->GetCurrentItem());
+    SetSelectedItem(selectionStorage_->subscribedView->GetCurrentItem());
     synchronizingCurrent_ = false;
 }
 
@@ -560,11 +593,11 @@ PropertyValue Selector::CoerceValueCore(
 
 void Selector::OnItemsChanged(
     const ItemsChangedEvent& event) noexcept {
-    if (pendingSelectedItem_) {
+    if (selectionStorage_ != nullptr && selectionStorage_->pendingSelectedItem) {
         const std::uint32_t index = GetIndexOfItem(
-            pendingSelectedItem_.Get());
+            selectionStorage_->pendingSelectedItem.Get());
         if (index != UINT32_MAX) {
-            pendingSelectedItem_.Reset();
+            if (selectionStorage_ != nullptr) selectionStorage_->pendingSelectedItem.Reset();
             const std::uint32_t values[] = {index};
             ApplySelection(values, index);
             return;
@@ -573,7 +606,7 @@ void Selector::OnItemsChanged(
         // populated collection. Keep the requested object through that
         // transition rather than clearing the TwoWay SelectedItem source.
         if (event.action == ItemsChangeAction::Reset) {
-            selectedIndices_.Clear();
+            if (selectionStorage_ != nullptr) selectionStorage_->selectedIndices.Clear();
             primaryIndex_ = UINT32_MAX;
             return;
         }
@@ -595,8 +628,7 @@ void Selector::OnItemsChanged(
     }
     if (event.action == ItemsChangeAction::Replace) {
         bool replacesSelection = false;
-        for (std::uint32_t selected :
-            selectedIndices_) {
+        for (std::uint32_t selected : GetSelectedIndices()) {
             if (selected >= event.oldIndex &&
                 selected < event.oldIndex +
                     event.oldCount) {
@@ -610,13 +642,12 @@ void Selector::OnItemsChanged(
         return;
     }
 
+    const Span<const std::uint32_t> currentSelection = GetSelectedIndices();
     Base::Vector<std::uint32_t> mapped;
-    mapped.Reserve(
-            selectedIndices_.Size());
+    mapped.Reserve(currentSelection.Size());
     std::uint32_t mappedPrimary =
         primaryIndex_;
-    for (std::uint32_t selected :
-        selectedIndices_) {
+    for (std::uint32_t selected : currentSelection) {
         std::uint32_t value = selected;
         bool keep = true;
         if (event.action == ItemsChangeAction::Add &&
@@ -673,11 +704,11 @@ void Selector::OnPropertyChanged(
     if (args.GetProperty() == SelectionModeProperty) {
         if (GetSelectionMode() ==
                 SelectionMode::Single &&
-            selectedIndices_.Size() > 1U) {
+            GetSelectedCount() > 1U) {
             const std::uint32_t selected =
                 primaryIndex_ != UINT32_MAX
                 ? primaryIndex_
-                : selectedIndices_[0U];
+                : GetSelectedIndices()[0U];
             const std::uint32_t values[] = {
                 selected};
             ApplySelection(
@@ -691,7 +722,7 @@ void Selector::OnPropertyChanged(
             ClearSelection();
         } else if (index >= GetCount()) {
             pendingIndex_ = index;
-            selectedIndices_.Clear();
+            if (selectionStorage_ != nullptr) selectionStorage_->selectedIndices.Clear();
             primaryIndex_ = UINT32_MAX;
             PublishProperties();
             SyncContainers();
@@ -714,11 +745,11 @@ void Selector::OnPropertyChanged(
             const std::uint32_t index =
                 GetIndexOfItem(item.Get());
             if (index == UINT32_MAX) {
-                pendingSelectedItem_ = item;
-                selectedIndices_.Clear();
+                if (SelectionStorage* s = EnsureSelectionStorage()) s->pendingSelectedItem = item;
+                if (selectionStorage_ != nullptr) selectionStorage_->selectedIndices.Clear();
                 primaryIndex_ = UINT32_MAX;
             } else {
-                pendingSelectedItem_.Reset();
+                if (selectionStorage_ != nullptr) selectionStorage_->pendingSelectedItem.Reset();
                 const std::uint32_t values[] = {
                     index};
                 ApplySelection(
@@ -1149,20 +1180,44 @@ AERO_DESCRIBE(ListBoxItem) {
 
 using namespace Primitives;
 
+struct ComboBox::DropdownParts {
+    TextBlock* selectionBox = nullptr;
+    ContentPresenter* selectionPresenter = nullptr;
+    TextBox* editableTextBox = nullptr;
+    Primitives::Popup* popup = nullptr;
+    FrameworkElement* dropDownBorder = nullptr;
+    TextBlock* selectedProjection = nullptr;
+    bool synchronizingEditableText = false;
+};
+
+ComboBox::DropdownParts* ComboBox::EnsureParts() noexcept {
+    if (parts_ == nullptr) {
+        parts_ = new (std::nothrow) DropdownParts();
+    }
+    return parts_;
+}
+
 ComboBox::ComboBox() noexcept
-    : Selector(StaticTypeId()),
-      popupIsOpenChangedHandler_(
-          this,
-          &ComboBox::OnPopupIsOpenChanged),
-      selectedProjectionChangedHandler_(
-          this,
-          &ComboBox::OnSelectedProjectionChanged),
-      editableTextChangedHandler_(
-          this,
-          &ComboBox::OnEditableTextChanged) {}
+    : Selector(StaticTypeId()) {}
 
 ComboBox::~ComboBox() {
     ObserveSelectedProjection(nullptr);
+    if (parts_ != nullptr) {
+        if (parts_->editableTextBox != nullptr) {
+            static_cast<void>(
+                parts_->editableTextBox->RemoveHandler(
+                    TextBox::TextChangedEvent,
+                    RoutedEventHandler(this, &ComboBox::OnEditableTextChanged)));
+        }
+        if (parts_->popup != nullptr) {
+            static_cast<void>(parts_->popup->RemoveValueChangedHandler(
+                Popup::IsOpenProperty,
+                DependencyPropertyChangedEventHandler(this, &ComboBox::OnPopupIsOpenChanged)));
+            parts_->popup->SetPlacementTarget({});
+        }
+        delete parts_;
+        parts_ = nullptr;
+    }
 }
 
 bool ComboBox::GetIsDropDownOpen() const noexcept {
@@ -1279,10 +1334,26 @@ void ComboBox::OnContainersChanged() noexcept {
 void ComboBox::OnApplyTemplate()
     noexcept {
     Selector::OnApplyTemplate();
+    DropdownParts* p = EnsureParts();
+    if (p == nullptr) return;
+    if (p->editableTextBox != nullptr) {
+        static_cast<void>(
+            p->editableTextBox->RemoveHandler(
+                TextBox::TextChangedEvent,
+                RoutedEventHandler(this, &ComboBox::OnEditableTextChanged)));
+        p->editableTextBox = nullptr;
+    }
+    if (p->popup != nullptr) {
+        static_cast<void>(p->popup->RemoveValueChangedHandler(
+            Popup::IsOpenProperty,
+            DependencyPropertyChangedEventHandler(this, &ComboBox::OnPopupIsOpenChanged)));
+        p->popup->SetPlacementTarget({});
+        p->popup = nullptr;
+    }
 
     DependencyObject* selection =
         GetTemplateChild("SelectionBox");
-    selectionBox_ =
+    p->selectionBox =
         selection != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
@@ -1295,7 +1366,7 @@ void ComboBox::OnApplyTemplate()
     if (contentSite == nullptr) {
         contentSite = GetTemplateChild("SelectionBoxItemHost");
     }
-    selectionPresenter_ =
+    p->selectionPresenter =
         contentSite != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
@@ -1304,12 +1375,12 @@ void ComboBox::OnApplyTemplate()
         ? static_cast<ContentPresenter*>(
               contentSite)
         : nullptr;
-    if (selectionBox_ != nullptr) {
-        selectionBox_->SetForeground(GetForeground());
+    if (p->selectionBox != nullptr) {
+        p->selectionBox->SetForeground(GetForeground());
     }
     DependencyObject* editable =
         GetTemplateChild("PART_EditableTextBox");
-    editableTextBox_ =
+    p->editableTextBox =
         editable != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
@@ -1319,7 +1390,7 @@ void ComboBox::OnApplyTemplate()
         : nullptr;
     DependencyObject* border =
         GetTemplateChild("DropDownBorder");
-    dropDownBorder_ =
+    p->dropDownBorder =
         border != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
@@ -1329,7 +1400,7 @@ void ComboBox::OnApplyTemplate()
         : nullptr;
     DependencyObject* popup =
         GetTemplateChild("PART_Popup");
-    popup_ =
+    p->popup =
         popup != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().
             IsDerivedFrom(
@@ -1337,23 +1408,23 @@ void ComboBox::OnApplyTemplate()
                 Popup::StaticTypeId())
         ? static_cast<Popup*>(popup)
         : nullptr;
-    if (editableTextBox_ != nullptr) {
-        editableTextBox_->AddHandler(
+    if (p->editableTextBox != nullptr) {
+        p->editableTextBox->AddHandler(
             TextBox::TextChangedEvent,
-            editableTextChangedHandler_);
+            RoutedEventHandler(this, &ComboBox::OnEditableTextChanged));
     }
-    if (popup_ != nullptr) {
-        static_cast<void>(popup_->AddValueChangedHandler(
+    if (p->popup != nullptr) {
+        static_cast<void>(p->popup->AddValueChangedHandler(
             Popup::IsOpenProperty,
-            popupIsOpenChangedHandler_));
-        popup_->SetPlacementTarget(
+            DependencyPropertyChangedEventHandler(this, &ComboBox::OnPopupIsOpenChanged)));
+        p->popup->SetPlacementTarget(
             Base::Ref<UIElement>::TryFromBorrowed(*this));
-        popup_->SetStaysOpen(false);
-        popup_->SetIsOpen(GetIsDropDownOpen());
-        popup_->SetMatchPlacementTargetWidth(true);
+        p->popup->SetStaysOpen(false);
+        p->popup->SetIsOpen(GetIsDropDownOpen());
+        p->popup->SetMatchPlacementTargetWidth(true);
     }
-    if (dropDownBorder_ != nullptr) {
-        dropDownBorder_->SetMaxSize({1.0e12, GetMaxDropDownHeight()});
+    if (p->dropDownBorder != nullptr) {
+        p->dropDownBorder->SetMaxSize({1.0e12, GetMaxDropDownHeight()});
     }
     UpdateSelectionBox();
     UpdateEditableVisualState();
@@ -1361,23 +1432,25 @@ void ComboBox::OnApplyTemplate()
 
 void ComboBox::OnTemplateDetached() noexcept {
     ObserveSelectedProjection(nullptr);
-    if (editableTextBox_ != nullptr) {
-        static_cast<void>(
-            editableTextBox_->RemoveHandler(
-                TextBox::TextChangedEvent,
-                editableTextChangedHandler_));
+    if (parts_ != nullptr) {
+        if (parts_->editableTextBox != nullptr) {
+            static_cast<void>(
+                parts_->editableTextBox->RemoveHandler(
+                    TextBox::TextChangedEvent,
+                    RoutedEventHandler(this, &ComboBox::OnEditableTextChanged)));
+        }
+        if (parts_->popup != nullptr) {
+            static_cast<void>(parts_->popup->RemoveValueChangedHandler(
+                Popup::IsOpenProperty,
+                DependencyPropertyChangedEventHandler(this, &ComboBox::OnPopupIsOpenChanged)));
+            parts_->popup->SetPlacementTarget({});
+        }
+        parts_->selectionBox = nullptr;
+        parts_->selectionPresenter = nullptr;
+        parts_->editableTextBox = nullptr;
+        parts_->popup = nullptr;
+        parts_->dropDownBorder = nullptr;
     }
-    if (popup_ != nullptr) {
-        static_cast<void>(popup_->RemoveValueChangedHandler(
-            Popup::IsOpenProperty,
-            popupIsOpenChangedHandler_));
-        popup_->SetPlacementTarget({});
-    }
-    selectionBox_ = nullptr;
-    selectionPresenter_ = nullptr;
-    editableTextBox_ = nullptr;
-    popup_ = nullptr;
-    dropDownBorder_ = nullptr;
     Selector::OnTemplateDetached();
 }
 
@@ -1396,9 +1469,9 @@ void ComboBox::OnPropertyChanged(
     Selector::OnPropertyChanged(args);
     const DependencyPropertyHandle prop = args.GetProperty();
     if (prop == IsDropDownOpenProperty) {
-        if (popup_ != nullptr && popup_->GetIsOpen() != args.GetNewValue().AsBoolean()) {
+        if (parts_ != nullptr && parts_->popup != nullptr && parts_->popup->GetIsOpen() != args.GetNewValue().AsBoolean()) {
             static_cast<void>(
-                popup_->SetIsOpen(
+                parts_->popup->SetIsOpen(
                     args.GetNewValue().AsBoolean()));
         }
         RoutedEventArgs eventArgs;
@@ -1408,29 +1481,30 @@ void ComboBox::OnPropertyChanged(
                 : DropDownClosedEvent,
             &eventArgs);
     } else if (prop == MaxDropDownHeightProperty) {
-        if (dropDownBorder_ != nullptr) {
+        if (parts_ != nullptr && parts_->dropDownBorder != nullptr) {
             static_cast<void>(
-                dropDownBorder_->SetMaxSize(
+                parts_->dropDownBorder->SetMaxSize(
                     {1.0e12,
                      GetMaxDropDownHeight()}));
         }
     } else if (prop == IsEditableProperty) {
         UpdateEditableVisualState();
     } else if (prop == TextProperty) {
-        if (editableTextBox_ == nullptr ||
-            synchronizingEditableText_ ||
-            editableTextBox_->GetText() == GetText()) {
+        if (parts_ == nullptr ||
+            parts_->editableTextBox == nullptr ||
+            parts_->synchronizingEditableText ||
+            parts_->editableTextBox->GetText() == GetText()) {
             return;
         }
-        synchronizingEditableText_ = true;
-        editableTextBox_->SetText(GetText());
-        synchronizingEditableText_ = false;
+        parts_->synchronizingEditableText = true;
+        parts_->editableTextBox->SetText(GetText());
+        parts_->synchronizingEditableText = false;
     } else if (prop == Control::ForegroundProperty) {
-        if (selectionBox_ != nullptr) {
-            selectionBox_->SetForeground(GetForeground());
+        if (parts_ != nullptr && parts_->selectionBox != nullptr) {
+            parts_->selectionBox->SetForeground(GetForeground());
         }
-        if (editableTextBox_ != nullptr) {
-            editableTextBox_->SetForeground(GetForeground());
+        if (parts_ != nullptr && parts_->editableTextBox != nullptr) {
+            parts_->editableTextBox->SetForeground(GetForeground());
         }
     } else if (prop == Selector::SelectedIndexProperty ||
                prop == Selector::SelectedItemProperty ||
@@ -1456,45 +1530,51 @@ void ComboBox::OnPopupIsOpenChanged(
 void ComboBox::OnSelectedProjectionChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
-    if (&object == selectedProjection_) {
+    if (parts_ != nullptr && &object == parts_->selectedProjection) {
         UpdateSelectionBox();
     }
 }
 
 void ComboBox::ObserveSelectedProjection(
     TextBlock* projection) noexcept {
-    if (selectedProjection_ == projection) return;
-    if (selectedProjection_ != nullptr) {
-        static_cast<void>(selectedProjection_->RemoveValueChangedHandler(
+    TextBlock* current = parts_ != nullptr ? parts_->selectedProjection : nullptr;
+    if (current == projection) return;
+    if (current != nullptr) {
+        static_cast<void>(current->RemoveValueChangedHandler(
             TextBlock::TextProperty,
-            selectedProjectionChangedHandler_));
+            DependencyPropertyChangedEventHandler(this, &ComboBox::OnSelectedProjectionChanged)));
     }
-    selectedProjection_ = projection;
-    if (selectedProjection_ != nullptr) {
-        selectedProjection_->AddValueChangedHandler(
+    if (projection != nullptr || parts_ != nullptr) {
+        if (DropdownParts* p = EnsureParts()) {
+            p->selectedProjection = projection;
+        }
+    }
+    if (projection != nullptr) {
+        projection->AddValueChangedHandler(
             TextBlock::TextProperty,
-            selectedProjectionChangedHandler_);
+            DependencyPropertyChangedEventHandler(this, &ComboBox::OnSelectedProjectionChanged));
     }
 }
 
 void ComboBox::OnEditableTextChanged(
     Base::Object* sender,
     RoutedEventArgs&) noexcept {
-    if (sender != editableTextBox_ ||
-        editableTextBox_ == nullptr ||
-        synchronizingEditableText_) {
+    if (parts_ == nullptr ||
+        sender != parts_->editableTextBox ||
+        parts_->editableTextBox == nullptr ||
+        parts_->synchronizingEditableText) {
         return;
     }
     Base::String edited;
-    if (!edited.Assign(editableTextBox_->GetText())) {
+    if (!edited.Assign(parts_->editableTextBox->GetText())) {
         return;
     }
-    synchronizingEditableText_ = true;
+    parts_->synchronizingEditableText = true;
     static_cast<void>(
         SetCurrentValue(
             TextProperty,
             std::move(edited)));
-    synchronizingEditableText_ = false;
+    parts_->synchronizingEditableText = false;
 }
 
 void ComboBox::UpdateSelectionBox() noexcept {
@@ -1646,13 +1726,13 @@ void ComboBox::UpdateSelectionBox() noexcept {
     SetReadOnlyCurrentValue(SelectionBoxItemProperty, selectionItemValue);
     SetReadOnlyCurrentValue(SelectionBoxItemTemplateProperty, selectionBoxTemplate);
 
-    if (selectionPresenter_ != nullptr) {
-        selectionPresenter_->SetValue(ContentPresenter::ContentProperty, selectionItemValue);
-        selectionPresenter_->SetValue(ContentPresenter::ContentTemplateProperty, selectionBoxTemplate);
-        selectionPresenter_->RefreshContentSource();
+    if (parts_ != nullptr && parts_->selectionPresenter != nullptr) {
+        parts_->selectionPresenter->SetValue(ContentPresenter::ContentProperty, selectionItemValue);
+        parts_->selectionPresenter->SetValue(ContentPresenter::ContentTemplateProperty, selectionBoxTemplate);
+        parts_->selectionPresenter->RefreshContentSource();
     }
-    if (selectionBox_ != nullptr) {
-        selectionBox_->SetText(text);
+    if (parts_ != nullptr && parts_->selectionBox != nullptr) {
+        parts_->selectionBox->SetText(text);
     }
     if (!text.Empty()) {
         SetCurrentValue(TextProperty, value);
@@ -1661,21 +1741,22 @@ void ComboBox::UpdateSelectionBox() noexcept {
 }
 
 void ComboBox::UpdateEditableVisualState() noexcept {
-    if (selectionBox_ != nullptr) {
-        selectionBox_->SetVisibility(GetIsEditable()
+    if (parts_ == nullptr) return;
+    if (parts_->selectionBox != nullptr) {
+        parts_->selectionBox->SetVisibility(GetIsEditable()
             ? Visibility::Collapsed : Visibility::Visible);
     }
-    if (editableTextBox_ == nullptr) {
+    if (parts_->editableTextBox == nullptr) {
         return;
     }
-    editableTextBox_->SetVisibility(GetIsEditable()
+    parts_->editableTextBox->SetVisibility(GetIsEditable()
         ? Visibility::Visible : Visibility::Collapsed);
-    if (editableTextBox_->GetText() == GetText()) {
+    if (parts_->editableTextBox->GetText() == GetText()) {
         return;
     }
-    synchronizingEditableText_ = true;
-    editableTextBox_->SetText(GetText());
-    synchronizingEditableText_ = false;
+    parts_->synchronizingEditableText = true;
+    parts_->editableTextBox->SetText(GetText());
+    parts_->synchronizingEditableText = false;
 }
 
 std::uint32_t ComboBox::FindContainerIndex(

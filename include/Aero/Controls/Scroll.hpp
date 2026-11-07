@@ -241,7 +241,6 @@ private:
     Primitives::ScrollBar* verticalScrollBar_ = nullptr;
     Primitives::ScrollBar* horizontalScrollBar_ = nullptr;
     bool synchronizingScrollBars_ = false;
-    DependencyPropertyChangedEventHandler scrollBarValueChangedHandler_;
 };
 
 } // namespace Aero::Controls

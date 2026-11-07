@@ -40,10 +40,8 @@ public:
     bool Unselect(std::uint32_t index) noexcept;
     bool Toggle(std::uint32_t index) noexcept;
     bool SelectRange(std::uint32_t first, std::uint32_t last, bool preserveExisting = false) noexcept;
-    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept { selectionChanged_.Add(handler); }
-    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept {
-        return selectionChanged_.Remove(handler);
-    }
+    void AddSelectionChanged(const SelectionChangedHandler& handler) noexcept;
+    bool RemoveSelectionChanged(const SelectionChangedHandler& handler) noexcept;
     void SyncContainers() noexcept;
 
     SelectionMode GetSelectionMode() const noexcept;
@@ -55,10 +53,8 @@ public:
     Ref<Base::Object> GetSelectedValue() const noexcept;
     void SetSelectedValue(Ref<Base::Object> value) noexcept;
     StringView GetSelectedValuePath() const noexcept { return GetValue(SelectedValuePathProperty); }
-    Span<const std::uint32_t> GetSelectedIndices() const noexcept {
-        return {selectedIndices_.Data(), selectedIndices_.Size()};
-    }
-    std::uint32_t GetSelectedCount() const noexcept { return selectedIndices_.Size(); }
+    Span<const std::uint32_t> GetSelectedIndices() const noexcept;
+    std::uint32_t GetSelectedCount() const noexcept;
     bool GetIsSelected(std::uint32_t index) const noexcept;
     std::uint32_t GetIndexOfItem(const Base::Object* item) const noexcept;
     bool GetIsSynchronizedWithCurrentItem() const noexcept;
@@ -76,7 +72,7 @@ public:
     AERO_ATTACHED_PROPERTY(bool, IsSelected);
     AERO_DEPENDENCY_PROPERTY(bool, IsSynchronizedWithCurrentItem);
 
-    Base::Status LastSelectionError() const noexcept { return lastSelectionError_; }
+    Base::Status LastSelectionError() const noexcept;
 
 protected:
     explicit Selector(TypeId runtimeType) noexcept;
@@ -101,18 +97,16 @@ private:
     void HookCurrentView() noexcept;
     void UnhookCurrentView() noexcept;
 
-    Base::Vector<std::uint32_t> selectedIndices_;
+    struct SelectionStorage;
+    SelectionStorage* EnsureSelectionStorage() noexcept;
+
+    SelectionStorage* selectionStorage_ = nullptr;
     std::uint32_t primaryIndex_ = UINT32_MAX;
     std::uint32_t pendingIndex_ = UINT32_MAX;
-    Ref<Base::Object> pendingSelectedItem_;
-    SelectionChangedHandler selectionChanged_;
-    ItemsChangedHandler itemsChangedHandler_;
-    Base::Status lastSelectionError_;
     DependencyPropertyHandle activeProperty_;
+    Base::ErrorCode lastSelectionErrorCode_ = Base::ErrorCode::Ok;
     bool synchronizingProperties_ = false;
     bool synchronizingCurrent_ = false;
-    Data::CollectionView* subscribedView_ = nullptr;
-    Base::Delegate<void()> currentChangedHandler_;
 };
 
 } // namespace Primitives
@@ -239,16 +233,9 @@ protected:
     void OnKeyDown(KeyEventArgs& args);
 
 private:
-    TextBlock* selectionBox_ = nullptr;
-    ContentPresenter* selectionPresenter_ = nullptr;
-    TextBox* editableTextBox_ = nullptr;
-    Primitives::Popup* popup_ = nullptr;
-    FrameworkElement* dropDownBorder_ = nullptr;
-    DependencyPropertyChangedEventHandler popupIsOpenChangedHandler_;
-    DependencyPropertyChangedEventHandler selectedProjectionChangedHandler_;
-    RoutedEventHandler editableTextChangedHandler_;
-    TextBlock* selectedProjection_ = nullptr;
-    bool synchronizingEditableText_ = false;
+    struct DropdownParts;
+    DropdownParts* EnsureParts() noexcept;
+    DropdownParts* parts_ = nullptr;
 
     void OnPopupIsOpenChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
     void OnSelectedProjectionChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;

@@ -118,18 +118,78 @@ bool ResolveTriggerSetterValue(
     return true;
 }
 
+struct TriggerBase::ActionStorage {
+    Base::Vector<Base::Ref<Base::Object>> enterActions;
+    Base::Vector<Base::Ref<Base::Object>> exitActions;
+    Base::Vector<Base::Ref<Base::Object>> behaviors;
+};
+
+TriggerBase::~TriggerBase() {
+    delete actionStorage_;
+    actionStorage_ = nullptr;
+}
+
+TriggerBase::ActionStorage* TriggerBase::EnsureActions() noexcept {
+    if (actionStorage_ == nullptr) {
+        actionStorage_ = new (std::nothrow) ActionStorage();
+    }
+    return actionStorage_;
+}
+
 void TriggerBase::AddEnterAction(
     Base::Ref<Base::Object> action) noexcept {
     if (!action) { AERO_ASSERT(false); return; }
-    enterActions_.PushBack(
-        std::move(action));
+    if (ActionStorage* storage = EnsureActions()) {
+        storage->enterActions.PushBack(std::move(action));
+    }
 }
 
 void TriggerBase::AddExitAction(
     Base::Ref<Base::Object> action) noexcept {
     if (!action) { AERO_ASSERT(false); return; }
-    exitActions_.PushBack(
-        std::move(action));
+    if (ActionStorage* storage = EnsureActions()) {
+        storage->exitActions.PushBack(std::move(action));
+    }
+}
+
+void TriggerBase::ClearEnterActions() noexcept {
+    if (actionStorage_ != nullptr) {
+        actionStorage_->enterActions.Clear();
+    }
+}
+
+void TriggerBase::ClearExitActions() noexcept {
+    if (actionStorage_ != nullptr) {
+        actionStorage_->exitActions.Clear();
+    }
+}
+
+Span<const Ref<Base::Object>> TriggerBase::GetEnterActions() const noexcept {
+    if (actionStorage_ == nullptr) return {};
+    return {actionStorage_->enterActions.Data(), actionStorage_->enterActions.Size()};
+}
+
+Span<const Ref<Base::Object>> TriggerBase::GetExitActions() const noexcept {
+    if (actionStorage_ == nullptr) return {};
+    return {actionStorage_->exitActions.Data(), actionStorage_->exitActions.Size()};
+}
+
+void TriggerBase::AddBehavior(Ref<Base::Object> behavior) noexcept {
+    if (!behavior) { AERO_ASSERT(false); return; }
+    if (ActionStorage* storage = EnsureActions()) {
+        storage->behaviors.PushBack(std::move(behavior));
+    }
+}
+
+void TriggerBase::ClearBehaviors() noexcept {
+    if (actionStorage_ != nullptr) {
+        actionStorage_->behaviors.Clear();
+    }
+}
+
+Span<const Ref<Base::Object>> TriggerBase::GetBehaviors() const noexcept {
+    if (actionStorage_ == nullptr) return {};
+    return {actionStorage_->behaviors.Data(), actionStorage_->behaviors.Size()};
 }
 
 // ===== Trigger =====
@@ -168,7 +228,7 @@ void Trigger::SetSourceName(Base::StringView value) noexcept {
 
 void Trigger::SetAuthoredValue(const PropertyValue& value) noexcept {
     if (value.IsUnset()) return;
-    authoredValue_ = value;
+    value_ = value;
 }
 
 // ===== SetterTriggerBase =====

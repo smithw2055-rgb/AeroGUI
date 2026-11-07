@@ -325,32 +325,75 @@ void ItemCollection::Reset(
 }
 
 
+struct ItemsControl::ItemsStorage {
+    ItemCollection items;
+    Collections::IItemsSource* source = nullptr;
+    ItemContainerGenerator* generator = nullptr;
+    Ref<Base::Object> defaultItemsPresenter;
+    ItemsChangedHandler changed;
+};
+
+ItemsControl::ItemsStorage* ItemsControl::EnsureStorage() const noexcept {
+    if (storage_ == nullptr) {
+        storage_ = new (std::nothrow) ItemsStorage();
+        if (storage_ != nullptr) {
+            storage_->items.AddItemsChanged(
+                ItemsChangedHandler(const_cast<ItemsControl*>(this), &ItemsControl::OnLocalChanged));
+        }
+    }
+    return storage_;
+}
+
+void ItemsControl::AddItemsChanged(const ItemsChangedHandler& handler) noexcept {
+    if (ItemsStorage* s = EnsureStorage()) {
+        s->changed.Add(handler);
+    }
+}
+
+bool ItemsControl::RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept {
+    return storage_ != nullptr ? storage_->changed.Remove(handler) : false;
+}
+
+ItemCollection& ItemsControl::GetItems() noexcept {
+    return EnsureStorage()->items;
+}
+
+const ItemCollection& ItemsControl::GetItems() const noexcept {
+    return EnsureStorage()->items;
+}
+
+ItemContainerGenerator* ItemsControl::GetItemContainerGenerator() const noexcept {
+    return storage_ != nullptr ? storage_->generator : nullptr;
+}
+
+Collections::IItemsSource* ItemsControl::GetItemsSourceCore() const noexcept {
+    return storage_ != nullptr ? storage_->source : nullptr;
+}
+
 ItemsControl::ItemsControl() noexcept
     : ItemsControl(StaticTypeId()) {}
 
 ItemsControl::ItemsControl(TypeId runtimeType) noexcept
-    : Control(runtimeType),
-      localHandler_(
-          this, &ItemsControl::OnLocalChanged),
-      sourceHandler_(
-          this, &ItemsControl::OnSourceChanged) {
-    static_cast<void>(
-        items_.AddItemsChanged(localHandler_));
-}
+    : Control(runtimeType) {}
 
 ItemsControl::~ItemsControl() {
-    if (generator_ != nullptr) {
-        generator_->Detach();
-    }
-    static_cast<void>(
-        items_.RemoveItemsChanged(localHandler_));
-    if (source_ != nullptr) {
+    if (storage_ != nullptr) {
+        if (storage_->generator != nullptr) {
+            storage_->generator->Detach();
+        }
         static_cast<void>(
-            source_->RemoveItemsChanged(
-                sourceHandler_));
+            storage_->items.RemoveItemsChanged(
+                ItemsChangedHandler(this, &ItemsControl::OnLocalChanged)));
+        if (storage_->source != nullptr) {
+            static_cast<void>(
+                storage_->source->RemoveItemsChanged(
+                    ItemsChangedHandler(this, &ItemsControl::OnSourceChanged)));
+        }
+        storage_->defaultItemsPresenter.Reset();
+        delete storage_;
+        storage_ = nullptr;
     }
     itemsHost_ = nullptr;
-    defaultItemsPresenter_.Reset();
 }
 
 void ItemsControl::OnApplyTemplate() noexcept {
@@ -402,11 +445,13 @@ void ItemsControl::OnApplyTemplate() noexcept {
 }
 
 void ItemsControl::OnTemplateDetached() noexcept {
-    if (generator_ != nullptr) {
-        generator_->Detach();
+    if (storage_ != nullptr) {
+        if (storage_->generator != nullptr) {
+            storage_->generator->Detach();
+        }
+        storage_->defaultItemsPresenter.Reset();
     }
     itemsHost_ = nullptr;
-    defaultItemsPresenter_.Reset();
 }
 
 Size ItemsControl::MeasureOverride(Size availableSize) noexcept {
@@ -500,41 +545,45 @@ bool ItemsControl::EnsureDefaultItemsPresenter() noexcept {
     if (!panelMounted) return false;
     presenter->SetItemsHost(panelOwner, *panel);
     itemsHost_ = presenter->GetItemsHost();
-    defaultItemsPresenter_ =
-        Base::Ref<Base::Object>(std::move(presenter).Value());
+    if (ItemsStorage* s = EnsureStorage()) {
+        s->defaultItemsPresenter =
+            Base::Ref<Base::Object>(std::move(presenter).Value());
+    }
     return itemsHost_ != nullptr;
 }
 
 std::uint32_t ItemsControl::GetCount() const noexcept {
-    return source_ != nullptr
-        ? source_->GetCount()
-        : items_.GetCount();
+    if (storage_ == nullptr) return 0U;
+    return storage_->source != nullptr
+        ? storage_->source->GetCount()
+        : storage_->items.GetCount();
 }
 
 std::uint32_t ItemsControl::GetRealizedItemCount() const noexcept {
-    return generator_ != nullptr
-        ? generator_->GetGeneratedCount()
+    return (storage_ != nullptr && storage_->generator != nullptr)
+        ? storage_->generator->GetGeneratedCount()
         : 0U;
 }
 
 std::uint32_t ItemsControl::GetCreatedContainerCount() const noexcept {
-    return generator_ != nullptr
-        ? generator_->GetCreatedContainerCount()
+    return (storage_ != nullptr && storage_->generator != nullptr)
+        ? storage_->generator->GetCreatedContainerCount()
         : 0U;
 }
 
 std::uint32_t
 ItemsControl::GetRecycledContainerUseCount() const noexcept {
-    return generator_ != nullptr
-        ? generator_->GetRecycledContainerUseCount()
+    return (storage_ != nullptr && storage_->generator != nullptr)
+        ? storage_->generator->GetRecycledContainerUseCount()
         : 0U;
 }
 
 Base::Ref<Base::Object> ItemsControl::GetItem(
     std::uint32_t index) const noexcept {
-    return source_ != nullptr
-        ? source_->GetItem(index)
-        : items_.GetItem(index);
+    if (storage_ == nullptr) return {};
+    return storage_->source != nullptr
+        ? storage_->source->GetItem(index)
+        : storage_->items.GetItem(index);
 }
 
 void ItemsControl::SetItemsSourceCore(
@@ -545,16 +594,21 @@ void ItemsControl::SetItemsSourceCore(
             source = view;
         }
     }
-    if (source_ == source) return;
+    Collections::IItemsSource* currentSource =
+        storage_ != nullptr ? storage_->source : nullptr;
+    if (currentSource == source) return;
+    ItemsStorage* s = EnsureStorage();
+    if (s == nullptr) return;
     if (source != nullptr) {
-        source->AddItemsChanged(sourceHandler_);
+        source->AddItemsChanged(
+            ItemsChangedHandler(this, &ItemsControl::OnSourceChanged));
     }
-    if (source_ != nullptr) {
+    if (s->source != nullptr) {
         static_cast<void>(
-            source_->RemoveItemsChanged(
-                sourceHandler_));
+            s->source->RemoveItemsChanged(
+                ItemsChangedHandler(this, &ItemsControl::OnSourceChanged)));
     }
-    source_ = source;
+    s->source = source;
     PublishItemCount();
     PublishReset();
 #pragma GCC diagnostic push
@@ -608,25 +662,33 @@ Base::Ref<DataTemplate> ItemsControl::GetTemplateForItemOverride(
 
 void ItemsControl::OnLocalChanged(
     const ItemsChangedEvent& event) noexcept {
-    if (source_ != nullptr) return;
+    if (storage_ != nullptr && storage_->source != nullptr) return;
     PublishItemCount();
-    if (!changed_.Empty()) changed_.Invoke(event);
+    OnItemsChanged(event);
+    if (storage_ != nullptr && !storage_->changed.Empty()) {
+        storage_->changed.Invoke(event);
+    }
 }
 
 void ItemsControl::OnSourceChanged(
     const ItemsChangedEvent& event) noexcept {
     PublishItemCount();
-    if (!changed_.Empty()) changed_.Invoke(event);
+    OnItemsChanged(event);
+    if (storage_ != nullptr && !storage_->changed.Empty()) {
+        storage_->changed.Invoke(event);
+    }
 }
 
 void ItemsControl::PublishReset() noexcept {
-    if (!changed_.Empty()) {
-        changed_.Invoke({
-            ItemsChangeAction::Reset,
-            0U,
-            0U,
-            GetCount(),
-            GetCount()});
+    const ItemsChangedEvent resetEvent{
+        ItemsChangeAction::Reset,
+        0U,
+        0U,
+        GetCount(),
+        GetCount()};
+    OnItemsChanged(resetEvent);
+    if (storage_ != nullptr && !storage_->changed.Empty()) {
+        storage_->changed.Invoke(resetEvent);
     }
 }
 
@@ -802,9 +864,7 @@ void ItemsControl::ClearContainer(FrameworkElement& container) noexcept {
     ClearContainerForItemOverride(container);
 }
 
-void ItemsControl::OnItemsSourceCoreChanged() noexcept {
-    OnItemsChanged({});
-}
+void ItemsControl::OnItemsSourceCoreChanged() noexcept {}
 
 namespace {
 
@@ -821,7 +881,10 @@ void AddItemsControlItem(
 void ClearItemsControlItems(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<ItemsControl&>(owner).GetItems().Reset();
+    auto& itemsControl = static_cast<ItemsControl&>(owner);
+    if (itemsControl.GetCount() != 0U) {
+        itemsControl.GetItems().Reset();
+    }
 }
 
 } // namespace
@@ -2402,13 +2465,16 @@ ItemContainerGenerator::GeneratorState::Create(
 
 bool ItemContainerGenerator::OwnerHasGenerator(
     const ItemsControl& owner) noexcept {
-    return owner.generator_ != nullptr;
+    return owner.storage_ != nullptr && owner.storage_->generator != nullptr;
 }
 
 void ItemContainerGenerator::SetOwnerGenerator(
     ItemsControl& owner,
     ItemContainerGenerator* generator) noexcept {
-    owner.generator_ = generator;
+    if (generator == nullptr && owner.storage_ == nullptr) return;
+    if (ItemsControl::ItemsStorage* s = owner.EnsureStorage()) {
+        s->generator = generator;
+    }
 }
 
 void ItemContainerGenerator::NotifyOwnerContainersChanged(

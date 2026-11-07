@@ -55,12 +55,12 @@ public:
     TextSelection GetSelection() const noexcept;
     virtual void SetSelection(std::uint32_t anchor, std::uint32_t caret) noexcept;
     std::uint32_t GetCaret() const noexcept;
-    Input::ITextInputMethodHost* GetInputMethodHost() const noexcept { return inputMethodHost_; }
+    Input::ITextInputMethodHost* GetInputMethodHost() const noexcept;
     virtual void SetInputMethodHost(Input::ITextInputMethodHost* host) noexcept;
-    bool GetIsComposing() const noexcept { return compositionActive_; }
-    StringView GetCompositionText() const noexcept { return compositionText_.View(); }
+    bool GetIsComposing() const noexcept;
+    StringView GetCompositionText() const noexcept;
     Rect GetCaretRectangle() const noexcept;
-    ScrollData GetData() const noexcept override { return scroll_; }
+    ScrollData GetData() const noexcept override;
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
@@ -128,24 +128,8 @@ protected:
     double GetLineHeight() const noexcept;
     const void* GetActiveModel() const noexcept;
 
-    void* model_ = nullptr;
-    void* compositionModel_ = nullptr;
-    void* displayPolicy_ = nullptr;
-    String displayText_;
-    String compositionText_;
-    Base::Vector<std::uint64_t> glyphRuns_;
-    Base::Vector<CaretStop> caretStops_;
-    Size textSize_;
-    std::uint32_t wrapColumns_ = UINT32_MAX;
-    ScrollData scroll_;
-    ScrollViewer* scrollViewer_ = nullptr;
-    Input::ITextInputMethodHost* inputMethodHost_ = nullptr;
-    TextSelection compositionSelection_;
-    bool serviceOwnsGlyphRuns_ = false;
-    bool compositionActive_ = false;
-    bool showingPlaceholder_ = false;
-    Ref<UIElement> view_;
-    DragSelectionState drag_;
+    struct EditorState;
+    EditorState* state_ = nullptr;
 
     friend class TextBoxView;
 };
@@ -242,7 +226,6 @@ protected:
     FontStyle GetFontStyleCore() const noexcept override { return GetFontStyle(); }
 
 private:
-    void* plainPolicy_ = nullptr;
     bool updatingTextProperty_ = false;
 
     bool SynchronizeModel() noexcept;
@@ -282,7 +265,6 @@ protected:
 
 private:
     String password_;
-    void* passwordPolicy_ = nullptr;
 };
 
 } // namespace Aero::Controls

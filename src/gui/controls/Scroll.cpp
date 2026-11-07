@@ -435,10 +435,7 @@ using namespace ::Aero::Render;
 
 ScrollViewer::ScrollViewer() noexcept
     : ContentControl(StaticTypeId()),
-      commandHandles_(&Base::GetDefaultAllocator()),
-      scrollBarValueChangedHandler_(
-          this,
-          &ScrollViewer::OnScrollBarValueChanged) {
+      commandHandles_(&Base::GetDefaultAllocator()) {
     UpdateComputedScrollBarVisibility(lastData_);
 }
 
@@ -754,25 +751,25 @@ void ScrollViewer::AttachScrollBars() noexcept {
     if (vert != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(vert->RuntimeType(), ScrollBar::StaticTypeId())) {
         verticalScrollBar_ = static_cast<Primitives::ScrollBar*>(vert);
         static_cast<void>(verticalScrollBar_->AddValueChangedHandler(
-            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+            ScrollBar::ValueProperty, DependencyPropertyChangedEventHandler(this, &ScrollViewer::OnScrollBarValueChanged)));
     }
     DependencyObject* horz = GetTemplateChild(Base::StringView("PART_HorizontalScrollBar"));
     if (horz != nullptr && DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(horz->RuntimeType(), ScrollBar::StaticTypeId())) {
         horizontalScrollBar_ = static_cast<Primitives::ScrollBar*>(horz);
         static_cast<void>(horizontalScrollBar_->AddValueChangedHandler(
-            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+            ScrollBar::ValueProperty, DependencyPropertyChangedEventHandler(this, &ScrollViewer::OnScrollBarValueChanged)));
     }
 }
 
 void ScrollViewer::DetachScrollBars() noexcept {
     if (verticalScrollBar_ != nullptr) {
         static_cast<void>(verticalScrollBar_->RemoveValueChangedHandler(
-            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+            ScrollBar::ValueProperty, DependencyPropertyChangedEventHandler(this, &ScrollViewer::OnScrollBarValueChanged)));
         verticalScrollBar_ = nullptr;
     }
     if (horizontalScrollBar_ != nullptr) {
         static_cast<void>(horizontalScrollBar_->RemoveValueChangedHandler(
-            ScrollBar::ValueProperty, scrollBarValueChangedHandler_));
+            ScrollBar::ValueProperty, DependencyPropertyChangedEventHandler(this, &ScrollViewer::OnScrollBarValueChanged)));
         horizontalScrollBar_ = nullptr;
     }
 }

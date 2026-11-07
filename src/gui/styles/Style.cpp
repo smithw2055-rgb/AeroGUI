@@ -341,7 +341,6 @@ Base::Result<void> Style::Program::AddAuthoredTrigger(
 void Setter::ReleaseAuthored() noexcept {
     propertyName_.Clear();
     targetName_.Clear();
-    authoredValue_ = PropertyValue{};
 }
 
 void Setter::SetPropertyName(
@@ -363,7 +362,7 @@ void Setter::SetTargetName(
 void Setter::SetAuthoredValue(
     const PropertyValue& value) noexcept {
     if (value.IsUnset()) return;
-    authoredValue_ = value;
+    value_ = value;
 }
 
 bool Setter::Resolve(

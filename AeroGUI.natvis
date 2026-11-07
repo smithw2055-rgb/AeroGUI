@@ -147,4 +147,52 @@
     </Expand>
   </Type>
 
+  <Type Name="Aero::Controls::Panel">
+    <DisplayString>{{ children={ownedChildren_.size_}, hasCustomZOrder={zOrderCache_ != nullptr} }}</DisplayString>
+    <Expand>
+      <Item Name="[ownedChildren]">ownedChildren_</Item>
+      <Item Name="[zOrderCache]">zOrderCache_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::ItemsControl">
+    <DisplayString>{{ hasStorage={storage_ != nullptr}, itemsHost={itemsHost_} }}</DisplayString>
+    <Expand>
+      <Item Name="[storage]">storage_</Item>
+      <Item Name="[itemsHost]">itemsHost_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::Primitives::Selector">
+    <DisplayString>{{ primaryIndex={primaryIndex_}, selectionStorage={selectionStorage_} }}</DisplayString>
+    <Expand>
+      <Item Name="[primaryIndex]">primaryIndex_</Item>
+      <Item Name="[pendingIndex]">pendingIndex_</Item>
+      <Item Name="[selectionStorage]">selectionStorage_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::ComboBox">
+    <DisplayString>{{ primaryIndex={primaryIndex_}, parts={parts_} }}</DisplayString>
+    <Expand>
+      <Item Name="[primaryIndex]">primaryIndex_</Item>
+      <Item Name="[parts]">parts_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::TreeViewItem">
+    <DisplayString>{{ itemRare={itemRare_}, gestureActive={expanderGestureActive_} }}</DisplayString>
+    <Expand>
+      <Item Name="[itemRare]">itemRare_</Item>
+      <Item Name="[expanderGestureActive]">expanderGestureActive_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::Primitives::TextBoxBase">
+    <DisplayString>{{ editorState={state_} }}</DisplayString>
+    <Expand>
+      <Item Name="[editorState]">state_</Item>
+    </Expand>
+  </Type>
+
 </AutoVisualizer>

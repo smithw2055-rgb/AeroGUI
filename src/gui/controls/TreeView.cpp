@@ -195,24 +195,48 @@ void UnselectOtherTreeViewItems(
 
 } // namespace
 
+struct TreeViewItem::TreeItemRare {
+    TextBlock* headerText = nullptr;
+    TextBlock* iconText = nullptr;
+    TextBlock* expanderGlyph = nullptr;
+    ItemsControl* childItems = nullptr;
+    UIElement* itemsBorder = nullptr;
+    UIElement* itemsHostPresenter = nullptr;
+    Primitives::ToggleButton* expandButton = nullptr;
+    Ref<Base::Object> hierarchicalItemsSource;
+    Ref<Data::Binding> hierarchicalItemsBinding;
+    Ref<Base::Object> hierarchicalBindingSource;
+    Ref<DataTemplate> hierarchicalItemTemplate;
+};
+
+TreeViewItem::TreeItemRare* TreeViewItem::EnsureItemRare() noexcept {
+    if (itemRare_ == nullptr) {
+        itemRare_ = new (std::nothrow) TreeItemRare();
+    }
+    return itemRare_;
+}
+
 TreeViewItem::TreeViewItem() noexcept
     : TreeViewItem(StaticTypeId()) {}
 
 TreeViewItem::TreeViewItem(
     TypeId runtimeType) noexcept
-    : HeaderedItemsControl(runtimeType),
-      expandClickHandler_(
-          this, &TreeViewItem::OnExpandButtonClick) {}
+    : HeaderedItemsControl(runtimeType) {}
 
 TreeViewItem::~TreeViewItem() {
-    if (childItems_ != nullptr) {
-        childItems_->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
-        childItems_->SetItemsSourceCore(nullptr);
-    }
-    if (expandButton_ != nullptr) {
-        static_cast<void>(expandButton_->RemoveHandler(
-            ButtonBase::ClickEvent, expandClickHandler_));
-        expandButton_ = nullptr;
+    if (itemRare_ != nullptr) {
+        if (itemRare_->childItems != nullptr) {
+            itemRare_->childItems->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
+            itemRare_->childItems->SetItemsSourceCore(nullptr);
+        }
+        if (itemRare_->expandButton != nullptr) {
+            static_cast<void>(itemRare_->expandButton->RemoveHandler(
+                ButtonBase::ClickEvent,
+                RoutedEventHandler(this, &TreeViewItem::OnExpandButtonClick)));
+            itemRare_->expandButton = nullptr;
+        }
+        delete itemRare_;
+        itemRare_ = nullptr;
     }
 }
 
@@ -282,12 +306,13 @@ TreeViewItem::GetContainerForItemOverride() const noexcept {
 void TreeViewItem::SetHierarchicalContent(
     Base::Ref<Base::Object> source,
     Base::Ref<DataTemplate> itemTemplate) noexcept {
-    hierarchicalItemsSource_ = std::move(source);
-    hierarchicalItemsBinding_.Reset();
-    hierarchicalBindingSource_.Reset();
-    hierarchicalItemTemplate_ = std::move(itemTemplate);
-auto* items =
-        AsItemsSource(hierarchicalItemsSource_.Get());
+    TreeItemRare* r = EnsureItemRare();
+    if (r == nullptr) return;
+    r->hierarchicalItemsSource = std::move(source);
+    r->hierarchicalItemsBinding.Reset();
+    r->hierarchicalBindingSource.Reset();
+    r->hierarchicalItemTemplate = std::move(itemTemplate);
+    auto* items = AsItemsSource(r->hierarchicalItemsSource.Get());
     static_cast<void>(SetReadOnlyCurrentValue(
         ItemsControl::HasItemsProperty,
         items != nullptr && items->GetCount() != 0U));
@@ -298,24 +323,24 @@ void TreeViewItem::SetHierarchicalBinding(
     Base::Ref<Data::Binding> binding,
     Base::Ref<Base::Object> source,
     Base::Ref<DataTemplate> itemTemplate) noexcept {
-    hierarchicalItemsSource_.Reset();
-    hierarchicalItemsBinding_ = std::move(binding);
-    hierarchicalBindingSource_ = std::move(source);
-    hierarchicalItemTemplate_ = std::move(itemTemplate);
-    // A hierarchical declaration represents a potentially expandable node.
-    // Resolve the collection lazily on expansion so collapsed trees do not
-    // realize and attach every descendant during their parent's binding wave.
+    TreeItemRare* r = EnsureItemRare();
+    if (r == nullptr) return;
+    r->hierarchicalItemsSource.Reset();
+    r->hierarchicalItemsBinding = std::move(binding);
+    r->hierarchicalBindingSource = std::move(source);
+    r->hierarchicalItemTemplate = std::move(itemTemplate);
     static_cast<void>(SetReadOnlyCurrentValue(
         ItemsControl::HasItemsProperty,
-        hierarchicalItemsBinding_ && hierarchicalBindingSource_));
+        r->hierarchicalItemsBinding && r->hierarchicalBindingSource));
     if (GetIsExpanded()) ActivateHierarchicalContent();
 }
 
 void TreeViewItem::ClearHierarchicalContent() noexcept {
-    hierarchicalItemsSource_.Reset();
-    hierarchicalItemsBinding_.Reset();
-    hierarchicalBindingSource_.Reset();
-    hierarchicalItemTemplate_.Reset();
+    if (itemRare_ == nullptr) return;
+    itemRare_->hierarchicalItemsSource.Reset();
+    itemRare_->hierarchicalItemsBinding.Reset();
+    itemRare_->hierarchicalBindingSource.Reset();
+    itemRare_->hierarchicalItemTemplate.Reset();
 }
 
 void TreeViewItem::ApplyHierarchicalDataTemplate(
@@ -359,34 +384,35 @@ void TreeViewItem::ClearHierarchicalDataTemplate() noexcept {
 }
 
 void TreeViewItem::ActivateHierarchicalContent() noexcept {
-    SetItemTemplate(hierarchicalItemTemplate_);
-    if (hierarchicalItemsSource_) {
-        SetItemsSource(hierarchicalItemsSource_);
-    } else if (hierarchicalItemsBinding_ && hierarchicalBindingSource_) {
+    if (itemRare_ == nullptr) return;
+    SetItemTemplate(itemRare_->hierarchicalItemTemplate);
+    if (itemRare_->hierarchicalItemsSource) {
+        SetItemsSource(itemRare_->hierarchicalItemsSource);
+    } else if (itemRare_->hierarchicalItemsBinding && itemRare_->hierarchicalBindingSource) {
         auto* bindings = ElementTree::BindingsOf(*this);
         if (bindings == nullptr || bindings->Metadata() == nullptr) return;
         Data::MetadataBindingDescriptor descriptor;
         descriptor.metadata = bindings->Metadata();
-        descriptor.source = hierarchicalBindingSource_.Get();
+        descriptor.source = itemRare_->hierarchicalBindingSource.Get();
         descriptor.target = this;
         descriptor.targetProperty = ItemsControl::ItemsSourceProperty.Handle();
-        descriptor.path = hierarchicalItemsBinding_->GetPathText();
+        descriptor.path = itemRare_->hierarchicalItemsBinding->GetPathText();
         descriptor.stringFormat =
-            hierarchicalItemsBinding_->GetStringFormat();
+            itemRare_->hierarchicalItemsBinding->GetStringFormat();
         descriptor.mode = Data::BindingMode::OneWay;
         descriptor.updateSourceTrigger =
             bindings->ResolveUpdateSourceTrigger(
                 *this,
                 ItemsControl::ItemsSourceProperty.Handle(),
-                hierarchicalItemsBinding_->GetUpdateSourceTrigger());
+                itemRare_->hierarchicalItemsBinding->GetUpdateSourceTrigger());
         descriptor.converterResource =
-            hierarchicalItemsBinding_->GetConverter();
+            itemRare_->hierarchicalItemsBinding->GetConverter();
         descriptor.converterParameter =
-            hierarchicalItemsBinding_->GetConverterParameter();
+            itemRare_->hierarchicalItemsBinding->GetConverterParameter();
         descriptor.fallbackValue =
-            hierarchicalItemsBinding_->GetFallbackValue();
+            itemRare_->hierarchicalItemsBinding->GetFallbackValue();
         descriptor.targetNullValue =
-            hierarchicalItemsBinding_->GetTargetNullValue();
+            itemRare_->hierarchicalItemsBinding->GetTargetNullValue();
         Base::Result<void> queued = bindings->QueueDeferred(descriptor);
         if (!queued) {
             bindings->RecordError(queued.GetStatus());
@@ -401,11 +427,11 @@ void TreeViewItem::ActivateHierarchicalContent() noexcept {
     } else {
         return;
     }
-    if (childItems_ != nullptr) {
+    if (itemRare_->childItems != nullptr) {
         const Base::Ref<Base::Object> current = GetItemsSource();
-auto* items = AsItemsSource(current.Get());
-        childItems_->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
-        childItems_->SetItemsSourceCore(items);
+        auto* items = AsItemsSource(current.Get());
+        itemRare_->childItems->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
+        itemRare_->childItems->SetItemsSourceCore(items);
     }
     ProjectRealizedHeaders();
 }
@@ -413,10 +439,12 @@ auto* items = AsItemsSource(current.Get());
 void
 TreeViewItem::OnApplyTemplate() noexcept {
     HeaderedItemsControl::OnApplyTemplate();
+    TreeItemRare* r = EnsureItemRare();
+    if (r == nullptr) return;
 
     DependencyObject* header =
         GetTemplateChild("HeaderText");
-    headerText_ =
+    r->headerText =
         header != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             header->RuntimeType(),
@@ -425,7 +453,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         : nullptr;
     DependencyObject* icon =
         GetTemplateChild("IconText");
-    iconText_ =
+    r->iconText =
         icon != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             icon->RuntimeType(),
@@ -434,7 +462,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         : nullptr;
     DependencyObject* glyph =
         GetTemplateChild("ExpanderGlyph");
-    expanderGlyph_ =
+    r->expanderGlyph =
         glyph != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             glyph->RuntimeType(),
@@ -443,7 +471,7 @@ TreeViewItem::OnApplyTemplate() noexcept {
         : nullptr;
     DependencyObject* children =
         GetTemplateChild("ChildItems");
-    childItems_ =
+    r->childItems =
         children != nullptr &&
         DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
             children->RuntimeType(),
@@ -452,33 +480,35 @@ TreeViewItem::OnApplyTemplate() noexcept {
         : nullptr;
     DependencyObject* itemsBorder =
         GetTemplateChild("ItemsBorder");
-    itemsBorder_ =
+    r->itemsBorder =
         itemsBorder != nullptr
         ? ::Aero::TryCast<::Aero::UIElement>(itemsBorder)
         : nullptr;
     DependencyObject* itemsHost =
         GetTemplateChild("ItemsHost");
-    itemsHostPresenter_ =
+    r->itemsHostPresenter =
         itemsHost != nullptr
         ? ::Aero::TryCast<::Aero::UIElement>(itemsHost)
         : nullptr;
-    if (expandButton_ != nullptr) {
-        static_cast<void>(expandButton_->RemoveHandler(
-            ButtonBase::ClickEvent, expandClickHandler_));
-        expandButton_ = nullptr;
+    if (r->expandButton != nullptr) {
+        static_cast<void>(r->expandButton->RemoveHandler(
+            ButtonBase::ClickEvent,
+            RoutedEventHandler(this, &TreeViewItem::OnExpandButtonClick)));
+        r->expandButton = nullptr;
     }
     DependencyObject* expander =
         GetTemplateChild("ExpandButton");
-    expandButton_ =
+    r->expandButton =
         expander != nullptr
         ? ::Aero::TryCast<ToggleButton>(expander)
         : nullptr;
-    if (expandButton_ != nullptr) {
-        expandButton_->AddHandler(
-            ButtonBase::ClickEvent, expandClickHandler_);
+    if (r->expandButton != nullptr) {
+        r->expandButton->AddHandler(
+            ButtonBase::ClickEvent,
+            RoutedEventHandler(this, &TreeViewItem::OnExpandButtonClick));
     }
 
-    if (childItems_ != nullptr) {
+    if (r->childItems != nullptr) {
         Base::Ref<Base::Object> source = GetItemsSource();
         Collections::IItemsSource* childSource = AsItemsSource(source.Get());
         if (childSource == nullptr) {
@@ -486,95 +516,100 @@ TreeViewItem::OnApplyTemplate() noexcept {
                 static_cast<Collections::IItemsSource*>(
                     &ItemsControl::GetItems());
         }
-        childItems_->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
-        childItems_->SetItemsSourceCore(childSource);
+        r->childItems->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
+        r->childItems->SetItemsSourceCore(childSource);
     }
     SynchronizeTemplate();
     ProjectRealizedHeaders();
 }
 
 void TreeViewItem::OnTemplateDetached() noexcept {
-    if (childItems_ != nullptr) {
-        childItems_->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
-        childItems_->SetItemsSourceCore(nullptr);
-    }
-    headerText_ = nullptr;
-    iconText_ = nullptr;
-    expanderGlyph_ = nullptr;
-    childItems_ = nullptr;
-    itemsBorder_ = nullptr;
-    itemsHostPresenter_ = nullptr;
-    if (expandButton_ != nullptr) {
-        static_cast<void>(expandButton_->RemoveHandler(
-            ButtonBase::ClickEvent, expandClickHandler_));
-        expandButton_ = nullptr;
+    if (itemRare_ != nullptr) {
+        if (itemRare_->childItems != nullptr) {
+            itemRare_->childItems->SetValue(ItemsControl::ItemsSourceProperty, Base::Ref<Base::Object>{});
+            itemRare_->childItems->SetItemsSourceCore(nullptr);
+        }
+        itemRare_->headerText = nullptr;
+        itemRare_->iconText = nullptr;
+        itemRare_->expanderGlyph = nullptr;
+        itemRare_->childItems = nullptr;
+        itemRare_->itemsBorder = nullptr;
+        itemRare_->itemsHostPresenter = nullptr;
+        if (itemRare_->expandButton != nullptr) {
+            static_cast<void>(itemRare_->expandButton->RemoveHandler(
+                ButtonBase::ClickEvent,
+                RoutedEventHandler(this, &TreeViewItem::OnExpandButtonClick)));
+            itemRare_->expandButton = nullptr;
+        }
     }
     HeaderedItemsControl::OnTemplateDetached();
 }
 
 void TreeViewItem::SynchronizeTemplate() noexcept {
-    if (headerText_ != nullptr) {
-        const Value header = GetHeader();
-        headerText_->SetText(
-            header.Kind() == ValueKind::String
-            ? header.AsString()
-            : Base::StringView{});
-    }
-    if (iconText_ != nullptr) {
-        iconText_->SetText(GetIcon());
-    }
-    if (expanderGlyph_ != nullptr) {
-        expanderGlyph_->SetText(
-                !GetHasItems()
-                ? Base::StringView("")
-                : GetIsExpanded()
-                    ? Base::StringView("v")
-                    : Base::StringView(">"));
-    }
-    if (childItems_ != nullptr) {
-        childItems_->SetVisibility(
-                GetIsExpanded()
-                ? Visibility::Visible
-                : Visibility::Collapsed);
-    }
     const bool expanded = GetIsExpanded();
-    if (itemsBorder_ != nullptr) {
-        itemsBorder_->SetVisibility(
-            expanded
-                ? Visibility::Visible
-                : Visibility::Collapsed);
-    }
-    if (itemsHostPresenter_ == nullptr && itemsBorder_ != nullptr) {
-        if (auto* border = ::Aero::TryCast<Decorator>(itemsBorder_)) {
-            itemsHostPresenter_ = border->GetChild();
+    if (itemRare_ != nullptr) {
+        if (itemRare_->headerText != nullptr) {
+            const Value header = GetHeader();
+            itemRare_->headerText->SetText(
+                header.Kind() == ValueKind::String
+                ? header.AsString()
+                : Base::StringView{});
         }
-    }
-    if (itemsHostPresenter_ != nullptr) {
-        Base::Ref<Media::Transform> transform =
-            itemsHostPresenter_->GetRenderTransform();
-        Media::ScaleTransform* scale =
-            transform
-                ? ::Aero::TryCast<Media::ScaleTransform>(transform.Get())
-                : nullptr;
-        if (scale == nullptr) {
-            Base::Result<Base::Ref<Media::ScaleTransform>> made =
-                Base::MakeRef<Media::ScaleTransform>();
-            if (made) {
-                scale = made.Value().Get();
-                itemsHostPresenter_->SetRenderTransform(
-                    Base::Ref<Media::Transform>(made.Value()));
+        if (itemRare_->iconText != nullptr) {
+            itemRare_->iconText->SetText(GetIcon());
+        }
+        if (itemRare_->expanderGlyph != nullptr) {
+            itemRare_->expanderGlyph->SetText(
+                    !GetHasItems()
+                    ? Base::StringView("")
+                    : GetIsExpanded()
+                        ? Base::StringView("v")
+                        : Base::StringView(">"));
+        }
+        if (itemRare_->childItems != nullptr) {
+            itemRare_->childItems->SetVisibility(
+                    GetIsExpanded()
+                    ? Visibility::Visible
+                    : Visibility::Collapsed);
+        }
+        if (itemRare_->itemsBorder != nullptr) {
+            itemRare_->itemsBorder->SetVisibility(
+                expanded
+                    ? Visibility::Visible
+                    : Visibility::Collapsed);
+        }
+        if (itemRare_->itemsHostPresenter == nullptr && itemRare_->itemsBorder != nullptr) {
+            if (auto* border = ::Aero::TryCast<Decorator>(itemRare_->itemsBorder)) {
+                itemRare_->itemsHostPresenter = border->GetChild();
             }
         }
-        if (scale != nullptr) {
-            if (::Aero::AnimationEngine* animations =
-                    ElementTree::AnimationsOf(*this)) {
-                animations->RemoveTarget(*scale);
-                animations->RemoveTarget(*itemsHostPresenter_);
-                if (itemsBorder_ != nullptr) {
-                    animations->RemoveTarget(*itemsBorder_);
+        if (itemRare_->itemsHostPresenter != nullptr) {
+            Base::Ref<Media::Transform> transform =
+                itemRare_->itemsHostPresenter->GetRenderTransform();
+            Media::ScaleTransform* scale =
+                transform
+                    ? ::Aero::TryCast<Media::ScaleTransform>(transform.Get())
+                    : nullptr;
+            if (scale == nullptr) {
+                Base::Result<Base::Ref<Media::ScaleTransform>> made =
+                    Base::MakeRef<Media::ScaleTransform>();
+                if (made) {
+                    scale = made.Value().Get();
+                    itemRare_->itemsHostPresenter->SetRenderTransform(
+                        Base::Ref<Media::Transform>(made.Value()));
                 }
             }
-            scale->SetScaleY(expanded ? 1.0 : 0.0);
+            if (scale != nullptr) {
+                if (::Aero::AnimationEngine* animations =
+                        ElementTree::AnimationsOf(*this)) {
+                    animations->RemoveTarget(*scale);
+                    animations->RemoveTarget(*itemRare_->itemsHostPresenter);
+                    if (itemRare_->itemsBorder != nullptr) {
+                        animations->RemoveTarget(*itemRare_->itemsBorder);
+                    }
+                }
+                scale->SetScaleY(expanded ? 1.0 : 0.0);
+            }
         }
     }
     if (DependencyObject* arrow = GetTemplateChild("Arrow")) {
@@ -684,7 +719,7 @@ void TreeViewItem::ProjectHeaderContent() noexcept {
     }
     auto* element = static_cast<UIElement*>(obj);
     ContentPresenter* presenter = FindHeaderPresenter(
-        *this, expandButton_, GetTemplateChild("PART_Header"));
+        *this, itemRare_ ? itemRare_->expandButton : nullptr, GetTemplateChild("PART_Header"));
     ElementTree* tree = VisualTree(this);
     if (presenter == nullptr) {
         return;
@@ -774,39 +809,36 @@ void TreeViewItem::BeginExpanderGesture() noexcept {
 void TreeViewItem::OnExpandButtonClick(
     Base::Object*,
     RoutedEventArgs&) noexcept {
+    ToggleButton* expandBtn = itemRare_ != nullptr ? itemRare_->expandButton : nullptr;
     bool target;
     if (expanderGestureActive_) {
         target = expanderGestureTarget_;
         expanderGestureArmed_ = true;
-    } else if (expandButton_ != nullptr) {
-        const Nullable<bool> checked = expandButton_->GetIsChecked();
+    } else if (expandBtn != nullptr) {
+        const Nullable<bool> checked = expandBtn->GetIsChecked();
         target = checked.GetHasValue() && checked.GetValue();
     } else {
         return;
     }
-    // Keep the gesture armed while writing so a TwoWay IsChecked echo
-    // cannot collapse the node on the same click.
-    if (expandButton_ != nullptr) {
-        const Nullable<bool> checked = expandButton_->GetIsChecked();
+    if (expandBtn != nullptr) {
+        const Nullable<bool> checked = expandBtn->GetIsChecked();
         const bool isChecked =
             checked.GetHasValue() && checked.GetValue();
         if (isChecked != target) {
-            expandButton_->SetIsChecked(Nullable<bool>{target});
+            expandBtn->SetIsChecked(Nullable<bool>{target});
         }
     }
     if (GetIsExpanded() != target) {
         SetIsExpanded(target);
     }
     SynchronizeTemplate();
-    // Keep the gesture armed until the next expander MouseDown so a TwoWay
-    // IsChecked echo cannot collapse the node on the same click.
 }
 
 void TreeViewItem::ApplyExpanderGesture() noexcept {
     if (!expanderGestureActive_) return;
     expanderGestureArmed_ = true;
-    if (expandButton_ != nullptr) {
-        expandButton_->SetIsChecked(Nullable<bool>{expanderGestureTarget_});
+    if (itemRare_ != nullptr && itemRare_->expandButton != nullptr) {
+        itemRare_->expandButton->SetIsChecked(Nullable<bool>{expanderGestureTarget_});
     }
     if (GetIsExpanded() != expanderGestureTarget_) {
         SetIsExpanded(expanderGestureTarget_);
@@ -1123,7 +1155,10 @@ void AddTreeViewItem(
 void ClearTreeViewItems(
     Base::Object& owner,
     void*) noexcept {
-    static_cast<TreeViewItem&>(owner).GetItems().Reset();
+    auto& treeItem = static_cast<TreeViewItem&>(owner);
+    if (treeItem.GetCount() != 0U) {
+        treeItem.GetItems().Reset();
+    }
 }
 
 } // namespace

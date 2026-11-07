@@ -132,13 +132,13 @@ public:
         InvalidateMeasure();
         InvalidateArrange();
     }
-    void AddItemsChanged(const ItemsChangedHandler& handler) noexcept { changed_.Add(handler); }
-    bool RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept { return changed_.Remove(handler); }
+    void AddItemsChanged(const ItemsChangedHandler& handler) noexcept;
+    bool RemoveItemsChanged(const ItemsChangedHandler& handler) noexcept;
     void AssignItemsSource(Ref<Base::Object> source) noexcept;
     void PublishReset() noexcept;
 
-    ItemCollection& GetItems() noexcept { return items_; }
-    const ItemCollection& GetItems() const noexcept { return items_; }
+    ItemCollection& GetItems() noexcept;
+    const ItemCollection& GetItems() const noexcept;
     Ref<Base::Object> GetItemsSource() const noexcept { return GetValue(ItemsSourceProperty); }
     void SetItemsSource(Ref<Base::Object> source) noexcept { SetValue(ItemsSourceProperty, std::move(source)); }
     bool GetHasItems() const noexcept { return GetValue(HasItemsProperty); }
@@ -197,7 +197,7 @@ public:
     std::uint32_t GetRealizedItemCount() const noexcept;
     std::uint32_t GetCreatedContainerCount() const noexcept;
     std::uint32_t GetRecycledContainerUseCount() const noexcept;
-    ItemContainerGenerator* GetItemContainerGenerator() const noexcept { return generator_; }
+    ItemContainerGenerator* GetItemContainerGenerator() const noexcept;
     void SetItemsSourceCore(Collections::IItemsSource* source) noexcept;
     void SetItemTemplateCore(const DataTemplate* value) noexcept { SetItemTemplate(value); }
     void SetItemTemplateSelectorCore(const DataTemplateSelector* value) noexcept {
@@ -223,7 +223,7 @@ public:
 protected:
     explicit ItemsControl(TypeId runtimeType) noexcept;
 
-    ItemContainerGenerator* AttachedGenerator() const noexcept { return generator_; }
+    ItemContainerGenerator* AttachedGenerator() const noexcept { return GetItemContainerGenerator(); }
     [[deprecated("Use PrepareContainerForItemOverride()")]]
     virtual void PrepareContainer(FrameworkElement& container, const Ref<Base::Object>& item,
         std::uint32_t index) noexcept;
@@ -248,23 +248,19 @@ protected:
     virtual Ref<FrameworkElement> CreateContainer(const Ref<Base::Object>& item) noexcept;
     [[deprecated("Use ClearContainerForItemOverride()")]]
     virtual void ClearContainer(FrameworkElement& container) noexcept;
-    Collections::IItemsSource* GetItemsSourceCore() const noexcept { return source_; }
+    Collections::IItemsSource* GetItemsSourceCore() const noexcept;
 
 private:
     friend class ItemContainerGenerator;
+    struct ItemsStorage;
+    ItemsStorage* EnsureStorage() const noexcept;
 
     void OnLocalChanged(const ItemsChangedEvent& event) noexcept;
     void OnSourceChanged(const ItemsChangedEvent& event) noexcept;
     void PublishItemCount() noexcept;
 
-    ItemCollection items_;
-    Collections::IItemsSource* source_ = nullptr;
-    ItemContainerGenerator* generator_ = nullptr;
+    mutable ItemsStorage* storage_ = nullptr;
     Panel* itemsHost_ = nullptr;
-    Ref<Base::Object> defaultItemsPresenter_;
-    ItemsChangedHandler changed_;
-    ItemsChangedHandler localHandler_;
-    ItemsChangedHandler sourceHandler_;
 };
 
 // ============================================================================

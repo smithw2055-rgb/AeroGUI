@@ -18,12 +18,8 @@ public:
     void AddAction(Ref<TriggerAction> value) noexcept;
     void ClearActions() noexcept;
     Span<const Ref<TriggerAction>> GetActions() const noexcept { return {actions_.Data(), actions_.Size()}; }
-    void AddConditionBehavior(Ref<Base::Object> value) noexcept {
-        if (!value) { AERO_ASSERT(false); return; }
-        behaviors_.PushBack(std::move(value));
-    }
-    void ClearConditionBehaviors() noexcept { behaviors_.Clear(); }
-    Span<const Ref<Base::Object>> GetBehaviors() const noexcept { return {behaviors_.Data(), behaviors_.Size()}; }
+    void AddConditionBehavior(Ref<Base::Object> value) noexcept { AddBehavior(std::move(value)); }
+    void ClearConditionBehaviors() noexcept { ClearBehaviors(); }
 
 protected:
     explicit StoryboardCompletedTrigger(Meta::TypeId runtimeType) noexcept : ::Aero::TriggerBase(runtimeType) {}
@@ -31,7 +27,6 @@ protected:
 private:
     Ref<Storyboard> storyboard_;
     Base::Vector<Ref<TriggerAction>> actions_;
-    Base::Vector<Ref<Base::Object>> behaviors_;
 };
 
 } // namespace Aero::Media::Animation
