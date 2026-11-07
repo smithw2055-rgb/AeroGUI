@@ -129,7 +129,7 @@ void DependencyObject::NotifyValueChanged(
             ++index;
         }
     }
-    if (rare_->changeHandlers.Empty()) {
+    if (rare_->changeHandlers.Empty() && rare_->inheritanceParent == nullptr) {
         delete rare_;
         rare_ = nullptr;
     }
@@ -248,7 +248,7 @@ Base::Result<void> DependencyObject::ApplyChange(
         break;
     }
     Base::Result<void> recomputed = RecomputeEffectiveValueCore(
-        propertyHandle, *property, *metadata, oldEffective, oldSourceInfo);
+        propertyHandle, *property, *metadata, oldEffective, oldSourceInfo, storedEntry);
     if (recomputed) {
         if (removesExpression && oldExpression.cleanup != nullptr) {
             oldExpression.cleanup(oldExpression.context);
@@ -341,7 +341,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     const PropertyValueSourceInfo oldSourceInfo = storedEntry != nullptr
         ? storedEntry->SourceInfo() : PropertyValueSourceInfo{};
     return RecomputeEffectiveValueCore(propertyHandle, *property, *metadata,
-        oldEffective, oldSourceInfo);
+        oldEffective, oldSourceInfo, storedEntry);
 }
 
 Base::Result<PropertyValue>
@@ -403,10 +403,13 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     DependencyPropertyHandle propertyHandle,
     const Meta::DependencyProperty& property,
     const PropertyMetadata& metadata, const PropertyValue& oldEffective,
-    const PropertyValueSourceInfo& oldSourceInfo) noexcept {
-    StoredValueEntry* storedEntry = FindStoredEntry(propertyHandle);
+    const PropertyValueSourceInfo& oldSourceInfo,
+    StoredValueEntry* storedEntry) noexcept {
     if (storedEntry == nullptr) {
-        Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(propertyHandle);
+        storedEntry = FindStoredEntry(propertyHandle);
+    }
+    if (storedEntry == nullptr) {
+        Base::Result<StoredValueEntry*> ensured = EnsureStoredEntryDirect(propertyHandle, metadata);
         if (!ensured) return ensured.GetStatus();
         storedEntry = ensured.Value();
     }
@@ -485,7 +488,9 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         if (!consumerPrepared) return consumerPrepared.GetStatus();
     }
     source.revision = t_nextValueRevision++;
-    storedEntry = FindStoredEntry(propertyHandle);
+    if (hasExpression || source.isCoerced || newEffective != oldEffective) {
+        storedEntry = FindStoredEntry(propertyHandle);
+    }
     if (storedEntry == nullptr) return Base::Status::Failure(Base::ErrorCode::InternalError,
         "Dependency property entry disappeared during evaluation");
     StoredValueEntry& entry = *storedEntry;
@@ -836,7 +841,7 @@ bool DependencyObject::RemoveValueChangedHandler(
             record.active = false;
         } else {
             RemoveChangeHandler(index);
-            if (rare_->changeHandlers.Empty()) {
+            if (rare_->changeHandlers.Empty() && rare_->inheritanceParent == nullptr) {
                 delete rare_;
                 rare_ = nullptr;
             }
@@ -941,10 +946,11 @@ void DependencyObject::SetTemplateValue(
         Base::Result<void> contribution = ApplyProviderContributionInternal(
             property, kTemplateToken, value);
         if (!contribution) return;
+        storedEntry = FindStoredEntry(property);
     }
 
     (void)RecomputeEffectiveValueCore(
-        property, *registered, *metadata, oldEffective, oldSourceInfo);
+        property, *registered, *metadata, oldEffective, oldSourceInfo, storedEntry);
 }
 
 void DependencyObject::SetCurrentValue(
@@ -1200,6 +1206,35 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
     }
     typeVerified_ = true;
     return {};
+}
+
+
+DependencyObject* DependencyObject::ExplicitInheritanceParent() const noexcept {
+    return (hasExplicitInheritanceParent_ && rare_ != nullptr)
+        ? rare_->inheritanceParent
+        : nullptr;
+}
+
+void DependencyObject::SetExplicitInheritanceParent(DependencyObject* parent) noexcept {
+    if (parent == nullptr) {
+        hasExplicitInheritanceParent_ = false;
+        if (rare_ != nullptr) {
+            rare_->inheritanceParent = nullptr;
+            if (rare_->changeHandlers.Empty() && rare_->changeHandlerNotificationDepth == 0U) {
+                delete rare_;
+                rare_ = nullptr;
+            }
+        }
+        return;
+    }
+    if (rare_ == nullptr) {
+        rare_ = new (std::nothrow) DependencyObjectRare();
+        if (rare_ == nullptr) {
+            return;
+        }
+    }
+    rare_->inheritanceParent = parent;
+    hasExplicitInheritanceParent_ = true;
 }
 
 } // namespace Aero

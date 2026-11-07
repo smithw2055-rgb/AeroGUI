@@ -56,7 +56,7 @@ BindingEngine* ElementTree::BindingsOf(const DependencyObject& object) noexcept 
             current = freezable->Parent();
             continue;
         }
-        if (const DependencyObject* inherited = current->inheritanceParent_) {
+        if (const DependencyObject* inherited = current->ExplicitInheritanceParent()) {
             current = inherited;
             continue;
         }
@@ -1921,9 +1921,8 @@ void ElementTree::EnsureVisualChildStorage(
     Media::Visual& child) noexcept {
     UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child);
     if (childElement == nullptr) return;
-    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((parent)).Types();
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+    const std::uint16_t parentMask = parent.CoreTypeMask();
+    if ((parentMask & Base::kCoreTypePanel) != 0U) {
         auto& panel = static_cast<Controls::Panel&>(parent);
         const std::uint32_t count = (panel).ChildCountCore();
         for (std::uint32_t index = 0U; index < count; ++index) {
@@ -1936,7 +1935,31 @@ void ElementTree::EnsureVisualChildStorage(
         (panel).AddChildCore( borrowed, *childElement);
         return;
     }
-    if (types.IsDerivedFrom(
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((parent)).Types();
+    if ((parentMask & Base::kCoreTypeControl) != 0U) {
+        if (types.IsDerivedFrom(
+                parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+            auto& control = static_cast<Controls::ContentControl&>(parent);
+            if (childElement == control.GetFallbackPresenter()) {
+                return;
+            }
+            UIElement* existing =
+                (control).GetContentElement();
+            if (existing == childElement) {
+                return;
+            }
+            const Base::Ref<Controls::ControlTemplate> templ =
+                control.GetValue(Controls::Control::TemplateProperty);
+            if (existing == nullptr &&
+                (control).GetTemplateRoot() == nullptr &&
+                !templ) {
+                control.SetContent(childElement);
+            }
+        }
+        return;
+    }
+    if (parent.RuntimeType() == Controls::ContentPresenter::StaticTypeId() ||
+        types.IsDerivedFrom(
             parent.RuntimeType(), Controls::ContentPresenter::StaticTypeId())) {
         auto& presenter = static_cast<Controls::ContentPresenter&>(parent);
         if (presenter.GetContent() == nullptr) {
@@ -1944,27 +1967,8 @@ void ElementTree::EnsureVisualChildStorage(
         }
         return;
     }
-    if (types.IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
-        auto& control = static_cast<Controls::ContentControl&>(parent);
-        if (childElement == control.GetFallbackPresenter()) {
-            return;
-        }
-        UIElement* existing =
-            (control).GetContentElement();
-        if (existing == childElement) {
-            return;
-        }
-        const Base::Ref<Controls::ControlTemplate> templ =
-            control.GetValue(Controls::Control::TemplateProperty);
-        if (existing == nullptr &&
-            (control).GetTemplateRoot() == nullptr &&
-            !templ) {
-            control.SetContent(childElement);
-        }
-        return;
-    }
-    if (types.IsDerivedFrom(
+    if (parent.RuntimeType() == Controls::Primitives::Popup::StaticTypeId() ||
+        types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Primitives::Popup::StaticTypeId())) {
         auto& popup = static_cast<Controls::Primitives::Popup&>(parent);
         if (popup.GetChild() == nullptr || popup.GetChild() == childElement) {
@@ -1980,7 +1984,8 @@ void ElementTree::EnsureVisualChildStorage(
         }
         return;
     }
-    if (types.IsDerivedFrom(
+    if (parent.RuntimeType() == Controls::BulletDecorator::StaticTypeId() ||
+        types.IsDerivedFrom(
             parent.RuntimeType(), Controls::BulletDecorator::StaticTypeId())) {
         auto& bullet = static_cast<Controls::BulletDecorator&>(parent);
         if (bullet.GetChild() == childElement ||
@@ -2004,20 +2009,20 @@ void ElementTree::EnsureVisualChildStorage(
 void ElementTree::AttachVisualControlTemplateRoot(
     Media::Visual& parent,
     Media::Visual& child) noexcept {
-    if (DependencyObjectAccess::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::ContentControl::StaticTypeId())) {
+    if ((parent.CoreTypeMask() & Base::kCoreTypeControl) == 0U) {
         return;
     }
-    if (DependencyObjectAccess::PropertyRegistry(parent).Types().IsDerivedFrom(
+    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry(parent).Types();
+    if (types.IsDerivedFrom(
+            parent.RuntimeType(), Controls::ContentControl::StaticTypeId()) ||
+        types.IsDerivedFrom(
             parent.RuntimeType(), Controls::Primitives::Track::StaticTypeId())) {
         return;
     }
-    if (DependencyObjectAccess::PropertyRegistry(parent).Types().IsDerivedFrom(
-            parent.RuntimeType(), Controls::Control::StaticTypeId()) &&
-        ::Aero::TryCast<::Aero::UIElement>(&child) != nullptr) {
+    if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
         auto& control = static_cast<Controls::Control&>(parent);
         if (control.GetTemplateRoot() == nullptr) {
-            control.SetTemplateChildCore(::Aero::TryCast<::Aero::UIElement>(&child));
+            control.SetTemplateChildCore(childElement);
         }
     }
 }
@@ -2026,12 +2031,14 @@ void ElementTree::CleanVisualChildStorage(
     Media::Visual& parent,
     Media::Visual& child) noexcept {
     if (UIElement* childElement = ::Aero::TryCast<::Aero::UIElement>(&child)) {
-        if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-                parent.RuntimeType(), Controls::Panel::StaticTypeId())) {
+        const std::uint16_t parentMask = parent.CoreTypeMask();
+        if ((parentMask & Base::kCoreTypePanel) != 0U) {
             auto& panel = static_cast<Controls::Panel&>(parent);
             (void)(panel).RemoveChildCore( *childElement);
-        } else if (DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
-                parent.RuntimeType(), Controls::Primitives::Popup::StaticTypeId())) {
+        } else if ((parentMask & Base::kCoreTypeControl) == 0U &&
+                   (parent.RuntimeType() == Controls::Primitives::Popup::StaticTypeId() ||
+                    DependencyObjectAccess::PropertyRegistry((parent)).Types().IsDerivedFrom(
+                        parent.RuntimeType(), Controls::Primitives::Popup::StaticTypeId()))) {
             auto& popup = static_cast<Controls::Primitives::Popup&>(parent);
             if (popup.GetChild() == childElement) {
                 popup.SetChild(nullptr);
@@ -2093,13 +2100,11 @@ void EventRouter::InvokeNode(
         }
     }
 
-    if (catalog.Types().IsDerivedFrom(
-            node.RuntimeType(), UIElement::StaticTypeId())) {
+    if ((node.CoreTypeMask() & Base::kCoreTypeUIElement) != 0U) {
         (static_cast<UIElement&>(node)).InvokeHandlers( args.GetRoutedEvent(), args);
         return;
     }
-    if (catalog.Types().IsDerivedFrom(
-            node.RuntimeType(), ContentElement::StaticTypeId())) {
+    if ((node.CoreTypeMask() & Base::kCoreTypeContentElement) != 0U) {
         (static_cast<ContentElement&>(node)).InvokeHandlers( args.GetRoutedEvent(), args);
     }
 }

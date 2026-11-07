@@ -452,6 +452,7 @@ void DetachViewUi(
                 auto& itemsControl = *static_cast<Controls::ItemsControl*>(node);
                 if (auto* gen = itemsControl.GetItemContainerGenerator()) {
                     gen->Detach();
+                    delete gen;
                 }
                 state.UntrackVisualNode(itemsControl);
             }
@@ -703,7 +704,6 @@ Base::Result<void> ViewFrame::AttachItemGenerator(
             delete generator;
             return generatedUiApplied.GetStatus();
         }
-        itemGenerators.PushBack(generator);
         return {};
     }
 
@@ -1163,17 +1163,17 @@ void ViewFrame::BeginDestroyInteractions() noexcept {
     }
 
 void ViewFrame::FinishDestroyInteractions() noexcept {
-        while (!itemGenerators.Empty()) {
-            Controls::ItemContainerGenerator*
-                generator = itemGenerators.Back();
-            itemGenerators.PopBack();
-            if (generator != nullptr) {
-                generator->Detach();
-                delete generator;
-                generator = nullptr;
+        while (!trackedItemsControls.Empty()) {
+            Controls::ItemsControl* ic = trackedItemsControls.Back();
+            trackedItemsControls.PopBack();
+            if (ic != nullptr) {
+                if (Controls::ItemContainerGenerator* generator =
+                        ic->GetItemContainerGenerator()) {
+                    generator->Detach();
+                    delete generator;
+                }
             }
         }
-        trackedItemsControls.Clear();
         hasUnattachedItemsControls = false;
         if (Input() != nullptr) {
             Input()->SetRoot(nullptr);

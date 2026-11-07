@@ -256,8 +256,6 @@ struct ViewFrame {
     void ClearRendererFailure() noexcept;
     void RaiseFrameRendering(View& view) noexcept;
 
-    Base::Vector<Controls::ItemContainerGenerator*>
-        itemGenerators;
     Base::Vector<Controls::ItemsControl*>
         trackedItemsControls;
     Base::Vector<Aero::VisualHandle>

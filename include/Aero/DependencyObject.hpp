@@ -185,7 +185,8 @@ private:
         const PropertyMetadata& metadata) noexcept;
     Result<void> RecomputeEffectiveValueCore(DependencyPropertyHandle property,
         const Meta::DependencyProperty& registered, const PropertyMetadata& metadata,
-        const PropertyValue& oldEffective, const PropertyValueSourceInfo& oldSourceInfo) noexcept;
+        const PropertyValue& oldEffective, const PropertyValueSourceInfo& oldSourceInfo,
+        StoredValueEntry* storedEntry = nullptr) noexcept;
     static EffectiveValueSource ToLegacySource(const PropertyValueSourceInfo& source) noexcept;
     Result<void> ApplyChange(DependencyPropertyHandle property, const DependencyPropertyKey* key,
         ChangeKind kind, const PropertyValue* value) noexcept;
@@ -213,10 +214,12 @@ private:
         styleAppIndex_ = index >= UINT16_MAX ? UINT16_MAX : static_cast<std::uint16_t>(index);
     }
 
+    DependencyObject* ExplicitInheritanceParent() const noexcept;
+    void SetExplicitInheritanceParent(DependencyObject* parent) noexcept;
+
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
     TypeId runtimeType_ = InvalidTypeId;
     void* valueStore_ = nullptr;
-    DependencyObject* inheritanceParent_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
     std::uint16_t unmaterializedQueueMask_ = 0U;
     std::uint16_t registryEpoch_ = 0U;
@@ -225,6 +228,7 @@ private:
     bool objectServicesAvailable_ : 1;
     mutable bool typeVerified_ : 1;
     bool hasExplicitInheritanceChildren_ : 1;
+    bool hasExplicitInheritanceParent_ : 1;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(

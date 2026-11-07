@@ -31,7 +31,6 @@ ViewFrame::ViewFrame(
       schemaBundle(&gui->schema),
       documentCache(&gui->documents),
       xamlProviders(&gui->xamlProviders),
-      itemGenerators(&value),
       trackedItemsControls(&value),
       fragmentMounts(&value),
       componentMounts(&value) {}

@@ -1923,3 +1923,7 @@ foreach(aero_effect_class IN LISTS aero_effect_classes)
 endforeach()
 
 message(STATUS "Aero final architecture dependency checks passed")
+
+aero_require_file("src/gui/core/TypeRegistry.cpp")
+aero_require_file("src/gui/markup/XamlResourceExtensions.cpp")
+aero_require_text("src/gui/core/PropertyStore.hpp" "DependencyObject* inheritanceParent = nullptr;" "Explicit inheritanceParent must reside in DependencyObjectRare")

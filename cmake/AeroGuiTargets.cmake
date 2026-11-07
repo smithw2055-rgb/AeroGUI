@@ -18,6 +18,7 @@ set(_aero_gui_core_sources
     src/gui/core/FrameworkElement.cpp
     src/gui/core/FrameworkContentElement.cpp
     src/gui/core/DependencyObject.cpp
+    src/gui/core/TypeRegistry.cpp
     src/gui/core/Metadata.cpp
     src/gui/core/PropertyPath.cpp
     src/gui/core/ValueConversion.cpp
@@ -103,6 +104,7 @@ set(_aero_gui_markup_sources
     src/gui/markup/XamlBytecode.cpp
     src/gui/markup/XamlBytecodeVM.cpp
     src/gui/markup/XamlMarkupExtensions.cpp
+    src/gui/markup/XamlResourceExtensions.cpp
     src/gui/markup/XamlTokenizer.cpp
     src/gui/markup/XamlCompiler.cpp
     src/gui/markup/XamlSchema.cpp

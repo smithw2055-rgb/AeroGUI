@@ -799,6 +799,7 @@ struct ChangeHandlerRecord {
 
 struct DependencyObjectRare {
     Base::Vector<ChangeHandlerRecord> changeHandlers;
+    DependencyObject* inheritanceParent = nullptr;
     std::uint32_t changeHandlerNotificationDepth = 0U;
 };
 

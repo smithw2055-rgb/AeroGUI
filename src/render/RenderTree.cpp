@@ -1127,7 +1127,7 @@ bool RenderTree::MarkCommittedSubtree(
     }
     if (processed != 0U &&
         (visual).RenderRevision() !=
-            UINT64_MAX) {
+            UINT32_MAX) {
         ++(visual).RenderRevision();
     }
     (visual).RenderDirtyFlags() &=
@@ -1770,7 +1770,7 @@ Base::Result<void> RenderTree::DescribeVisual(
             Base::ErrorCode::OutOfRange,
             "RenderFrame command count exceeds 32-bit range");
     }
-    if ((visual).RenderRevision() == UINT64_MAX) {
+    if ((visual).RenderRevision() == UINT32_MAX) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfRange,
             "Render element revision space exhausted");
@@ -1843,9 +1843,9 @@ Base::Result<void> RenderTree::DescribeVisual(
     snapshot.commandOffset = plan.commandHeaders_.Size();
     snapshot.commandCount = commandCount;
     snapshot.elementRevision =
-        (visual).RenderRevision() +
+        static_cast<std::uint64_t>((visual).RenderRevision()) +
         ((visual).RenderDirtyFlags() != 0U
-         ? 1U : 0U);
+         ? 1ULL : 0ULL);
     Base::Ref<Media::Transform3D> local3DRef =
         (element != nullptr && element->HasTransform3D())
             ? element->GetTransform3D()

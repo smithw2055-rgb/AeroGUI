@@ -1383,7 +1383,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
         return InvalidTemplate(
             "FrameworkTemplate requires a factory and registered target type");
     }
-    for (const TemplateBindingPlan& binding : templateState->program.bindings) {
+    for (TemplateBindingPlan& binding : templateState->program.bindings) {
         const DependencyProperty* source =
             properties.Find(binding.sourceProperty);
         const DependencyProperty* target =
@@ -1394,27 +1394,34 @@ Base::Result<void> FrameworkTemplateState::Seal(
                 Base::ErrorCode::NotFound,
                 "TemplateBinding property was not found");
         }
+        binding.sourceProperty = source->Handle();
+        binding.targetProperty = target->Handle();
     }
-    for (const TemplateMetadataBindingPlan& binding :
+    for (TemplateMetadataBindingPlan& binding :
          templateState->program.metadataBindings) {
-        if (binding.path.Empty() ||
-            properties.Find(binding.targetProperty) == nullptr) {
+        const DependencyProperty* target =
+            properties.Find(binding.targetProperty);
+        if (binding.path.Empty() || target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "TemplatedParent Binding target property was not found");
         }
+        binding.targetProperty = target->Handle();
     }
-    for (const TemplateDynamicResourcePlan& resource :
+    for (TemplateDynamicResourcePlan& resource :
          templateState->program.dynamicResources) {
+        const DependencyProperty* target =
+            properties.Find(resource.targetProperty);
         if (resource.targetName.Empty() || resource.key.Empty() ||
-            properties.Find(resource.targetProperty) == nullptr) {
+            target == nullptr) {
             return Base::Status::Failure(
                 Base::ErrorCode::NotFound,
                 "Template DynamicResource target property was not found");
         }
+        resource.targetProperty = target->Handle();
     }
-    for (const TemplatePropertyTrigger& trigger : templateState->program.triggers) {
-        for (const TemplateTriggerCondition& triggerCondition :
+    for (TemplatePropertyTrigger& trigger : templateState->program.triggers) {
+        for (TemplateTriggerCondition& triggerCondition :
              trigger.conditions) {
             const DependencyProperty* condition =
                 properties.Find(triggerCondition.property);
@@ -1425,29 +1432,31 @@ Base::Result<void> FrameworkTemplateState::Seal(
                     Base::ErrorCode::NotFound,
                     "Template trigger condition does not apply to TargetType");
             }
+            triggerCondition.property = condition->Handle();
             if (triggerCondition.sourceName.Empty()) {
                 Base::Result<void> valid = properties.ValidateValueFor(
                     triggerCondition.property, templateState->program.targetType, triggerCondition.value);
                 if (!valid) return valid.GetStatus();
             }
         }
-        for (const TemplateTriggerSetter& setter :
+        for (TemplateTriggerSetter& setter :
              trigger.setters) {
-            if (!setter.property.IsValid() ||
-                setter.value.IsUnset() ||
-                properties.Find(setter.property) == nullptr) {
+            const DependencyProperty* setterProp =
+                setter.property.IsValid() ? properties.Find(setter.property) : nullptr;
+            if (setterProp == nullptr || setter.value.IsUnset()) {
                 return Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "Template trigger setter is invalid");
             }
+            setter.property = setterProp->Handle();
         }
     }
     for (std::uint32_t groupIndex = 0U;
         groupIndex < templateState->program.visualStateGroups.Size(); ++groupIndex) {
-        const VisualStateGroupPlan& group =
+        VisualStateGroupPlan& group =
             templateState->program.visualStateGroups[groupIndex];
-        for (const VisualStatePlan& state : group.states) {
-            for (const VisualStateSetterPlan& setter : state.setters) {
+        for (VisualStatePlan& state : group.states) {
+            for (VisualStateSetterPlan& setter : state.setters) {
                 const DependencyProperty* property =
                     properties.Find(setter.property);
                 if (property == nullptr || property->GetIsReadOnly()) {
@@ -1455,6 +1464,7 @@ Base::Result<void> FrameworkTemplateState::Seal(
                         Base::ErrorCode::InvalidArgument,
                         "Visual state setter property is invalid");
                 }
+                setter.property = property->Handle();
                 Base::Result<void> valid =
                     properties.ValidateValueFor(
                         setter.property,

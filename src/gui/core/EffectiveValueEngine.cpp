@@ -1116,14 +1116,15 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
       registryEpoch_(registry_ != nullptr ? registry_->Epoch() : 0U),
       objectServicesAvailable_(HasObjectFactory()),
       typeVerified_(false),
-      hasExplicitInheritanceChildren_(false) {
+      hasExplicitInheritanceChildren_(false),
+      hasExplicitInheritanceParent_(false) {
     AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
 }
 
 DependencyObject::~DependencyObject() {
     if (registry_ != nullptr &&
         (styleAppIndex_ != UINT16_MAX || unmaterializedQueueMask_ != 0U ||
-         inheritanceParent_ != nullptr || hasExplicitInheritanceChildren_ ||
+         hasExplicitInheritanceParent_ || hasExplicitInheritanceChildren_ ||
          valueStore_ != nullptr) &&
         DependencyPropertyRegistry::IsLive(registry_, registryEpoch_)) {
         registry_->NotifyObjectDestroyed(*this);
@@ -1206,7 +1207,7 @@ void EffectiveValueEngine::Shutdown() noexcept {
         }
         for (DependencyObject* child : kv.Value()) {
             if (child != nullptr) {
-                child->inheritanceParent_ = nullptr;
+                child->SetExplicitInheritanceParent(nullptr);
             }
         }
     }
@@ -1449,8 +1450,8 @@ void EffectiveValueEngine::ClearQueueLinks() noexcept {
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
     const DependencyObject& child) const noexcept {
-    if (child.inheritanceParent_ != nullptr) {
-        return child.inheritanceParent_;
+    if (DependencyObject* explicitParent = child.ExplicitInheritanceParent()) {
+        return explicitParent;
     }
     if (const ::Aero::Media::Visual* visual =
             ::Aero::TryCast<::Aero::Media::Visual>(&child)) {
@@ -1491,7 +1492,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     }
 
     DependencyObject* previousParent = InheritanceParent(child);
-    DependencyObject* explicitPrevious = child.inheritanceParent_;
+    DependencyObject* explicitPrevious = child.ExplicitInheritanceParent();
     const ::Aero::Media::Visual* childVisual =
         ::Aero::TryCast<::Aero::Media::Visual>(&child);
     const bool coveredByVisualTree =
@@ -1515,8 +1516,13 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
                 }
             }
         }
-        child.inheritanceParent_ = explicitTarget;
+        child.SetExplicitInheritanceParent(explicitTarget);
         if (explicitTarget != nullptr) {
+            if (child.ExplicitInheritanceParent() != explicitTarget) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfMemory,
+                    "Failed to allocate explicit inheritance parent state");
+            }
             auto* list = childrenByParent_.Find(explicitTarget);
             if (list == nullptr) {
                 Base::Vector<DependencyObject*> emptyList;
@@ -2417,8 +2423,7 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
         }
     }
     object.unmaterializedQueueMask_ = 0U;
-    if (object.inheritanceParent_ != nullptr) {
-        DependencyObject* previousParent = object.inheritanceParent_;
+    if (DependencyObject* previousParent = object.ExplicitInheritanceParent()) {
         if (!childrenByParent_.Empty()) {
             if (auto* list = childrenByParent_.Find(previousParent)) {
                 for (std::uint32_t i = 0U; i < list->Size(); ++i) {
@@ -2433,13 +2438,13 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
                 }
             }
         }
-        object.inheritanceParent_ = nullptr;
+        object.SetExplicitInheritanceParent(nullptr);
     }
     if (object.hasExplicitInheritanceChildren_ && !childrenByParent_.Empty()) {
         if (auto* list = childrenByParent_.Find(&object)) {
             for (DependencyObject* child : *list) {
                 if (child != nullptr) {
-                    child->inheritanceParent_ = nullptr;
+                    child->SetExplicitInheritanceParent(nullptr);
                 }
             }
             childrenByParent_.Erase(&object);
@@ -2453,7 +2458,7 @@ bool EffectiveValueEngine::HasObjectState(
     if (object.unmaterializedQueueMask_ != 0U) {
         return true;
     }
-    if (object.inheritanceParent_ != nullptr || object.hasExplicitInheritanceChildren_) {
+    if (object.hasExplicitInheritanceParent_ || object.hasExplicitInheritanceChildren_) {
         return true;
     }
     const PropertyStore* store = object.Store();

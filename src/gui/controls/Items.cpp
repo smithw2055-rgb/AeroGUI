@@ -38,28 +38,34 @@ namespace {
     const Meta::DependencyPropertyRegistry& registry,
     bool checkPanelHost) noexcept {
     if (root == nullptr) return nullptr;
-    Base::Vector<::Aero::Media::Visual*> pending;
+    Base::BasicVector<::Aero::Media::Visual*, 16U> pending;
     static_cast<void>(pending.PushBack(root));
+    const Meta::TypeRegistry& types = registry.Types();
     while (!pending.Empty()) {
         ::Aero::Media::Visual* current = pending.Back();
         pending.PopBack();
         if (current == nullptr) continue;
-        if (registry.Types().IsDerivedFrom(current->RuntimeType(), ItemsPresenter::StaticTypeId())) {
+        const Meta::TypeId currentType = current->RuntimeType();
+        if (currentType == ItemsPresenter::StaticTypeId() ||
+            types.IsDerivedFrom(currentType, ItemsPresenter::StaticTypeId())) {
             return current;
         }
-        if (checkPanelHost && registry.Types().IsDerivedFrom(current->RuntimeType(), Panel::StaticTypeId())) {
+        const std::uint16_t mask = current->CoreTypeMask();
+        if (checkPanelHost && (mask & Base::kCoreTypePanel) != 0U) {
             auto& panel = *static_cast<Panel*>(current);
             if (panel.GetValue(Panel::IsItemsHostProperty)) {
                 return current;
             }
         }
-        if (registry.Types().IsDerivedFrom(current->RuntimeType(), ContentControl::StaticTypeId())) {
-            UIElement* content = static_cast<ContentControl*>(current)->GetContentElement();
-            if (content != nullptr) {
-                static_cast<void>(pending.PushBack(content));
+        if ((mask & Base::kCoreTypeControl) != 0U) {
+            if (types.IsDerivedFrom(currentType, ContentControl::StaticTypeId())) {
+                UIElement* content = static_cast<ContentControl*>(current)->GetContentElement();
+                if (content != nullptr) {
+                    static_cast<void>(pending.PushBack(content));
+                }
             }
-        }
-        if (registry.Types().IsDerivedFrom(current->RuntimeType(), Decorator::StaticTypeId())) {
+        } else if ((mask & Base::kCoreTypePanel) == 0U &&
+                   types.IsDerivedFrom(currentType, Decorator::StaticTypeId())) {
             UIElement* child = static_cast<Decorator*>(current)->GetChild();
             if (child != nullptr) {
                 static_cast<void>(pending.PushBack(child));
@@ -141,8 +147,7 @@ Base::Result<Value> AlternationConverter::ConvertBack(
 Panel* ItemsPresenter::GetItemsHost() const noexcept {
     UIElement* child = GetChild();
     return child != nullptr &&
-        DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            child->RuntimeType(), Panel::StaticTypeId())
+        (child->CoreTypeMask() & Base::kCoreTypePanel) != 0U
         ? static_cast<Panel*>(child)
         : nullptr;
 }
@@ -379,7 +384,10 @@ ItemsControl::ItemsControl(TypeId runtimeType) noexcept
 ItemsControl::~ItemsControl() {
     if (storage_ != nullptr) {
         if (storage_->generator != nullptr) {
-            storage_->generator->Detach();
+            ItemContainerGenerator* gen = storage_->generator;
+            storage_->generator = nullptr;
+            gen->Detach();
+            delete gen;
         }
         static_cast<void>(
             storage_->items.RemoveItemsChanged(
@@ -447,7 +455,10 @@ void ItemsControl::OnApplyTemplate() noexcept {
 void ItemsControl::OnTemplateDetached() noexcept {
     if (storage_ != nullptr) {
         if (storage_->generator != nullptr) {
-            storage_->generator->Detach();
+            ItemContainerGenerator* gen = storage_->generator;
+            storage_->generator = nullptr;
+            gen->Detach();
+            delete gen;
         }
         storage_->defaultItemsPresenter.Reset();
     }
@@ -1245,6 +1256,7 @@ ItemContainerGenerator::GeneratorState::AttachVirtualized(
 
 void ItemContainerGenerator::GeneratorState::Detach() noexcept {
     if (owner_ == nullptr) return;
+    ItemContainerGenerator::SetOwnerGenerator(*owner_, nullptr);
     static_cast<void>(
         owner_->RemoveItemsChanged(
             changedHandler_));
@@ -1257,7 +1269,6 @@ void ItemContainerGenerator::GeneratorState::Detach() noexcept {
     if (virtualizingHost_ != nullptr) {
         ItemContainerGenerator::DetachHostGenerator(*virtualizingHost_, *facade_);
     }
-    ItemContainerGenerator::SetOwnerGenerator(*owner_, nullptr);
     owner_ = nullptr;
     host_ = nullptr;
     virtualizingHost_ = nullptr;

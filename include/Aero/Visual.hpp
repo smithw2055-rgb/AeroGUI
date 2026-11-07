@@ -170,7 +170,7 @@ private:
     FlagRef SubtreeRenderDirty() noexcept { return {&visualFlags_, kFlagSubtreeRenderDirty}; }
     Base::RenderNodeId& NodeId() noexcept { return renderNodeId_; }
     std::uint8_t& RenderDirtyFlags() noexcept { return renderDirtyFlags_; }
-    std::uint64_t& RenderRevision() noexcept { return renderRevision_; }
+    std::uint32_t& RenderRevision() noexcept { return renderRevision_; }
 
     static constexpr std::uint8_t kFlagRenderAttached = 1U << 0U;
     static constexpr std::uint8_t kFlagRenderValid = 1U << 1U;
@@ -203,8 +203,8 @@ private:
     Visual* firstVisualChild_ = nullptr;
     Visual* nextVisualSibling_ = nullptr;
     Visual* prevVisualSibling_ = nullptr;
-    std::uint64_t renderRevision_ = 0U;
     Base::RenderNodeId renderNodeId_ = Base::InvalidRenderNodeId;
+    std::uint32_t renderRevision_ = 0U;
     std::uint32_t handleIndex_ = UINT32_MAX;
     std::uint32_t handleGeneration_ = 0U;
     void UpdateSubtreeDepth(std::uint16_t depth) noexcept;

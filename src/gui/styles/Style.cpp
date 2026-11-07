@@ -770,9 +770,12 @@ Base::Result<void> Style::Seal(
             if (sp.IsValid() && !s->GetValue().IsUnset()) {
                 PropertyValue sVal = s->GetValue();
                 const Meta::DependencyProperty* spProp = properties.Find(sp);
-                if (spProp != nullptr && !IsDeferredBindingSetterValue(sVal)) {
-                    auto norm = NormalizeStyleValue(properties, *spProp, sVal);
-                    if (norm) sVal = norm.Value();
+                if (spProp != nullptr) {
+                    sp = spProp->Handle();
+                    if (!IsDeferredBindingSetterValue(sVal)) {
+                        auto norm = NormalizeStyleValue(properties, *spProp, sVal);
+                        if (norm) sVal = norm.Value();
+                    }
                 }
                 plan.setters.PushBack({sp, sVal});
             }
@@ -790,6 +793,7 @@ Base::Result<void> Style::Seal(
             if (plan.property.IsValid()) {
                 const Meta::DependencyProperty* condProp = properties.Find(plan.property);
                 if (condProp != nullptr) {
+                    plan.property = condProp->Handle();
                     auto norm = NormalizeStyleValue(properties, *condProp, plan.value);
                     if (norm) plan.value = norm.Value();
                 }
