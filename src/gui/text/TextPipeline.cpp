@@ -629,6 +629,9 @@ public:
                     nextGlyphRun_++);
         }
         output.hitRegions.Clear();
+        if (!request.includeHitRegions) {
+            return {};
+        }
         for (const Text::TextLine& line : layout.Lines()) {
             const float lineHeight = (line.ascent + line.descent > 0.0F)
                 ? (line.ascent + line.descent)

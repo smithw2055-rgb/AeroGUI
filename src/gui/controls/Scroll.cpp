@@ -435,18 +435,6 @@ using namespace ::Aero::Render;
 
 ScrollViewer::ScrollViewer() noexcept
     : ContentControl(StaticTypeId()),
-      lineUpHandler_(this, &ScrollViewer::OnLineUpCommand),
-      lineDownHandler_(this, &ScrollViewer::OnLineDownCommand),
-      lineLeftHandler_(this, &ScrollViewer::OnLineLeftCommand),
-      lineRightHandler_(this, &ScrollViewer::OnLineRightCommand),
-      pageUpHandler_(this, &ScrollViewer::OnPageUpCommand),
-      pageDownHandler_(this, &ScrollViewer::OnPageDownCommand),
-      pageLeftHandler_(this, &ScrollViewer::OnPageLeftCommand),
-      pageRightHandler_(this, &ScrollViewer::OnPageRightCommand),
-      scrollToTopHandler_(this, &ScrollViewer::OnScrollToTopCommand),
-      scrollToBottomHandler_(this, &ScrollViewer::OnScrollToBottomCommand),
-      scrollToLeftEndHandler_(this, &ScrollViewer::OnScrollToLeftEndCommand),
-      scrollToRightEndHandler_(this, &ScrollViewer::OnScrollToRightEndCommand),
       commandHandles_(&Base::GetDefaultAllocator()),
       scrollBarValueChangedHandler_(
           this,
@@ -987,37 +975,38 @@ void ScrollViewer::EnsureCommands() noexcept {
     if (!commandHandles_.Empty()) return;
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) return;
-    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+    using CommandMethod = void (ScrollViewer::*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
+    struct CommandEntry {
+        Base::StringView primary;
+        Base::StringView alias;
+        CommandMethod method;
+    };
+    static constexpr CommandEntry kCommands[] = {
+        {"LineUpCommand", "LineUp", &ScrollViewer::OnLineUpCommand},
+        {"LineDownCommand", "LineDown", &ScrollViewer::OnLineDownCommand},
+        {"LineLeftCommand", "LineLeft", &ScrollViewer::OnLineLeftCommand},
+        {"LineRightCommand", "LineRight", &ScrollViewer::OnLineRightCommand},
+        {"PageUpCommand", "PageUp", &ScrollViewer::OnPageUpCommand},
+        {"PageDownCommand", "PageDown", &ScrollViewer::OnPageDownCommand},
+        {"PageLeftCommand", "PageLeft", &ScrollViewer::OnPageLeftCommand},
+        {"PageRightCommand", "PageRight", &ScrollViewer::OnPageRightCommand},
+        {"ScrollToTopCommand", "ScrollToTop", &ScrollViewer::OnScrollToTopCommand},
+        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollViewer::OnScrollToBottomCommand},
+        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollViewer::OnScrollToLeftEndCommand},
+        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollViewer::OnScrollToRightEndCommand},
+    };
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
         auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name);
         if (cmd) {
             auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
             if (added) commandHandles_.PushBack(added.Value());
         }
     };
-    addCmd("LineUpCommand", lineUpHandler_);
-    addCmd("LineUp", lineUpHandler_);
-    addCmd("LineDownCommand", lineDownHandler_);
-    addCmd("LineDown", lineDownHandler_);
-    addCmd("LineLeftCommand", lineLeftHandler_);
-    addCmd("LineLeft", lineLeftHandler_);
-    addCmd("LineRightCommand", lineRightHandler_);
-    addCmd("LineRight", lineRightHandler_);
-    addCmd("PageUpCommand", pageUpHandler_);
-    addCmd("PageUp", pageUpHandler_);
-    addCmd("PageDownCommand", pageDownHandler_);
-    addCmd("PageDown", pageDownHandler_);
-    addCmd("PageLeftCommand", pageLeftHandler_);
-    addCmd("PageLeft", pageLeftHandler_);
-    addCmd("PageRightCommand", pageRightHandler_);
-    addCmd("PageRight", pageRightHandler_);
-    addCmd("ScrollToTopCommand", scrollToTopHandler_);
-    addCmd("ScrollToTop", scrollToTopHandler_);
-    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
-    addCmd("ScrollToBottom", scrollToBottomHandler_);
-    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
-    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
-    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
-    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
+    for (const CommandEntry& entry : kCommands) {
+        const ExecutedRoutedEventHandler handler(this, entry.method);
+        addCmd(entry.primary, handler);
+        addCmd(entry.alias, handler);
+    }
 }
 
 void ScrollViewer::UnregisterCommands() noexcept {

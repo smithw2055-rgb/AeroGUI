@@ -48,7 +48,7 @@ public:
 
     static Base::Vector<Base::Ref<Documents::Inline>>* GetInlinesVector(Base::Object& owner) noexcept {
         if (IsTextBlock(owner)) {
-            return &static_cast<Controls::TextBlock&>(owner).ownedInlines_;
+            return static_cast<Controls::TextBlock&>(owner).EnsureOwnedInlinesVector();
         }
         if (IsSpan(owner)) {
             return &static_cast<Documents::Span&>(owner).inlines_;
@@ -57,7 +57,13 @@ public:
     }
 
     static const Base::Vector<Base::Ref<Documents::Inline>>* GetInlinesVector(const Base::Object& owner) noexcept {
-        return GetInlinesVector(const_cast<Base::Object&>(owner));
+        if (IsTextBlock(owner)) {
+            return static_cast<const Controls::TextBlock&>(owner).OwnedInlinesVector();
+        }
+        if (IsSpan(owner)) {
+            return &static_cast<const Documents::Span&>(owner).inlines_;
+        }
+        return nullptr;
     }
 
     static std::uint32_t GetCount(const Base::Object& owner) noexcept {
@@ -208,7 +214,7 @@ public:
                 : (*vec).Back();
             if (IsTextBlock(owner)) {
                 auto& text = static_cast<Controls::TextBlock&>(owner);
-                text.pendingInline_ = pending;
+                text.SetPendingInline(pending);
                 text.InvalidateDocumentText();
             } else {
                 auto& span = static_cast<Documents::Span&>(owner);
@@ -334,25 +340,33 @@ public:
     static void AppendText(
         const Controls::TextBlock& owner,
         Base::String& output) noexcept {
+        Base::String* flatText = nullptr;
+        Base::Vector<Controls::TextBlock::RichTextStyleRange>* styleRanges = nullptr;
+        const auto* inlines = owner.OwnedInlinesVector();
+        if (inlines == nullptr || inlines->Empty() ||
+            !owner.AccessDocumentFlattenState(flatText, styleRanges)) {
+            output.Append(owner.GetText());
+            return;
+        }
         if (!owner.flatTextValid_) {
-            owner.flatText_.Clear();
+            flatText->Clear();
             if (owner.GetValue(RichText::TextProperty).Empty()) {
-                owner.richTextStyleRanges_.Clear();
+                styleRanges->Clear();
             }
-            owner.flatText_.Append(owner.GetText());
+            flatText->Append(owner.GetText());
             InlineStyleContext defaultContext{};
-            for (const Base::Ref<Documents::Inline>& item : owner.ownedInlines_) {
+            for (const Base::Ref<Documents::Inline>& item : *inlines) {
                 if (!item) continue;
                 AppendInline(
                     owner,
                     *item,
-                    owner.flatText_,
-                    owner.richTextStyleRanges_,
+                    *flatText,
+                    *styleRanges,
                     defaultContext);
             }
             owner.flatTextValid_ = true;
         }
-        output.Append(owner.flatText_.View());
+        output.Append(flatText->View());
     }
 
     static std::uint32_t GetLength(
@@ -385,7 +399,7 @@ public:
         }
         const TextHitRegion* best = nullptr;
         double bestDistance = 0.0;
-        for (const TextHitRegion& hit : owner.textHitRegions_) {
+        for (const TextHitRegion& hit : owner.HitRegionsSpan()) {
             const Aero::Rect rect{
                 static_cast<double>(hit.x),
                 static_cast<double>(hit.y),
@@ -425,18 +439,18 @@ public:
         if (!position.container_ || !position.container_->GetIsMeasureValid()) {
             return {};
         }
+        const Base::Span<const TextHitRegion> regions =
+            position.container_->HitRegionsSpan();
         const TextHitRegion* selected = nullptr;
-        for (const TextHitRegion& hit :
-             position.container_->textHitRegions_) {
+        for (const TextHitRegion& hit : regions) {
             if (position.offset_ >= hit.textOffset &&
                 position.offset_ <= hit.textOffset + hit.textLength) {
                 selected = &hit;
                 break;
             }
         }
-        if (selected == nullptr &&
-            !position.container_->textHitRegions_.Empty()) {
-            selected = &position.container_->textHitRegions_.Back();
+        if (selected == nullptr && !regions.Empty()) {
+            selected = &regions[regions.Size() - 1U];
         }
         if (selected == nullptr) {
             return {};
@@ -448,10 +462,6 @@ public:
             std::max(static_cast<double>(selected->height), 1.0)};
     }
 };
-
-} // namespace Aero::Controls
-
-namespace Aero::Controls {
 
 } // namespace Aero::Controls
 

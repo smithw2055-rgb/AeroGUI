@@ -66,7 +66,7 @@ public:
     void SetTextAlignment(TextAlignment value) noexcept;
     double GetLineHeight() const noexcept;
     void SetLineHeight(double value) noexcept;
-    std::uint32_t GetInlineCount() const noexcept { return ownedInlines_.Size(); }
+    std::uint32_t GetInlineCount() const noexcept;
     Documents::InlineCollection GetInlines() noexcept;
     Documents::InlineCollectionView GetInlines() const noexcept;
     Documents::TextPointer GetContentStart() noexcept;
@@ -114,15 +114,22 @@ private:
 
     void SetGlyphRun(std::uint64_t glyphRun, Size size) noexcept;
 
-    Base::Vector<std::uint64_t> glyphRuns_;
-    Base::Vector<TextHitRegion> textHitRegions_;
-    Base::Vector<Ref<Documents::Inline>> ownedInlines_;
-    mutable Base::String flatText_;
-    mutable bool flatTextValid_ = false;
-    mutable Base::Vector<RichTextStyleRange> richTextStyleRanges_;
-    Ref<Documents::Inline> pendingInline_;
-    Size glyphRunSize_;
+    struct DocumentRare;
+    DocumentRare* EnsureDocumentRare() const noexcept;
+    Base::Vector<Ref<Documents::Inline>>* EnsureOwnedInlinesVector() noexcept;
+    const Base::Vector<Ref<Documents::Inline>>* OwnedInlinesVector() const noexcept;
+    void SetPendingInline(Ref<Documents::Inline> value) noexcept;
+    bool AccessDocumentFlattenState(
+        Base::String*& outFlatText,
+        Base::Vector<RichTextStyleRange>*& outStyleRanges) const noexcept;
+    Span<const TextHitRegion> HitRegionsSpan() const noexcept;
+
+    std::uint64_t primaryGlyphRun_ = 0U;
+    mutable DocumentRare* docRare_ = nullptr;
+    Size glyphRunSize_{};
     float lastShapedAvailableWidth_ = -1.0f;
+    mutable bool flatTextValid_ = false;
+    bool glyphRunValid_ = false;
     bool lastShapedArrangeMode_ = false;
     bool serviceOwnsGlyphRun_ = false;
     bool arrangingText_ = false;

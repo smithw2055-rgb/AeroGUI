@@ -417,20 +417,6 @@ Orientation ScrollBar::GetOrientation() const noexcept {
 
 ScrollBar::ScrollBar() noexcept
     : RangeBase(StaticTypeId()),
-      lineUpHandler_(&ScrollBar::OnLineUpCommand),
-      lineDownHandler_(&ScrollBar::OnLineDownCommand),
-      lineLeftHandler_(&ScrollBar::OnLineLeftCommand),
-      lineRightHandler_(&ScrollBar::OnLineRightCommand),
-      pageUpHandler_(&ScrollBar::OnPageUpCommand),
-      pageDownHandler_(&ScrollBar::OnPageDownCommand),
-      pageLeftHandler_(&ScrollBar::OnPageLeftCommand),
-      pageRightHandler_(&ScrollBar::OnPageRightCommand),
-      scrollToTopHandler_(&ScrollBar::OnScrollToTopCommand),
-      scrollToBottomHandler_(&ScrollBar::OnScrollToBottomCommand),
-      scrollToLeftEndHandler_(&ScrollBar::OnScrollToLeftEndCommand),
-      scrollToRightEndHandler_(&ScrollBar::OnScrollToRightEndCommand),
-      scrollToHorizontalOffsetHandler_(&ScrollBar::OnScrollToHorizontalOffsetCommand),
-      scrollToVerticalOffsetHandler_(&ScrollBar::OnScrollToVerticalOffsetCommand),
       commandHandles_(&Base::GetDefaultAllocator()) {
 }
 
@@ -479,41 +465,40 @@ void ScrollBar::EnsureCommands() noexcept {
     if (!commandHandles_.Empty()) return;
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) return;
-    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) {
+    using StaticCommandFn = void (*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
+    struct CommandEntry {
+        Base::StringView primary;
+        Base::StringView alias;
+        StaticCommandFn fn;
+    };
+    static constexpr CommandEntry kCommands[] = {
+        {"LineUpCommand", "LineUp", &ScrollBar::OnLineUpCommand},
+        {"LineDownCommand", "LineDown", &ScrollBar::OnLineDownCommand},
+        {"LineLeftCommand", "LineLeft", &ScrollBar::OnLineLeftCommand},
+        {"LineRightCommand", "LineRight", &ScrollBar::OnLineRightCommand},
+        {"PageUpCommand", "PageUp", &ScrollBar::OnPageUpCommand},
+        {"PageDownCommand", "PageDown", &ScrollBar::OnPageDownCommand},
+        {"PageLeftCommand", "PageLeft", &ScrollBar::OnPageLeftCommand},
+        {"PageRightCommand", "PageRight", &ScrollBar::OnPageRightCommand},
+        {"ScrollToTopCommand", "ScrollToTop", &ScrollBar::OnScrollToTopCommand},
+        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollBar::OnScrollToBottomCommand},
+        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollBar::OnScrollToLeftEndCommand},
+        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollBar::OnScrollToRightEndCommand},
+        {"ScrollToHorizontalOffsetCommand", "ScrollToHorizontalOffset", &ScrollBar::OnScrollToHorizontalOffsetCommand},
+        {"ScrollToVerticalOffsetCommand", "ScrollToVerticalOffset", &ScrollBar::OnScrollToVerticalOffsetCommand},
+    };
+    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
         auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
         if (cmd) {
             auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
             if (added) commandHandles_.PushBack(added.Value());
         }
     };
-    addCmd("LineUpCommand", lineUpHandler_);
-    addCmd("LineUp", lineUpHandler_);
-    addCmd("LineDownCommand", lineDownHandler_);
-    addCmd("LineDown", lineDownHandler_);
-    addCmd("LineLeftCommand", lineLeftHandler_);
-    addCmd("LineLeft", lineLeftHandler_);
-    addCmd("LineRightCommand", lineRightHandler_);
-    addCmd("LineRight", lineRightHandler_);
-    addCmd("PageUpCommand", pageUpHandler_);
-    addCmd("PageUp", pageUpHandler_);
-    addCmd("PageDownCommand", pageDownHandler_);
-    addCmd("PageDown", pageDownHandler_);
-    addCmd("PageLeftCommand", pageLeftHandler_);
-    addCmd("PageLeft", pageLeftHandler_);
-    addCmd("PageRightCommand", pageRightHandler_);
-    addCmd("PageRight", pageRightHandler_);
-    addCmd("ScrollToTopCommand", scrollToTopHandler_);
-    addCmd("ScrollToTop", scrollToTopHandler_);
-    addCmd("ScrollToBottomCommand", scrollToBottomHandler_);
-    addCmd("ScrollToBottom", scrollToBottomHandler_);
-    addCmd("ScrollToLeftEndCommand", scrollToLeftEndHandler_);
-    addCmd("ScrollToLeftEnd", scrollToLeftEndHandler_);
-    addCmd("ScrollToRightEndCommand", scrollToRightEndHandler_);
-    addCmd("ScrollToRightEnd", scrollToRightEndHandler_);
-    addCmd("ScrollToHorizontalOffsetCommand", scrollToHorizontalOffsetHandler_);
-    addCmd("ScrollToHorizontalOffset", scrollToHorizontalOffsetHandler_);
-    addCmd("ScrollToVerticalOffsetCommand", scrollToVerticalOffsetHandler_);
-    addCmd("ScrollToVerticalOffset", scrollToVerticalOffsetHandler_);
+    for (const CommandEntry& entry : kCommands) {
+        const ExecutedRoutedEventHandler handler(entry.fn);
+        addCmd(entry.primary, handler);
+        addCmd(entry.alias, handler);
+    }
 }
 
 void ScrollBar::UnregisterCommands() noexcept {
@@ -946,11 +931,7 @@ bool ScrollBar::DragThumb(
 }
 
 Slider::Slider() noexcept
-    : Primitives::RangeBase(StaticTypeId()),
-      decreaseSmallHandler_(this, &Slider::OnDecreaseSmallCommand),
-      increaseSmallHandler_(this, &Slider::OnIncreaseSmallCommand),
-      decreaseLargeHandler_(this, &Slider::OnDecreaseLargeCommand),
-      increaseLargeHandler_(this, &Slider::OnIncreaseLargeCommand) {
+    : Primitives::RangeBase(StaticTypeId()) {
 }
 
 Slider::~Slider() {
@@ -995,17 +976,18 @@ void Slider::EnsureCommands() noexcept {
     if (decreaseSmallCommand_.IsValid()) return;
     Aero::InputRouter* input = ElementTree::InputOf(*this);
     if (input == nullptr) return;
-    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler, Input::CommandBindingHandle& out) {
+    auto addCmd = [this, input](Base::StringView name, void (Slider::*method)(Base::Object*, ExecutedRoutedEventArgs&) noexcept, Input::CommandBindingHandle& out) noexcept {
         auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
         if (cmd) {
+            const ExecutedRoutedEventHandler handler(this, method);
             auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
             if (added) out = added.Value();
         }
     };
-    addCmd("DecreaseSmall", decreaseSmallHandler_, decreaseSmallCommand_);
-    addCmd("IncreaseSmall", increaseSmallHandler_, increaseSmallCommand_);
-    addCmd("DecreaseLarge", decreaseLargeHandler_, decreaseLargeCommand_);
-    addCmd("IncreaseLarge", increaseLargeHandler_, increaseLargeCommand_);
+    addCmd("DecreaseSmall", &Slider::OnDecreaseSmallCommand, decreaseSmallCommand_);
+    addCmd("IncreaseSmall", &Slider::OnIncreaseSmallCommand, increaseSmallCommand_);
+    addCmd("DecreaseLarge", &Slider::OnDecreaseLargeCommand, decreaseLargeCommand_);
+    addCmd("IncreaseLarge", &Slider::OnIncreaseLargeCommand, increaseLargeCommand_);
 }
 
 void Slider::UnregisterCommands() noexcept {

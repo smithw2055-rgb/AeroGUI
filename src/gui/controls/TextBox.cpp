@@ -2037,7 +2037,7 @@ namespace Aero {
 void Controls::TextBlock::AttachTextLayout(
     void*,
     bool invalidate) noexcept {
-    if (invalidate) InvalidateMeasure();
+    if (invalidate) InvalidateDocumentText();
 }
 
 void Controls::Primitives::TextBoxBase::AttachTextLayout(

@@ -29,6 +29,7 @@ struct TextLayoutRequest {
     TextAlignment alignment =
         TextAlignment::Left;
     bool arrangeToAvailableWidth = false;
+    bool includeHitRegions = true;
     Text::TextDirection direction =
         Text::TextDirection::Auto;
 };

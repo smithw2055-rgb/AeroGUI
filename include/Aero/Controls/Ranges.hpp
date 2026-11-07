@@ -203,20 +203,6 @@ private:
     Point dragOrigin_{};
     double dragStartValue_ = 0.0;
 
-    ExecutedRoutedEventHandler lineUpHandler_;
-    ExecutedRoutedEventHandler lineDownHandler_;
-    ExecutedRoutedEventHandler lineLeftHandler_;
-    ExecutedRoutedEventHandler lineRightHandler_;
-    ExecutedRoutedEventHandler pageUpHandler_;
-    ExecutedRoutedEventHandler pageDownHandler_;
-    ExecutedRoutedEventHandler pageLeftHandler_;
-    ExecutedRoutedEventHandler pageRightHandler_;
-    ExecutedRoutedEventHandler scrollToTopHandler_;
-    ExecutedRoutedEventHandler scrollToBottomHandler_;
-    ExecutedRoutedEventHandler scrollToLeftEndHandler_;
-    ExecutedRoutedEventHandler scrollToRightEndHandler_;
-    ExecutedRoutedEventHandler scrollToHorizontalOffsetHandler_;
-    ExecutedRoutedEventHandler scrollToVerticalOffsetHandler_;
     Base::Vector<Input::CommandBindingHandle> commandHandles_;
 
     static void OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
@@ -340,10 +326,6 @@ private:
     std::uint32_t pointerId_ = 0U;
     bool dragging_ = false;
 
-    ExecutedRoutedEventHandler decreaseSmallHandler_;
-    ExecutedRoutedEventHandler increaseSmallHandler_;
-    ExecutedRoutedEventHandler decreaseLargeHandler_;
-    ExecutedRoutedEventHandler increaseLargeHandler_;
     Input::CommandBindingHandle decreaseSmallCommand_;
     Input::CommandBindingHandle increaseSmallCommand_;
     Input::CommandBindingHandle decreaseLargeCommand_;

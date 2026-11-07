@@ -232,18 +232,6 @@ private:
     void OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     void OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
 
-    ExecutedRoutedEventHandler lineUpHandler_;
-    ExecutedRoutedEventHandler lineDownHandler_;
-    ExecutedRoutedEventHandler lineLeftHandler_;
-    ExecutedRoutedEventHandler lineRightHandler_;
-    ExecutedRoutedEventHandler pageUpHandler_;
-    ExecutedRoutedEventHandler pageDownHandler_;
-    ExecutedRoutedEventHandler pageLeftHandler_;
-    ExecutedRoutedEventHandler pageRightHandler_;
-    ExecutedRoutedEventHandler scrollToTopHandler_;
-    ExecutedRoutedEventHandler scrollToBottomHandler_;
-    ExecutedRoutedEventHandler scrollToLeftEndHandler_;
-    ExecutedRoutedEventHandler scrollToRightEndHandler_;
     Base::Vector<Input::CommandBindingHandle> commandHandles_;
 
     ScrollContentPresenter* contentPresenter_ = nullptr;

@@ -55,6 +55,170 @@
 // ===== BindingExtension =====
 // Binding markup-extension implementation.
 namespace Aero::Markup {
+
+struct BindingExtensionOptions {
+    BindingExtensionOptions() noexcept = default;
+    BindingExtensionOptions(
+        Aero::BindingEngine* bindingManager,
+        Meta::DependencyPropertyHandle dataContext) noexcept
+        : bindings(bindingManager),
+          dataContextProperty(dataContext) {}
+
+    Aero::BindingEngine* bindings = nullptr;
+    Meta::DependencyPropertyHandle dataContextProperty;
+};
+
+class BindingExtension {
+public:
+    explicit BindingExtension(
+        const BindingExtensionOptions& options) noexcept;
+
+    BindingExtension(const BindingExtension&) = delete;
+    BindingExtension& operator=(const BindingExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId bindingExtensionType) noexcept;
+    void SetDataContextProperty(
+        Meta::DependencyPropertyHandle property) noexcept {
+        options_.dataContextProperty = property;
+    }
+
+private:
+    BindingExtensionOptions options_;
+
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+struct DynamicResourceExtensionOptions {
+    DynamicResourceExtensionOptions() noexcept = default;
+    DynamicResourceExtensionOptions(
+        Meta::EffectiveValueEngine* effectiveValueEngine,
+        Aero::ResourceDictionary* resourceDictionary) noexcept
+        : effectiveValues(effectiveValueEngine),
+          resources(resourceDictionary) {}
+
+    Meta::EffectiveValueEngine* effectiveValues = nullptr;
+    Aero::ResourceDictionary* resources = nullptr;
+};
+
+class DynamicResourceExtension {
+public:
+    explicit DynamicResourceExtension(
+        const DynamicResourceExtensionOptions& options) noexcept;
+
+    DynamicResourceExtension(const DynamicResourceExtension&) = delete;
+    DynamicResourceExtension& operator=(
+        const DynamicResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId dynamicResourceExtensionType) noexcept;
+
+private:
+    DynamicResourceExtensionOptions options_;
+
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class StaticResourceExtension {
+public:
+    StaticResourceExtension() noexcept = default;
+
+    StaticResourceExtension(const StaticResourceExtension&) = delete;
+    StaticResourceExtension& operator=(
+        const StaticResourceExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId staticResourceExtensionType) noexcept;
+
+private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class TypeExtension {
+public:
+    TypeExtension() noexcept = default;
+
+    TypeExtension(const TypeExtension&) = delete;
+    TypeExtension& operator=(const TypeExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class TemplateBindingExtension {
+public:
+    TemplateBindingExtension() noexcept = default;
+
+    TemplateBindingExtension(
+        const TemplateBindingExtension&) = delete;
+    TemplateBindingExtension& operator=(
+        const TemplateBindingExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+class StaticExtension {
+public:
+    StaticExtension() noexcept = default;
+
+    StaticExtension(const StaticExtension&) = delete;
+    StaticExtension& operator=(const StaticExtension&) = delete;
+
+    Base::Result<void> Register(
+        Schema& schema,
+        Meta::TypeId markupExtensionType) noexcept;
+
+private:
+    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
+    static Base::Result<ProvidedValue> ProvideValue(
+        Base::StringView arguments,
+        const ExtensionServices& services,
+        void* context) noexcept;
+};
+
+Base::Result<long double> ReadConstantBindingNumber(
+    const Meta::Value& value) noexcept;
+Base::Result<Meta::Value> ConvertConstantBindingValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType) noexcept;
+Base::Result<void> CaptureControlTemplateChildName(
+    Controls::ControlTemplate& controlTemplate,
+    const Aero::NameScope* nameScope,
+    Base::Object& target,
+    Base::String& storage) noexcept;
+
 namespace WriterBindingSupport {
 constexpr Base::StringView ElementNameKey("ElementName");
 constexpr Base::StringView SourceKey("Source");

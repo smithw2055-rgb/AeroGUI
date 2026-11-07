@@ -97,26 +97,91 @@ void RowDefinition::SetSharedSizeGroup(
     Base::StringView value) noexcept {
     SetValue(SharedSizeGroupProperty, value);
 }
+struct Grid::TrackStorage {
+    Base::Vector<GridLength> columns;
+    Base::Vector<GridLength> rows;
+    Base::Vector<Ref<ColumnDefinition>> columnDefinitionObjects;
+    Base::Vector<Ref<RowDefinition>> rowDefinitionObjects;
+    Base::Vector<float> desiredColumns;
+    Base::Vector<float> desiredRows;
+};
+
 Grid::Grid() noexcept
-    : Panel(StaticTypeId()), columns_(), rows_(),
-      desiredColumns_(), desiredRows_() {}
+    : Panel(StaticTypeId()) {}
+
+Grid::~Grid() {
+    delete tracks_;
+    tracks_ = nullptr;
+}
+
+Grid::TrackStorage* Grid::EnsureTracks() noexcept {
+    if (tracks_ == nullptr) {
+        tracks_ = new (std::nothrow) TrackStorage();
+    }
+    return tracks_;
+}
+
+void Grid::DropTracksIfEmpty() noexcept {
+    if (tracks_ == nullptr) return;
+    if (tracks_->columns.Empty() &&
+        tracks_->rows.Empty() &&
+        tracks_->columnDefinitionObjects.Empty() &&
+        tracks_->rowDefinitionObjects.Empty()) {
+        delete tracks_;
+        tracks_ = nullptr;
+    }
+}
+
+Span<const GridLength> Grid::GetColumnDefinitions() const noexcept {
+    return tracks_ != nullptr
+        ? Span<const GridLength>{tracks_->columns.Data(), tracks_->columns.Size()}
+        : Span<const GridLength>{};
+}
+
+Span<const GridLength> Grid::GetRowDefinitions() const noexcept {
+    return tracks_ != nullptr
+        ? Span<const GridLength>{tracks_->rows.Data(), tracks_->rows.Size()}
+        : Span<const GridLength>{};
+}
 
 void Grid::SetColumnDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
     if (!CheckAccess() || !ValidateDefinitions(definitions)) return;
+    if (definitions.Empty()) {
+        if (tracks_ != nullptr) {
+            tracks_->columns.Clear();
+            tracks_->columnDefinitionObjects.Clear();
+            DropTracksIfEmpty();
+        }
+        InvalidateMeasure();
+        return;
+    }
+    TrackStorage* t = EnsureTracks();
+    if (t == nullptr) return;
     Base::Vector<GridLength> next;
     next.Assign(definitions);
-    columns_ = std::move(next);
-    columnDefinitionObjects_.Clear();
+    t->columns = std::move(next);
+    t->columnDefinitionObjects.Clear();
     InvalidateMeasure();
 }
 void Grid::SetRowDefinitions(
     Base::Span<const GridLength> definitions) noexcept {
     if (!CheckAccess() || !ValidateDefinitions(definitions)) return;
+    if (definitions.Empty()) {
+        if (tracks_ != nullptr) {
+            tracks_->rows.Clear();
+            tracks_->rowDefinitionObjects.Clear();
+            DropTracksIfEmpty();
+        }
+        InvalidateMeasure();
+        return;
+    }
+    TrackStorage* t = EnsureTracks();
+    if (t == nullptr) return;
     Base::Vector<GridLength> next;
     next.Assign(definitions);
-    rows_ = std::move(next);
-    rowDefinitionObjects_.Clear();
+    t->rows = std::move(next);
+    t->rowDefinitionObjects.Clear();
     InvalidateMeasure();
 }
 void Grid::SetChildCell(
@@ -149,8 +214,10 @@ void Grid::AddColumnDefinition(
     Base::Result<void> access = VerifyAccess();
     if (!access) { AERO_ASSERT(false); return; }
     if (!definition) { AERO_ASSERT(false); return; }
-    columnDefinitionObjects_.PushBack(definition);
-    columns_.PushBack(definition->GetWidth());
+    TrackStorage* t = EnsureTracks();
+    if (t == nullptr) return;
+    t->columnDefinitionObjects.PushBack(definition);
+    t->columns.PushBack(definition->GetWidth());
     InvalidateMeasure();
 }
 void Grid::AddRowDefinition(
@@ -158,24 +225,32 @@ void Grid::AddRowDefinition(
     Base::Result<void> access = VerifyAccess();
     if (!access) { AERO_ASSERT(false); return; }
     if (!definition) { AERO_ASSERT(false); return; }
-    rowDefinitionObjects_.PushBack(definition);
-    rows_.PushBack(definition->GetHeight());
+    TrackStorage* t = EnsureTracks();
+    if (t == nullptr) return;
+    t->rowDefinitionObjects.PushBack(definition);
+    t->rows.PushBack(definition->GetHeight());
     InvalidateMeasure();
 }
 void
 Grid::ClearColumnDefinitionObjects() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    columnDefinitionObjects_.Clear();
-    columns_.Clear();
+    if (tracks_ != nullptr) {
+        tracks_->columnDefinitionObjects.Clear();
+        tracks_->columns.Clear();
+        DropTracksIfEmpty();
+    }
     InvalidateMeasure();
 }
 void
 Grid::ClearRowDefinitionObjects() noexcept {
     Base::Result<void> access = VerifyAccess();
     if (!access) return;
-    rowDefinitionObjects_.Clear();
-    rows_.Clear();
+    if (tracks_ != nullptr) {
+        tracks_->rowDefinitionObjects.Clear();
+        tracks_->rows.Clear();
+        DropTracksIfEmpty();
+    }
     InvalidateMeasure();
 }
 Base::StringView Grid::GetColumnDefinitionsText() const noexcept {
@@ -234,32 +309,55 @@ void Grid::OnPropertyChanged(
 }
 
 void Grid::SyncDefinitionVectors() noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        columns_.Clear();
-        for (const auto& colDef : columnDefinitionObjects_) {
-            if (colDef) (void)columns_.PushBack(colDef->GetWidth());
+    if (tracks_ == nullptr) return;
+    if (!tracks_->columnDefinitionObjects.Empty()) {
+        tracks_->columns.Clear();
+        for (const auto& colDef : tracks_->columnDefinitionObjects) {
+            if (colDef) (void)tracks_->columns.PushBack(colDef->GetWidth());
         }
     }
-    if (!rowDefinitionObjects_.Empty()) {
-        rows_.Clear();
-        for (const auto& rowDef : rowDefinitionObjects_) {
-            if (rowDef) (void)rows_.PushBack(rowDef->GetHeight());
+    if (!tracks_->rowDefinitionObjects.Empty()) {
+        tracks_->rows.Clear();
+        for (const auto& rowDef : tracks_->rowDefinitionObjects) {
+            if (rowDef) (void)tracks_->rows.PushBack(rowDef->GetHeight());
         }
     }
 }
 
 Size Grid::MeasureOverride(
     Size availableSize) noexcept {
+    constexpr float Unconstrained = 1.0e12f;
+    constexpr float FiniteConstraintLimit =
+        Unconstrained * 0.5f;
+    if (tracks_ == nullptr) {
+        const float childWidth = availableSize.width < FiniteConstraintLimit
+            ? std::max(0.0f, availableSize.width)
+            : Unconstrained;
+        const float childHeight = availableSize.height < FiniteConstraintLimit
+            ? std::max(0.0f, availableSize.height)
+            : Unconstrained;
+        float maxDesiredWidth = 0.0f;
+        float maxDesiredHeight = 0.0f;
+        for (UIElement* child : LayoutChildren()) {
+            if (child == nullptr) continue;
+            MeasureChild(*child, {childWidth, childHeight});
+            const Size childDesired = child->GetDesiredSize();
+            maxDesiredWidth = std::max(maxDesiredWidth, childDesired.width);
+            maxDesiredHeight = std::max(maxDesiredHeight, childDesired.height);
+        }
+        return Size{maxDesiredWidth, maxDesiredHeight};
+    }
+
     SyncDefinitionVectors();
 
     const std::uint32_t columns = GetColumnCount();
     const std::uint32_t rows = GetRowCount();
-    desiredColumns_.Clear();
-    desiredRows_.Clear();
-    desiredColumns_.Resize(columns, 0.0f);
-    desiredRows_.Resize(rows, 0.0f);
-    auto& desiredColumns = desiredColumns_;
-    auto& desiredRows = desiredRows_;
+    tracks_->desiredColumns.Clear();
+    tracks_->desiredRows.Clear();
+    tracks_->desiredColumns.Resize(columns, 0.0f);
+    tracks_->desiredRows.Resize(rows, 0.0f);
+    auto& desiredColumns = tracks_->desiredColumns;
+    auto& desiredRows = tracks_->desiredRows;
 
     for (std::uint32_t index = 0U; index < columns; ++index) {
         const GridLength definition = ColumnAt(index);
@@ -272,9 +370,6 @@ Size Grid::MeasureOverride(
             desiredRows[index] = std::min(definition.value, MaxHeightAt(index));
     }
 
-    constexpr float Unconstrained = 1.0e12f;
-    constexpr float FiniteConstraintLimit =
-        Unconstrained * 0.5f;
     float pixelWidth = 0.0f;
     float pixelHeight = 0.0f;
     float columnStarWeight = 0.0f;
@@ -300,10 +395,8 @@ Size Grid::MeasureOverride(
         }
     }
 
-    spanningChildren_.Clear();
-    nonSpanningChildren_.Clear();
-    auto& spanningChildren = spanningChildren_;
-    auto& nonSpanningChildren = nonSpanningChildren_;
+    Base::BasicVector<SpanningChild, 8U> spanningChildren;
+    Base::BasicVector<NonSpanningChild, 16U> nonSpanningChildren;
 
     for (UIElement* child : LayoutChildren()) {
         if (child == nullptr) continue;
@@ -645,35 +738,77 @@ Size Grid::MeasureOverride(
     for (std::uint32_t index = 0U; index < rows; ++index) {
         desiredRows[index] = std::min(desiredRows[index], MaxHeightAt(index));
     }
-    desiredColumns_ = std::move(desiredColumns);
-    desiredRows_ = std::move(desiredRows);
     return Size{totalDesiredWidth, totalDesiredHeight};
 }
 Size Grid::ArrangeOverride(Size finalSize) noexcept {
+    if (tracks_ == nullptr) {
+        if (!std::isfinite(finalSize.width) || finalSize.width < 0.0f ||
+            !std::isfinite(finalSize.height) || finalSize.height < 0.0f) {
+            return finalSize;
+        }
+        float cellWidth = finalSize.width;
+        float cellHeight = finalSize.height;
+        if (cellWidth >= 1.0e12f * 0.5f || cellHeight >= 1.0e12f * 0.5f) {
+            float maxDesiredW = 0.0f;
+            float maxDesiredH = 0.0f;
+            for (UIElement* child : LayoutChildren()) {
+                if (child == nullptr) continue;
+                const Size d = child->GetDesiredSize();
+                maxDesiredW = std::max(maxDesiredW, d.width);
+                maxDesiredH = std::max(maxDesiredH, d.height);
+            }
+            if (cellWidth >= 1.0e12f * 0.5f) cellWidth = maxDesiredW;
+            if (cellHeight >= 1.0e12f * 0.5f) cellHeight = maxDesiredH;
+        }
+        for (UIElement* child : LayoutChildren()) {
+            if (child == nullptr) continue;
+            ArrangeChild(*child, {0.0f, 0.0f, cellWidth, cellHeight});
+        }
+        return finalSize;
+    }
+
     SyncDefinitionVectors();
 
     const std::uint32_t colCount = GetColumnCount();
     const std::uint32_t rowCount = GetRowCount();
 
-    maxColumns_.Clear();
-    maxColumns_.Reserve(colCount);
-    for (std::uint32_t i = 0U; i < colCount; ++i) maxColumns_.PushBack(MaxWidthAt(i));
+    Base::BasicVector<float, 16U> maxColumns;
+    maxColumns.Reserve(colCount);
+    for (std::uint32_t i = 0U; i < colCount; ++i) maxColumns.PushBack(MaxWidthAt(i));
 
-    maxRows_.Clear();
-    maxRows_.Reserve(rowCount);
-    for (std::uint32_t i = 0U; i < rowCount; ++i) maxRows_.PushBack(MaxHeightAt(i));
+    Base::BasicVector<float, 16U> maxRows;
+    maxRows.Reserve(rowCount);
+    for (std::uint32_t i = 0U; i < rowCount; ++i) maxRows.PushBack(MaxHeightAt(i));
 
-    arrangedColumns_.Clear();
-    arrangedRows_.Clear();
+    Base::BasicVector<float, 16U> arrangedColumns;
+    Base::BasicVector<float, 16U> arrangedRows;
     if (!ResolveTracks(
-            {columns_.Data(), columns_.Size()},
-            {desiredColumns_.Data(), desiredColumns_.Size()},
-            finalSize.width, arrangedColumns_, maxColumns_.AsSpan()) ||
+            {tracks_->columns.Data(), tracks_->columns.Size()},
+            {tracks_->desiredColumns.Data(), tracks_->desiredColumns.Size()},
+            finalSize.width, arrangedColumns, maxColumns.AsSpan()) ||
         !ResolveTracks(
-            {rows_.Data(), rows_.Size()},
-            {desiredRows_.Data(), desiredRows_.Size()},
-            finalSize.height, arrangedRows_, maxRows_.AsSpan())) {
+            {tracks_->rows.Data(), tracks_->rows.Size()},
+            {tracks_->desiredRows.Data(), tracks_->desiredRows.Size()},
+            finalSize.height, arrangedRows, maxRows.AsSpan())) {
         return finalSize;
+    }
+
+    Base::BasicVector<float, 17U> colOffsets;
+    colOffsets.Reserve(arrangedColumns.Size() + 1U);
+    float accX = 0.0f;
+    colOffsets.PushBack(0.0f);
+    for (std::uint32_t i = 0U; i < arrangedColumns.Size(); ++i) {
+        accX += arrangedColumns[i];
+        colOffsets.PushBack(accX);
+    }
+
+    Base::BasicVector<float, 17U> rowOffsets;
+    rowOffsets.Reserve(arrangedRows.Size() + 1U);
+    float accY = 0.0f;
+    rowOffsets.PushBack(0.0f);
+    for (std::uint32_t i = 0U; i < arrangedRows.Size(); ++i) {
+        accY += arrangedRows[i];
+        rowOffsets.PushBack(accY);
     }
 
     const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
@@ -683,75 +818,64 @@ Size Grid::ArrangeOverride(Size finalSize) noexcept {
             CoerceGridSpan(
                 GetChildRow(*child),
                 GetChildRowSpan(*child),
-                arrangedRows_.Size());
+                arrangedRows.Size());
         const EffectiveGridSpan columnPlacement =
             CoerceGridSpan(
                 GetChildColumn(*child),
                 GetChildColumnSpan(*child),
-                arrangedColumns_.Size());
-        const std::uint32_t row =
-            rowPlacement.index;
-        const std::uint32_t column =
-            columnPlacement.index;
-        const std::uint32_t rowSpan =
-            rowPlacement.span;
-        const std::uint32_t columnSpan =
-            columnPlacement.span;
-        float x = 0.0f;
-        float y = 0.0f;
-        for (std::uint32_t index = 0U; index < column; ++index) x += arrangedColumns_[index];
-        for (std::uint32_t index = 0U; index < row; ++index) y += arrangedRows_[index];
-        float width = 0.0f;
-        float height = 0.0f;
-        for (std::uint32_t offset = 0U;
-             offset < columnSpan; ++offset) {
-            width += arrangedColumns_[column + offset];
-        }
-        for (std::uint32_t offset = 0U;
-             offset < rowSpan; ++offset) {
-            height += arrangedRows_[row + offset];
-        }
+                arrangedColumns.Size());
+        const std::uint32_t row = rowPlacement.index;
+        const std::uint32_t column = columnPlacement.index;
+        const std::uint32_t rowSpan = rowPlacement.span;
+        const std::uint32_t columnSpan = columnPlacement.span;
+        float x = colOffsets[column];
+        const float y = rowOffsets[row];
+        const float width = colOffsets[column + columnSpan] - x;
+        const float height = rowOffsets[row + rowSpan] - y;
         if (isRtl) {
             x = finalSize.width - x - width;
         }
-        ArrangeChild(*child,
-            {x, y, width, height});
+        ArrangeChild(*child, {x, y, width, height});
     }
     return finalSize;
 }
 std::uint32_t Grid::GetColumnCount() const noexcept {
-    if (!columnDefinitionObjects_.Empty()) {
-        return columnDefinitionObjects_.Size();
+    if (tracks_ == nullptr) return 1U;
+    if (!tracks_->columnDefinitionObjects.Empty()) {
+        return tracks_->columnDefinitionObjects.Size();
     }
-    return columns_.Empty() ? 1U : columns_.Size();
+    return tracks_->columns.Empty() ? 1U : tracks_->columns.Size();
 }
 std::uint32_t Grid::GetRowCount() const noexcept {
-    if (!rowDefinitionObjects_.Empty()) {
-        return rowDefinitionObjects_.Size();
+    if (tracks_ == nullptr) return 1U;
+    if (!tracks_->rowDefinitionObjects.Empty()) {
+        return tracks_->rowDefinitionObjects.Size();
     }
-    return rows_.Empty() ? 1U : rows_.Size();
+    return tracks_->rows.Empty() ? 1U : tracks_->rows.Size();
 }
 GridLength Grid::ColumnAt(std::uint32_t index) const noexcept {
-    if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
-        return columnDefinitionObjects_[index]->GetWidth();
+    if (tracks_ == nullptr) return GridLength::Star();
+    if (index < tracks_->columnDefinitionObjects.Size() && tracks_->columnDefinitionObjects[index]) {
+        return tracks_->columnDefinitionObjects[index]->GetWidth();
     }
-    return columns_.Empty() ? GridLength::Star() : (index < columns_.Size() ? columns_[index] : GridLength::Star());
+    return tracks_->columns.Empty() ? GridLength::Star() : (index < tracks_->columns.Size() ? tracks_->columns[index] : GridLength::Star());
 }
 GridLength Grid::RowAt(std::uint32_t index) const noexcept {
-    if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
-        return rowDefinitionObjects_[index]->GetHeight();
+    if (tracks_ == nullptr) return GridLength::Star();
+    if (index < tracks_->rowDefinitionObjects.Size() && tracks_->rowDefinitionObjects[index]) {
+        return tracks_->rowDefinitionObjects[index]->GetHeight();
     }
-    return rows_.Empty() ? GridLength::Star() : (index < rows_.Size() ? rows_[index] : GridLength::Star());
+    return tracks_->rows.Empty() ? GridLength::Star() : (index < tracks_->rows.Size() ? tracks_->rows[index] : GridLength::Star());
 }
 float Grid::MaxWidthAt(std::uint32_t index) const noexcept {
-    if (index < columnDefinitionObjects_.Size() && columnDefinitionObjects_[index]) {
-        return static_cast<float>(columnDefinitionObjects_[index]->GetMaxWidth());
+    if (tracks_ != nullptr && index < tracks_->columnDefinitionObjects.Size() && tracks_->columnDefinitionObjects[index]) {
+        return static_cast<float>(tracks_->columnDefinitionObjects[index]->GetMaxWidth());
     }
     return 1.0e12f;
 }
 float Grid::MaxHeightAt(std::uint32_t index) const noexcept {
-    if (index < rowDefinitionObjects_.Size() && rowDefinitionObjects_[index]) {
-        return static_cast<float>(rowDefinitionObjects_[index]->GetMaxHeight());
+    if (tracks_ != nullptr && index < tracks_->rowDefinitionObjects.Size() && tracks_->rowDefinitionObjects[index]) {
+        return static_cast<float>(tracks_->rowDefinitionObjects[index]->GetMaxHeight());
     }
     return 1.0e12f;
 }
@@ -787,7 +911,7 @@ bool Grid::ResolveTracks(
     Base::Span<const GridLength> definitions,
     Base::Span<const float> desired,
     float available,
-    Base::Vector<float>& resolved,
+    Base::BasicVector<float, 16U>& resolved,
     Base::Span<const float> maxLimits) const noexcept {
     const std::uint32_t count = definitions.Empty() ? 1U : definitions.Size();
     if (!std::isfinite(available) || available < 0.0f ||

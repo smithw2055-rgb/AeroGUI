@@ -186,20 +186,16 @@ protected:
     void InvalidateGeometry() noexcept override;
 
 private:
-    Base::Vector<Point> geometryVertices_;
-    Base::Vector<std::uint32_t> geometryIndices_;
-    Base::Vector<Point> pathPoints_;
-    Base::Vector<std::uint32_t> pathContourStarts_;
-    Base::Vector<std::uint32_t> pathContourCounts_;
-    Base::Vector<std::uint8_t> pathContourClosed_;
-    Base::Vector<Point> strokeVertices_;
-    Base::Vector<std::uint32_t> strokeIndices_;
-    Rect geometryBounds_;
+    struct GeometryCache;
+    GeometryCache* EnsureGeometryCache() noexcept;
+
+    GeometryCache* cache_ = nullptr;
     std::uint64_t meshServiceGeneration_ = 0U;
     std::uint64_t mesh_ = 0U;
     std::uint64_t strokeMesh_ = 0U;
-    double lastRenderWidth_ = 0.0;
-    double lastRenderHeight_ = 0.0;
+    Rect geometryBounds_{};
+    float lastRenderWidth_ = 0.0f;
+    float lastRenderHeight_ = 0.0f;
     bool geometryDirty_ = true;
 };
 

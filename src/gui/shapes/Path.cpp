@@ -317,11 +317,27 @@ private:
 
 } // namespace
 
+struct Path::GeometryCache {
+    Base::Vector<Point> geometryVertices;
+    Base::Vector<std::uint32_t> geometryIndices;
+    Base::Vector<Point> strokeVertices;
+    Base::Vector<std::uint32_t> strokeIndices;
+};
+
+Path::GeometryCache* Path::EnsureGeometryCache() noexcept {
+    if (cache_ == nullptr) {
+        cache_ = new (std::nothrow) GeometryCache();
+    }
+    return cache_;
+}
+
 Path::Path() noexcept
     : Shape(StaticTypeId()) {}
 
 Path::~Path() {
     ReleaseMesh();
+    delete cache_;
+    cache_ = nullptr;
 }
 
 
@@ -527,34 +543,34 @@ void Path::InvalidateGeometry() noexcept { ResetGeometry(); }
 
 void Path::ResetGeometry() noexcept {
     ReleaseMesh();
-    geometryVertices_.Clear();
-    geometryIndices_.Clear();
-    pathPoints_.Clear();
-    pathContourStarts_.Clear();
-    pathContourCounts_.Clear();
-    pathContourClosed_.Clear();
-    strokeVertices_.Clear();
-    strokeIndices_.Clear();
+    if (cache_ != nullptr) {
+        cache_->geometryVertices.Clear();
+        cache_->geometryIndices.Clear();
+        cache_->strokeVertices.Clear();
+        cache_->strokeIndices.Clear();
+    }
     geometryBounds_ = {};
     geometryDirty_ = true;
 }
 
 bool Path::EnsureGeometry() noexcept {
     if (!geometryDirty_) return true;
-    geometryVertices_.Clear();
-    geometryIndices_.Clear();
-    pathPoints_.Clear();
-    pathContourStarts_.Clear();
-    pathContourCounts_.Clear();
-    pathContourClosed_.Clear();
-    strokeVertices_.Clear();
-    strokeIndices_.Clear();
+    if (cache_ != nullptr) {
+        cache_->geometryVertices.Clear();
+        cache_->geometryIndices.Clear();
+        cache_->strokeVertices.Clear();
+        cache_->strokeIndices.Clear();
+    }
     geometryBounds_ = {};
     Base::Ref<Geometry> geometry = GetData();
     if (!geometry) {
         geometryDirty_ = false;
         return true;
     }
+    Base::Vector<Point> pathPoints;
+    Base::Vector<std::uint32_t> pathContourStarts;
+    Base::Vector<std::uint32_t> pathContourCounts;
+    Base::Vector<std::uint8_t> pathContourClosed;
     if (GetIsMeasuring()) {
         geometryBounds_ = geometry->GetBounds();
         if (geometryBounds_.width <= 0.0 && geometryBounds_.height <= 0.0) {
@@ -562,11 +578,11 @@ bool Path::EnsureGeometry() noexcept {
             Rect bounds{};
             Base::Vector<ContourRecord> contours;
             GeometryContourSink sink(
-                pathPoints_,
+                pathPoints,
                 contours,
-                pathContourStarts_,
-                pathContourCounts_,
-                pathContourClosed_,
+                pathContourStarts,
+                pathContourCounts,
+                pathContourClosed,
                 bounds,
                 hasBounds);
             geometry->Flatten(sink);
@@ -582,72 +598,73 @@ bool Path::EnsureGeometry() noexcept {
     Rect bounds{};
     Base::Vector<ContourRecord> contours;
     GeometryContourSink sink(
-        pathPoints_,
+        pathPoints,
         contours,
-        pathContourStarts_,
-        pathContourCounts_,
-        pathContourClosed_,
+        pathContourStarts,
+        pathContourCounts,
+        pathContourClosed,
         bounds,
         hasBounds);
     geometry->Flatten(sink);
     sink.Finish();
-    if (hasBounds && !pathPoints_.Empty() && !contours.Empty()) {
+    if (hasBounds && !pathPoints.Empty() && !contours.Empty()) {
         geometryBounds_ = bounds;
-        if (GetFill()) {
-            Base::Result<void> tessellated = TessellateFill(
-                pathPoints_,
-                contours,
-                GetFillRule(),
-                geometryVertices_,
-                geometryIndices_);
-            if (!tessellated) {
-                geometryVertices_.Clear();
-                geometryIndices_.Clear();
-            }
-        }
+        const bool hasFill = static_cast<bool>(GetFill());
         const PathStrokeParams stroke = ResolvePathStroke(*this);
-        if (stroke.brush) {
-            Base::Vector<double> dashes;
-            double dashOffset = 0.0;
-            Base::Result<void> resolved =
-                ResolvePathDashes(*this, dashes, dashOffset);
-            if (!resolved) return false;
-
-            const PathTransformInfo info = CalculatePathTransform(
-                GetStretch(), geometryBounds_, GetRenderSize());
-
-            Base::Vector<Point> strokePoints;
-            strokePoints.Reserve(pathPoints_.Size());
-            for (const Point& pt : pathPoints_) {
-                strokePoints.PushBack(Point{
-                    pt.x * info.scaleX + info.offsetX,
-                    pt.y * info.scaleY + info.offsetY
-                });
+        if (hasFill || stroke.brush) {
+            GeometryCache* cache = EnsureGeometryCache();
+            if (cache == nullptr) return false;
+            if (hasFill) {
+                Base::Result<void> tessellated = TessellateFill(
+                    pathPoints,
+                    contours,
+                    GetFillRule(),
+                    cache->geometryVertices,
+                    cache->geometryIndices);
+                if (!tessellated) {
+                    cache->geometryVertices.Clear();
+                    cache->geometryIndices.Clear();
+                }
             }
+            if (stroke.brush) {
+                Base::Vector<double> dashes;
+                double dashOffset = 0.0;
+                Base::Result<void> resolved =
+                    ResolvePathDashes(*this, dashes, dashOffset);
+                if (!resolved) return false;
 
-            Base::Result<void> stroked = TessellateStroke(
-                strokePoints,
-                pathContourStarts_,
-                pathContourCounts_,
-                pathContourClosed_,
-                stroke.thickness,
-                GetTrimStart(),
-                GetTrimEnd(),
-                stroke.join,
-                stroke.startCap,
-                stroke.endCap,
-                stroke.miterLimit,
-                {dashes.Data(), dashes.Size()},
-                dashOffset,
-                strokeVertices_,
-                strokeIndices_);
-            if (!stroked) return false;
+                const PathTransformInfo info = CalculatePathTransform(
+                    GetStretch(), geometryBounds_, GetRenderSize());
+
+                Base::Vector<Point> strokePoints;
+                strokePoints.Reserve(pathPoints.Size());
+                for (const Point& pt : pathPoints) {
+                    strokePoints.PushBack(Point{
+                        pt.x * info.scaleX + info.offsetX,
+                        pt.y * info.scaleY + info.offsetY
+                    });
+                }
+
+                Base::Result<void> stroked = TessellateStroke(
+                    strokePoints,
+                    pathContourStarts,
+                    pathContourCounts,
+                    pathContourClosed,
+                    stroke.thickness,
+                    GetTrimStart(),
+                    GetTrimEnd(),
+                    stroke.join,
+                    stroke.startCap,
+                    stroke.endCap,
+                    stroke.miterLimit,
+                    {dashes.Data(), dashes.Size()},
+                    dashOffset,
+                    cache->strokeVertices,
+                    cache->strokeIndices);
+                if (!stroked) return false;
+            }
         }
     }
-    pathPoints_.Clear();
-    pathContourStarts_.Clear();
-    pathContourCounts_.Clear();
-    pathContourClosed_.Clear();
     geometryDirty_ = false;
     return true;
 }
@@ -722,24 +739,24 @@ bool Path::EnsureMesh() noexcept {
         meshServiceGeneration_ = services->generation;
     }
     if (mesh_ == InvalidRenderMeshId &&
-        !geometryVertices_.Empty()) {
+        cache_ != nullptr && !cache_->geometryVertices.Empty()) {
         auto created =
             services->create(
                 services->context,
-                geometryVertices_.AsSpan(),
-                geometryIndices_.AsSpan());
+                cache_->geometryVertices.AsSpan(),
+                cache_->geometryIndices.AsSpan());
         if (!created) {
             return false;
         }
         mesh_ = created.Value();
     }
     if (strokeMesh_ == InvalidRenderMeshId &&
-        !strokeVertices_.Empty()) {
+        cache_ != nullptr && !cache_->strokeVertices.Empty()) {
         auto created =
             services->create(
                 services->context,
-                strokeVertices_.AsSpan(),
-                strokeIndices_.AsSpan());
+                cache_->strokeVertices.AsSpan(),
+                cache_->strokeIndices.AsSpan());
         if (!created) return false;
         strokeMesh_ = created.Value();
     }
@@ -845,9 +862,11 @@ void Path::OnRender(
         lastRenderHeight_ = target.height;
     }
     if (!EnsureMesh()) return;
+    const bool hasFillData = (cache_ != nullptr && !cache_->geometryIndices.Empty());
+    const bool hasStrokeData = (cache_ != nullptr && !cache_->strokeIndices.Empty());
     if ((mesh_ == InvalidRenderMeshId &&
          strokeMesh_ == InvalidRenderMeshId &&
-         geometryIndices_.Empty()) ||
+         !hasFillData) ||
         (geometryBounds_.width <= 0.0 &&
          geometryBounds_.height <= 0.0)) {
         return;
@@ -855,7 +874,7 @@ void Path::OnRender(
     const PathTransformInfo info = CalculatePathTransform(
         GetStretch(), geometryBounds_, target);
 
-    if (mesh_ != InvalidRenderMeshId || !geometryIndices_.Empty()) {
+    if (mesh_ != InvalidRenderMeshId || hasFillData) {
         Base::Ref<Brush> fill = GetFill();
         if (fill) {
             builder.PushTransform(Transform2D{
@@ -863,12 +882,12 @@ void Path::OnRender(
                 info.offsetX, info.offsetY});
             const bool spatial = IsSpatialGradientBrush(fill.Get()) ||
                 (fill->RuntimeType() == Media::ImageBrush::StaticTypeId());
-            if (spatial && (!geometryIndices_.Empty() || mesh_ != InvalidRenderMeshId)) {
+            if (spatial && (hasFillData || mesh_ != InvalidRenderMeshId)) {
                 PaintBrushGeometry(
                     builder,
                     fill,
-                    geometryVertices_.AsSpan(),
-                    geometryIndices_.AsSpan(),
+                    cache_ ? Base::Span<const Point>(cache_->geometryVertices.Data(), cache_->geometryVertices.Size()) : Base::Span<const Point>{},
+                    cache_ ? Base::Span<const std::uint32_t>(cache_->geometryIndices.Data(), cache_->geometryIndices.Size()) : Base::Span<const std::uint32_t>{},
                     geometryBounds_,
                     false,
                     mesh_);
@@ -881,12 +900,12 @@ void Path::OnRender(
             builder.PopTransform();
         }
     }
-    if (strokeMesh_ != InvalidRenderMeshId || !strokeIndices_.Empty()) {
+    if (strokeMesh_ != InvalidRenderMeshId || hasStrokeData) {
         Base::Ref<Brush> stroke = ResolvePathStroke(*this).brush;
         if (stroke) {
             const bool spatial = IsSpatialGradientBrush(stroke.Get()) ||
                 (stroke->RuntimeType() == Media::ImageBrush::StaticTypeId());
-            if (spatial && (!strokeIndices_.Empty() || strokeMesh_ != InvalidRenderMeshId)) {
+            if (spatial && (hasStrokeData || strokeMesh_ != InvalidRenderMeshId)) {
                 const Rect transformedBounds{
                     geometryBounds_.x * info.scaleX + info.offsetX,
                     geometryBounds_.y * info.scaleY + info.offsetY,
@@ -896,8 +915,8 @@ void Path::OnRender(
                 PaintBrushGeometry(
                     builder,
                     stroke,
-                    strokeVertices_.AsSpan(),
-                    strokeIndices_.AsSpan(),
+                    cache_ ? Base::Span<const Point>(cache_->strokeVertices.Data(), cache_->strokeVertices.Size()) : Base::Span<const Point>{},
+                    cache_ ? Base::Span<const std::uint32_t>(cache_->strokeIndices.Data(), cache_->strokeIndices.Size()) : Base::Span<const std::uint32_t>{},
                     transformedBounds,
                     false,
                     strokeMesh_);

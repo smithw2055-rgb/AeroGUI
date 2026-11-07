@@ -2331,50 +2331,8 @@ const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
     const ::Aero::Meta::TypeRegistry& types) noexcept;
 
 // ============================================================================
-// SECTION: MarkupExtension Providers & Context
+// SECTION: MarkupExtension Shared Entrypoints & Context
 // ============================================================================
-
-struct BindingExtensionOptions {
-    BindingExtensionOptions() noexcept = default;
-    BindingExtensionOptions(
-        Aero::BindingEngine* bindingManager,
-        Meta::DependencyPropertyHandle dataContext) noexcept
-        : bindings(bindingManager),
-          dataContextProperty(dataContext) {}
-
-    Aero::BindingEngine* bindings = nullptr;
-    Meta::DependencyPropertyHandle dataContextProperty;
-};
-
-// Registers a {Binding ElementName=..., Path=..., Mode=...} provider. Explicit
-// ElementName wins over DataContext. Paths are compiled to immutable metadata
-// plans; DataContext paths are resolved after tree attachment and recompiled
-// only when the concrete source type changes.
-class BindingExtension {
-public:
-    explicit BindingExtension(
-        const BindingExtensionOptions& options) noexcept;
-
-    BindingExtension(const BindingExtension&) = delete;
-    BindingExtension& operator=(const BindingExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId bindingExtensionType) noexcept;
-    void SetDataContextProperty(
-        Meta::DependencyPropertyHandle property) noexcept {
-        options_.dataContextProperty = property;
-    }
-
-private:
-    BindingExtensionOptions options_;
-
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
 
 class DynamicResource {
 public:
@@ -2402,84 +2360,6 @@ public:
         Base::StringView key) noexcept;
 };
 
-struct DynamicResourceExtensionOptions {
-    DynamicResourceExtensionOptions() noexcept = default;
-    DynamicResourceExtensionOptions(
-        Meta::EffectiveValueEngine* effectiveValueEngine,
-        Aero::ResourceDictionary* resourceDictionary) noexcept
-        : effectiveValues(effectiveValueEngine),
-          resources(resourceDictionary) {}
-
-    Meta::EffectiveValueEngine* effectiveValues = nullptr;
-    Aero::ResourceDictionary* resources = nullptr;
-};
-
-class DynamicResourceExtension {
-public:
-    explicit DynamicResourceExtension(
-        const DynamicResourceExtensionOptions& options) noexcept;
-
-    DynamicResourceExtension(const DynamicResourceExtension&) = delete;
-    DynamicResourceExtension& operator=(
-        const DynamicResourceExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId dynamicResourceExtensionType) noexcept;
-
-private:
-    DynamicResourceExtensionOptions options_;
-
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
-
-// Mirrors WPF's {StaticResource key}/StaticResourceExtension. Unlike
-// DynamicResourceExtension it resolves the resource dictionary key exactly once
-// while the XAML tree is authored and returns the value directly; there is no
-// expression and no change tracking once the tree is live.
-class StaticResourceExtension {
-public:
-    StaticResourceExtension() noexcept = default;
-
-    StaticResourceExtension(const StaticResourceExtension&) = delete;
-    StaticResourceExtension& operator=(
-        const StaticResourceExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId staticResourceExtensionType) noexcept;
-
-private:
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
-
-class TypeExtension {
-public:
-    TypeExtension() noexcept = default;
-
-    TypeExtension(const TypeExtension&) = delete;
-    TypeExtension& operator=(const TypeExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId markupExtensionType) noexcept;
-
-private:
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
-
 // Compatibility provider for AeroGUIExtensions.Loc. Its attached Source is
 // registered by the markup schema; the provider supplies values to ordinary
 // property attributes such as {aero:Loc TitleLabel}.
@@ -2491,9 +2371,6 @@ public:
         Schema& schema,
         Meta::TypeId markupExtensionType) noexcept;
 
-    // Called by the inheritable aero:Loc.Source compatibility property.  The
-    // implementation swaps the source XAML dictionary for all Loc values
-    // authored in the same loaded visual tree.
     static void OnSourceChanged(
         ::Aero::DependencyObject& object,
         const Meta::DependencyPropertyChangedEventArgs& args) noexcept;
@@ -2506,66 +2383,9 @@ private:
         void* context) noexcept;
 };
 
-// Records a WPF-style one-way property mapping while a ControlTemplate
-// prototype is authored. The prototype keeps no live expression; its immutable
-// runtime plan applies the mapping to every instantiated template tree.
-class TemplateBindingExtension {
-public:
-    TemplateBindingExtension() noexcept = default;
-
-    TemplateBindingExtension(
-        const TemplateBindingExtension&) = delete;
-    TemplateBindingExtension& operator=(
-        const TemplateBindingExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId markupExtensionType) noexcept;
-
-private:
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
-
-// Implements the WPF-compatible {x:Static Type.Member} form for registered
-// enum values. The returned Meta::Value retains the enum's concrete metadata
-// type so AnyValue members (for example discrete object key frames) can defer
-// assignment until their target dependency property is known.
-class StaticExtension {
-public:
-    StaticExtension() noexcept = default;
-
-    StaticExtension(const StaticExtension&) = delete;
-    StaticExtension& operator=(const StaticExtension&) = delete;
-
-    Base::Result<void> Register(
-        Schema& schema,
-        Meta::TypeId markupExtensionType) noexcept;
-
-private:
-    friend Base::Result<void> RegisterBuiltinMarkupExtensions(Schema&) noexcept;
-    static Base::Result<ProvidedValue> ProvideValue(
-        Base::StringView arguments,
-        const ExtensionServices& services,
-        void* context) noexcept;
-};
-
-Base::Result<long double> ReadConstantBindingNumber(
-    const Meta::Value& value) noexcept;
-Base::Result<Meta::Value> ConvertConstantBindingValue(
-    const Meta::Value& value,
-    Meta::TypeId targetType) noexcept;
 Base::Result<ProvidedValue> CreateMultiBindingValue(
     Data::MultiBinding& binding,
     const ExtensionServices& services) noexcept;
-Base::Result<void> CaptureControlTemplateChildName(
-    Controls::ControlTemplate& controlTemplate,
-    const Aero::NameScope* nameScope,
-    Base::Object& target,
-    Base::String& storage) noexcept;
 Base::Result<Meta::PropertyValue> ConvertDynamicResourceValue(
     const Meta::PropertyValue& value,
     const Meta::DependencyProperty& property) noexcept;

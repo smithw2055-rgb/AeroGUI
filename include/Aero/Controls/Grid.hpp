@@ -50,6 +50,7 @@ class AERO_GUI_API Grid : public Panel {
 
 public:
     Grid() noexcept;
+    ~Grid() override;
 
     static Base::Result<GridLength> ConvertLength(Base::StringView text) noexcept;
     static bool ParseDefinitions(
@@ -61,9 +62,9 @@ public:
     }
     void ClearInputBindings() noexcept { UIElement::ClearInputBindings(); }
 
-    Span<const GridLength> GetColumnDefinitions() const noexcept { return {columns_.Data(), columns_.Size()}; }
+    Span<const GridLength> GetColumnDefinitions() const noexcept;
     void SetColumnDefinitions(Span<const GridLength> definitions) noexcept;
-    Span<const GridLength> GetRowDefinitions() const noexcept { return {rows_.Data(), rows_.Size()}; }
+    Span<const GridLength> GetRowDefinitions() const noexcept;
     void SetRowDefinitions(Span<const GridLength> definitions) noexcept;
     void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column) noexcept;
     void SetChildCell(UIElement& child, std::uint32_t row, std::uint32_t column, std::uint32_t rowSpan, std::uint32_t columnSpan) noexcept;
@@ -100,7 +101,7 @@ private:
     float MaxHeightAt(std::uint32_t index) const noexcept;
     bool ValidateDefinitions(Span<const GridLength> definitions) const noexcept;
     bool ResolveTracks(Span<const GridLength> definitions, Span<const float> desired, float available,
-        Base::Vector<float>& resolved, Span<const float> maxLimits = {}) const noexcept;
+        Base::BasicVector<float, 16U>& resolved, Span<const float> maxLimits = {}) const noexcept;
 
     std::uint32_t GetColumnCount() const noexcept;
     std::uint32_t GetRowCount() const noexcept;
@@ -126,18 +127,11 @@ private:
         bool hasStarRow = false;
     };
 
-    Base::Vector<GridLength> columns_;
-    Base::Vector<GridLength> rows_;
-    Base::Vector<Ref<ColumnDefinition>> columnDefinitionObjects_;
-    Base::Vector<Ref<RowDefinition>> rowDefinitionObjects_;
-    Base::Vector<float> desiredColumns_;
-    Base::Vector<float> desiredRows_;
-    Base::Vector<float> maxColumns_;
-    Base::Vector<float> maxRows_;
-    Base::Vector<float> arrangedColumns_;
-    Base::Vector<float> arrangedRows_;
-    Base::Vector<SpanningChild> spanningChildren_;
-    Base::Vector<NonSpanningChild> nonSpanningChildren_;
+    struct TrackStorage;
+    TrackStorage* EnsureTracks() noexcept;
+    void DropTracksIfEmpty() noexcept;
+
+    TrackStorage* tracks_ = nullptr;
 };
 
 } // namespace Aero::Controls

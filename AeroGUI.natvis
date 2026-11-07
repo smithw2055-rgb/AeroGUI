@@ -117,4 +117,34 @@
     </Expand>
   </Type>
 
+  <Type Name="Aero::Controls::Grid">
+    <DisplayString Condition="tracks_ == nullptr">{{ children={children_.size_}, tracks=1x1 }}</DisplayString>
+    <DisplayString>{{ children={children_.size_}, tracks={tracks_} }}</DisplayString>
+    <Expand>
+      <Item Name="[children]">children_</Item>
+      <Item Name="[tracks]">tracks_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::TextBlock">
+    <DisplayString>{{ primaryGlyphRun={primaryGlyphRun_}, hasInlines={docRare_ != nullptr} }}</DisplayString>
+    <Expand>
+      <Item Name="[primaryGlyphRun]">primaryGlyphRun_</Item>
+      <Item Name="[glyphRunSize]">glyphRunSize_</Item>
+      <Item Name="[documentRare]">docRare_</Item>
+      <Item Name="[glyphRunValid]">glyphRunValid_</Item>
+      <Item Name="[flatTextValid]">flatTextValid_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Shapes::Path">
+    <DisplayString>{{ mesh={mesh_}, strokeMesh={strokeMesh_}, bounds={geometryBounds_} }}</DisplayString>
+    <Expand>
+      <Item Name="[mesh]">mesh_</Item>
+      <Item Name="[strokeMesh]">strokeMesh_</Item>
+      <Item Name="[geometryBounds]">geometryBounds_</Item>
+      <Item Name="[cache]">cache_</Item>
+    </Expand>
+  </Type>
+
 </AutoVisualizer>

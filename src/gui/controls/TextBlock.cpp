@@ -44,30 +44,87 @@ bool IsValidTextSize(Size value) noexcept {
 
 } // namespace
 
+struct TextBlock::DocumentRare {
+    Base::Vector<std::uint64_t> extraGlyphRuns;
+    Base::Vector<TextHitRegion> textHitRegions;
+    Base::Vector<Ref<Documents::Inline>> ownedInlines;
+    Base::String flatText;
+    Base::Vector<RichTextStyleRange> richTextStyleRanges;
+    Ref<Documents::Inline> pendingInline;
+    bool hasBuiltHitRegions = false;
+};
+
+TextBlock::DocumentRare* TextBlock::EnsureDocumentRare() const noexcept {
+    if (docRare_ == nullptr) {
+        docRare_ = new (std::nothrow) DocumentRare();
+    }
+    return docRare_;
+}
+
+std::uint32_t TextBlock::GetInlineCount() const noexcept {
+    return docRare_ != nullptr ? docRare_->ownedInlines.Size() : 0U;
+}
+
+Base::Vector<Ref<Documents::Inline>>* TextBlock::EnsureOwnedInlinesVector() noexcept {
+    DocumentRare* rare = EnsureDocumentRare();
+    return rare != nullptr ? &rare->ownedInlines : nullptr;
+}
+
+const Base::Vector<Ref<Documents::Inline>>* TextBlock::OwnedInlinesVector() const noexcept {
+    return docRare_ != nullptr ? &docRare_->ownedInlines : nullptr;
+}
+
+void TextBlock::SetPendingInline(Ref<Documents::Inline> value) noexcept {
+    if (!value && docRare_ == nullptr) return;
+    if (DocumentRare* rare = EnsureDocumentRare()) {
+        rare->pendingInline = std::move(value);
+    }
+}
+
+bool TextBlock::AccessDocumentFlattenState(
+    Base::String*& outFlatText,
+    Base::Vector<RichTextStyleRange>*& outStyleRanges) const noexcept {
+    if (docRare_ == nullptr || docRare_->ownedInlines.Empty()) {
+        return false;
+    }
+    outFlatText = &docRare_->flatText;
+    outStyleRanges = &docRare_->richTextStyleRanges;
+    return true;
+}
+
 TextBlock::TextBlock() noexcept
     : TextBlock(StaticTypeId()) {}
 
 TextBlock::TextBlock(TypeId runtimeType) noexcept
-    : FrameworkElement(runtimeType),
-      textHitRegions_(),
-      ownedInlines_(),
-      richTextStyleRanges_(),
-      pendingInline_() {}
+    : FrameworkElement(runtimeType) {}
 
 void TextBlock::InvalidateDocumentText() noexcept {
     flatTextValid_ = false;
+    glyphRunValid_ = false;
+    if (docRare_ != nullptr) {
+        docRare_->hasBuiltHitRegions = false;
+        if (docRare_->ownedInlines.Empty() && GetValue(RichText::TextProperty).Empty()) {
+            docRare_->richTextStyleRanges.Clear();
+        }
+    }
     InvalidateMeasure();
 }
 
 void TextBlock::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     flatTextValid_ = false;
+    glyphRunValid_ = false;
+    if (docRare_ != nullptr) {
+        docRare_->hasBuiltHitRegions = false;
+    }
     FrameworkElement::OnPropertyInvalidated(flags);
 }
 
 TextBlock::~TextBlock() {
     ClearOwnedInlines();
     ReleaseServiceGlyphRun();
+    delete docRare_;
+    docRare_ = nullptr;
 }
 Base::StringView TextBlock::GetText() const noexcept {
     return GetValue(TextProperty);
@@ -173,7 +230,10 @@ double TextBlock::GetLineHeight() const noexcept {
 }
 void TextBlock::SetText(Base::StringView value) noexcept {
     SetValue(TextProperty, value);
-    textHitRegions_.Clear();
+    if (docRare_ != nullptr) {
+        docRare_->textHitRegions.Clear();
+        docRare_->hasBuiltHitRegions = false;
+    }
 }
 void TextBlock::SetForeground(
     Base::Ref<Brush> value) noexcept {
@@ -225,10 +285,15 @@ void TextBlock::SetLineHeight(double value) noexcept {
 }
 void TextBlock::SetRichTextStyleRanges(
     Base::Span<const RichTextStyleRange> ranges) noexcept {
-    bool changed = richTextStyleRanges_.Size() != ranges.Size();
+    if (ranges.Empty() && (docRare_ == nullptr || docRare_->richTextStyleRanges.Empty())) {
+        return;
+    }
+    DocumentRare* rare = EnsureDocumentRare();
+    if (rare == nullptr) return;
+    bool changed = rare->richTextStyleRanges.Size() != ranges.Size();
     if (!changed) {
         for (std::uint32_t index = 0U; index < ranges.Size(); ++index) {
-            const RichTextStyleRange& left = richTextStyleRanges_[index];
+            const RichTextStyleRange& left = rare->richTextStyleRanges[index];
             const RichTextStyleRange& right = ranges[index];
             if (left.start != right.start || left.length != right.length ||
                 left.hasForeground != right.hasForeground ||
@@ -245,14 +310,14 @@ void TextBlock::SetRichTextStyleRanges(
     if (!changed) return;
     Base::Vector<RichTextStyleRange> next;
     next.Append(ranges);
-    richTextStyleRanges_ = std::move(next);
+    rare->richTextStyleRanges = std::move(next);
     InvalidateVisual();
 }
 Meta::Value TextBlock::GetMetadataInlines() const noexcept {
-    if (pendingInline_) {
+    if (docRare_ != nullptr && docRare_->pendingInline) {
         return Meta::Value::FromObject(
-            pendingInline_->RuntimeType(),
-            pendingInline_);
+            docRare_->pendingInline->RuntimeType(),
+            docRare_->pendingInline);
     }
     return Meta::Value::NullObject(
         Meta::TypeOf<Base::Object>());
@@ -282,16 +347,19 @@ void TextBlock::AddOwnedInline(
     Base::Ref<Documents::Inline> inlineObject) noexcept {
     if (!inlineObject) { AERO_ASSERT(false); return; }
     if (!VerifyAccess()) { AERO_ASSERT(false); return; }
-    for (const Base::Ref<Documents::Inline>& owned : ownedInlines_) {
+    DocumentRare* rare = EnsureDocumentRare();
+    if (rare == nullptr) return;
+    for (const Base::Ref<Documents::Inline>& owned : rare->ownedInlines) {
         if (owned.Get() == inlineObject.Get()) { AERO_ASSERT(false); return; }
     }
-    pendingInline_ = inlineObject;
-    ownedInlines_.PushBack(std::move(inlineObject));
+    rare->pendingInline = inlineObject;
+    rare->ownedInlines.PushBack(std::move(inlineObject));
     InvalidateDocumentText();
 }
 void TextBlock::ClearOwnedInlines() noexcept {
     if (!VerifyAccess()) return;
-    for (Base::Ref<Documents::Inline>& item : ownedInlines_) {
+    if (docRare_ == nullptr) return;
+    for (Base::Ref<Documents::Inline>& item : docRare_->ownedInlines) {
         if (item) {
             if (Documents::InlineUIContainer* container =
                     ::Aero::TryCast<Documents::InlineUIContainer>(item.Get())) {
@@ -302,9 +370,14 @@ void TextBlock::ClearOwnedInlines() noexcept {
             item->Detach();
         }
     }
-    ownedInlines_.Clear();
-    pendingInline_.Reset();
+    docRare_->ownedInlines.Clear();
+    docRare_->pendingInline.Reset();
+    if (GetValue(RichText::TextProperty).Empty()) {
+        docRare_->richTextStyleRanges.Clear();
+    }
     flatTextValid_ = false;
+    glyphRunValid_ = false;
+    docRare_->hasBuiltHitRegions = false;
     InvalidateMeasure();
 }
 
@@ -342,8 +415,9 @@ void CollectInlineUiChildren(
 } // namespace
 
 std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
+    if (docRare_ == nullptr || docRare_->ownedInlines.Empty()) return 0U;
     Base::Vector<UIElement*> children;
-    for (const Base::Ref<Documents::Inline>& item : ownedInlines_) {
+    for (const Base::Ref<Documents::Inline>& item : docRare_->ownedInlines) {
         if (!item) continue;
         CollectInlineUiChildren(*item, children);
     }
@@ -358,8 +432,9 @@ std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
 
 ::Aero::Media::Visual* TextBlock::GetVisualChild(
     std::uint32_t index) const noexcept {
+    if (docRare_ == nullptr || docRare_->ownedInlines.Empty()) return nullptr;
     Base::Vector<UIElement*> children;
-    for (const Base::Ref<Documents::Inline>& item : ownedInlines_) {
+    for (const Base::Ref<Documents::Inline>& item : docRare_->ownedInlines) {
         if (!item) continue;
         CollectInlineUiChildren(*item, children);
     }
@@ -401,20 +476,83 @@ void TextBlock::SetGlyphRun(
             (size.width != 0.0 || size.height != 0.0))) {
         return;
     }
-    if (glyphRuns_.Size() == 1U && glyphRuns_[0] == glyphRun &&
+    const bool hasExtra = docRare_ != nullptr && !docRare_->extraGlyphRuns.Empty();
+    if (!hasExtra && primaryGlyphRun_ == glyphRun &&
         glyphRunSize_.width == size.width &&
         glyphRunSize_.height == size.height &&
         !serviceOwnsGlyphRun_) return;
     ReleaseServiceGlyphRun();
-    glyphRuns_.Clear();
-    textHitRegions_.Clear();
-    if (glyphRun != InvalidRenderGlyphRunId) {
-        glyphRuns_.PushBack(glyphRun);
+    primaryGlyphRun_ = glyphRun;
+    glyphRunValid_ = false;
+    if (docRare_ != nullptr) {
+        docRare_->extraGlyphRuns.Clear();
+        docRare_->textHitRegions.Clear();
+        docRare_->hasBuiltHitRegions = false;
     }
     glyphRunSize_ = size;
     InvalidateMeasure();
     InvalidateVisual();
 }
+
+Span<const TextHitRegion> TextBlock::HitRegionsSpan() const noexcept {
+    if (docRare_ != nullptr && docRare_->hasBuiltHitRegions) {
+        return docRare_->textHitRegions.AsSpan();
+    }
+    if (primaryGlyphRun_ == InvalidRenderGlyphRunId) {
+        return {};
+    }
+    auto* layoutService = TextLayoutFor(*this);
+    if (layoutService == nullptr) return {};
+    DocumentRare* rare = EnsureDocumentRare();
+    if (rare == nullptr) return {};
+    Base::String flattened;
+    const bool hasInlines = !rare->ownedInlines.Empty() || !GetValue(RichText::TextProperty).Empty();
+    Base::StringView text = GetText();
+    if (hasInlines) {
+        Documents::CopyText(*this, flattened);
+        text = flattened.View();
+    }
+    if (text.Empty()) return {};
+    Size textAvailable{};
+    if (lastShapedAvailableWidth_ >= 0.0f) {
+        textAvailable.width = lastShapedAvailableWidth_;
+    } else {
+        const Thickness padding = GetValue(PaddingProperty);
+        const Size renderSize = GetRenderSize();
+        if (renderSize.width > 0.0f) {
+            textAvailable.width = std::max(0.0f, renderSize.width - padding.left - padding.right);
+        }
+    }
+    ::Aero::Controls::TextLayoutRequest request;
+    request.text = text;
+    request.availableSize = textAvailable;
+    request.dpiScale = GetDpiScale();
+    request.pixelSize = static_cast<float>(GetFontSize());
+    request.lineHeight = static_cast<float>(GetLineHeight());
+    request.fontFamily = EffectiveFontFamily();
+    request.fontWeight = GetFontWeight();
+    request.fontStyle = GetFontStyle();
+    request.wrapping = GetTextWrapping();
+    request.trimming = GetTextTrimming();
+    request.alignment = GetTextAlignment();
+    request.arrangeToAvailableWidth = lastShapedArrangeMode_;
+    request.includeHitRegions = true;
+    request.direction = GetFlowDirection() == FlowDirection::RightToLeft
+        ? Text::TextDirection::RightToLeft
+        : Text::TextDirection::LeftToRight;
+    ::Aero::Controls::TextLayoutResult output;
+    if (layoutService->ShapeAndPrepare(request, output)) {
+        for (RenderGlyphRunId run : output.glyphRuns) {
+            if (run != InvalidRenderGlyphRunId) {
+                layoutService->ReleaseGlyphRun(run);
+            }
+        }
+        rare->textHitRegions = std::move(output.hitRegions);
+        rare->hasBuiltHitRegions = true;
+    }
+    return rare->textHitRegions.AsSpan();
+}
+
 Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     if (!GetValue(RichText::TextProperty).Empty()) {
         // RichText can be populated while a template is still detached from
@@ -439,9 +577,9 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
          std::isfinite(lastShapedAvailableWidth_) &&
          std::fabs(cachedTextAvailable.width - lastShapedAvailableWidth_) <= 0.01f &&
          arrangingText_ == lastShapedArrangeMode_);
-    if (flatTextValid_ &&
+    if (glyphRunValid_ &&
         widthMatchesCache &&
-        !glyphRuns_.Empty() &&
+        primaryGlyphRun_ != InvalidRenderGlyphRunId &&
         GetVisualChildrenCount() == 0U) {
         Size desired{
             glyphRunSize_.width + padding.left + padding.right,
@@ -455,8 +593,15 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
         return desired;
     }
 
+    const bool hasInlines = docRare_ != nullptr && !docRare_->ownedInlines.Empty();
     Base::String flattened;
-    Documents::CopyText(*this, flattened);
+    Base::StringView shapedText;
+    if (hasInlines) {
+        Documents::CopyText(*this, flattened);
+        shapedText = flattened.View();
+    } else {
+        shapedText = GetText();
+    }
 
     Size textAvailable = availableSize;
     if (std::isfinite(textAvailable.width) && textAvailable.width > 0.0f) {
@@ -469,7 +614,6 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
     }
 
     auto* layoutService = TextLayoutFor(*this);
-    const Base::StringView shapedText = flattened.View();
     const auto fallbackTextSize = [&]() noexcept -> Size {
         if (shapedText.Empty()) return {};
         const double fontSize = std::max(1.0, GetFontSize());
@@ -478,20 +622,27 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
         return Size{fontSize * 0.55 * units, fontSize * 1.25};
     };
     if (layoutService != nullptr) {
-        const Base::StringView text = flattened.View();
+        const Base::StringView text = shapedText;
         if (text.Empty()) {
             const bool changed =
-                !glyphRuns_.Empty() ||
+                primaryGlyphRun_ != InvalidRenderGlyphRunId ||
                 glyphRunSize_.width != 0.0 ||
                 glyphRunSize_.height != 0.0;
             ReleaseServiceGlyphRun();
-            glyphRuns_.Clear();
+            primaryGlyphRun_ = InvalidRenderGlyphRunId;
+            glyphRunValid_ = false;
             glyphRunSize_ = {};
-            textHitRegions_.Clear();
+            if (docRare_ != nullptr) {
+                docRare_->extraGlyphRuns.Clear();
+                docRare_->textHitRegions.Clear();
+                docRare_->hasBuiltHitRegions = false;
+            }
             if (changed) {
                 InvalidateVisual();
             }
         } else {
+            const bool needsHitRegions = docRare_ != nullptr &&
+                (!docRare_->ownedInlines.Empty() || !docRare_->richTextStyleRanges.Empty());
             ::Aero::Controls::TextLayoutRequest request;
             request.text = text;
             request.availableSize = textAvailable;
@@ -505,6 +656,7 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
             request.trimming = GetTextTrimming();
             request.alignment = GetTextAlignment();
             request.arrangeToAvailableWidth = arrangingText_;
+            request.includeHitRegions = needsHitRegions;
             request.direction = GetFlowDirection() == FlowDirection::RightToLeft
                 ? Text::TextDirection::RightToLeft
                 : Text::TextDirection::LeftToRight;
@@ -529,27 +681,64 @@ Size TextBlock::MeasureOverride(Size availableSize) noexcept {
                     }
                     glyphRunSize_ = fallbackTextSize();
                 } else {
+                    const std::uint32_t oldCount =
+                        (primaryGlyphRun_ != InvalidRenderGlyphRunId ? 1U : 0U) +
+                        (docRare_ != nullptr ? docRare_->extraGlyphRuns.Size() : 0U);
                     bool changed =
-                        glyphRuns_.Size() != output.glyphRuns.Size() ||
+                        oldCount != output.glyphRuns.Size() ||
                         glyphRunSize_.width != output.desiredSize.width ||
                         glyphRunSize_.height != output.desiredSize.height ||
                         !serviceOwnsGlyphRun_;
-                    if (!changed) {
-                        for (std::uint32_t index = 0U;
-                             index < glyphRuns_.Size(); ++index) {
-                            if (glyphRuns_[index] != output.glyphRuns[index]) {
-                                changed = true;
-                                break;
+                    if (!changed && !output.glyphRuns.Empty()) {
+                        if (primaryGlyphRun_ != output.glyphRuns[0]) {
+                            changed = true;
+                        } else if (docRare_ != nullptr) {
+                            for (std::uint32_t i = 1U; i < output.glyphRuns.Size(); ++i) {
+                                if (docRare_->extraGlyphRuns[i - 1U] != output.glyphRuns[i]) {
+                                    changed = true;
+                                    break;
+                                }
                             }
                         }
                     }
                     ReleaseServiceGlyphRun();
-                    glyphRuns_ = std::move(output.glyphRuns);
-                    textHitRegions_ = std::move(output.hitRegions);
+                    if (output.glyphRuns.Empty()) {
+                        primaryGlyphRun_ = InvalidRenderGlyphRunId;
+                        if (docRare_ != nullptr) docRare_->extraGlyphRuns.Clear();
+                    } else {
+                        primaryGlyphRun_ = output.glyphRuns[0];
+                        if (output.glyphRuns.Size() > 1U) {
+                            DocumentRare* rare = EnsureDocumentRare();
+                            bool storedExtra = false;
+                            if (rare != nullptr) {
+                                rare->extraGlyphRuns.Clear();
+                                rare->extraGlyphRuns.Append(
+                                    output.glyphRuns.AsSpan().Subspan(1U, output.glyphRuns.Size() - 1U));
+                                storedExtra = rare->extraGlyphRuns.Size() == output.glyphRuns.Size() - 1U;
+                            }
+                            if (!storedExtra) {
+                                for (std::uint32_t i = 1U; i < output.glyphRuns.Size(); ++i) {
+                                    layoutService->ReleaseGlyphRun(output.glyphRuns[i]);
+                                }
+                            }
+                        } else if (docRare_ != nullptr) {
+                            docRare_->extraGlyphRuns.Clear();
+                        }
+                    }
+                    if (needsHitRegions) {
+                        if (DocumentRare* rare = EnsureDocumentRare()) {
+                            rare->textHitRegions = std::move(output.hitRegions);
+                            rare->hasBuiltHitRegions = true;
+                        }
+                    } else if (docRare_ != nullptr) {
+                        docRare_->textHitRegions.Clear();
+                        docRare_->hasBuiltHitRegions = false;
+                    }
                     glyphRunSize_ = output.desiredSize;
                     lastShapedAvailableWidth_ = textAvailable.width;
                     lastShapedArrangeMode_ = arrangingText_;
-                    serviceOwnsGlyphRun_ = !glyphRuns_.Empty();
+                    serviceOwnsGlyphRun_ = primaryGlyphRun_ != InvalidRenderGlyphRunId;
+                    glyphRunValid_ = true;
                     flatTextValid_ = true;
                     if (changed) {
                         InvalidateVisual();
@@ -585,14 +774,15 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
         arrangingText_ = false;
     }
     const std::uint32_t uiCount = GetVisualChildrenCount();
+    const Span<const TextHitRegion> hitRegions = uiCount > 0U ? HitRegionsSpan() : Span<const TextHitRegion>{};
     std::uint32_t placeholder = 0U;
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
         if (child == nullptr) continue;
         Rect slot{padding.left, padding.top, child->GetDesiredSize().width,
             child->GetDesiredSize().height};
-        while (placeholder < textHitRegions_.Size()) {
-            const TextHitRegion& region = textHitRegions_[placeholder];
+        while (placeholder < hitRegions.Size()) {
+            const TextHitRegion& region = hitRegions[placeholder];
             ++placeholder;
             if (region.textLength == 3U) {
                 slot = Rect{
@@ -639,21 +829,33 @@ void TextBlock::OnRender(
         float height = 0.0F;
     };
 
+    const auto emitAllGlyphRuns = [&](Color color) noexcept {
+        if (primaryGlyphRun_ != InvalidRenderGlyphRunId) {
+            builder.DrawGlyphRun(primaryGlyphRun_, color);
+        }
+        if (docRare_ != nullptr) {
+            for (RenderGlyphRunId glyphRun : docRare_->extraGlyphRuns) {
+                builder.DrawGlyphRun(glyphRun, color);
+            }
+        }
+    };
+
     bool hasStyledRanges = false;
-    for (const RichTextStyleRange& range : richTextStyleRanges_) {
-        if (range.length > 0U &&
-            (range.hasForeground || range.italic ||
-             (range.bold && GetFontWeight() != FontWeight::Bold))) {
-            hasStyledRanges = true;
-            break;
+    if (docRare_ != nullptr) {
+        for (const RichTextStyleRange& range : docRare_->richTextStyleRanges) {
+            if (range.length > 0U &&
+                (range.hasForeground || range.italic ||
+                 (range.bold && GetFontWeight() != FontWeight::Bold))) {
+                hasStyledRanges = true;
+                break;
+            }
         }
     }
 
-    if (!hasStyledRanges || textHitRegions_.Empty()) {
-        for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            builder.DrawGlyphRun(glyphRun, ::Aero::Media::SampleBrush(GetForeground(), 0.5,
-                Color{0.0F, 0.0F, 0.0F, 1.0F}));
-        }
+    const Span<const TextHitRegion> hitRegions = hasStyledRanges ? HitRegionsSpan() : Span<const TextHitRegion>{};
+    if (!hasStyledRanges || hitRegions.Empty()) {
+        emitAllGlyphRuns(::Aero::Media::SampleBrush(GetForeground(), 0.5,
+            Color{0.0F, 0.0F, 0.0F, 1.0F}));
     } else {
         struct StyleSpan {
             std::uint32_t start = 0U;
@@ -665,18 +867,18 @@ void TextBlock::OnRender(
         };
 
         std::uint32_t maxTextEnd = 0U;
-        for (const TextHitRegion& region : textHitRegions_) {
+        for (const TextHitRegion& region : hitRegions) {
             maxTextEnd = std::max(
                 maxTextEnd,
                 static_cast<std::uint32_t>(region.textOffset + region.textLength));
         }
-        for (const RichTextStyleRange& range : richTextStyleRanges_) {
+        for (const RichTextStyleRange& range : docRare_->richTextStyleRanges) {
             maxTextEnd = std::max(maxTextEnd, range.start + range.length);
         }
 
         Base::Vector<StyleSpan> spans;
         std::uint32_t currentOffset = 0U;
-        for (const RichTextStyleRange& range : richTextStyleRanges_) {
+        for (const RichTextStyleRange& range : docRare_->richTextStyleRanges) {
             if (range.length == 0U) continue;
             if (range.start > currentOffset) {
                 StyleSpan unstyled;
@@ -715,7 +917,7 @@ void TextBlock::OnRender(
             Base::Vector<RichTextLineClip> clips;
             const std::uint64_t spanEnd =
                 static_cast<std::uint64_t>(span.start) + span.length;
-            for (const TextHitRegion& region : textHitRegions_) {
+            for (const TextHitRegion& region : hitRegions) {
                 const std::uint64_t regionEnd =
                     static_cast<std::uint64_t>(region.textOffset) +
                     region.textLength;
@@ -772,16 +974,12 @@ void TextBlock::OnRender(
                     builder.PushTransform(italic);
                     skewed = true;
                 }
-                for (RenderGlyphRunId glyphRun : glyphRuns_) {
-                    builder.DrawGlyphRun(glyphRun, tint);
-                }
+                emitAllGlyphRuns(tint);
                 if (span.bold) {
                     Base::Transform2D embolden;
                     embolden.dx = 0.4;
                     builder.PushTransform(embolden);
-                    for (RenderGlyphRunId glyphRun : glyphRuns_) {
-                        builder.DrawGlyphRun(glyphRun, tint);
-                    }
+                    emitAllGlyphRuns(tint);
                     builder.PopTransform();
                 }
                 if (skewed) builder.PopTransform();
@@ -810,8 +1008,13 @@ void TextBlock::OnRender(
 void TextBlock::ReleaseServiceGlyphRun() noexcept {
     auto* layoutService = TextLayoutFor(*this);
     if (serviceOwnsGlyphRun_ && layoutService != nullptr) {
-        for (RenderGlyphRunId glyphRun : glyphRuns_) {
-            layoutService->ReleaseGlyphRun(glyphRun);
+        if (primaryGlyphRun_ != InvalidRenderGlyphRunId) {
+            layoutService->ReleaseGlyphRun(primaryGlyphRun_);
+        }
+        if (docRare_ != nullptr) {
+            for (RenderGlyphRunId glyphRun : docRare_->extraGlyphRuns) {
+                layoutService->ReleaseGlyphRun(glyphRun);
+            }
         }
     }
     serviceOwnsGlyphRun_ = false;
