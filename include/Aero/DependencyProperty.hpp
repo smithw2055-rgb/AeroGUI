@@ -304,6 +304,8 @@ private:
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
     std::uint8_t inheritanceIndex_ = 0xFFU;
     std::uint16_t globalIndex_ = 0xFFFFU;
+    std::uint16_t ownerTreeIn_ = 0U;
+    std::uint16_t ownerTreeOut_ = 0U;
     std::uint64_t readOnlySecret_ = 0U;
 
     struct MetadataCacheEntry {

@@ -961,7 +961,8 @@ Base::Result<void> ElementTree::SetRoot(::Aero::Media::Visual* root) noexcept {
 
 Base::Result<void> ElementTree::AttachLogical(
     ::Aero::Media::Visual& parent,
-    ::Aero::Media::Visual& child) noexcept {
+    ::Aero::Media::Visual& child,
+    bool deferInheritanceToVisual) noexcept {
     Base::Result<void> verified = VerifyMutation(parent, &child);
     if (!verified) return verified.GetStatus();
     if (&parent == &child || IsLogicalAncestor(child, parent)) {
@@ -990,10 +991,12 @@ Base::Result<void> ElementTree::AttachLogical(
         child.logicalParent_ = &parent;
         Base::Result<void> registered = RegisterHandleSubtree(child);
         if (!registered) return registered.GetStatus();
-        Base::Result<void> inherited =
-            values_->SetInheritanceParent(child, &parent);
-        if (!inherited) {
-            return inherited.GetStatus();
+        if (!deferInheritanceToVisual) {
+            Base::Result<void> inherited =
+                values_->SetInheritanceParent(child, &parent);
+            if (!inherited) {
+                return inherited.GetStatus();
+            }
         }
         if (parent.LoadedFlag() && !child.LoadedFlag()) {
             ApplyLoadedSubtree(child, true);
@@ -1017,11 +1020,13 @@ Base::Result<void> ElementTree::AttachLogical(
 
     Base::Result<void> registered = RegisterHandleSubtree(child);
     if (!registered) return registered.GetStatus();
-    Base::Result<void> inherited =
-        values_->SetInheritanceParent(child, &parent);
-    if (!inherited) {
-        InvalidateHandleSubtree(child);
-        return inherited.GetStatus();
+    if (!deferInheritanceToVisual) {
+        Base::Result<void> inherited =
+            values_->SetInheritanceParent(child, &parent);
+        if (!inherited) {
+            InvalidateHandleSubtree(child);
+            return inherited.GetStatus();
+        }
     }
 
     mutating_ = true;
@@ -1341,7 +1346,10 @@ Base::Result<Aero::ElementAttachment> ElementTree::AttachElement(
     state.visualParent = &visualParent;
     state.child = &child;
 
-    Base::Result<void> logical = AttachLogical(logicalParent, child);
+    Base::Result<void> logical = AttachLogical(
+        logicalParent,
+        child,
+        /*deferInheritanceToVisual=*/(&logicalParent == &visualParent));
     if (!logical) return logical.GetStatus();
     state.logicalAttached = true;
 

@@ -243,16 +243,22 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
     const TypeInfo* info = typeRegistry_->FindType(forType);
     if (info != nullptr && !info->AncestorChain().Empty()) {
         if (metadata_.Size() == 1U) {
-            const TypeInfo* ownerInfo = typeRegistry_->FindType(registeredOwnerType_);
-            if (ownerInfo != nullptr && info->TreeIn() != 0U && ownerInfo->TreeIn() != 0U) {
-                if (info->IsSubtreeOf(*ownerInfo)) {
+            if (ownerTreeIn_ != 0U && info->TreeIn() != 0U) {
+                if (static_cast<std::uint32_t>(info->TreeIn()) - static_cast<std::uint32_t>(ownerTreeIn_) <=
+                    static_cast<std::uint32_t>(ownerTreeOut_) - static_cast<std::uint32_t>(ownerTreeIn_)) {
                     result = &metadata_[0].metadata;
                 }
-            } else {
-                for (TypeId current : info->AncestorChain()) {
-                    if (current == registeredOwnerType_) {
+            } else if (const TypeInfo* ownerInfo = typeRegistry_->FindType(registeredOwnerType_)) {
+                if (info->TreeIn() != 0U && ownerInfo->TreeIn() != 0U) {
+                    if (info->IsSubtreeOf(*ownerInfo)) {
                         result = &metadata_[0].metadata;
-                        break;
+                    }
+                } else {
+                    for (TypeId current : info->AncestorChain()) {
+                        if (current == registeredOwnerType_) {
+                            result = &metadata_[0].metadata;
+                            break;
+                        }
                     }
                 }
             }
@@ -295,13 +301,72 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
     return result;
 }
 
+namespace {
+std::atomic_flag g_liveRegistriesLock = ATOMIC_FLAG_INIT;
+DependencyPropertyRegistry* g_liveRegistriesHead = nullptr;
+std::uint16_t g_nextRegistryEpoch = 1U;
+
+struct LiveRegistryLockGuard {
+    LiveRegistryLockGuard() noexcept {
+        while (g_liveRegistriesLock.test_and_set(std::memory_order_acquire)) {
+        }
+    }
+    ~LiveRegistryLockGuard() noexcept {
+        g_liveRegistriesLock.clear(std::memory_order_release);
+    }
+};
+} // namespace
+
 DependencyPropertyRegistry::DependencyPropertyRegistry(
     TypeRegistry& typeRegistry,
     BehaviorTable& behaviors) noexcept
     : typeRegistry_(&typeRegistry),
       behaviorRegistrations_(&behaviors),
       properties_(),
-      memberIndex_() {}
+      memberIndex_() {
+    LiveRegistryLockGuard lock;
+    std::uint16_t assigned = g_nextRegistryEpoch++;
+    if (assigned == 0U) {
+        assigned = g_nextRegistryEpoch++;
+    }
+    epoch_ = assigned;
+    prevLive_ = nullptr;
+    nextLive_ = g_liveRegistriesHead;
+    if (g_liveRegistriesHead != nullptr) {
+        g_liveRegistriesHead->prevLive_ = this;
+    }
+    g_liveRegistriesHead = this;
+}
+
+DependencyPropertyRegistry::~DependencyPropertyRegistry() noexcept {
+    LiveRegistryLockGuard lock;
+    if (prevLive_ != nullptr) {
+        prevLive_->nextLive_ = nextLive_;
+    } else if (g_liveRegistriesHead == this) {
+        g_liveRegistriesHead = nextLive_;
+    }
+    if (nextLive_ != nullptr) {
+        nextLive_->prevLive_ = prevLive_;
+    }
+    prevLive_ = nullptr;
+    nextLive_ = nullptr;
+    epoch_ = 0U;
+}
+
+bool DependencyPropertyRegistry::IsLive(
+    const DependencyPropertyRegistry* registry,
+    std::uint16_t epoch) noexcept {
+    if (registry == nullptr) return false;
+    LiveRegistryLockGuard lock;
+    for (const DependencyPropertyRegistry* curr = g_liveRegistriesHead;
+         curr != nullptr;
+         curr = curr->nextLive_) {
+        if (curr == registry) {
+            return epoch == 0U || curr->epoch_ == epoch;
+        }
+    }
+    return false;
+}
 
 Base::Result<void> DependencyPropertyRegistry::ValidateMetadata(
     TypeId valueType,
@@ -863,6 +928,12 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
     }
 
     for (DependencyProperty& property : properties_) {
+        if (typeRegistry_ != nullptr) {
+            if (const TypeInfo* ownerInfo = typeRegistry_->FindType(property.registeredOwnerType_)) {
+                property.ownerTreeIn_ = ownerInfo->TreeIn();
+                property.ownerTreeOut_ = ownerInfo->TreeOut();
+            }
+        }
         property.ClearMetadataCache();
     }
 
@@ -1039,17 +1110,22 @@ void DependencyMutationScope::Release() noexcept {
 DependencyObject::DependencyObject(TypeId runtimeType) noexcept
     : DispatcherObject(*CurrentObjectFactory().dispatcher),
       registry_(CurrentObjectFactory().dependencyProperties),
-      registryLifetime_(registry_ != nullptr ? registry_->Lifetime() : nullptr),
       runtimeType_(runtimeType),
       valueStore_(nullptr),
       rare_(nullptr),
+      registryEpoch_(registry_ != nullptr ? registry_->Epoch() : 0U),
       objectServicesAvailable_(HasObjectFactory()),
-      typeVerified_(false) {
+      typeVerified_(false),
+      hasExplicitInheritanceChildren_(false) {
     AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
 }
 
 DependencyObject::~DependencyObject() {
-    if (registry_ != nullptr && registryLifetime_ && registryLifetime_->isAlive) {
+    if (registry_ != nullptr &&
+        (styleAppIndex_ != UINT16_MAX || unmaterializedQueueMask_ != 0U ||
+         inheritanceParent_ != nullptr || hasExplicitInheritanceChildren_ ||
+         valueStore_ != nullptr) &&
+        DependencyPropertyRegistry::IsLive(registry_, registryEpoch_)) {
         registry_->NotifyObjectDestroyed(*this);
     }
     if (rare_ != nullptr) {
@@ -1077,14 +1153,14 @@ DependencyObject::~DependencyObject() {
 namespace Aero::Meta {
 namespace {
 
-constexpr std::uint32_t kMaxDirectInheritanceBits = 30U;
-constexpr std::uint32_t kOverflowUnmaterializedBit = 1U << 30U;
-constexpr std::uint32_t kUnmaterializedBitsMask = 0x7FFFFFFFU;
-constexpr std::uint32_t kHasQueuedStoredLinkBit = 1U << 31U;
+constexpr std::uint32_t kMaxDirectInheritanceBits = 14U;
+constexpr std::uint16_t kOverflowUnmaterializedBit = static_cast<std::uint16_t>(1U << 14U);
+constexpr std::uint16_t kUnmaterializedBitsMask = 0x7FFFU;
+constexpr std::uint16_t kHasQueuedStoredLinkBit = static_cast<std::uint16_t>(1U << 15U);
 
-constexpr std::uint32_t UnmaterializedBitFor(std::uint8_t inheritanceIndex) noexcept {
+constexpr std::uint16_t UnmaterializedBitFor(std::uint8_t inheritanceIndex) noexcept {
     return inheritanceIndex < kMaxDirectInheritanceBits
-        ? (1U << static_cast<std::uint32_t>(inheritanceIndex))
+        ? static_cast<std::uint16_t>(1U << static_cast<std::uint32_t>(inheritanceIndex))
         : kOverflowUnmaterializedBit;
 }
 
@@ -1125,6 +1201,9 @@ void EffectiveValueEngine::Shutdown() noexcept {
     }
     ClearQueueLinks();
     for (auto& kv : childrenByParent_) {
+        if (kv.Key() != nullptr) {
+            kv.Key()->hasExplicitInheritanceChildren_ = false;
+        }
         for (DependencyObject* child : kv.Value()) {
             if (child != nullptr) {
                 child->inheritanceParent_ = nullptr;
@@ -1213,7 +1292,7 @@ Base::Result<void> EffectiveValueEngine::EnqueueUnmaterialized(
             inheritanceIndex = prop->InheritanceIndex();
         }
     }
-    const std::uint32_t bit = UnmaterializedBitFor(inheritanceIndex);
+    const std::uint16_t bit = UnmaterializedBitFor(inheritanceIndex);
     if ((object.unmaterializedQueueMask_ & bit) != 0U) {
         if (inheritanceIndex < kMaxDirectInheritanceBits) {
             return {};
@@ -1318,7 +1397,8 @@ void EffectiveValueEngine::RecycleLink(QueueLink* link) noexcept {
     if (link == nullptr) return;
     if (link->unmaterialized && link->object != nullptr) {
         if (link->inheritanceIndex < kMaxDirectInheritanceBits) {
-            link->object->unmaterializedQueueMask_ &= ~UnmaterializedBitFor(link->inheritanceIndex);
+            link->object->unmaterializedQueueMask_ &=
+                static_cast<std::uint16_t>(~UnmaterializedBitFor(link->inheritanceIndex));
         } else {
             bool hasOtherOverflow = false;
             for (const QueueLink* cursor = queueHead_; cursor != nullptr; cursor = cursor->next) {
@@ -1331,7 +1411,8 @@ void EffectiveValueEngine::RecycleLink(QueueLink* link) noexcept {
                 }
             }
             if (!hasOtherOverflow) {
-                link->object->unmaterializedQueueMask_ &= ~kOverflowUnmaterializedBit;
+                link->object->unmaterializedQueueMask_ &=
+                    static_cast<std::uint16_t>(~kOverflowUnmaterializedBit);
             }
         }
     }
@@ -1430,6 +1511,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
                 }
                 if (list->Empty()) {
                     childrenByParent_.Erase(explicitPrevious);
+                    explicitPrevious->hasExplicitInheritanceChildren_ = false;
                 }
             }
         }
@@ -1442,6 +1524,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             }
             if (list != nullptr) {
                 list->PushBack(&child);
+                explicitTarget->hasExplicitInheritanceChildren_ = true;
             }
         }
     }
@@ -1901,7 +1984,8 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
             continue;
         }
         if (!link->unmaterialized) {
-            object->unmaterializedQueueMask_ &= ~kHasQueuedStoredLinkBit;
+            object->unmaterializedQueueMask_ &=
+                static_cast<std::uint16_t>(~kHasQueuedStoredLinkBit);
         }
         PropertyStore* store = object->Store();
         StoredValueEntry* stored = store != nullptr
@@ -1925,7 +2009,8 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
         }
         if (link->unmaterialized) {
             if (link->inheritanceIndex < kMaxDirectInheritanceBits) {
-                object->unmaterializedQueueMask_ &= ~UnmaterializedBitFor(link->inheritanceIndex);
+                object->unmaterializedQueueMask_ &=
+                    static_cast<std::uint16_t>(~UnmaterializedBitFor(link->inheritanceIndex));
             } else {
                 bool hasOtherOverflow = false;
                 for (const QueueLink* cursor = queueHead_; cursor != nullptr; cursor = cursor->next) {
@@ -1937,7 +2022,8 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
                     }
                 }
                 if (!hasOtherOverflow) {
-                    object->unmaterializedQueueMask_ &= ~kOverflowUnmaterializedBit;
+                    object->unmaterializedQueueMask_ &=
+                        static_cast<std::uint16_t>(~kOverflowUnmaterializedBit);
                 }
             }
         }
@@ -2021,7 +2107,7 @@ Base::Result<void> EffectiveValueEngine::FlushProperty(
         return {};
     }
     if (registered != nullptr && registered->InheritanceIndex() < kMaxDirectInheritanceBits) {
-        const std::uint32_t bit = UnmaterializedBitFor(registered->InheritanceIndex());
+        const std::uint16_t bit = UnmaterializedBitFor(registered->InheritanceIndex());
         if ((object.unmaterializedQueueMask_ & bit) == 0U) {
             return {};
         }
@@ -2343,12 +2429,13 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
                 }
                 if (list->Empty()) {
                     childrenByParent_.Erase(previousParent);
+                    previousParent->hasExplicitInheritanceChildren_ = false;
                 }
             }
         }
         object.inheritanceParent_ = nullptr;
     }
-    if (!childrenByParent_.Empty()) {
+    if (object.hasExplicitInheritanceChildren_ && !childrenByParent_.Empty()) {
         if (auto* list = childrenByParent_.Find(&object)) {
             for (DependencyObject* child : *list) {
                 if (child != nullptr) {
@@ -2357,6 +2444,7 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
             }
             childrenByParent_.Erase(&object);
         }
+        object.hasExplicitInheritanceChildren_ = false;
     }
 }
 
@@ -2365,11 +2453,7 @@ bool EffectiveValueEngine::HasObjectState(
     if (object.unmaterializedQueueMask_ != 0U) {
         return true;
     }
-    if (object.inheritanceParent_ != nullptr) {
-        return true;
-    }
-    if (!childrenByParent_.Empty() &&
-        childrenByParent_.Find(const_cast<DependencyObject*>(&object)) != nullptr) {
+    if (object.inheritanceParent_ != nullptr || object.hasExplicitInheritanceChildren_) {
         return true;
     }
     const PropertyStore* store = object.Store();

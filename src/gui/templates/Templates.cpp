@@ -1696,10 +1696,10 @@ bool TemplateEngine::Clear(
 DependencyObject* TemplateEngine::FindName(
     TemplateHandle handle,
     Base::StringView name,
-    std::int32_t partIndex) const noexcept {
+    std::int32_t& inOutPartIndex) const noexcept {
     const std::uint32_t index = FindInstance(handle);
     if (index == UINT32_MAX) return nullptr;
-    return FindTarget(instances_[index], name, partIndex);
+    return FindTarget(instances_[index], name, inOutPartIndex);
 }
 
 DependencyObject* TemplateEngine::FindPart(
@@ -1770,18 +1770,24 @@ std::uint32_t TemplateEngine::FindInstance(
 DependencyObject* TemplateEngine::FindTarget(
     const Instance& instance,
     Base::StringView name,
-    std::int32_t partIndex) const noexcept {
+    std::int32_t& inOutPartIndex) const noexcept {
     if (name.Empty()) return instance.parent;
-    if (partIndex >= 0 &&
-        static_cast<std::uint32_t>(partIndex) < instance.parts.Size()) {
+    if (inOutPartIndex >= 0 &&
+        static_cast<std::uint32_t>(inOutPartIndex) < instance.parts.Size()) {
         const Aero::Controls::TemplatePart& part =
-            instance.parts[static_cast<std::uint32_t>(partIndex)];
-        if (part.name.View() == name) {
+            instance.parts[static_cast<std::uint32_t>(inOutPartIndex)];
+        if (part.name.SizeBytes() == name.SizeBytes() &&
+            part.name.View() == name) {
             return part.object;
         }
     }
-    for (const Aero::Controls::TemplatePart& part : instance.parts) {
-        if (part.name.View() == name) return part.object;
+    for (std::uint32_t i = 0U; i < instance.parts.Size(); ++i) {
+        const Aero::Controls::TemplatePart& part = instance.parts[i];
+        if (part.name.SizeBytes() == name.SizeBytes() &&
+            part.name.View() == name) {
+            inOutPartIndex = static_cast<std::int32_t>(i);
+            return part.object;
+        }
     }
     return nullptr;
 }

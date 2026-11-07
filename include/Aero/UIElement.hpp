@@ -99,60 +99,60 @@ public:
     void AddCommandBinding(Ref<Input::CommandBinding> binding) noexcept;
     void ClearCommandBindings() noexcept;
 
-    Size GetDesiredSize() const noexcept;
-    Size GetRenderSize() const noexcept;
-    Rect GetLayoutSlot() const noexcept;
-    Rect GetLayoutClip() const noexcept;
-    bool GetHasLayoutClip() const noexcept;
-    bool GetIsMeasureValid() const noexcept;
-    bool GetIsArrangeValid() const noexcept;
-    bool GetIsMeasureQueued() const noexcept;
-    bool GetIsArrangeQueued() const noexcept;
-    bool GetIsMeasuring() const noexcept;
-    bool GetIsArranging() const noexcept;
-    bool GetIsLayoutAttached() const noexcept;
-    Size GetUntransformedDesiredSize() const noexcept;
-    Size GetPreviousMeasureConstraint() const noexcept;
-    bool GetClipToBounds() const noexcept;
+    Size GetDesiredSize() const noexcept { return layout_.desiredSize; }
+    Size GetRenderSize() const noexcept { return layout_.renderSize; }
+    Rect GetLayoutSlot() const noexcept { return layout_.layoutSlot; }
+    Rect GetLayoutClip() const noexcept { return layout_.layoutClip; }
+    bool GetHasLayoutClip() const noexcept { return layout_.HasFlag(LayoutFlags::HasLayoutClip); }
+    bool GetIsMeasureValid() const noexcept { return layout_.HasFlag(LayoutFlags::MeasureValid); }
+    bool GetIsArrangeValid() const noexcept { return layout_.HasFlag(LayoutFlags::ArrangeValid); }
+    bool GetIsMeasureQueued() const noexcept { return layout_.HasFlag(LayoutFlags::MeasureQueued); }
+    bool GetIsArrangeQueued() const noexcept { return layout_.HasFlag(LayoutFlags::ArrangeQueued); }
+    bool GetIsMeasuring() const noexcept { return layout_.HasFlag(LayoutFlags::Measuring); }
+    bool GetIsArranging() const noexcept { return layout_.HasFlag(LayoutFlags::Arranging); }
+    bool GetIsLayoutAttached() const noexcept { return layout_.HasFlag(LayoutFlags::LayoutAttached); }
+    Size GetUntransformedDesiredSize() const noexcept { return layout_.untransformedDesiredSize; }
+    Size GetPreviousMeasureConstraint() const noexcept { return layout_.previousMeasureConstraint; }
+    bool GetClipToBounds() const noexcept { return layout_.clipToBounds; }
     // Property operations
-    void SetClipToBounds(bool value) noexcept;
+    void SetClipToBounds(bool value) noexcept { SetValue(ClipToBoundsProperty, value); }
     Ref<Media::Geometry> GetClip() const noexcept;
     void SetClip(Ref<Media::Geometry> value) noexcept;
-    BlendMode GetBlendMode() const noexcept;
+    BlendMode GetBlendMode() const noexcept { return layout_.blendMode; }
     void SetBlendMode(BlendMode value) noexcept;
     Ref<Media::Effect> GetEffect() const noexcept;
     void SetEffect(Ref<Media::Effect> value) noexcept;
     Ref<Media::Brush> GetOpacityMask() const noexcept;
     void SetOpacityMask(Ref<Media::Brush> value) noexcept;
-    double GetOpacity() const noexcept;
-    bool GetIsHitTestVisible() const noexcept;
-    void SetIsHitTestVisible(bool value) noexcept;
-    Visibility GetVisibility() const noexcept;
+    double GetOpacity() const noexcept { return static_cast<double>(layout_.opacity); }
+    bool GetIsHitTestVisible() const noexcept { return GetValue(IsHitTestVisibleProperty); }
+    void SetIsHitTestVisible(bool value) noexcept { SetValue(IsHitTestVisibleProperty, value); }
+    Visibility GetVisibility() const noexcept { return layout_.visibility; }
     void SetVisibility(Visibility value) noexcept;
     bool GetIsVisible() const noexcept;
     bool GetIsEnabled() const noexcept;
-    void SetIsEnabled(bool value) noexcept;
-    bool GetAllowDrop() const noexcept;
-    void SetAllowDrop(bool value) noexcept;
+    void SetIsEnabled(bool value) noexcept { SetValue(IsEnabledProperty, value); }
+    bool GetAllowDrop() const noexcept { return GetValue(AllowDropProperty); }
+    void SetAllowDrop(bool value) noexcept { SetValue(AllowDropProperty, value); }
     bool GetIsDragging() const noexcept;
-    bool GetIsMouseOver() const noexcept;
-    bool GetIsPressed() const noexcept;
-    bool GetIsKeyboardFocused() const noexcept;
-    bool GetIsKeyboardFocusWithin() const noexcept;
-    bool GetFocusable() const noexcept;
-    bool GetIsTabStop() const noexcept;
-    void SetIsTabStop(bool value) noexcept;
-    std::uint32_t GetTabIndex() const noexcept;
-    void SetTabIndex(std::uint32_t value) noexcept;
-    bool GetIsFocusScope() const noexcept;
-    void SetIsFocusScope(bool value) noexcept;
+    bool GetIsMouseOver() const noexcept { return GetValue(IsMouseOverProperty); }
+    bool GetIsPressed() const noexcept { return GetValue(IsPressedProperty); }
+    bool GetIsKeyboardFocused() const noexcept { return GetValue(IsKeyboardFocusedProperty); }
+    bool GetIsKeyboardFocusWithin() const noexcept { return GetValue(IsKeyboardFocusWithinProperty); }
+    bool GetFocusable() const noexcept { return GetValue(FocusableProperty); }
+    bool GetIsTabStop() const noexcept { return GetValue(IsTabStopProperty); }
+    void SetIsTabStop(bool value) noexcept { SetValue(IsTabStopProperty, value); }
+    std::uint32_t GetTabIndex() const noexcept { return GetValue(TabIndexProperty); }
+    void SetTabIndex(std::uint32_t value) noexcept { SetValue(TabIndexProperty, value); }
+    bool GetIsFocusScope() const noexcept { return GetValue(IsFocusScopeProperty); }
+    void SetIsFocusScope(bool value) noexcept { SetValue(IsFocusScopeProperty, value); }
     Ref<Media::Transform> GetRenderTransform() const noexcept;
     void SetRenderTransform(Ref<Media::Transform> value) noexcept;
     Ref<Media::Transform3D> GetTransform3D() const noexcept;
     void SetTransform3D(Ref<Media::Transform3D> value) noexcept;
     Point GetRenderTransformOrigin() const noexcept;
     void SetRenderTransformOrigin(Point value) noexcept;
-    std::uint64_t GetLayoutRevision() const noexcept;
+    std::uint64_t GetLayoutRevision() const noexcept { return layout_.layoutRevision; }
     Base::Span<const Ref<Input::InputBinding>> GetInputBindings() const noexcept;
     Base::Span<const Ref<Input::CommandBinding>> GetCommandBindings() const noexcept;
 

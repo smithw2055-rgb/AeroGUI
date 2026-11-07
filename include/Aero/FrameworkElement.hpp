@@ -127,26 +127,33 @@ public:
     }
 
     DependencyObject* GetParent() const noexcept { return GetLogicalParent(); }
-    bool GetUseLayoutRounding() const noexcept;
+    bool GetUseLayoutRounding() const noexcept { return layoutScalars_.useLayoutRounding; }
     void SetUseLayoutRounding(bool enabled, double dpiScale = 1.0) noexcept;
-    bool GetSnapsToDevicePixels() const noexcept;
+    bool GetSnapsToDevicePixels() const noexcept { return layoutScalars_.snapsToDevicePixels; }
     void SetSnapsToDevicePixels(bool enabled) noexcept { SetValue(SnapsToDevicePixelsProperty, enabled); }
-    bool GetHasWidth() const noexcept;
-    bool GetHasHeight() const noexcept;
-    double GetWidth() const noexcept;
-    void SetWidth(double value) noexcept;
-    void ClearWidth() noexcept;
-    double GetHeight() const noexcept;
-    void SetHeight(double value) noexcept;
-    void ClearHeight() noexcept;
+    bool GetHasWidth() const noexcept { return layoutScalars_.hasWidth; }
+    bool GetHasHeight() const noexcept { return layoutScalars_.hasHeight; }
+    double GetWidth() const noexcept { return layoutScalars_.hasWidth ? static_cast<double>(layoutScalars_.width) : 0.0; }
+    void SetWidth(double value) noexcept { SetValue(WidthProperty, Length::Pixels(value)); }
+    void ClearWidth() noexcept { ClearValue(WidthProperty); }
+    double GetHeight() const noexcept { return layoutScalars_.hasHeight ? static_cast<double>(layoutScalars_.height) : 0.0; }
+    void SetHeight(double value) noexcept { SetValue(HeightProperty, Length::Pixels(value)); }
+    void ClearHeight() noexcept { ClearValue(HeightProperty); }
     double GetActualWidth() const noexcept { return static_cast<double>(GetRenderSize().width); }
     double GetActualHeight() const noexcept { return static_cast<double>(GetRenderSize().height); }
-    Size GetMinSize() const noexcept;
+    Size GetMinSize() const noexcept { return {layoutScalars_.minWidth, layoutScalars_.minHeight}; }
     void SetMinSize(Size value) noexcept;
-    Size GetMaxSize() const noexcept;
+    Size GetMaxSize() const noexcept {
+        const Size minimum = GetMinSize();
+        const double authoredWidth = layoutScalars_.maxWidth;
+        const double authoredHeight = layoutScalars_.maxHeight;
+        return {
+            authoredWidth < minimum.width ? minimum.width : authoredWidth,
+            authoredHeight < minimum.height ? minimum.height : authoredHeight};
+    }
     void SetMaxSize(Size value) noexcept;
-    Thickness GetMargin() const noexcept;
-    void SetMargin(Thickness value) noexcept;
+    Thickness GetMargin() const noexcept { return layoutScalars_.margin; }
+    void SetMargin(Thickness value) noexcept { SetValue(MarginProperty, value); }
     Ref<Media::Transform> GetLayoutTransform() const noexcept;
     void SetLayoutTransform(Ref<Media::Transform> value) noexcept;
     Ref<Media::FontFamily> GetFontFamily() const noexcept { return GetValue(FontFamilyProperty); }
@@ -157,10 +164,10 @@ public:
     ResourceDictionary& GetResources() noexcept;
     const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
-    HorizontalAlignment GetHorizontalAlignment() const noexcept;
-    void SetHorizontalAlignment(HorizontalAlignment value) noexcept;
-    VerticalAlignment GetVerticalAlignment() const noexcept;
-    void SetVerticalAlignment(VerticalAlignment value) noexcept;
+    HorizontalAlignment GetHorizontalAlignment() const noexcept { return layoutScalars_.horizontalAlignment; }
+    void SetHorizontalAlignment(HorizontalAlignment value) noexcept { SetValue(HorizontalAlignmentProperty, value); }
+    VerticalAlignment GetVerticalAlignment() const noexcept { return layoutScalars_.verticalAlignment; }
+    void SetVerticalAlignment(VerticalAlignment value) noexcept { SetValue(VerticalAlignmentProperty, value); }
     Value GetDataContext() const noexcept { return GetValue(DataContextProperty); }
     void SetDataContext(Value value) noexcept;
     void SetDataContext(Ref<Base::Object> value) noexcept {
@@ -262,8 +269,6 @@ private:
         float maxWidth = 1.0e12f;
         float minHeight = 0.0f;
         float maxHeight = 1.0e12f;
-        float actualWidth = 0.0f;
-        float actualHeight = 0.0f;
         Thickness margin{};
         float dpiScale = 1.0f;
         HorizontalAlignment horizontalAlignment = HorizontalAlignment::Stretch;

@@ -9,7 +9,6 @@ namespace Aero {
 
 namespace Meta {
 class DependencyPropertyRegistry;
-class RegistryLifetime;
 }
 struct StoredValueEntry;
 // Engine-owned state (definitions in src/gui/core/PropertyStore.hpp).
@@ -215,16 +214,17 @@ private:
     }
 
     Meta::DependencyPropertyRegistry* registry_ = nullptr;
-    Base::Ref<Meta::RegistryLifetime> registryLifetime_;
     TypeId runtimeType_ = InvalidTypeId;
     void* valueStore_ = nullptr;
     DependencyObject* inheritanceParent_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
-    std::uint32_t unmaterializedQueueMask_ = 0U;
+    std::uint16_t unmaterializedQueueMask_ = 0U;
+    std::uint16_t registryEpoch_ = 0U;
     std::uint16_t styleAppIndex_ = UINT16_MAX;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
     bool objectServicesAvailable_ : 1;
     mutable bool typeVerified_ : 1;
+    bool hasExplicitInheritanceChildren_ : 1;
 };
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
@@ -249,9 +249,7 @@ template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::Ge
             Meta::MakeMemberId(Base::MakeMetaTypeId("FrameworkElement"), Meta::MemberKind::Property, "ActualHeight");
         if (property.Id() == kActualWidthId || property.Id() == kActualHeightId) {
             const PropertyValue redirected = GetValue(property.Handle());
-            if (redirected.IsUnset()) return PropertyAccess<TValue>{};
-            Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(redirected);
-            return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
+            return redirected.Kind() == Base::ValueKind::Double ? redirected.AsDouble() : 0.0;
         }
     }
     const PropertyValue* stored = FindEffectiveValuePtr(property.Handle());

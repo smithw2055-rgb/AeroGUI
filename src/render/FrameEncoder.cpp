@@ -556,8 +556,44 @@ void UiFrameEncoder::EmitQuad(
     const Point points[4],
     const Point uvs[4],
     Color color) noexcept {
-    const Color colors[4] = {color, color, color, color};
-    EmitQuadWithColors(points, uvs, colors, 1.0);
+    for (int i = 0; i < 4; ++i) {
+        if (!std::isfinite(points[i].x) || !std::isfinite(points[i].y)) {
+            return;
+        }
+    }
+
+    uint32_t stride = 0U;
+    const auto& offsets = CurrentVertexFormat(stride);
+    if (!PrepareGeometrySpace(4U, stride, 6U)) return;
+
+    const uint32_t color32 = ColorToRGBA32(color, 1.0);
+    uint8_t* dst = mappedVertices_ + currentVertexOffset_;
+    for (int i = 0; i < 4; ++i) {
+        WriteVertex(
+            dst + i * stride, offsets,
+            static_cast<float>(points[i].x),
+            static_cast<float>(points[i].y),
+            color32,
+            static_cast<float>(uvs[i].x),
+            static_cast<float>(uvs[i].y),
+            1.0f);
+    }
+    currentVertexOffset_ += 4U * stride;
+
+    const uint16_t baseVertex = static_cast<uint16_t>(currentVertexCount_ - currentBatchVertexStart_);
+    mappedIndices_[currentIndexCount_ + 0] = baseVertex + 0;
+    mappedIndices_[currentIndexCount_ + 1] = baseVertex + 1;
+    mappedIndices_[currentIndexCount_ + 2] = baseVertex + 2;
+    mappedIndices_[currentIndexCount_ + 3] = baseVertex + 0;
+    mappedIndices_[currentIndexCount_ + 4] = baseVertex + 2;
+    mappedIndices_[currentIndexCount_ + 5] = baseVertex + 3;
+
+    currentVertexCount_ += 4U;
+    currentIndexCount_ += 6U;
+    currentBatch_.numVertices += 4U;
+    currentBatch_.numIndices += 6U;
+    stats_.vertexCount += 4U;
+    stats_.indexCount += 6U;
 }
 
 void UiFrameEncoder::EmitQuadWithColors(
@@ -1800,44 +1836,52 @@ void UiFrameEncoder::ProcessCommand(
 
         Color c = cmd->tint;
         c.alpha = static_cast<float>(c.alpha * currentOpacity);
+        const std::uint8_t targetStencilMode =
+            clipDepth_ > 0U ? StencilMode::Equal_Keep : StencilMode::Disabled;
+        const std::uint8_t targetStencilRef =
+            static_cast<std::uint8_t>(clipDepth_);
+        std::uint32_t activePage = UINT32_MAX;
+        Texture* atlas = nullptr;
         for (const RenderGlyphQuad& quad : *quads) {
-            Texture* atlas = FindAtlas(quad.page);
+            if (quad.page != activePage) {
+                atlas = FindAtlas(quad.page);
+                activePage = quad.page;
+            }
             if (atlas == nullptr) continue;
-            const std::uint8_t targetStencilMode =
-                clipDepth_ > 0U ? StencilMode::Equal_Keep : StencilMode::Disabled;
-            const std::uint8_t targetStencilRef =
-                static_cast<std::uint8_t>(clipDepth_);
-            if (currentBatch_.numIndices > 0U &&
-                (currentBatch_.shader != Shader::SDF_Solid ||
-                 currentBatch_.glyphs != atlas ||
-                 currentBatch_.pattern != nullptr ||
-                 currentBatch_.ramps != nullptr ||
-                 currentBatch_.image != nullptr ||
-                 currentBatch_.shadow != nullptr ||
-                 currentBatch_.renderState.f.colorEnable != 1U ||
-                 currentBatch_.renderState.f.blendMode != static_cast<uint8_t>(currentBlendMode_) ||
-                 currentBatch_.renderState.f.stencilMode != targetStencilMode ||
-                 currentBatch_.stencilRef != targetStencilRef)) {
+            const bool stateMatches =
+                currentBatch_.shader == Shader::SDF_Solid &&
+                currentBatch_.glyphs == atlas &&
+                currentBatch_.pattern == nullptr &&
+                currentBatch_.ramps == nullptr &&
+                currentBatch_.image == nullptr &&
+                currentBatch_.shadow == nullptr &&
+                currentBatch_.renderState.f.colorEnable == 1U &&
+                currentBatch_.renderState.f.blendMode == static_cast<uint8_t>(currentBlendMode_) &&
+                currentBatch_.renderState.f.stencilMode == targetStencilMode &&
+                currentBatch_.stencilRef == targetStencilRef;
+            if (currentBatch_.numIndices > 0U && !stateMatches) {
                 FlushBatch();
             }
-            glyphAtlasSizeUniform_[0] = static_cast<float>(atlas->GetWidth());
-            glyphAtlasSizeUniform_[1] = static_cast<float>(atlas->GetHeight());
-            currentBatch_.shader = Shader::SDF_Solid;
-            currentBatch_.pattern = nullptr;
-            currentBatch_.ramps = nullptr;
-            currentBatch_.image = nullptr;
-            currentBatch_.glyphs = atlas;
-            currentBatch_.shadow = nullptr;
-            currentBatch_.pixelUniforms[0] = {};
-            currentBatch_.pixelUniforms[1] = {};
-            currentBatch_.vertexUniforms[0] = {};
-            currentBatch_.vertexUniforms[1].values = glyphAtlasSizeUniform_;
-            currentBatch_.vertexUniforms[1].numDwords = 2U;
-            currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
-            currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
-            AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
-            AssignColorEnable(currentBatch_.renderState, 1U);
-            SetContentStencil();
+            if (currentBatch_.numIndices == 0U || !stateMatches) {
+                glyphAtlasSizeUniform_[0] = static_cast<float>(atlas->GetWidth());
+                glyphAtlasSizeUniform_[1] = static_cast<float>(atlas->GetHeight());
+                currentBatch_.shader = Shader::SDF_Solid;
+                currentBatch_.pattern = nullptr;
+                currentBatch_.ramps = nullptr;
+                currentBatch_.image = nullptr;
+                currentBatch_.glyphs = atlas;
+                currentBatch_.shadow = nullptr;
+                currentBatch_.pixelUniforms[0] = {};
+                currentBatch_.pixelUniforms[1] = {};
+                currentBatch_.vertexUniforms[0] = {};
+                currentBatch_.vertexUniforms[1].values = glyphAtlasSizeUniform_;
+                currentBatch_.vertexUniforms[1].numDwords = 2U;
+                currentBatch_.glyphsSampler.f.wrapMode = WrapMode::ClampToEdge;
+                currentBatch_.glyphsSampler.f.minmagFilter = MinMagFilter::Linear;
+                AssignBlendMode(currentBatch_.renderState, static_cast<unsigned>(currentBlendMode_));
+                AssignColorEnable(currentBatch_.renderState, 1U);
+                SetContentStencil();
+            }
 
             Point p0 = TransformPoint(currentTransform, quad.x0, quad.y0);
             Point p1 = TransformPoint(currentTransform, quad.x1, quad.y0);

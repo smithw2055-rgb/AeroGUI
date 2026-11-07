@@ -293,13 +293,12 @@ void FrameworkElement::SyncLayoutScalarProperty(
 void FrameworkElement::SetActualSize(double width, double height) noexcept {
     const float w = static_cast<float>(width);
     const float h = static_cast<float>(height);
-    const float oldW = layoutScalars_.actualWidth;
-    const float oldH = layoutScalars_.actualHeight;
+    const float oldW = Layout().renderSize.width;
+    const float oldH = Layout().renderSize.height;
+    Layout().renderSize = {w, h};
     if (w == oldW && h == oldH) {
         return;
     }
-    layoutScalars_.actualWidth = w;
-    layoutScalars_.actualHeight = h;
     if (w != oldW) {
         NotifyReadOnlyRedirectedChange(
             ActualWidthProperty.Handle(),
@@ -459,28 +458,6 @@ FrameworkElement* FrameworkElement::GetRenderParent() const noexcept {
         : nullptr;
 }
 
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::SetVerticalAlignment(
-    VerticalAlignment value) noexcept {
-    SetValue(VerticalAlignmentProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::SetHorizontalAlignment(
-    HorizontalAlignment value) noexcept {
-    SetValue(HorizontalAlignmentProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::SetMargin(Thickness value) noexcept {
-    SetValue(MarginProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
 void FrameworkElement::SetMaxSize(Size value) noexcept {
     const Size minimum = GetMinSize();
     if (!IsValidLayoutSize(value) || value.width < minimum.width ||
@@ -490,8 +467,6 @@ void FrameworkElement::SetMaxSize(Size value) noexcept {
     SetValue(MaxWidthProperty, value.width);
     SetValue(MaxHeightProperty, value.height);
 }
-
-// from src/gui/controls/Layout.cpp
 
 void FrameworkElement::SetMinSize(Size value) noexcept {
     const Size maximum = GetMaxSize();
@@ -503,118 +478,12 @@ void FrameworkElement::SetMinSize(Size value) noexcept {
     SetValue(MinHeightProperty, value.height);
 }
 
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::ClearHeight() noexcept {
-    ClearValue(HeightProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::SetHeight(double value) noexcept {
-    SetValue(HeightProperty, Length::Pixels(value));
-}
-
-// from src/gui/controls/Layout.cpp
-
-void FrameworkElement::ClearWidth() noexcept {
-    ClearValue(WidthProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-void FrameworkElement::SetWidth(double value) noexcept {
-    SetValue(WidthProperty, Length::Pixels(value));
-}
-
 void FrameworkElement::SetFontFamily(StringView value) noexcept {
     Ref<Media::FontFamily> family =
         Base::MakeRef<Media::FontFamily>();
     if (!family) { AERO_ASSERT(false); return; }
     family->SetSource(value);
     SetFontFamily(std::move(family));
-}
-
-// from src/gui/controls/Layout.cpp
-VerticalAlignment FrameworkElement::GetVerticalAlignment() const noexcept {
-    return layoutScalars_.verticalAlignment;
-}
-
-// from src/gui/controls/Layout.cpp
-HorizontalAlignment FrameworkElement::GetHorizontalAlignment() const noexcept {
-    return layoutScalars_.horizontalAlignment;
-}
-
-// from src/gui/controls/Layout.cpp
-Thickness FrameworkElement::GetMargin() const noexcept {
-    return layoutScalars_.margin;
-}
-
-// from src/gui/controls/Layout.cpp
-Size FrameworkElement::GetMaxSize() const noexcept {
-    const Size minimum = GetMinSize();
-    const double authoredWidth = layoutScalars_.maxWidth;
-    const double authoredHeight = layoutScalars_.maxHeight;
-    // Resolve contradictory template/style ordering at layout time. Min values
-    // take precedence without rejecting an otherwise valid WPF template.
-    return {
-        authoredWidth < minimum.width ? minimum.width : authoredWidth,
-        authoredHeight < minimum.height ? minimum.height : authoredHeight};
-}
-
-// from src/gui/controls/Layout.cpp
-Size FrameworkElement::GetMinSize() const noexcept {
-    return {layoutScalars_.minWidth, layoutScalars_.minHeight};
-}
-
-// from src/gui/controls/Layout.cpp
-double FrameworkElement::GetHeight() const noexcept {
-    return layoutScalars_.hasHeight ? static_cast<double>(layoutScalars_.height) : 0.0;
-}
-
-// from src/gui/controls/Layout.cpp
-double FrameworkElement::GetWidth() const noexcept {
-    return layoutScalars_.hasWidth ? static_cast<double>(layoutScalars_.width) : 0.0;
-}
-
-// from src/gui/controls/Layout.cpp
-bool FrameworkElement::GetHasHeight() const noexcept {
-    return layoutScalars_.hasHeight;
-}
-
-// from src/gui/controls/Layout.cpp
-bool FrameworkElement::GetHasWidth() const noexcept {
-    return layoutScalars_.hasWidth;
-}
-
-// from src/gui/controls/Layout.cpp
-bool FrameworkElement::GetSnapsToDevicePixels() const noexcept {
-    return layoutScalars_.snapsToDevicePixels;
-}
-
-// from src/gui/controls/Layout.cpp
-bool FrameworkElement::GetUseLayoutRounding() const noexcept {
-    return layoutScalars_.useLayoutRounding;
 }
 
 // from src/gui/controls/Layout.cpp

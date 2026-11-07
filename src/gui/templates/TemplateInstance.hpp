@@ -95,7 +95,13 @@ public:
     DependencyObject* FindName(
         TemplateHandle handle,
         Base::StringView name,
-        std::int32_t partIndex = -1) const noexcept;
+        std::int32_t& inOutPartIndex) const noexcept;
+    DependencyObject* FindName(
+        TemplateHandle handle,
+        Base::StringView name) const noexcept {
+        std::int32_t idx = -1;
+        return FindName(handle, name, idx);
+    }
     DependencyObject* FindPart(
         TemplateHandle handle,
         TypeId type) const noexcept;
@@ -152,7 +158,13 @@ private:
     DependencyObject* FindTarget(
         const Instance& instance,
         Base::StringView name,
-        std::int32_t partIndex = -1) const noexcept;
+        std::int32_t& inOutPartIndex) const noexcept;
+    DependencyObject* FindTarget(
+        const Instance& instance,
+        Base::StringView name) const noexcept {
+        std::int32_t idx = -1;
+        return FindTarget(instance, name, idx);
+    }
     const Instance* FindBindingTargetInstance(
         const DependencyObject& target,
         DependencyPropertyHandle property) const noexcept;

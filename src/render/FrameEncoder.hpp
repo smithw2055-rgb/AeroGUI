@@ -73,6 +73,8 @@ public:
     void Clear() noexcept {
         lastImageId_ = InvalidRenderImageId;
         lastImage_ = nullptr;
+        lastAtlasPage_ = UINT32_MAX;
+        lastAtlas_ = nullptr;
         lastGlyphRunId_ = InvalidRenderGlyphRunId;
         lastGlyphRun_ = nullptr;
         lastMeshId_ = InvalidRenderMeshId;
@@ -102,6 +104,8 @@ public:
     }
 
     void RegisterAtlas(std::uint32_t page, Base::Ref<Texture> texture) noexcept {
+        Texture* tex = texture.Get();
+        if (lastAtlasPage_ == page) lastAtlas_ = tex;
         atlasMap_.Set(page, std::move(texture));
     }
 
@@ -198,8 +202,14 @@ public:
     }
 
     Texture* FindAtlas(std::uint32_t page) const noexcept {
+        if (page == lastAtlasPage_ && lastAtlas_ != nullptr) return lastAtlas_;
         const auto* entry = atlasMap_.FindEntry(page);
-        return entry != nullptr ? entry->Value().Get() : nullptr;
+        if (entry != nullptr) {
+            lastAtlasPage_ = page;
+            lastAtlas_ = entry->Value().Get();
+            return lastAtlas_;
+        }
+        return nullptr;
     }
 
     const Base::Vector<RenderGlyphQuad>* FindGlyphRun(RenderGlyphRunId id) const noexcept {
@@ -247,6 +257,8 @@ private:
 
     mutable RenderImageId lastImageId_ = InvalidRenderImageId;
     mutable Texture* lastImage_ = nullptr;
+    mutable std::uint32_t lastAtlasPage_ = UINT32_MAX;
+    mutable Texture* lastAtlas_ = nullptr;
     mutable RenderGlyphRunId lastGlyphRunId_ = InvalidRenderGlyphRunId;
     mutable const Base::Vector<RenderGlyphQuad>* lastGlyphRun_ = nullptr;
     mutable RenderMeshId lastMeshId_ = InvalidRenderMeshId;

@@ -57,52 +57,6 @@ void UIElement::ArrangeChild(
     layout->ArrangeElement(child, finalRect);
 }
 
-// Layout hot state lives on UIElement.
-Size UIElement::GetDesiredSize() const noexcept {
-    return layout_.desiredSize;
-}
-Size UIElement::GetRenderSize() const noexcept {
-    return layout_.renderSize;
-}
-Rect UIElement::GetLayoutSlot() const noexcept {
-    return layout_.layoutSlot;
-}
-Rect UIElement::GetLayoutClip() const noexcept {
-    return layout_.layoutClip;
-}
-bool UIElement::GetHasLayoutClip() const noexcept {
-    return layout_.HasFlag(LayoutFlags::HasLayoutClip);
-}
-bool UIElement::GetIsMeasureValid() const noexcept {
-    return layout_.HasFlag(LayoutFlags::MeasureValid);
-}
-bool UIElement::GetIsArrangeValid() const noexcept {
-    return layout_.HasFlag(LayoutFlags::ArrangeValid);
-}
-bool UIElement::GetIsMeasureQueued() const noexcept {
-    return layout_.HasFlag(LayoutFlags::MeasureQueued);
-}
-bool UIElement::GetIsArrangeQueued() const noexcept {
-    return layout_.HasFlag(LayoutFlags::ArrangeQueued);
-}
-bool UIElement::GetIsMeasuring() const noexcept {
-    return layout_.HasFlag(LayoutFlags::Measuring);
-}
-bool UIElement::GetIsArranging() const noexcept {
-    return layout_.HasFlag(LayoutFlags::Arranging);
-}
-bool UIElement::GetIsLayoutAttached() const noexcept {
-    return layout_.HasFlag(LayoutFlags::LayoutAttached);
-}
-Size UIElement::GetUntransformedDesiredSize() const noexcept {
-    return layout_.untransformedDesiredSize;
-}
-Size UIElement::GetPreviousMeasureConstraint() const noexcept {
-    return layout_.previousMeasureConstraint;
-}
-std::uint64_t UIElement::GetLayoutRevision() const noexcept {
-    return layout_.layoutRevision;
-}
 
 // from src/gui/controls/Layout.cpp
 
@@ -161,24 +115,30 @@ void UIElement::SetMouseOverState(bool value) noexcept {
     SetReadOnlyCurrentValue(IsMouseOverProperty, value);
 }
 
-// from src/gui/controls/Layout.cpp
 void UIElement::SetRenderTransformOrigin(
     Point value) noexcept {
     SetValue(RenderTransformOriginProperty, value);
 }
 
-// from src/gui/controls/Layout.cpp
+Point UIElement::GetRenderTransformOrigin() const noexcept {
+    return GetValue(RenderTransformOriginProperty);
+}
+
+void UIElement::SetVisibility(
+    Visibility value) noexcept {
+    SetValue(VisibilityProperty, value);
+}
+
+void UIElement::SetBlendMode(
+    BlendMode value) noexcept {
+    SetValue(BlendModeProperty, value);
+}
+
 void UIElement::SetRenderTransform(
     Base::Ref<Transform> value) noexcept {
     SetValue(RenderTransformProperty, std::move(value));
 }
 
-// from src/gui/controls/Layout.cpp
-Point UIElement::GetRenderTransformOrigin() const noexcept {
-    return GetValue(RenderTransformOriginProperty);
-}
-
-// from src/gui/controls/Layout.cpp
 Base::Ref<Transform> UIElement::GetRenderTransform() const noexcept {
     if (!HasRenderTransform()) return {};
     return GetValue(RenderTransformProperty);
@@ -194,70 +154,19 @@ void UIElement::SetTransform3D(
     SetValue(Transform3DProperty, std::move(value));
 }
 
-// from src/gui/controls/Layout.cpp
-void UIElement::SetIsFocusScope(bool value) noexcept {
-    SetValue(IsFocusScopeProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-void UIElement::SetTabIndex(std::uint32_t value) noexcept {
-    SetValue(TabIndexProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-void UIElement::SetIsTabStop(bool value) noexcept {
-    SetValue(IsTabStopProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-void UIElement::SetIsEnabled(bool value) noexcept {
-    SetValue(IsEnabledProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-void UIElement::SetVisibility(
-    Visibility value) noexcept {
-    SetValue(VisibilityProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
-void UIElement::SetIsHitTestVisible(bool value) noexcept {
-    SetValue(IsHitTestVisibleProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
 void UIElement::SetOpacityMask(
     Base::Ref<Media::Brush> value) noexcept {
     SetValue(OpacityMaskProperty, std::move(value));
 }
-
-// from src/gui/controls/Layout.cpp
 
 Base::Ref<Media::Brush> UIElement::GetOpacityMask() const noexcept {
     if (!HasOpacityMask()) return {};
     return GetValue(OpacityMaskProperty);
 }
 
-// from src/gui/controls/Layout.cpp
-
 void UIElement::SetEffect(
     Base::Ref<Effect> value) noexcept {
     SetValue(EffectProperty, std::move(value));
-}
-
-// from src/gui/controls/Layout.cpp
-
-void UIElement::SetBlendMode(
-    BlendMode value) noexcept {
-    SetValue(BlendModeProperty, value);
-}
-
-// from src/gui/controls/Layout.cpp
-
-void UIElement::SetClipToBounds(bool value) noexcept {
-    SetValue(ClipToBoundsProperty, value);
 }
 
 void UIElement::SetClip(Base::Ref<Geometry> value) noexcept {
@@ -413,22 +322,6 @@ void UIElement::OnPropertyInvalidated(
     DependencyObject::OnPropertyInvalidated(flags);
 }
 
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsFocusScope() const noexcept {
-    return GetValue(IsFocusScopeProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-std::uint32_t UIElement::GetTabIndex() const noexcept {
-    return GetValue(TabIndexProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsTabStop() const noexcept {
-    return GetValue(IsTabStopProperty);
-}
-
-// from src/gui/controls/Layout.cpp
 bool UIElement::Focus() noexcept {
     Aero::InputRouter* input =
         ElementTree::InputOf(*this);
@@ -438,37 +331,6 @@ bool UIElement::Focus() noexcept {
     return input->SetFocus(this);
 }
 
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetFocusable() const noexcept {
-    return GetValue(FocusableProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsKeyboardFocusWithin() const noexcept {
-    return GetValue(IsKeyboardFocusWithinProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsKeyboardFocused() const noexcept {
-    return GetValue(IsKeyboardFocusedProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsPressed() const noexcept {
-    return GetValue(IsPressedProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsMouseOver() const noexcept {
-    return GetValue(IsMouseOverProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetAllowDrop() const noexcept {
-    return GetValue(AllowDropProperty);
-}
-
-// from src/gui/controls/Layout.cpp
 bool UIElement::GetIsEnabled() const noexcept {
     if (!GetValue(IsEnabledProperty)) return false;
     ::Aero::Media::Visual* parent = ::Aero::TryCast<::Aero::Media::Visual>(GetLogicalParent());
@@ -484,7 +346,6 @@ void UIElement::OnVisualChildrenChanged(
     InvalidateMeasure();
 }
 
-// from src/gui/controls/Layout.cpp
 bool UIElement::GetIsVisible() const noexcept {
     const ::Aero::Media::Visual* current = this;
     while (current != nullptr) {
@@ -498,37 +359,9 @@ bool UIElement::GetIsVisible() const noexcept {
     return true;
 }
 
-// from src/gui/controls/Layout.cpp
-Visibility UIElement::GetVisibility() const noexcept {
-    return layout_.visibility;
-}
-
-// from src/gui/controls/Layout.cpp
-bool UIElement::GetIsHitTestVisible() const noexcept {
-    return GetValue(IsHitTestVisibleProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-double UIElement::GetOpacity() const noexcept {
-    return static_cast<double>(layout_.opacity);
-}
-
-// from src/gui/controls/Layout.cpp
-
 Base::Ref<Effect> UIElement::GetEffect() const noexcept {
     if (!HasEffect()) return {};
     return GetValue(EffectProperty);
-}
-
-// from src/gui/controls/Layout.cpp
-BlendMode UIElement::GetBlendMode() const noexcept {
-    return layout_.blendMode;
-}
-
-// from src/gui/controls/Layout.cpp
-
-bool UIElement::GetClipToBounds() const noexcept {
-    return layout_.clipToBounds;
 }
 
 // from src/gui/controls/Layout.cpp
@@ -820,11 +653,6 @@ void UIElement::AddHandlerErased(
     store->AddHandler(event, handler, size, alignment, argsType, handledEventsToo);
 }
 
-// from src/gui/input/Input.cpp
-
-void UIElement::SetAllowDrop(bool value) noexcept {
-    SetValue(AllowDropProperty, value);
-}
 
 // from src/gui/input/Input.cpp
 

@@ -232,7 +232,7 @@ public:
         std::uint32_t triggerIndex) noexcept;
     bool StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected) noexcept;
+        const Meta::PropertyValue& expected) noexcept;
     Base::Result<void> EvaluateStyleDataTrigger(
         StyleDataTriggerHandlerState& state) noexcept;
     void ClearStyleDataTriggersFor(Aero::FrameworkElement& target) noexcept;

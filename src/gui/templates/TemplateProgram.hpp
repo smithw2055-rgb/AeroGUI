@@ -25,14 +25,14 @@ struct TemplateTriggerSetter {
     Base::String targetName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
-    std::int32_t targetPartIndex = -1;
+    mutable std::int32_t targetPartIndex = -1;
 };
 
 struct VisualStateSetterPlan {
     Base::String targetName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
-    std::int32_t targetPartIndex = -1;
+    mutable std::int32_t targetPartIndex = -1;
 };
 
 struct VisualStatePlan {
@@ -101,7 +101,7 @@ struct TemplateBindingPlan {
     Base::String targetName;
     DependencyPropertyHandle sourceProperty;
     DependencyPropertyHandle targetProperty;
-    std::int32_t targetPartIndex = -1;
+    mutable std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateMetadataBindingPlan {
@@ -113,21 +113,21 @@ struct TemplateMetadataBindingPlan {
     UpdateSourceTrigger updateSourceTrigger = UpdateSourceTrigger::PropertyChanged;
     Base::Ref<Data::IValueConverter> converter;
     Meta::PropertyValue converterParameter;
-    std::int32_t targetPartIndex = -1;
+    mutable std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateDynamicResourcePlan {
     Base::String targetName;
     Base::String key;
     DependencyPropertyHandle targetProperty;
-    std::int32_t targetPartIndex = -1;
+    mutable std::int32_t targetPartIndex = -1;
 };
 
 struct TemplateTriggerCondition {
     Base::String sourceName;
     DependencyPropertyHandle property;
     Meta::PropertyValue value;
-    std::int32_t sourcePartIndex = -1;
+    mutable std::int32_t sourcePartIndex = -1;
     // Per-condition eval (ToggleButton IsChecked null sentinel included).
     bool IsMet(
         DependencyObject& source,

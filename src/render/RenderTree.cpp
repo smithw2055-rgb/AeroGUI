@@ -1063,6 +1063,7 @@ void RenderTree::QueueDirty(
 }
 
 void RenderTree::RemoveQueued(::Aero::Media::Visual& element) noexcept {
+    if (!(element).RenderQueued()) return;
     for (std::uint32_t index = 0U; index < dirty_.Size();) {
         if (dirty_[index].Resolve() == &element) {
             dirty_[index] = std::move(dirty_[dirty_.Size() - 1U]);

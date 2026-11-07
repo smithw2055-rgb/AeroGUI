@@ -208,7 +208,9 @@ public:
     ::Aero::Media::Visual* ResolveHandle(VisualHandle handle) const noexcept;
 
     Base::Result<void> AttachLogical(
-        ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
+        ::Aero::Media::Visual& parent,
+        ::Aero::Media::Visual& child,
+        bool deferInheritanceToVisual = false) noexcept;
     Base::Result<void> DetachLogical(
         ::Aero::Media::Visual& parent, ::Aero::Media::Visual& child) noexcept;
     Base::Result<void> AttachVisual(

@@ -682,7 +682,6 @@ void FrameworkElement::ArrangeCore(
     }
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
-        element.Layout().renderSize = {};
         element.SetActualSize(0.0f, 0.0f);
         element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
@@ -815,7 +814,6 @@ void FrameworkElement::ArrangeCore(
         render.height = RoundLayoutValue(render.height, dpi);
     }
     element.Layout().layoutSlot = contentSlot;
-    element.Layout().renderSize = render;
     element.SetActualSize(render.width, render.height);
 
     Size renderedFootprint = render;

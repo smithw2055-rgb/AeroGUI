@@ -370,6 +370,8 @@ Base::Result<void> VisualStateManagerState::ApplyState(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
+    Base::BasicVector<DependencyObject*, 16U> resolvedTargets;
+    resolvedTargets.Reserve(state.setters.Size());
     for (const VisualStateSetterPlan& setter : state.setters) {
         DependencyObject* target = setter.targetName.Empty()
             ? static_cast<DependencyObject*>(&control)
@@ -379,6 +381,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
                 Base::ErrorCode::NotFound,
                 "Visual state target name was not found");
         }
+        resolvedTargets.PushBack(target);
     }
     if (active.providerOrigin == 0U) {
         Base::Result<std::uint32_t> origin =
@@ -387,10 +390,9 @@ Base::Result<void> VisualStateManagerState::ApplyState(
         active.providerOrigin = origin.Value();
         active.nextOrdinal = 0U;
     }
-    for (const VisualStateSetterPlan& setter : state.setters) {
-        DependencyObject* target = setter.targetName.Empty()
-            ? static_cast<DependencyObject*>(&control)
-            : templates_->FindName(handle, setter.targetName.View(), setter.targetPartIndex);
+    for (std::uint32_t i = 0U; i < state.setters.Size(); ++i) {
+        const VisualStateSetterPlan& setter = state.setters[i];
+        DependencyObject* target = resolvedTargets[i];
         const PropertyProviderToken token{
             PropertyValueRank::VisualState,
             active.providerOrigin,

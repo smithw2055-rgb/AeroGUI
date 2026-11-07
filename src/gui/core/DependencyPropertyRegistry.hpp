@@ -20,23 +20,15 @@ public:
         DependencyObject&) noexcept {}
 };
 
-class RegistryLifetime final : public Base::Object {
-public:
-    bool isAlive = true;
-};
-
 class DependencyPropertyRegistry {
 public:
     DependencyPropertyRegistry(
         TypeRegistry& typeRegistry,
         BehaviorTable& behaviors) noexcept;
-    ~DependencyPropertyRegistry() noexcept {
-        if (lifetime_) {
-            lifetime_->isAlive = false;
-        }
-    }
+    ~DependencyPropertyRegistry() noexcept;
 
-    const Base::Ref<RegistryLifetime>& Lifetime() const noexcept { return lifetime_; }
+    std::uint16_t Epoch() const noexcept { return epoch_; }
+    static bool IsLive(const DependencyPropertyRegistry* registry, std::uint16_t epoch = 0U) noexcept;
 
     DependencyPropertyRegistry(const DependencyPropertyRegistry&) = delete;
     DependencyPropertyRegistry& operator=(
@@ -140,11 +132,10 @@ private:
     Base::Vector<DependencyPropertyHandle> inheritableProperties_;
     void RebuildFlatIndex() noexcept;
     IInheritanceChangeSink* inheritanceSink_ = nullptr;
-    static Base::Ref<RegistryLifetime> CreateLifetime() noexcept {
-        return Base::MakeRef<RegistryLifetime>();
-    }
-    Base::Ref<RegistryLifetime> lifetime_{CreateLifetime()};
     std::uint64_t nextReadOnlySecret_ = 1U;
+    DependencyPropertyRegistry* prevLive_ = nullptr;
+    DependencyPropertyRegistry* nextLive_ = nullptr;
+    std::uint16_t epoch_ = 0U;
     bool frozen_ = false;
 
     Result<void> ValidateMetadata(

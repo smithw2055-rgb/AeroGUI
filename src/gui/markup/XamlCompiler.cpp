@@ -714,9 +714,7 @@ void PrewarmCompiledDocumentBytecode(
             &schema.Metadata()->DependencyProperties()) {
         return;
     }
-    const Base::Ref<Meta::RegistryLifetime>& lifetime =
-        factory.dependencyProperties->Lifetime();
-    if (lifetime && !lifetime->isAlive) {
+    if (!Meta::DependencyPropertyRegistry::IsLive(factory.dependencyProperties)) {
         return;
     }
 

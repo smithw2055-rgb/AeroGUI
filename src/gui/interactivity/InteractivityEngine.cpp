@@ -721,26 +721,19 @@ Base::Result<std::uint32_t>
                     Base::Object* source =
                         ResolveDataTemplateConditionSource(
                             context, condition, path);
-                    if (source != nullptr &&
-                        Metadata()->Types().IsDerivedFrom(
-                            source->RuntimeType(),
-                            DependencyObject::
-                                StaticTypeId())) {
-                        const Meta::DependencyProperty*
-                            property =
-                                (*Metadata()).DependencyProperties()
-                                        .Find(
-                                            source->
-                                                RuntimeType(),
-                                            path);
-                        if (property != nullptr) {
+                    if (source != nullptr && !path.Empty()) {
+                        Base::Result<ResolvedBindingProperty> resolvedProp =
+                            ResolveBindingProperty(source, path);
+                        if (resolvedProp &&
+                            resolvedProp.Value().dependencySource != nullptr &&
+                            resolvedProp.Value().dependencyProperty.IsValid()) {
                             dependencySource =
                                 Base::Ref<DependencyObject>::FromBorrowed(
-                                    *static_cast<DependencyObject*>(source));
+                                    *resolvedProp.Value().dependencySource);
                             condition.dependencySource =
                                 Base::WeakRef<DependencyObject>(
                                     dependencySource);
-                            condition.property = property->Handle();
+                            condition.property = resolvedProp.Value().dependencyProperty;
                         }
                     }
                 }
@@ -1985,8 +1978,8 @@ Base::Result<void> InteractivityEngine::ExecuteStyleTriggerActions(
 
 bool InteractivityEngine::StyleDataTriggerValuesMatch(
         const Meta::PropertyValue& actual,
-        Meta::PropertyValue expected) noexcept {
-    return DataTemplateTriggerValuesMatch(actual, std::move(expected));
+        const Meta::PropertyValue& expected) noexcept {
+    return EvaluatePropertyTriggerCondition(actual, expected, Metadata());
 }
 
 Base::Result<void> InteractivityEngine::EvaluateStyleDataTrigger(

@@ -745,7 +745,7 @@ Base::Result<void> ViewFrame::AttachPendingItemGenerators(
 
 Base::Result<void> ViewFrame::VisitAndAttach(
         Aero::Media::Visual& rootVisual) noexcept {
-        Base::Vector<Aero::Media::Visual*> stack(allocator);
+        Base::BasicVector<Aero::Media::Visual*, 32U> stack;
         stack.PushBack(&rootVisual);
         while (!stack.Empty()) {
             Aero::Media::Visual* node = stack.Back();
