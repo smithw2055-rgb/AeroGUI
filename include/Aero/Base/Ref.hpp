@@ -192,23 +192,44 @@ template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocat
     constexpr std::size_t objectSize = sizeof(T);
     constexpr std::size_t objectAlignment = alignof(T);
 
-    void* memory = allocator.Allocate({objectSize, objectAlignment, MemoryTag::Object});
-    if (memory == nullptr) {
+    if (&allocator == &GetSystemAllocator()) {
+        void* memory = allocator.Allocate({objectSize, objectAlignment, MemoryTag::Object});
+        if (memory == nullptr) {
+            AERO_ASSERT(false && "Unable to allocate Aero object (Out of Memory)");
+            return Ref<T>{};
+        }
+        T* object = new (memory) T(std::forward<Args>(args)...);
+        object->AttachSystemManagedLifetime();
+        return Ref<T>(object, AdoptRef);
+    }
+
+    constexpr std::size_t allocAlignment =
+        objectAlignment > alignof(Object::CustomAllocationHeader)
+            ? objectAlignment
+            : alignof(Object::CustomAllocationHeader);
+    constexpr std::size_t headerOffset =
+        (sizeof(Object::CustomAllocationHeader) + allocAlignment - 1U) & ~(allocAlignment - 1U);
+    constexpr std::size_t totalSize = headerOffset + objectSize;
+
+    void* rawMemory = allocator.Allocate({totalSize, allocAlignment, MemoryTag::Object});
+    if (rawMemory == nullptr) {
         AERO_ASSERT(false && "Unable to allocate Aero object (Out of Memory)");
         return Ref<T>{};
     }
 
-    T* object = new (memory) T(std::forward<Args>(args)...);
+    void* objectMemory = static_cast<char*>(rawMemory) + headerOffset;
+    T* object = new (objectMemory) T(std::forward<Args>(args)...);
 
     auto destroy = [](Object* base, IAllocator* objectAllocator) noexcept {
         T* typed = static_cast<T*>(base);
+        void* block = static_cast<char*>(static_cast<void*>(typed)) - headerOffset;
         typed->~T();
-        objectAllocator->Deallocate(typed, sizeof(T), alignof(T), MemoryTag::Object);
+        objectAllocator->Deallocate(block, totalSize, allocAlignment, MemoryTag::Object);
     };
 
     if (!object->AttachManagedLifetime(allocator, destroy)) {
         object->~T();
-        allocator.Deallocate(object, objectSize, objectAlignment, MemoryTag::Object);
+        allocator.Deallocate(rawMemory, totalSize, allocAlignment, MemoryTag::Object);
         AERO_ASSERT(false && "Unable to allocate Aero object control block (Out of Memory)");
         return Ref<T>{};
     }

@@ -293,7 +293,7 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
         }
         const Aero::ResourceEnvironment resources =
             state.Resources()->Environment();
-        Base::Vector<Aero::Media::Visual*> stack(state.allocator);
+        Base::BasicVector<Aero::Media::Visual*, 32U> stack;
         stack.PushBack(&root);
         while (!stack.Empty()) {
             Aero::Media::Visual* node = stack.Back();
@@ -338,8 +338,8 @@ Base::Result<void> ApplyViewUi(ViewFrame& state, Aero::Media::Visual& root) noex
                 }
             }
 
-            const bool isControl = state.metadata->Types().IsDerivedFrom(
-                node->RuntimeType(), Controls::Control::StaticTypeId());
+            const bool isControl =
+                (node->CoreTypeMask() & Base::kCoreTypeControl) != 0U;
             if (isControl) {
                 auto& control = *static_cast<Controls::Control*>(node);
                 if (styleApplied) {
@@ -411,13 +411,6 @@ void DetachViewUi(
                  (*node).RenderChildren()) {
                 addReachable(child);
             }
-            const std::uint32_t visualCount =
-                Aero::Media::VisualTreeHelper::GetChildrenCount(*node);
-            for (std::uint32_t i = 0U; i < visualCount; ++i) {
-                if (auto* child = Aero::Media::VisualTreeHelper::GetChild(*node, i)) {
-                    addReachable(child);
-                }
-            }
             const std::uint32_t logicalCount =
                 Aero::LogicalTreeHelper::GetChildrenCount(*node);
             for (std::uint32_t i = 0U; i < logicalCount; ++i) {
@@ -451,7 +444,9 @@ void DetachViewUi(
                 state.Tree()->DetachPropertyDependencyGraph(
                     *node, state.Animations(), detachedPropertyObjects);
             }
-            if (state.metadata != nullptr &&
+            const bool isControl =
+                (node->CoreTypeMask() & Base::kCoreTypeControl) != 0U;
+            if (isControl && state.metadata != nullptr &&
                 state.metadata->Types().IsDerivedFrom(
                     node->RuntimeType(), Controls::ItemsControl::StaticTypeId())) {
                 auto& itemsControl = *static_cast<Controls::ItemsControl*>(node);
@@ -463,9 +458,7 @@ void DetachViewUi(
             if (state.Animations() != nullptr) {
                 state.Animations()->RemoveTarget(*node);
             }
-            if (state.metadata != nullptr &&
-                state.metadata->Types().IsDerivedFrom(
-                    node->RuntimeType(), Controls::Control::StaticTypeId())) {
+            if (isControl) {
                 auto& control = *static_cast<Controls::Control*>(node);
                 if (state.VisualStates() != nullptr) {
                     (void)::Aero::Controls::FrameworkTemplateState::Clear(
@@ -751,21 +744,23 @@ Base::Result<void> ViewFrame::VisitAndAttach(
             Aero::Media::Visual* node = stack.Back();
             stack.PopBack();
             if (node == nullptr) continue;
-            const Meta::TypeId type = node->RuntimeType();
-            if (options.textInputMethodHost != nullptr) {
-                if (metadata->Types().IsDerivedFrom(type, Controls::TextBox::StaticTypeId())) {
-                    static_cast<Controls::TextBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
-                } else if (metadata->Types().IsDerivedFrom(type, Controls::PasswordBox::StaticTypeId())) {
-                    static_cast<Controls::PasswordBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
+            if ((node->CoreTypeMask() & Base::kCoreTypeControl) != 0U) {
+                const Meta::TypeId type = node->RuntimeType();
+                if (options.textInputMethodHost != nullptr) {
+                    if (metadata->Types().IsDerivedFrom(type, Controls::TextBox::StaticTypeId())) {
+                        static_cast<Controls::TextBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
+                    } else if (metadata->Types().IsDerivedFrom(type, Controls::PasswordBox::StaticTypeId())) {
+                        static_cast<Controls::PasswordBox*>(node)->SetInputMethodHost(options.textInputMethodHost);
+                    }
                 }
-            }
-            if (metadata->Types().IsDerivedFrom(
-                    type,
-                    Controls::ItemsControl::StaticTypeId())) {
-                auto* ic = static_cast<Controls::ItemsControl*>(node);
-                TrackItemsControl(*ic);
-                Base::Result<void> attached = AttachItemGenerator(*ic);
-                if (!attached) return attached.GetStatus();
+                if (metadata->Types().IsDerivedFrom(
+                        type,
+                        Controls::ItemsControl::StaticTypeId())) {
+                    auto* ic = static_cast<Controls::ItemsControl*>(node);
+                    TrackItemsControl(*ic);
+                    Base::Result<void> attached = AttachItemGenerator(*ic);
+                    if (!attached) return attached.GetStatus();
+                }
             }
             ForEachVisualAndLogicalChild(*node, [&stack](Aero::Media::Visual* child) {
                 stack.PushBack(child);

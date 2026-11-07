@@ -8,18 +8,9 @@
 #include "gui/core/EnumRegistration.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/ValueConversion.hpp"
-#include "gui/core/ElementTree.hpp"
-#include "gui/core/LayoutEngine.hpp"
-#include "gui/core/EffectiveValueEngine.hpp"
 #include "gui/core/RoutedEvents.hpp"
-#include "gui/core/EventRouter.hpp"
-#include "gui/core/RenderStateCallbacks.hpp"
-#include "gui/core/FrameworkElementSeams.hpp"
-#include "gui/core/DependencyObjectAccess.hpp"
 #include "gui/data/BindingEngine.hpp"
-#include "gui/media/AnimationEngine.hpp"
 #include "gui/media/AnimationModel.hpp"
-#include "gui/templates/TemplateInstance.hpp"
 
 #include <Aero/Meta.hpp>
 #include <Aero/Value.hpp>

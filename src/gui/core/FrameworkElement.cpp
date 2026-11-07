@@ -15,11 +15,9 @@
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Media/Transform3D.hpp>
 #include <Aero/Media/Effects.hpp>
-#include <Aero/Media/Geometries.hpp>
 #include <Aero/Triggers.hpp>
 #include <Aero/Style.hpp>
 #include <Aero/Resources.hpp>
-#include <Aero/Markup/XamlReader.hpp>
 #include <Aero/Controls.hpp>
 #include <cmath>
 #include <cstdio>

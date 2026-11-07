@@ -532,7 +532,6 @@ void UiFrameEncoder::CommitBatches() noexcept {
     currentVertexCount_ = 0U;
     currentIndexCount_ = 0U;
     currentBatchVertexStart_ = 0U;
-    currentBatch_ = Batch{};
     currentBatch_.startIndex = 0U;
     currentBatch_.vertexOffset = 0U;
     currentBatch_.numIndices = 0U;

@@ -1286,6 +1286,7 @@ void InteractivityEngine::ClearAnimationEventSubscriptions() noexcept {
             }
             subscriptions.Clear();
         };
+        clearAll(styleDataTriggerSubscriptions);
         clearAll(dataTemplateTriggerSubscriptions);
         clearAll(propertyChangedTriggerSubscriptions);
         clearAll(interactionDataTriggerSubscriptions);

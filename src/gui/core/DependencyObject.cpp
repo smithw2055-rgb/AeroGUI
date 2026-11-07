@@ -698,9 +698,25 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
             Base::ErrorCode::InvalidState,
             "Cannot mutate a frozen Freezable");
     }
-    Base::Result<void> valid = registry_->ValidateValueFor(property, runtimeType_, value);
+    const Meta::DependencyProperty* registered = registry_->Find(property);
+    if (registered == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "Dependency property was not found");
+    }
+    property = registered->Handle();
+    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
+    if (metadata == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::ValidationFailed,
+            "Dependency property does not apply to this type");
+    }
+    Base::Result<void> valid = registry_->ValidateValue(*registered, *metadata, value);
     if (!valid) return valid.GetStatus();
-    Base::Result<StoredValueEntry*> ensured = EnsureStoredEntry(property);
+    StoredValueEntry* existing = FindStoredEntry(property);
+    Base::Result<StoredValueEntry*> ensured = existing != nullptr
+        ? Base::Result<StoredValueEntry*>(existing)
+        : EnsureStoredEntryDirect(property, *metadata);
     if (!ensured) return ensured.GetStatus();
     StoredValueEntry& entry = *ensured.Value();
     entry.ClearCurrent();
@@ -1082,6 +1098,9 @@ const StoredValueEntry* DependencyObject::FindStoredEntry(
     }
     if (const StoredValueEntry* hit = store->entries.Find(property.value)) {
         return hit;
+    }
+    if (property.HasGlobalIndex()) {
+        return nullptr;
     }
     const MemberId canonical = CanonicalPropertyKey(property);
     if (canonical == property.value) {

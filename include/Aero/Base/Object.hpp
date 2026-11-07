@@ -59,13 +59,24 @@ protected:
     }
 
 private:
+    enum ManagedLifetimeFlags : std::uint16_t {
+        kManagedNone            = 0U,
+        kManagedSystemAllocator = 1U << 0U,
+        kManagedCustomAllocator = 1U << 1U,
+    };
+
+    struct CustomAllocationHeader {
+        IAllocator* allocator = nullptr;
+        DestroyObjectFn destroy = nullptr;
+    };
+
     mutable std::atomic<std::uint32_t> strongCount_{0U};
     std::uint16_t coreTypeMask_ = 0U;
+    std::uint16_t managedFlags_ = kManagedNone;
     mutable std::atomic<void*> control_{nullptr};
-    IAllocator* allocator_ = nullptr;
-    DestroyObjectFn destroy_ = nullptr;
 
     bool TryAddStrongReference() noexcept;
+    void AttachSystemManagedLifetime() noexcept;
     bool AttachManagedLifetime(IAllocator& allocator, DestroyObjectFn destroy) noexcept;
 
     template<class T> friend class Ref;

@@ -147,8 +147,16 @@ void Object::Release() noexcept {
         ReleaseWeak(control);
     }
 
-    DestroyObjectFn destroy = destroy_;
-    IAllocator* allocator = allocator_;
+    if ((managedFlags_ & kManagedSystemAllocator) != 0U) {
+        this->~Object();
+        GetSystemAllocator().Deallocate(this, 0U, alignof(Object), MemoryTag::Object);
+        return;
+    }
+    AERO_ASSERT((managedFlags_ & kManagedCustomAllocator) != 0U);
+    const CustomAllocationHeader* header =
+        reinterpret_cast<const CustomAllocationHeader*>(this) - 1;
+    DestroyObjectFn destroy = header->destroy;
+    IAllocator* allocator = header->allocator;
     AERO_ASSERT(destroy != nullptr);
     destroy(this, allocator);
 }
@@ -172,14 +180,24 @@ bool Object::TryAddStrongReference() noexcept {
     return false;
 }
 
+void Object::AttachSystemManagedLifetime() noexcept {
+    AERO_ASSERT(strongCount_.load(std::memory_order_relaxed) == 0U);
+    AERO_ASSERT(control_.load(std::memory_order_relaxed) == nullptr);
+    managedFlags_ = kManagedSystemAllocator;
+    strongCount_.store(1U, std::memory_order_release);
+}
+
 bool Object::AttachManagedLifetime(
     IAllocator& allocator,
     DestroyObjectFn destroy) noexcept {
     AERO_ASSERT(destroy != nullptr);
     AERO_ASSERT(strongCount_.load(std::memory_order_relaxed) == 0U);
     AERO_ASSERT(control_.load(std::memory_order_relaxed) == nullptr);
-    allocator_ = &allocator;
-    destroy_ = destroy;
+    CustomAllocationHeader* header =
+        reinterpret_cast<CustomAllocationHeader*>(this) - 1;
+    header->allocator = &allocator;
+    header->destroy = destroy;
+    managedFlags_ = kManagedCustomAllocator;
     strongCount_.store(1U, std::memory_order_release);
     return true;
 }
@@ -241,7 +259,7 @@ bool WeakRefBase::Expired() const noexcept {
     }
     Object* object = control->object.load(std::memory_order_acquire);
     const bool expired = (object == nullptr) ||
-        (object->destroy_ != nullptr && object->UseCount() == 0U);
+        (object->managedFlags_ != Object::kManagedNone && object->UseCount() == 0U);
     ReleaseLockGuard(control);
     return expired;
 }
@@ -270,7 +288,7 @@ Object* WeakRefBase::PeekObject() const noexcept {
         return nullptr;
     }
     Object* object = control->object.load(std::memory_order_acquire);
-    if (object != nullptr && object->destroy_ != nullptr && object->UseCount() == 0U) {
+    if (object != nullptr && object->managedFlags_ != Object::kManagedNone && object->UseCount() == 0U) {
         object = nullptr;
     }
     ReleaseLockGuard(control);
@@ -294,15 +312,23 @@ bool WeakRefBase::TryAttach(Object& object) noexcept {
     if (control_ != nullptr) {
         Reset();
     }
-    if (object.destroy_ != nullptr && object.UseCount() == 0U) {
+    if (object.managedFlags_ != Object::kManagedNone && object.UseCount() == 0U) {
         return false;
     }
 
     void* existing = object.control_.load(std::memory_order_acquire);
     auto* control = static_cast<ObjectControlBlock*>(existing);
     if (control == nullptr) {
-        IAllocator& allocator = object.allocator_ != nullptr
-            ? *object.allocator_
+        IAllocator* objectAlloc = nullptr;
+        if ((object.managedFlags_ & Object::kManagedSystemAllocator) != 0U) {
+            objectAlloc = &GetSystemAllocator();
+        } else if ((object.managedFlags_ & Object::kManagedCustomAllocator) != 0U) {
+            const auto* header =
+                reinterpret_cast<const Object::CustomAllocationHeader*>(&object) - 1;
+            objectAlloc = header->allocator;
+        }
+        IAllocator& allocator = objectAlloc != nullptr
+            ? *objectAlloc
             : GetDefaultAllocator();
         ObjectControlBlock* candidate =
             CreateObjectControlBlock(allocator, &object);
