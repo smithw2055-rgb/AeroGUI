@@ -86,28 +86,26 @@ void FlattenRoundedRect(
 } // namespace
 
 Geometry::~Geometry() {
-    if (transform_ && !transform_->IsFrozen() &&
-        !transformChangedHandler_.Empty()) {
+    if (transform_ && !transform_->IsFrozen()) {
         static_cast<void>(transform_->RemoveChangedHandler(
-            transformChangedHandler_));
+            FreezableChangedHandler(this, &Geometry::OnTransformChanged)));
+        DetachChildConsumer(*transform_);
     }
 }
 
 void Geometry::SetTransform(Base::Ref<Transform> value) noexcept {
     if (!WritePreamble() || transform_.Get() == value.Get()) return;
-    if (transformChangedHandler_.Empty()) {
-        transformChangedHandler_ = FreezableChangedHandler(
-            this, &Geometry::OnTransformChanged);
-    }
+    const FreezableChangedHandler handler(this, &Geometry::OnTransformChanged);
     Transform* next = value.Get();
     if (next != nullptr && !next->IsFrozen()) {
-        next->AddChangedHandler(transformChangedHandler_);
+        next->AddChangedHandler(handler);
+        AttachChildConsumer(*next);
     }
     Base::Ref<Transform> previous = std::move(transform_);
     transform_ = std::move(value);
     if (previous && !previous->IsFrozen()) {
-        static_cast<void>(previous->RemoveChangedHandler(
-            transformChangedHandler_));
+        static_cast<void>(previous->RemoveChangedHandler(handler));
+        DetachChildConsumer(*previous);
     }
     WritePostscript();
 }
@@ -127,6 +125,30 @@ bool Geometry::FreezeCore(bool isChecking) noexcept {
     return Freezable::FreezeCore(isChecking);
 }
 
+void Geometry::CloneCore(const Freezable& source) {
+    Animatable::CloneCore(source);
+    const auto* src = TryCast<Geometry>(&source);
+    if (src != nullptr && src->transform_) {
+        Base::Ref<Freezable> cloned = src->transform_->Clone();
+        if (cloned) {
+            SetTransform(Base::Ref<Transform>::FromBorrowed(
+                *static_cast<Transform*>(cloned.Get())));
+        }
+    }
+}
+
+void Geometry::CloneCurrentValueCore(const Freezable& source) {
+    Animatable::CloneCurrentValueCore(source);
+    const auto* src = TryCast<Geometry>(&source);
+    if (src != nullptr && src->transform_) {
+        Base::Ref<Freezable> cloned = src->transform_->CloneCurrentValue();
+        if (cloned) {
+            SetTransform(Base::Ref<Transform>::FromBorrowed(
+                *static_cast<Transform*>(cloned.Get())));
+        }
+    }
+}
+
 void Geometry::Flatten(FlattenSink& sink) const noexcept {
     if (!transform_) return FlattenCore(sink);
     TransformingSink wrapped(sink, transform_->GetMatrix());
@@ -137,11 +159,108 @@ void Geometry::FlattenCore(FlattenSink&) const noexcept {
     return;
 }
 
+PathFigure::~PathFigure() {
+    const FreezableChangedHandler handler(this, &PathFigure::OnSegmentChanged);
+    for (const Base::Ref<PathSegment>& segment : segments_) {
+        if (segment && !segment->IsFrozen()) {
+            static_cast<void>(segment->RemoveChangedHandler(handler));
+            DetachChildConsumer(*segment);
+        }
+    }
+}
+
+void PathFigure::OnSegmentChanged(Freezable&) noexcept {
+    WritePostscript();
+}
+
 void PathFigure::AddSegment(
     Base::Ref<PathSegment> value) noexcept {
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
-    segments_.Add(std::move(value));
+    PathSegment* retained = value.Get();
+    if (!retained->IsFrozen()) {
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &PathFigure::OnSegmentChanged));
+        AttachChildConsumer(*retained);
+    }
+    segments_.PushBack(std::move(value));
+    WritePostscript();
+}
+
+void PathFigure::ClearSegments() noexcept {
+    if (!WritePreamble() || segments_.Empty()) return;
+    const FreezableChangedHandler handler(this, &PathFigure::OnSegmentChanged);
+    for (const Base::Ref<PathSegment>& segment : segments_) {
+        if (segment && !segment->IsFrozen()) {
+            static_cast<void>(segment->RemoveChangedHandler(handler));
+            DetachChildConsumer(*segment);
+        }
+    }
+    segments_.Clear();
+    WritePostscript();
+}
+
+Base::Ref<Freezable> PathFigure::CreateInstanceCore() const {
+    return Base::MakeRef<PathFigure>();
+}
+
+bool PathFigure::FreezeCore(bool isChecking) noexcept {
+    for (const Base::Ref<PathSegment>& segment : segments_) {
+        if (!segment) continue;
+        if (isChecking) {
+            if (!segment->CanFreeze()) return false;
+        } else {
+            segment->Freeze();
+        }
+    }
+    return Animatable::FreezeCore(isChecking);
+}
+
+void PathFigure::CloneCore(const Freezable& source) {
+    Animatable::CloneCore(source);
+    const auto* src = TryCast<PathFigure>(&source);
+    if (src != nullptr) {
+        ClearSegments();
+        for (const Base::Ref<PathSegment>& seg : src->segments_) {
+            if (seg) {
+                Base::Ref<Freezable> cloned = seg->Clone();
+                if (cloned) {
+                    AddSegment(Base::Ref<PathSegment>::FromBorrowed(
+                        *static_cast<PathSegment*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+void PathFigure::CloneCurrentValueCore(const Freezable& source) {
+    Animatable::CloneCurrentValueCore(source);
+    const auto* src = TryCast<PathFigure>(&source);
+    if (src != nullptr) {
+        ClearSegments();
+        for (const Base::Ref<PathSegment>& seg : src->segments_) {
+            if (seg) {
+                Base::Ref<Freezable> cloned = seg->CloneCurrentValue();
+                if (cloned) {
+                    AddSegment(Base::Ref<PathSegment>::FromBorrowed(
+                        *static_cast<PathSegment*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+PathGeometry::~PathGeometry() {
+    const FreezableChangedHandler handler(this, &PathGeometry::OnFigureChanged);
+    for (const Base::Ref<PathFigure>& figure : figures_) {
+        if (figure && !figure->IsFrozen()) {
+            static_cast<void>(figure->RemoveChangedHandler(handler));
+            DetachChildConsumer(*figure);
+        }
+    }
+}
+
+void PathGeometry::OnFigureChanged(Freezable&) noexcept {
     WritePostscript();
 }
 
@@ -149,8 +268,77 @@ void PathGeometry::AddFigure(
     Base::Ref<PathFigure> value) noexcept {
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
-    figures_.Add(std::move(value));
+    PathFigure* retained = value.Get();
+    if (!retained->IsFrozen()) {
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &PathGeometry::OnFigureChanged));
+        AttachChildConsumer(*retained);
+    }
+    figures_.PushBack(std::move(value));
     WritePostscript();
+}
+
+void PathGeometry::ClearFigures() noexcept {
+    if (!WritePreamble() || figures_.Empty()) return;
+    const FreezableChangedHandler handler(this, &PathGeometry::OnFigureChanged);
+    for (const Base::Ref<PathFigure>& figure : figures_) {
+        if (figure && !figure->IsFrozen()) {
+            static_cast<void>(figure->RemoveChangedHandler(handler));
+            DetachChildConsumer(*figure);
+        }
+    }
+    figures_.Clear();
+    WritePostscript();
+}
+
+Base::Ref<Freezable> PathGeometry::CreateInstanceCore() const {
+    return Base::MakeRef<PathGeometry>();
+}
+
+bool PathGeometry::FreezeCore(bool isChecking) noexcept {
+    for (const Base::Ref<PathFigure>& figure : figures_) {
+        if (!figure) continue;
+        if (isChecking) {
+            if (!figure->CanFreeze()) return false;
+        } else {
+            figure->Freeze();
+        }
+    }
+    return Geometry::FreezeCore(isChecking);
+}
+
+void PathGeometry::CloneCore(const Freezable& source) {
+    Geometry::CloneCore(source);
+    const auto* src = TryCast<PathGeometry>(&source);
+    if (src != nullptr) {
+        ClearFigures();
+        for (const Base::Ref<PathFigure>& fig : src->figures_) {
+            if (fig) {
+                Base::Ref<Freezable> cloned = fig->Clone();
+                if (cloned) {
+                    AddFigure(Base::Ref<PathFigure>::FromBorrowed(
+                        *static_cast<PathFigure*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+void PathGeometry::CloneCurrentValueCore(const Freezable& source) {
+    Geometry::CloneCurrentValueCore(source);
+    const auto* src = TryCast<PathGeometry>(&source);
+    if (src != nullptr) {
+        ClearFigures();
+        for (const Base::Ref<PathFigure>& fig : src->figures_) {
+            if (fig) {
+                Base::Ref<Freezable> cloned = fig->CloneCurrentValue();
+                if (cloned) {
+                    AddFigure(Base::Ref<PathFigure>::FromBorrowed(
+                        *static_cast<PathFigure*>(cloned.Get())));
+                }
+            }
+        }
+    }
 }
 
 void PathGeometry::FlattenCore(FlattenSink& sink) const noexcept {
@@ -210,12 +398,20 @@ Base::Result<Base::String> PathGeometry::ToStreamData() const noexcept {
     return result;
 }
 
+Base::Ref<Freezable> LineSegment::CreateInstanceCore() const {
+    return Base::MakeRef<LineSegment>();
+}
+
 void LineSegment::Flatten(
     FlattenSink& sink,
     Point& currentPoint) const noexcept {
     const Point point = GetPoint();
     sink.AddPoint(point);
     currentPoint = point;
+}
+
+Base::Ref<Freezable> BezierSegment::CreateInstanceCore() const {
+    return Base::MakeRef<BezierSegment>();
 }
 
 void BezierSegment::Flatten(
@@ -227,6 +423,10 @@ void BezierSegment::Flatten(
     currentPoint = end;
 }
 
+Base::Ref<Freezable> QuadraticBezierSegment::CreateInstanceCore() const {
+    return Base::MakeRef<QuadraticBezierSegment>();
+}
+
 void QuadraticBezierSegment::Flatten(
     FlattenSink& sink,
     Point& currentPoint) const noexcept {
@@ -234,6 +434,10 @@ void QuadraticBezierSegment::Flatten(
     FlattenQuadraticBezier(
         sink, currentPoint, GetPoint1(), end);
     currentPoint = end;
+}
+
+Base::Ref<Freezable> ArcSegment::CreateInstanceCore() const {
+    return Base::MakeRef<ArcSegment>();
 }
 
 void ArcSegment::Flatten(
@@ -249,6 +453,24 @@ void ArcSegment::Flatten(
         GetSweepDirection() == SweepDirection::Clockwise,
         end);
     currentPoint = end;
+}
+
+Base::Ref<Freezable> PolyLineSegment::CreateInstanceCore() const {
+    return Base::MakeRef<PolyLineSegment>();
+}
+
+void PolyLineSegment::CloneCore(const Freezable& source) {
+    PathSegment::CloneCore(source);
+    if (const auto* src = TryCast<PolyLineSegment>(&source)) {
+        SetPoints(src->GetPoints());
+    }
+}
+
+void PolyLineSegment::CloneCurrentValueCore(const Freezable& source) {
+    PathSegment::CloneCurrentValueCore(source);
+    if (const auto* src = TryCast<PolyLineSegment>(&source)) {
+        SetPoints(src->GetPoints());
+    }
 }
 
 void PolyLineSegment::SetPoints(Span<const Point> points) noexcept {
@@ -279,6 +501,24 @@ void PolyLineSegment::Flatten(
     for (std::uint32_t index = 0U; index < points_.Size(); ++index) {
         sink.AddPoint(points_[index]);
         currentPoint = points_[index];
+    }
+}
+
+Base::Ref<Freezable> PolyBezierSegment::CreateInstanceCore() const {
+    return Base::MakeRef<PolyBezierSegment>();
+}
+
+void PolyBezierSegment::CloneCore(const Freezable& source) {
+    PathSegment::CloneCore(source);
+    if (const auto* src = TryCast<PolyBezierSegment>(&source)) {
+        SetPoints(src->GetPoints());
+    }
+}
+
+void PolyBezierSegment::CloneCurrentValueCore(const Freezable& source) {
+    PathSegment::CloneCurrentValueCore(source);
+    if (const auto* src = TryCast<PolyBezierSegment>(&source)) {
+        SetPoints(src->GetPoints());
     }
 }
 
@@ -316,6 +556,24 @@ void PolyBezierSegment::Flatten(
             points_[index + 1U],
             end);
         currentPoint = end;
+    }
+}
+
+Base::Ref<Freezable> PolyQuadraticBezierSegment::CreateInstanceCore() const {
+    return Base::MakeRef<PolyQuadraticBezierSegment>();
+}
+
+void PolyQuadraticBezierSegment::CloneCore(const Freezable& source) {
+    PathSegment::CloneCore(source);
+    if (const auto* src = TryCast<PolyQuadraticBezierSegment>(&source)) {
+        SetPoints(src->GetPoints());
+    }
+}
+
+void PolyQuadraticBezierSegment::CloneCurrentValueCore(const Freezable& source) {
+    PathSegment::CloneCurrentValueCore(source);
+    if (const auto* src = TryCast<PolyQuadraticBezierSegment>(&source)) {
+        SetPoints(src->GetPoints());
     }
 }
 
@@ -422,11 +680,94 @@ void EllipseGeometry::FlattenCore(FlattenSink& sink) const noexcept {
     sink.EndFigure(true);
 }
 
+GeometryGroup::~GeometryGroup() {
+    const FreezableChangedHandler handler(this, &GeometryGroup::OnChildChanged);
+    for (const Base::Ref<Geometry>& child : children_) {
+        if (child && !child->IsFrozen()) {
+            static_cast<void>(child->RemoveChangedHandler(handler));
+            DetachChildConsumer(*child);
+        }
+    }
+}
+
+void GeometryGroup::OnChildChanged(Freezable&) noexcept {
+    WritePostscript();
+}
+
 void GeometryGroup::Add(Ref<Geometry> value) noexcept {
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
-    children_.Add(std::move(value));
+    Geometry* retained = value.Get();
+    if (!retained->IsFrozen()) {
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &GeometryGroup::OnChildChanged));
+        AttachChildConsumer(*retained);
+    }
+    children_.PushBack(std::move(value));
     WritePostscript();
+}
+
+void GeometryGroup::Clear() noexcept {
+    if (!WritePreamble() || children_.Empty()) return;
+    const FreezableChangedHandler handler(this, &GeometryGroup::OnChildChanged);
+    for (const Base::Ref<Geometry>& child : children_) {
+        if (child && !child->IsFrozen()) {
+            static_cast<void>(child->RemoveChangedHandler(handler));
+            DetachChildConsumer(*child);
+        }
+    }
+    children_.Clear();
+    WritePostscript();
+}
+
+Base::Ref<Freezable> GeometryGroup::CreateInstanceCore() const {
+    return Base::MakeRef<GeometryGroup>();
+}
+
+bool GeometryGroup::FreezeCore(bool isChecking) noexcept {
+    for (const Base::Ref<Geometry>& child : children_) {
+        if (!child) continue;
+        if (isChecking) {
+            if (!child->CanFreeze()) return false;
+        } else {
+            child->Freeze();
+        }
+    }
+    return Geometry::FreezeCore(isChecking);
+}
+
+void GeometryGroup::CloneCore(const Freezable& source) {
+    Geometry::CloneCore(source);
+    const auto* src = TryCast<GeometryGroup>(&source);
+    if (src != nullptr) {
+        Clear();
+        for (const Base::Ref<Geometry>& child : src->children_) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->Clone();
+                if (cloned) {
+                    Add(Base::Ref<Geometry>::FromBorrowed(
+                        *static_cast<Geometry*>(cloned.Get())));
+                }
+            }
+        }
+    }
+}
+
+void GeometryGroup::CloneCurrentValueCore(const Freezable& source) {
+    Geometry::CloneCurrentValueCore(source);
+    const auto* src = TryCast<GeometryGroup>(&source);
+    if (src != nullptr) {
+        Clear();
+        for (const Base::Ref<Geometry>& child : src->children_) {
+            if (child) {
+                Base::Ref<Freezable> cloned = child->CloneCurrentValue();
+                if (cloned) {
+                    Add(Base::Ref<Geometry>::FromBorrowed(
+                        *static_cast<Geometry*>(cloned.Get())));
+                }
+            }
+        }
+    }
 }
 
 void GeometryGroup::FlattenCore(FlattenSink& sink) const noexcept {
@@ -437,6 +778,19 @@ void GeometryGroup::FlattenCore(FlattenSink& sink) const noexcept {
     return;
 }
 
+CombinedGeometry::~CombinedGeometry() {
+    const FreezableChangedHandler handler(
+        this, &CombinedGeometry::OnChildChanged);
+    if (geometry1_ && !geometry1_->IsFrozen()) {
+        static_cast<void>(geometry1_->RemoveChangedHandler(handler));
+        DetachChildConsumer(*geometry1_);
+    }
+    if (geometry2_ && !geometry2_->IsFrozen()) {
+        static_cast<void>(geometry2_->RemoveChangedHandler(handler));
+        DetachChildConsumer(*geometry2_);
+    }
+}
+
 void CombinedGeometry::OnChildChanged(Freezable&) noexcept {
     WritePostscript();
 }
@@ -445,19 +799,18 @@ void CombinedGeometry::AttachChild(
     Ref<Geometry>& slot,
     Ref<Geometry> value) noexcept {
     if (!WritePreamble() || slot.Get() == value.Get()) return;
-    if (childChangedHandler_.Empty()) {
-        childChangedHandler_ = FreezableChangedHandler(
-            this, &CombinedGeometry::OnChildChanged);
-    }
+    const FreezableChangedHandler handler(
+        this, &CombinedGeometry::OnChildChanged);
     Geometry* next = value.Get();
     if (next != nullptr && !next->IsFrozen()) {
-        next->AddChangedHandler(childChangedHandler_);
+        next->AddChangedHandler(handler);
+        AttachChildConsumer(*next);
     }
     Ref<Geometry> previous = std::move(slot);
     slot = std::move(value);
     if (previous && !previous->IsFrozen()) {
-        static_cast<void>(previous->RemoveChangedHandler(
-            childChangedHandler_));
+        static_cast<void>(previous->RemoveChangedHandler(handler));
+        DetachChildConsumer(*previous);
     }
     WritePostscript();
 }

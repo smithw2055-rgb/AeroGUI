@@ -32,13 +32,11 @@ void GradientBrush::AddGradientStop(
     Base::Ref<GradientStop> stop) noexcept {
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!stop) { AERO_ASSERT(false); return; }
-    if (stopChangedHandler_.Empty()) {
-        stopChangedHandler_ = FreezableChangedHandler(
-            this, &GradientBrush::OnGradientStopChanged);
-    }
     GradientStop* retained = stop.Get();
     if (!retained->IsFrozen()) {
-        retained->AddChangedHandler(stopChangedHandler_);
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &GradientBrush::OnGradientStopChanged));
+        AttachChildConsumer(*retained);
     }
     stops_.PushBack(std::move(stop));
     WritePostscript();
@@ -46,20 +44,24 @@ void GradientBrush::AddGradientStop(
 
 
 GradientBrush::~GradientBrush() {
+    const FreezableChangedHandler handler(
+        this, &GradientBrush::OnGradientStopChanged);
     for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+        if (stop && !stop->IsFrozen()) {
+            static_cast<void>(stop->RemoveChangedHandler(handler));
+            DetachChildConsumer(*stop);
         }
     }
 }
 
 void GradientBrush::ClearGradientStops() noexcept {
     if (!WritePreamble() || stops_.Empty()) return;
+    const FreezableChangedHandler handler(
+        this, &GradientBrush::OnGradientStopChanged);
     for (const Base::Ref<GradientStop>& stop : stops_) {
-        if (stop && !stopChangedHandler_.Empty()) {
-            static_cast<void>(
-                stop->RemoveChangedHandler(stopChangedHandler_));
+        if (stop && !stop->IsFrozen()) {
+            static_cast<void>(stop->RemoveChangedHandler(handler));
+            DetachChildConsumer(*stop);
         }
     }
     stops_.Clear();

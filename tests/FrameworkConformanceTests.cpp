@@ -1992,6 +1992,9 @@ bool TestArchitectureRefactoringValidation() {
         live->viewTime += 0.016;
         Pump(*live->view, live->viewTime);
 
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty) != nullptr);
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty)->GetIsSealed());
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty)->GetResources().GetIsSealed());
         CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "Idle");
 
         triggerBox->SetText("StateA");
@@ -2007,7 +2010,59 @@ bool TestArchitectureRefactoringValidation() {
         triggerBox->SetText("Initial");
         live->viewTime += 0.016;
         Pump(*live->view, live->viewTime);
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty) != nullptr);
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty)->GetIsSealed());
+        CHECK(triggerBox->GetValue(FrameworkElement::StyleProperty)->GetResources().GetIsSealed());
         CHECK(triggerBox->GetValue(FrameworkElement::TagProperty).AsString() == "Idle");
+    }
+
+    // 22. Validate Round 4 Freezable composite change propagation, Freeze/Clone, and memory bounds
+    {
+        static_assert(sizeof(Aero::Style) <= 96U, "Style must stay compact");
+        static_assert(sizeof(Aero::Data::Binding) <= 160U, "Data::Binding must stay compact");
+        static_assert(sizeof(Aero::Data::MultiBinding) <= 88U, "Data::MultiBinding must stay compact");
+        static_assert(sizeof(Aero::Input::CommandBinding) <= 88U, "CommandBinding must stay compact");
+        static_assert(sizeof(Aero::Input::KeyBinding) <= 72U, "KeyBinding must stay compact");
+        static_assert(sizeof(Aero::Media::Animation::Storyboard) <= 136U, "Storyboard must stay compact");
+        static_assert(sizeof(Aero::Media::TransformGroup) <= 136U, "TransformGroup must stay compact");
+        static_assert(sizeof(Aero::Media::PathGeometry) <= 144U, "PathGeometry must stay compact");
+        static_assert(sizeof(Aero::Media::PathFigure) <= 136U, "PathFigure must stay compact");
+        static_assert(sizeof(Aero::Controls::Button) <= 416U, "Button must stay compact");
+        static_assert(sizeof(Aero::Controls::VirtualizingStackPanel) <= 472U, "VirtualizingStackPanel must stay compact");
+
+        auto seg = MakeRef<Aero::Media::LineSegment>();
+        auto fig = MakeRef<Aero::Media::PathFigure>();
+        auto pathGeom = MakeRef<Aero::Media::PathGeometry>();
+        auto hostPath = MakeRef<Aero::Shapes::Path>();
+        CHECK(seg && fig && pathGeom && hostPath);
+        fig->AddSegment(seg);
+        pathGeom->AddFigure(fig);
+        hostPath->SetData(pathGeom);
+
+        const std::uint64_t rev0 = pathGeom->GetRevision();
+        seg->SetPoint({25.0, 40.0});
+        const std::uint64_t rev1 = pathGeom->GetRevision();
+        CHECK(rev1 > rev0);
+
+        fig->SetStartPoint({5.0, 10.0});
+        const std::uint64_t rev2 = pathGeom->GetRevision();
+        CHECK(rev2 > rev1);
+
+        CHECK(pathGeom->CanFreeze());
+        pathGeom->Freeze();
+        CHECK(pathGeom->IsFrozen());
+        CHECK(fig->IsFrozen());
+        CHECK(seg->IsFrozen());
+
+        auto clonedFreezable = pathGeom->Clone();
+        auto* clonedGeom = Aero::TryCast<Aero::Media::PathGeometry>(clonedFreezable.Get());
+        CHECK(clonedGeom != nullptr);
+        CHECK(!clonedGeom->IsFrozen());
+        CHECK(clonedGeom->GetFigures().Size() == 1U);
+        CHECK(clonedGeom->GetFigures()[0] != nullptr);
+        CHECK(clonedGeom->GetFigures()[0].Get() != fig.Get());
+        CHECK(!clonedGeom->GetFigures()[0]->IsFrozen());
+        CHECK(clonedGeom->GetFigures()[0]->GetSegments().Size() == 1U);
     }
 
     return true;

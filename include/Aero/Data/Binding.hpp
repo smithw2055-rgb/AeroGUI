@@ -4,6 +4,7 @@
 #include <Aero/Data/IValueConverter.hpp>
 #include <Aero/PropertyPath.hpp>
 #include <cstdint>
+#include <new>
 
 namespace Aero::Data {
 
@@ -54,35 +55,81 @@ class AERO_GUI_API Binding : public BindingBase {
 public:
     Binding() noexcept : BindingBase(StaticTypeId()) {}
     explicit Binding(StringView path) noexcept : BindingBase(StaticTypeId()), path_(path) {}
+    ~Binding() override { delete options_; }
 
     const PropertyPath& GetPath() const noexcept { return path_; }
     void SetPath(PropertyPath value) noexcept { path_ = std::move(value); return; }
     void SetPath(StringView value) noexcept { path_.SetPath(value); }
     StringView GetPathText() const noexcept { return path_.GetPath(); }
-    StringView GetElementName() const noexcept { return elementName_.View(); }
-    void SetElementName(StringView value) noexcept { (void)elementName_.Assign(value); }
+    StringView GetElementName() const noexcept {
+        return options_ != nullptr ? options_->elementName.View() : StringView{};
+    }
+    void SetElementName(StringView value) noexcept {
+        if (value.Empty() && options_ == nullptr) return;
+        if (BindingOptions* opt = EnsureOptions()) {
+            (void)opt->elementName.Assign(value);
+        }
+    }
     BindingMode GetMode() const noexcept { return mode_; }
     void SetMode(BindingMode value) noexcept { mode_ = value; }
     UpdateSourceTrigger GetUpdateSourceTrigger() const noexcept { return updateSourceTrigger_; }
     void SetUpdateSourceTrigger(UpdateSourceTrigger value) noexcept { updateSourceTrigger_ = value; }
-    Ref<Base::Object> GetSource() const noexcept { return source_; }
-    void SetSource(Ref<Base::Object> value) noexcept { source_ = std::move(value); }
-    Ref<RelativeSource> GetRelativeSource() const noexcept { return relativeSource_; }
-    void SetRelativeSource(Ref<RelativeSource> value) noexcept { relativeSource_ = std::move(value); }
-    Ref<IValueConverter> GetConverter() const noexcept { return converter_; }
-    void SetConverter(Ref<IValueConverter> value) noexcept { converter_ = std::move(value); }
-    const Value& GetConverterParameter() const noexcept { return converterParameter_; }
-    void SetConverterParameter(Value value) noexcept { converterParameter_ = std::move(value); }
+    Ref<Base::Object> GetSource() const noexcept {
+        return options_ != nullptr ? options_->source : Ref<Base::Object>{};
+    }
+    void SetSource(Ref<Base::Object> value) noexcept {
+        if (!value && options_ == nullptr) return;
+        if (BindingOptions* opt = EnsureOptions()) {
+            opt->source = std::move(value);
+        }
+    }
+    Ref<RelativeSource> GetRelativeSource() const noexcept {
+        return options_ != nullptr ? options_->relativeSource : Ref<RelativeSource>{};
+    }
+    void SetRelativeSource(Ref<RelativeSource> value) noexcept {
+        if (!value && options_ == nullptr) return;
+        if (BindingOptions* opt = EnsureOptions()) {
+            opt->relativeSource = std::move(value);
+        }
+    }
+    Ref<IValueConverter> GetConverter() const noexcept {
+        return options_ != nullptr ? options_->converter : Ref<IValueConverter>{};
+    }
+    void SetConverter(Ref<IValueConverter> value) noexcept {
+        if (!value && options_ == nullptr) return;
+        if (BindingOptions* opt = EnsureOptions()) {
+            opt->converter = std::move(value);
+        }
+    }
+    const Value& GetConverterParameter() const noexcept {
+        return rare_ != nullptr ? rare_->converterParameter : EmptyValue();
+    }
+    void SetConverterParameter(Value value) noexcept {
+        if (value.IsUnset() && rare_ == nullptr) return;
+        if (RareOptions* r = EnsureRare()) {
+            r->converterParameter = std::move(value);
+        }
+    }
 
 private:
+    struct BindingOptions {
+        String elementName{&Base::GetDefaultAllocator()};
+        Ref<Base::Object> source;
+        Ref<RelativeSource> relativeSource;
+        Ref<IValueConverter> converter;
+    };
+
+    BindingOptions* EnsureOptions() noexcept {
+        if (options_ == nullptr) {
+            options_ = new (std::nothrow) BindingOptions();
+        }
+        return options_;
+    }
+
     PropertyPath path_;
-    String elementName_;
+    BindingOptions* options_ = nullptr;
     BindingMode mode_ = BindingMode::Default;
     UpdateSourceTrigger updateSourceTrigger_ = UpdateSourceTrigger::Default;
-    Ref<Base::Object> source_;
-    Ref<RelativeSource> relativeSource_;
-    Ref<IValueConverter> converter_;
-    Value converterParameter_;
 };
 } // namespace Aero::Data
 

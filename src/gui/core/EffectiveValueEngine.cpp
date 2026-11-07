@@ -777,6 +777,10 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
             Base::ErrorCode::AlreadyExists,
             "Dependency property already has exact metadata for this type");
     }
+    property.metadata_.Reserve(
+        property.metadata_.Size() + 1U);
+    property.ClearMetadataCache();
+
     const PropertyMetadata* baseMetadata =
         type->BaseType() != InvalidTypeId ? property.MetadataFor(type->BaseType()) : nullptr;
     if (baseMetadata == nullptr) {
@@ -792,9 +796,6 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     if (!validation) {
         return validation.GetStatus();
     }
-
-    property.metadata_.Reserve(
-        property.metadata_.Size() + 1U);
 
     DependencyProperty::MetadataEntry entry;
     entry.forType = forType;

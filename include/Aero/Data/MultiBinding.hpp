@@ -15,8 +15,15 @@ public:
 
     Ref<IMultiValueConverter> GetConverter() const noexcept { return converter_; }
     void SetConverter(Ref<IMultiValueConverter> value) noexcept { converter_ = std::move(value); }
-    const Value& GetConverterParameter() const noexcept { return converterParameter_; }
-    void SetConverterParameter(Value value) noexcept { converterParameter_ = std::move(value); }
+    const Value& GetConverterParameter() const noexcept {
+        return rare_ != nullptr ? rare_->converterParameter : EmptyValue();
+    }
+    void SetConverterParameter(Value value) noexcept {
+        if (value.IsUnset() && rare_ == nullptr) return;
+        if (RareOptions* r = EnsureRare()) {
+            r->converterParameter = std::move(value);
+        }
+    }
     Span<const Ref<Binding>> GetBindings() const noexcept { return bindings_.AsSpan(); }
     void AddBinding(Ref<Binding> value) noexcept {
         if (value) { (void)bindings_.PushBack(std::move(value)); }
@@ -26,6 +33,5 @@ public:
 private:
     Base::Vector<Ref<Binding>> bindings_;
     Ref<IMultiValueConverter> converter_;
-    Value converterParameter_;
 };
 } // namespace Aero::Data

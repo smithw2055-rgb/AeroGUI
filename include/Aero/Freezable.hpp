@@ -49,6 +49,12 @@ protected:
     void OnPropertyInvalidated(Meta::PropertyInvalidationFlags flags) noexcept override;
     bool VerifyMutationAllowed() const noexcept override;
     std::uint64_t Revision() const noexcept;
+    void AttachChildConsumer(Freezable& child) noexcept {
+        (void)child.AttachConsumer(*this, {});
+    }
+    void DetachChildConsumer(Freezable& child) noexcept {
+        child.DetachConsumer(*this, {});
+    }
 
 private:
     friend class DependencyObject;

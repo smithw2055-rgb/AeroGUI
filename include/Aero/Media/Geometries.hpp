@@ -7,7 +7,6 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
-#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/Media/Transform2D.hpp>
 #include <Aero/Value.hpp>
 
@@ -51,11 +50,12 @@ protected:
     explicit Geometry(Meta::TypeId runtimeType) noexcept : Animatable(runtimeType) {}
     virtual void FlattenCore(FlattenSink& sink) const noexcept;
     bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
     void OnTransformChanged(Freezable&) noexcept;
     Ref<Transform> transform_;
-    FreezableChangedHandler transformChangedHandler_;
 };
 
 class AERO_GUI_API PathSegment : public Animatable {
@@ -79,6 +79,9 @@ public:
     LineSegment() noexcept : PathSegment(StaticTypeId()) {}
     AERO_DEPENDENCY_PROPERTY2(Point, Point);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 class AERO_GUI_API BezierSegment : public PathSegment {
@@ -90,6 +93,9 @@ public:
     AERO_DEPENDENCY_PROPERTY2(Point, Point2);
     AERO_DEPENDENCY_PROPERTY2(Point, Point3);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 class AERO_GUI_API QuadraticBezierSegment : public PathSegment {
@@ -100,6 +106,9 @@ public:
     AERO_DEPENDENCY_PROPERTY2(Point, Point1);
     AERO_DEPENDENCY_PROPERTY2(Point, Point2);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 class AERO_GUI_API PolyLineSegment : public PathSegment {
@@ -114,6 +123,11 @@ public:
     void SetPoints(StringView text) noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
     Base::Vector<Point> points_;
@@ -132,6 +146,11 @@ public:
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
 
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
+
 private:
     Base::Vector<Point> points_;
 };
@@ -148,6 +167,11 @@ public:
     void SetPoints(StringView text) noexcept;
     void SetPointsText(Base::String text) noexcept { SetPoints(text.View()); }
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
     Base::Vector<Point> points_;
@@ -169,6 +193,9 @@ public:
     AERO_DEPENDENCY_PROPERTY2(bool, IsLargeArc);
     AERO_DEPENDENCY_PROPERTY2(SweepDirection, SweepDirection);
     void Flatten(FlattenSink& sink, Point& currentPoint) const noexcept override;
+
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
 };
 
 class AERO_GUI_API PathFigure : public Animatable {
@@ -176,18 +203,22 @@ class AERO_GUI_API PathFigure : public Animatable {
 
 public:
     PathFigure() noexcept : Animatable(StaticTypeId()) {}
+    ~PathFigure() override;
     void AddSegment(Ref<PathSegment> value) noexcept;
-    void ClearSegments() noexcept {
-        if (!WritePreamble()) return;
-        segments_.Clear();
-        WritePostscript();
-    }
+    void ClearSegments() noexcept;
     Span<const Ref<PathSegment>> GetSegments() const noexcept { return segments_.AsSpan(); }
     AERO_DEPENDENCY_PROPERTY2(Point, StartPoint);
     AERO_DEPENDENCY_PROPERTY2(bool, IsClosed);
 
+protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
+    bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
+
 private:
-    FreezableCollection<PathSegment> segments_;
+    void OnSegmentChanged(Freezable&) noexcept;
+    Base::Vector<Ref<PathSegment>> segments_{&Base::GetDefaultAllocator()};
 };
 
 class StreamGeometry;
@@ -270,20 +301,22 @@ class AERO_GUI_API GeometryGroup : public Geometry {
 
 public:
     GeometryGroup() noexcept : Geometry(StaticTypeId()) {}
+    ~GeometryGroup() override;
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void Add(Ref<Geometry> value) noexcept;
-    void Clear() noexcept {
-        if (!WritePreamble()) return;
-        children_.Clear();
-        WritePostscript();
-    }
+    void Clear() noexcept;
     Span<const Ref<Geometry>> GetChildren() const noexcept { return children_.AsSpan(); }
 
 protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
     void FlattenCore(FlattenSink& sink) const noexcept override;
+    bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
-    FreezableCollection<Geometry> children_;
+    void OnChildChanged(Freezable&) noexcept;
+    Base::Vector<Ref<Geometry>> children_{&Base::GetDefaultAllocator()};
 };
 
 enum class GeometryCombineMode : std::uint8_t {
@@ -298,6 +331,7 @@ class AERO_GUI_API CombinedGeometry : public Geometry {
 
 public:
     CombinedGeometry() noexcept : Geometry(StaticTypeId()) {}
+    ~CombinedGeometry() override;
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     Ref<Geometry> GetGeometry1() const noexcept { return geometry1_; }
     Ref<Geometry> GetGeometry2() const noexcept { return geometry2_; }
@@ -314,7 +348,6 @@ private:
     void AttachChild(Ref<Geometry>& slot, Ref<Geometry> value) noexcept;
     Ref<Geometry> geometry1_;
     Ref<Geometry> geometry2_;
-    FreezableChangedHandler childChangedHandler_;
 };
 
 class AERO_GUI_API PathGeometry : public Geometry {
@@ -322,21 +355,23 @@ class AERO_GUI_API PathGeometry : public Geometry {
 
 public:
     PathGeometry() noexcept : Geometry(StaticTypeId()) {}
+    ~PathGeometry() override;
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
     void AddFigure(Ref<PathFigure> value) noexcept;
-    void ClearFigures() noexcept {
-        if (!WritePreamble()) return;
-        figures_.Clear();
-        WritePostscript();
-    }
+    void ClearFigures() noexcept;
     Span<const Ref<PathFigure>> GetFigures() const noexcept { return figures_.AsSpan(); }
     Result<String> ToStreamData() const noexcept;
 
 protected:
+    Base::Ref<Freezable> CreateInstanceCore() const override;
     void FlattenCore(FlattenSink& sink) const noexcept override;
+    bool FreezeCore(bool isChecking) noexcept override;
+    void CloneCore(const Freezable& source) override;
+    void CloneCurrentValueCore(const Freezable& source) override;
 
 private:
-    FreezableCollection<PathFigure> figures_;
+    void OnFigureChanged(Freezable&) noexcept;
+    Base::Vector<Ref<PathFigure>> figures_{&Base::GetDefaultAllocator()};
 };
 
 class AERO_GUI_API StreamGeometry : public Geometry {

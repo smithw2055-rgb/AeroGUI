@@ -208,7 +208,6 @@ protected:
 private:
     void OnGradientStopChanged(Freezable&) noexcept;
     Base::Vector<Ref<GradientStop>> stops_;
-    FreezableChangedHandler stopChangedHandler_;
 };
 
 class AERO_GUI_API LinearGradientBrush : public GradientBrush {

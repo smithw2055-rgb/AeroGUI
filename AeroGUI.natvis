@@ -195,4 +195,37 @@
     </Expand>
   </Type>
 
+  <Type Name="Aero::Style">
+    <DisplayString>{{ targetType={targetType_,x}, sealed={sealed_}, basedOn={basedOn_} }}</DisplayString>
+    <Expand>
+      <Item Name="[targetType]">targetType_,x</Item>
+      <Item Name="[sealed]">sealed_</Item>
+      <Item Name="[basedOn]">basedOn_</Item>
+      <Item Name="[program]">program_</Item>
+      <Item Name="[resources]">resources_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Data::Binding">
+    <DisplayString>{{ path={path_.path_}, mode={mode_} }}</DisplayString>
+    <Expand>
+      <Item Name="[path]">path_.path_</Item>
+      <Item Name="[mode]">mode_</Item>
+      <Item Name="[updateSourceTrigger]">updateSourceTrigger_</Item>
+      <Item Name="[options]">options_</Item>
+      <Item Name="[rare]">rare_</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="Aero::Controls::VirtualizingPanel">
+    <DisplayString>{{ realized=({desiredFirstIndex_}, {desiredCount_}), state={state_} }}</DisplayString>
+    <Expand>
+      <Item Name="[visibleFirstIndex]">visibleFirstIndex_</Item>
+      <Item Name="[visibleCount]">visibleCount_</Item>
+      <Item Name="[desiredFirstIndex]">desiredFirstIndex_</Item>
+      <Item Name="[desiredCount]">desiredCount_</Item>
+      <Item Name="[state]">state_</Item>
+    </Expand>
+  </Type>
+
 </AutoVisualizer>

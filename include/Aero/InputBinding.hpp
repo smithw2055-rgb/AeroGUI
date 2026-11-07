@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Aero/RoutedCommand.hpp>
+#include <new>
 
 namespace Aero::Input {
 
@@ -27,25 +28,41 @@ class AERO_GUI_API KeyBinding : public InputBinding {
 
 public:
     KeyBinding() noexcept : InputBinding(StaticTypeId()) {}
-    ~KeyBinding() override = default;
+    ~KeyBinding() override { delete authored_; }
 
-    StringView GetCommandName() const noexcept { return commandName_.View(); }
-    StringView GetKeyName() const noexcept { return keyName_.View(); }
-    StringView GetModifiersName() const noexcept { return modifiersName_.View(); }
+    StringView GetCommandName() const noexcept {
+        return authored_ != nullptr ? authored_->commandName.View() : StringView{};
+    }
+    StringView GetKeyName() const noexcept {
+        return authored_ != nullptr ? authored_->keyName.View() : StringView{};
+    }
+    StringView GetModifiersName() const noexcept {
+        return authored_ != nullptr ? authored_->modifiersName.View() : StringView{};
+    }
     void SetCommandName(StringView value) noexcept;
     void SetKeyName(StringView value) noexcept;
     void SetModifiersName(StringView value) noexcept;
     bool Finalize() noexcept override;
     void ReleaseAuthored() noexcept {
-        commandName_.Clear();
-        keyName_.Clear();
-        modifiersName_.Clear();
+        delete authored_;
+        authored_ = nullptr;
     }
 
 private:
-    String commandName_;
-    String keyName_;
-    String modifiersName_;
+    struct AuthoredData {
+        String commandName{&Base::GetDefaultAllocator()};
+        String keyName{&Base::GetDefaultAllocator()};
+        String modifiersName{&Base::GetDefaultAllocator()};
+    };
+
+    AuthoredData* EnsureAuthored() noexcept {
+        if (authored_ == nullptr) {
+            authored_ = new (std::nothrow) AuthoredData();
+        }
+        return authored_;
+    }
+
+    AuthoredData* authored_ = nullptr;
     bool finalized_ = false;
 };
 
@@ -54,25 +71,28 @@ class AERO_GUI_API MouseBinding : public InputBinding {
 
 public:
     MouseBinding() noexcept : InputBinding(StaticTypeId()) {}
-    ~MouseBinding() override = default;
+    ~MouseBinding() override { delete commandName_; }
 
     MouseButton GetMouseButton() const noexcept { return button_; }
     void SetMouseButton(MouseButton value) noexcept { button_ = value; }
     PointerAction GetAction() const noexcept { return action_; }
     void SetAction(PointerAction value) noexcept { action_ = value; }
-    StringView GetCommandName() const noexcept { return commandName_.View(); }
+    StringView GetCommandName() const noexcept {
+        return commandName_ != nullptr ? commandName_->View() : StringView{};
+    }
     void SetCommandName(StringView value) noexcept;
 
     bool Matches(const PointerInput& input) const noexcept;
     bool Finalize() noexcept override;
     void ReleaseAuthored() noexcept {
-        commandName_.Clear();
+        delete commandName_;
+        commandName_ = nullptr;
     }
 
 private:
+    String* commandName_ = nullptr;
     MouseButton button_ = MouseButton::Left;
     PointerAction action_ = PointerAction::Down;
-    String commandName_;
     bool finalized_ = false;
 };
 

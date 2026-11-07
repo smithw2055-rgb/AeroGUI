@@ -4,6 +4,7 @@
 #include <Aero/Base/String.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Value.hpp>
+#include <new>
 #include <utility>
 
 namespace Aero {
@@ -18,7 +19,7 @@ class AERO_GUI_API BindingBase : public Base::Object {
     AERO_DECLARE_TYPE(BindingBase, Base::Object)
 
 public:
-    ~BindingBase() override = default;
+    ~BindingBase() override { delete rare_; }
 
     Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
     // WPF-style factory: Binding/MultiBinding/PriorityBinding override to
@@ -30,20 +31,57 @@ public:
         return {};
     }
 
-    StringView GetStringFormat() const noexcept { return stringFormat_.View(); }
-    void SetStringFormat(StringView value) noexcept { (void)stringFormat_.Assign(value); }
-    const Value& GetFallbackValue() const noexcept { return fallbackValue_; }
-    void SetFallbackValue(Value value) noexcept { fallbackValue_ = std::move(value); }
-    const Value& GetTargetNullValue() const noexcept { return targetNullValue_; }
-    void SetTargetNullValue(Value value) noexcept { targetNullValue_ = std::move(value); }
+    StringView GetStringFormat() const noexcept {
+        return rare_ != nullptr ? rare_->stringFormat.View() : StringView{};
+    }
+    void SetStringFormat(StringView value) noexcept {
+        if (value.Empty() && rare_ == nullptr) return;
+        if (RareOptions* r = EnsureRare()) {
+            (void)r->stringFormat.Assign(value);
+        }
+    }
+    const Value& GetFallbackValue() const noexcept {
+        return rare_ != nullptr ? rare_->fallbackValue : EmptyValue();
+    }
+    void SetFallbackValue(Value value) noexcept {
+        if (value.IsUnset() && rare_ == nullptr) return;
+        if (RareOptions* r = EnsureRare()) {
+            r->fallbackValue = std::move(value);
+        }
+    }
+    const Value& GetTargetNullValue() const noexcept {
+        return rare_ != nullptr ? rare_->targetNullValue : EmptyValue();
+    }
+    void SetTargetNullValue(Value value) noexcept {
+        if (value.IsUnset() && rare_ == nullptr) return;
+        if (RareOptions* r = EnsureRare()) {
+            r->targetNullValue = std::move(value);
+        }
+    }
 
 protected:
     explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
 
-private:
+    struct RareOptions {
+        String stringFormat{&Base::GetDefaultAllocator()};
+        Value fallbackValue;
+        Value targetNullValue;
+        Value converterParameter;
+    };
+
+    RareOptions* EnsureRare() noexcept {
+        if (rare_ == nullptr) {
+            rare_ = new (std::nothrow) RareOptions();
+        }
+        return rare_;
+    }
+
+    static const Value& EmptyValue() noexcept {
+        static const Value kEmpty{};
+        return kEmpty;
+    }
+
     Meta::TypeId runtimeType_ = StaticTypeId();
-    String stringFormat_;
-    Value fallbackValue_;
-    Value targetNullValue_;
+    RareOptions* rare_ = nullptr;
 };
 } // namespace Aero::Data

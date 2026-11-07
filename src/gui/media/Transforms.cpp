@@ -312,24 +312,24 @@ void TransformGroup::AddChild(
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     if (ContainsTransform(*value, this)) { AERO_ASSERT(false); return; }
-    if (childChangedHandler_.Empty()) {
-        childChangedHandler_ = FreezableChangedHandler(
-            this, &TransformGroup::OnChildChanged);
-    }
     Transform* retained = value.Get();
     if (!retained->IsFrozen()) {
-        retained->AddChangedHandler(childChangedHandler_);
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &TransformGroup::OnChildChanged));
+        AttachChildConsumer(*retained);
     }
-    children_.Add(std::move(value));
+    children_.PushBack(std::move(value));
     WritePostscript();
 }
 
 void TransformGroup::ClearChildren() noexcept {
     if (!WritePreamble() || children_.Empty()) return;
+    const FreezableChangedHandler handler(
+        this, &TransformGroup::OnChildChanged);
     for (Base::Ref<Transform>& child : children_) {
-        if (child && !childChangedHandler_.Empty()) {
-            static_cast<void>(
-                child->RemoveChangedHandler(childChangedHandler_));
+        if (child && !child->IsFrozen()) {
+            static_cast<void>(child->RemoveChangedHandler(handler));
+            DetachChildConsumer(*child);
         }
     }
     children_.Clear();
@@ -337,10 +337,12 @@ void TransformGroup::ClearChildren() noexcept {
 }
 
 TransformGroup::~TransformGroup() {
+    const FreezableChangedHandler handler(
+        this, &TransformGroup::OnChildChanged);
     for (Base::Ref<Transform>& child : children_) {
-        if (child && !childChangedHandler_.Empty()) {
-            static_cast<void>(
-                child->RemoveChangedHandler(childChangedHandler_));
+        if (child && !child->IsFrozen()) {
+            static_cast<void>(child->RemoveChangedHandler(handler));
+            DetachChildConsumer(*child);
         }
     }
 }

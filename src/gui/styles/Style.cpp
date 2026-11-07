@@ -269,6 +269,8 @@ struct Style::Program {
     TypeId targetType = InvalidTypeId;
     Base::Vector<StyleSetter> setters;
     Base::Vector<TriggerPlan> triggers;
+    Base::Vector<Base::Ref<SetterBase>> authoredSetterObjects{&Base::GetDefaultAllocator()};
+    Base::Vector<Base::Ref<TriggerBase>> authoredTriggerObjects{&Base::GetDefaultAllocator()};
     std::uint64_t triggerPropertyMask = 0ULL;
     bool frozen = false;
 };
@@ -393,15 +395,46 @@ Style::Style(
     TypeId runtimeType) noexcept
     : runtimeType_(runtimeType),
       targetType_(targetType),
-      basedOn_(basedOn),
-      resources_() {
-    static_assert(sizeof(Style::Program) <= sizeof(programStorage_),
-        "programStorage_ is too small for Style::Program");
-    new (programStorage_) Style::Program();
-}
+      basedOn_(basedOn) {}
 
 Style::~Style() {
-    GetProgram().~Program();
+    delete program_;
+    program_ = nullptr;
+    delete resources_;
+    resources_ = nullptr;
+}
+
+Style::Program& Style::GetProgram() noexcept {
+    if (program_ == nullptr) {
+        program_ = new (std::nothrow) Style::Program();
+        if (program_ == nullptr) {
+            Base::ReportOutOfMemory(
+                sizeof(Style::Program),
+                alignof(Style::Program),
+                Base::MemoryTag::Object);
+        }
+    }
+    return *program_;
+}
+
+const Style::Program& Style::GetProgram() const noexcept {
+    if (program_ != nullptr) {
+        return *program_;
+    }
+    static const Style::Program kEmptyProgram{};
+    return kEmptyProgram;
+}
+
+Base::Span<const Base::Ref<SetterBase>> Style::GetAuthoredSetters() const noexcept {
+    return program_ != nullptr
+        ? program_->authoredSetterObjects.AsSpan()
+        : Base::Span<const Base::Ref<SetterBase>>{};
+}
+
+Base::Span<const Base::Ref<TriggerBase>> Style::GetAuthoredTriggers() const noexcept {
+    return program_ != nullptr
+        ? program_->authoredTriggerObjects.AsSpan()
+        : Base::Span<const Base::Ref<TriggerBase>>{};
 }
 
 TypeId Style::GetTargetType() const noexcept {
@@ -455,7 +488,7 @@ void Style::AddAuthoredSetter(
     Base::Ref<SetterBase> setter) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
     if (!setter) { AERO_ASSERT(false); return; }
-    authoredSetterObjects_.PushBack(
+    GetProgram().authoredSetterObjects.PushBack(
         std::move(setter));
 }
 
@@ -468,15 +501,15 @@ void Style::AddAuthoredTrigger(
     Base::Ref<TriggerBase> trigger) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
     if (!trigger) { AERO_ASSERT(false); return; }
-    authoredTriggerObjects_.PushBack(
+    GetProgram().authoredTriggerObjects.PushBack(
         std::move(trigger));
 }
 
 void Style::ClearAuthoredSetters() noexcept {
-    if (sealed_) {
+    if (sealed_ || program_ == nullptr) {
         return;
     }
-    authoredSetterObjects_.Clear();
+    program_->authoredSetterObjects.Clear();
 }
 
 void EventSetter::SetHandlerName(Base::StringView value) noexcept {
@@ -484,10 +517,10 @@ void EventSetter::SetHandlerName(Base::StringView value) noexcept {
 }
 
 void Style::ClearAuthoredTriggers() noexcept {
-    if (sealed_) {
+    if (sealed_ || program_ == nullptr) {
         return;
     }
-    authoredTriggerObjects_.Clear();
+    program_->authoredTriggerObjects.Clear();
 }
 
 void Style::AddSetter(
@@ -605,7 +638,7 @@ Base::Result<void> Style::Seal(
     // setters use owner-qualified properties. Infer the owner for declarations
     // such as Property="local:DateTime.Template".
     if (targetType_ == InvalidTypeId) {
-        for (const Base::Ref<SetterBase>& authored : authoredSetterObjects_) {
+        for (const Base::Ref<SetterBase>& authored : program.authoredSetterObjects) {
             Setter* setter = ::Aero::TryCast<Setter>(authored.Get());
             if (setter == nullptr) continue;
             Base::StringView name = setter->GetPropertyName();
@@ -698,7 +731,7 @@ Base::Result<void> Style::Seal(
         return resolved != nullptr ? resolved->Handle() : DependencyPropertyHandle{};
     };
 
-    for (const Base::Ref<SetterBase>& authored : authoredSetterObjects_) {
+    for (const Base::Ref<SetterBase>& authored : program.authoredSetterObjects) {
         Setter* setter = ::Aero::TryCast<Setter>(authored.Get());
         if (setter == nullptr) {
             continue;
@@ -746,7 +779,7 @@ Base::Result<void> Style::Seal(
         }
     };
 
-    for (const Base::Ref<TriggerBase>& entry : authoredTriggerObjects_) {
+    for (const Base::Ref<TriggerBase>& entry : program.authoredTriggerObjects) {
         if (Trigger* trigger = ::Aero::TryCast<Trigger>(entry.Get())) {
             TriggerPlan plan;
             plan.property = trigger->GetProperty();
@@ -927,42 +960,44 @@ Base::Result<void> Style::Seal(
     Base::Result<void> frozenProgram = program.Freeze(
         targetType_, std::move(next), std::move(nextTriggers));
     if (!frozenProgram) return frozenProgram.GetStatus();
-    resources_.Seal();
+    if (resources_ != nullptr) {
+        resources_->Seal();
+    }
     std::uint32_t keptEventSetters = 0U;
-    for (std::uint32_t index = 0U; index < authoredSetterObjects_.Size(); ++index) {
-        if (::Aero::TryCast<EventSetter>(authoredSetterObjects_[index].Get()) != nullptr) {
+    for (std::uint32_t index = 0U; index < program.authoredSetterObjects.Size(); ++index) {
+        if (::Aero::TryCast<EventSetter>(program.authoredSetterObjects[index].Get()) != nullptr) {
             if (keptEventSetters != index) {
-                authoredSetterObjects_[keptEventSetters] =
-                    std::move(authoredSetterObjects_[index]);
+                program.authoredSetterObjects[keptEventSetters] =
+                    std::move(program.authoredSetterObjects[index]);
             }
             ++keptEventSetters;
         }
     }
     if (keptEventSetters == 0U) {
-        authoredSetterObjects_ = Base::Vector<Base::Ref<SetterBase>>(
-            &authoredSetterObjects_.Allocator());
+        program.authoredSetterObjects = Base::Vector<Base::Ref<SetterBase>>(
+            &program.authoredSetterObjects.Allocator());
     } else {
-        static_cast<void>(authoredSetterObjects_.Resize(keptEventSetters));
+        static_cast<void>(program.authoredSetterObjects.Resize(keptEventSetters));
     }
     // Retain immutable EventTrigger declarations for per-element routed-event
     // subscriptions. Property/DataTrigger/MultiDataTrigger plans are compiled
     // into program_ and their authored objects can now be released.
     std::uint32_t keptEventTriggers = 0U;
-    for (std::uint32_t index = 0U; index < authoredTriggerObjects_.Size(); ++index) {
-        if (authoredTriggerObjects_[index] &&
-            ::Aero::TryCast<SetterTriggerBase>(authoredTriggerObjects_[index].Get()) == nullptr) {
+    for (std::uint32_t index = 0U; index < program.authoredTriggerObjects.Size(); ++index) {
+        if (program.authoredTriggerObjects[index] &&
+            ::Aero::TryCast<SetterTriggerBase>(program.authoredTriggerObjects[index].Get()) == nullptr) {
             if (keptEventTriggers != index) {
-                authoredTriggerObjects_[keptEventTriggers] =
-                    std::move(authoredTriggerObjects_[index]);
+                program.authoredTriggerObjects[keptEventTriggers] =
+                    std::move(program.authoredTriggerObjects[index]);
             }
             ++keptEventTriggers;
         }
     }
     if (keptEventTriggers == 0U) {
-        authoredTriggerObjects_ = Base::Vector<Base::Ref<TriggerBase>>(
-            &authoredTriggerObjects_.Allocator());
+        program.authoredTriggerObjects = Base::Vector<Base::Ref<TriggerBase>>(
+            &program.authoredTriggerObjects.Allocator());
     } else {
-        static_cast<void>(authoredTriggerObjects_.Resize(keptEventTriggers));
+        static_cast<void>(program.authoredTriggerObjects.Resize(keptEventTriggers));
     }
     // Keep the BasedOn link so callers can still query the resolved base
     // style after sealing (GetBasedOn()).
@@ -971,10 +1006,29 @@ Base::Result<void> Style::Seal(
     return {};
 }
 
+ResourceDictionary& Style::GetResources() noexcept {
+    ResourceDictionary& dict = EnsureOwnedResources(resources_);
+    if (sealed_ && !dict.GetIsSealed()) {
+        dict.Seal();
+    }
+    return dict;
+}
+
+const ResourceDictionary& Style::GetResources() const noexcept {
+    ResourceDictionary& dict = EnsureOwnedResources(resources_);
+    if (sealed_ && !dict.GetIsSealed()) {
+        dict.Seal();
+    }
+    return dict;
+}
+
 void Style::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
+    if (sealed_) {
+        return;
+    }
     (void)Aero::AssignResourceDictionary(
-        resources_,
+        EnsureOwnedResources(resources_),
         std::move(value),
         "Style Resources is already assigned");
 }

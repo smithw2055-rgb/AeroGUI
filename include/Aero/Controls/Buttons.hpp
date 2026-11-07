@@ -66,7 +66,6 @@ private:
     void OnCanExecuteChanged() noexcept;
 
     Base::Ref<ICommand> hookedCommand_;
-    Base::Delegate<void()> canExecuteChangedHandler_;
     std::uint32_t pointerId_ = 0U;
     bool pointerDown_ = false;
     bool keyboardDown_ = false;

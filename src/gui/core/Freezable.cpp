@@ -250,6 +250,15 @@ bool Freezable::Freeze() noexcept {
 }
 
 Base::Ref<Freezable> Freezable::CreateInstanceCore() const {
+    if (const auto* metadata = Meta::CurrentObjectFactory().metadata) {
+        Base::Result<Base::Ref<Base::Object>> created =
+            metadata->CreateObject(RuntimeType());
+        if (created && created.Value()) {
+            if (auto* freezable = ::Aero::TryCast<Freezable>(created.Value().Get())) {
+                return Base::Ref<Freezable>::FromBorrowed(*freezable);
+            }
+        }
+    }
     return {};
 }
 
@@ -355,7 +364,7 @@ bool Freezable::WritePreamble() const noexcept {
 }
 
 void Freezable::WritePostscript() noexcept {
-    if (!IsFrozen() && state_ != nullptr && !state_->freezing) OnChanged();
+    if (!IsFrozen() && (state_ != nullptr || EnsureState()) && !state_->freezing) OnChanged();
 }
 
 bool Freezable::FreezeCore(bool) noexcept {

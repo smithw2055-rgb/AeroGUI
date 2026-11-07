@@ -368,20 +368,26 @@ Base::Result<std::uint32_t> ParseModifiersName(
 void CommandBinding::SetCommandName(Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    if (RareData* r = EnsureRare()) {
+        r->commandName = std::move(candidate);
+    }
     command_.Reset();
 }
 
 void CommandBinding::SetExecutedName(Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    executedName_ = std::move(candidate);
+    if (RareData* r = EnsureRare()) {
+        r->executedName = std::move(candidate);
+    }
 }
 
 void CommandBinding::SetCanExecuteName(Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    canExecuteName_ = std::move(candidate);
+    if (RareData* r = EnsureRare()) {
+        r->canExecuteName = std::move(candidate);
+    }
 }
 
 bool CommandBinding::Finalize() noexcept {
@@ -389,10 +395,11 @@ bool CommandBinding::Finalize() noexcept {
         ReleaseAuthored();
         return true;
     }
-    if (commandName_.Empty()) {
+    const Base::StringView cmdName = GetCommandName();
+    if (cmdName.Empty()) {
         return false;
     }
-    command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+    command_ = RoutedCommand::ResolveAuthored(cmdName);
     if (!command_) {
         return false;
     }
@@ -404,7 +411,9 @@ void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    if (AuthoredData* a = EnsureAuthored()) {
+        a->commandName = std::move(candidate);
+    }
     command_.Reset();
     finalized_ = false;
 }
@@ -413,7 +422,9 @@ void KeyBinding::SetKeyName(
     Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    keyName_ = std::move(candidate);
+    if (AuthoredData* a = EnsureAuthored()) {
+        a->keyName = std::move(candidate);
+    }
     command_.Reset();
     finalized_ = false;
 }
@@ -422,33 +433,37 @@ void KeyBinding::SetModifiersName(
     Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    modifiersName_ = std::move(candidate);
+    if (AuthoredData* a = EnsureAuthored()) {
+        a->modifiersName = std::move(candidate);
+    }
     command_.Reset();
     finalized_ = false;
 }
 
 bool KeyBinding::Finalize() noexcept {
     if (finalized_) return true;
-    if (commandName_.Empty() && keyName_.Empty() && !command_) {
+    const Base::StringView cmdName = GetCommandName();
+    const Base::StringView kName = GetKeyName();
+    if (cmdName.Empty() && kName.Empty() && !command_) {
         return false;
     }
-    if (!commandName_.Empty() || !keyName_.Empty()) {
-        if (commandName_.Empty() && !command_) {
+    if (!cmdName.Empty() || !kName.Empty()) {
+        if (cmdName.Empty() && !command_) {
             return false;
         }
-        if (keyName_.Empty()) {
+        if (kName.Empty()) {
             return false;
         }
         if (!command_) {
-            command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+            command_ = RoutedCommand::ResolveAuthored(cmdName);
             if (!command_) {
                 return false;
             }
         }
-        Base::Result<std::uint32_t> key = ParseKeyName(keyName_.View());
+        Base::Result<std::uint32_t> key = ParseKeyName(kName);
         if (!key) return false;
         Base::Result<std::uint32_t> modifiers = ParseModifiersName(
-            modifiersName_.View());
+            GetModifiersName());
         if (!modifiers) return false;
         Base::Ref<KeyGesture> gesture =
             Base::MakeRef<KeyGesture>(key.Value(), modifiers.Value());
@@ -464,7 +479,12 @@ bool KeyBinding::Finalize() noexcept {
 void MouseBinding::SetCommandName(Base::StringView value) noexcept {
     Base::String candidate;
     if (!candidate.Assign(TrimAscii(value))) return;
-    commandName_ = std::move(candidate);
+    if (commandName_ == nullptr) {
+        commandName_ = new (std::nothrow) Base::String(&Base::GetDefaultAllocator());
+    }
+    if (commandName_ != nullptr) {
+        *commandName_ = std::move(candidate);
+    }
     command_.Reset();
     finalized_ = false;
 }
@@ -480,10 +500,11 @@ bool MouseBinding::Finalize() noexcept {
         ReleaseAuthored();
         return true;
     }
-    if (commandName_.Empty()) {
+    const Base::StringView cmdName = GetCommandName();
+    if (cmdName.Empty()) {
         return false;
     }
-    command_ = RoutedCommand::ResolveAuthored(commandName_.View());
+    command_ = RoutedCommand::ResolveAuthored(cmdName);
     if (!command_) {
         return false;
     }

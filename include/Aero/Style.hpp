@@ -88,8 +88,8 @@ public:
     SetterBaseCollection GetSetters() noexcept { return SetterBaseCollection(*this); }
     TriggerCollection GetTriggers() noexcept { return TriggerCollection(*this); }
     bool GetIsSealed() const noexcept { return sealed_; }
-    ResourceDictionary& GetResources() noexcept { return resources_; }
-    const ResourceDictionary& GetResources() const noexcept { return resources_; }
+    ResourceDictionary& GetResources() noexcept;
+    const ResourceDictionary& GetResources() const noexcept;
     void SetResources(Ref<ResourceDictionary> value) noexcept;
 
 private:
@@ -110,33 +110,23 @@ private:
     void AddAuthoredTrigger(Ref<TriggerBase> trigger) noexcept;
     void ClearAuthoredSetters() noexcept;
     void ClearAuthoredTriggers() noexcept;
-    Span<const Ref<SetterBase>> GetAuthoredSetters() const noexcept {
-        return {authoredSetterObjects_.Data(), authoredSetterObjects_.Size()};
-    }
-    Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept {
-        return {authoredTriggerObjects_.Data(), authoredTriggerObjects_.Size()};
-    }
+    Span<const Ref<SetterBase>> GetAuthoredSetters() const noexcept;
+    Span<const Ref<TriggerBase>> GetAuthoredTriggers() const noexcept;
     // Compiled by Style::Program::Seal / markup finalize; not a public authoring API.
     Result<void> Seal(const Meta::DependencyPropertyRegistry& properties) noexcept;
     // WPF-parity no-arg hook. Called at the end of Seal(); override to
     // validate without touching DependencyPropertyRegistry internals.
     virtual void OnSeal() noexcept {}
 
-    Program& GetProgram() noexcept {
-        return *reinterpret_cast<Program*>(programStorage_);
-    }
-    const Program& GetProgram() const noexcept {
-        return *reinterpret_cast<const Program*>(programStorage_);
-    }
+    Program& GetProgram() noexcept;
+    const Program& GetProgram() const noexcept;
 
     TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Ref<Base::Object> basedOnOwner_;
-    Base::Vector<Ref<SetterBase>> authoredSetterObjects_;
-    Base::Vector<Ref<TriggerBase>> authoredTriggerObjects_;
-    alignas(alignof(std::uint64_t)) std::uint8_t programStorage_[80]{};
-    ResourceDictionary resources_;
+    mutable Program* program_ = nullptr;
+    mutable ResourceDictionary* resources_ = nullptr;
     bool sealed_ = false;
 };
 

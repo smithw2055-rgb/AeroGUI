@@ -900,51 +900,13 @@ Base::Result<const Meta::BindingPathPlan*>
 InteractivityEngine::FindOrCompileBindingPath(
         Meta::TypeId sourceType,
         Base::StringView path) noexcept {
-        if (Metadata() == nullptr || sourceType == Meta::InvalidTypeId || path.Empty()) {
+        if (Metadata() == nullptr || Bindings() == nullptr ||
+            sourceType == Meta::InvalidTypeId || path.Empty()) {
             return Base::Status::Failure(
                 Base::ErrorCode::InvalidArgument,
                 "Authored Binding path or source type is invalid");
         }
-        const Base::HashCode key = Base::MixHash64(
-            sourceType ^ Base::DefaultHash<Base::StringView>{}(path));
-        if (Base::Vector<CachedBindingPathPlan>* bucket =
-                compiledPathCache_.Find(key)) {
-            for (const CachedBindingPathPlan& entry : *bucket) {
-                if (entry.sourceType == sourceType &&
-                    entry.path.View() == path) {
-                    return &entry.plan;
-                }
-            }
-        }
-        Meta::BindingPathCompileError pathError;
-        Base::Result<Meta::BindingPathPlan> compiled =
-            Meta::BindingPathPlan::Compile(
-                *Metadata(), sourceType, path, &pathError);
-        if (!compiled) {
-            return compiled.GetStatus();
-        }
-        CachedBindingPathPlan entry;
-        entry.sourceType = sourceType;
-        Base::Result<void> assigned = entry.path.Assign(path);
-        if (!assigned) {
-            return assigned.GetStatus();
-        }
-        entry.plan = std::move(compiled).Value();
-        Base::Vector<CachedBindingPathPlan>* bucket =
-            compiledPathCache_.Find(key);
-        if (bucket == nullptr) {
-            Base::Vector<CachedBindingPathPlan> created(Allocator());
-            created.PushBack(std::move(entry));
-            auto inserted = compiledPathCache_.Insert(key, std::move(created));
-            if (inserted.entry == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::OutOfMemory,
-                    "Failed to cache compiled binding path");
-            }
-            return &inserted.entry->Value().Back().plan;
-        }
-        bucket->PushBack(std::move(entry));
-        return &bucket->Back().plan;
+        return Bindings()->FindOrCompilePathPlan(*Metadata(), sourceType, path);
     }
 
 Base::Object* InteractivityEngine::ResolveAuthoredBindingSource(

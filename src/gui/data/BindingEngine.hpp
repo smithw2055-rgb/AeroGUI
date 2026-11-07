@@ -300,6 +300,11 @@ public:
     Meta::Registry* Metadata() const noexcept {
         return metadata_;
     }
+    Base::Result<const CompiledBindingPath*> FindOrCompilePathPlan(
+        const Meta::Registry& metadata,
+        Meta::TypeId sourceType,
+        Base::StringView path,
+        Meta::BindingPathCompileError* error = nullptr) noexcept;
     std::uint32_t BindingCount() const noexcept {
         return bindings_.Size();
     }
@@ -417,11 +422,7 @@ private:
         const BindingDescriptor& descriptor) const noexcept;
     Base::Result<void> VerifyDescriptor(
         const MetadataBindingDescriptor& descriptor) const noexcept;
-    Base::Result<const CompiledBindingPath*> FindOrCompilePathPlan(
-        const Meta::Registry& metadata,
-        Meta::TypeId sourceType,
-        Base::StringView path,
-        Meta::BindingPathCompileError* error = nullptr) noexcept;
+
     Base::Result<void> ResolveMetadataSource(
         BindingRecord& record) noexcept;
     Base::Result<PropertyValue> ReadSource(

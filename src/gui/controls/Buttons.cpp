@@ -27,8 +27,7 @@ using namespace Primitives;
 // ---------------------------------------------------------------------------
 
 ButtonBase::ButtonBase(TypeId runtimeType) noexcept
-    : ContentControl(runtimeType),
-      canExecuteChangedHandler_(this, &ButtonBase::OnCanExecuteChanged) {
+    : ContentControl(runtimeType) {
     HookCommand(GetCommand());
 }
 
@@ -159,13 +158,15 @@ void ButtonBase::HookCommand(ICommand* command) noexcept {
     UnhookCommand();
     if (command != nullptr) {
         hookedCommand_ = Base::Ref<ICommand>::FromBorrowed(*command);
-        hookedCommand_->AddCanExecuteChanged(canExecuteChangedHandler_);
+        hookedCommand_->AddCanExecuteChanged(
+            Base::Delegate<void()>(this, &ButtonBase::OnCanExecuteChanged));
     }
 }
 
 void ButtonBase::UnhookCommand() noexcept {
     if (hookedCommand_) {
-        hookedCommand_->RemoveCanExecuteChanged(canExecuteChangedHandler_);
+        hookedCommand_->RemoveCanExecuteChanged(
+            Base::Delegate<void()>(this, &ButtonBase::OnCanExecuteChanged));
         hookedCommand_.Reset();
     }
 }

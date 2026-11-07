@@ -440,25 +440,24 @@ void TimelineGroup::AddChild(
     if (!WritePreamble()) { AERO_ASSERT(false); return; }
     if (!value) { AERO_ASSERT(false); return; }
     if (ContainsTimeline(*value, this)) { AERO_ASSERT(false); return; }
-    if (timelineChangedHandler_.Empty()) {
-        timelineChangedHandler_ = FreezableChangedHandler(
-            this, &TimelineGroup::OnTimelineChanged);
-    }
     Timeline* retained = value.Get();
     if (!retained->IsFrozen()) {
-        retained->AddChangedHandler(timelineChangedHandler_);
+        retained->AddChangedHandler(
+            FreezableChangedHandler(this, &TimelineGroup::OnTimelineChanged));
+        AttachChildConsumer(*retained);
     }
-    timelines_.Add(std::move(value));
+    timelines_.PushBack(std::move(value));
     WritePostscript();
 }
 
 void TimelineGroup::Clear() noexcept {
     if (!WritePreamble() || timelines_.Empty()) return;
+    const FreezableChangedHandler handler(
+        this, &TimelineGroup::OnTimelineChanged);
     for (const Base::Ref<Timeline>& timeline : timelines_) {
-        if (timeline && !timeline->IsFrozen() &&
-            !timelineChangedHandler_.Empty()) {
-            static_cast<void>(timeline->RemoveChangedHandler(
-                timelineChangedHandler_));
+        if (timeline && !timeline->IsFrozen()) {
+            static_cast<void>(timeline->RemoveChangedHandler(handler));
+            DetachChildConsumer(*timeline);
         }
     }
     timelines_.Clear();
@@ -466,11 +465,12 @@ void TimelineGroup::Clear() noexcept {
 }
 
 TimelineGroup::~TimelineGroup() {
+    const FreezableChangedHandler handler(
+        this, &TimelineGroup::OnTimelineChanged);
     for (const Base::Ref<Timeline>& timeline : timelines_) {
-        if (timeline && !timeline->IsFrozen() &&
-            !timelineChangedHandler_.Empty()) {
-            static_cast<void>(timeline->RemoveChangedHandler(
-                timelineChangedHandler_));
+        if (timeline && !timeline->IsFrozen()) {
+            static_cast<void>(timeline->RemoveChangedHandler(handler));
+            DetachChildConsumer(*timeline);
         }
     }
 }

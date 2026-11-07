@@ -47,8 +47,36 @@ public:
 protected:
     friend class ItemContainerGenerator;
 
+    struct VirtualizationState {
+        Base::Vector<double> itemExtents{&Base::GetDefaultAllocator()};
+        Base::Vector<double> extentTree{&Base::GetDefaultAllocator()};
+        ScrollData data{};
+        double crossExtent = 0.0;
+    };
+
     explicit VirtualizingPanel(TypeId runtimeType) noexcept : Panel(runtimeType) {}
-    ~VirtualizingPanel() override = default;
+    ~VirtualizingPanel() override { delete state_; }
+
+    VirtualizationState& State() noexcept {
+        if (state_ == nullptr) {
+            state_ = new (std::nothrow) VirtualizationState();
+            if (state_ == nullptr) {
+                Base::ReportOutOfMemory(
+                    sizeof(VirtualizationState),
+                    alignof(VirtualizationState),
+                    Base::MemoryTag::Object);
+            }
+        }
+        return *state_;
+    }
+
+    const VirtualizationState& State() const noexcept {
+        if (state_ != nullptr) {
+            return *state_;
+        }
+        static const VirtualizationState kEmptyState{};
+        return kEmptyState;
+    }
 
     // Shared by stack and wrap virtualization. Stack keeps its own extent tree.
     virtual bool AttachGenerator(ItemContainerGenerator& generator, std::uint32_t itemCount) noexcept;
@@ -56,8 +84,7 @@ protected:
     virtual void HandleItemsChanged(const Collections::ItemsChangedEvent& event, std::uint32_t itemCount) noexcept;
 
     ItemContainerGenerator* generator_ = nullptr;
-    Base::Vector<double> itemExtents_;
-    ScrollData data_{};
+    VirtualizationState* state_ = nullptr;
     std::uint32_t visibleFirstIndex_ = 0U;
     std::uint32_t visibleCount_ = 0U;
     std::uint32_t desiredFirstIndex_ = 0U;
@@ -91,7 +118,7 @@ public:
     double GetItemExtent(std::uint32_t index) const noexcept;
     double GetItemOffset(std::uint32_t index) const noexcept;
 
-    ScrollData GetData() const noexcept override { return data_; }
+    ScrollData GetData() const noexcept override { return state_ != nullptr ? state_->data : ScrollData{}; }
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;
@@ -128,8 +155,6 @@ protected:
     Orientation orientation_ = Orientation::Vertical;
 
 private:
-    Base::Vector<double> extentTree_;
-    double crossExtent_ = 0.0;
     std::uint32_t overscanCount_ = 2U;
 
     void ResizeExtentCache(std::uint32_t itemCount) noexcept;
@@ -168,7 +193,7 @@ public:
     VirtualizationCacheLengthUnit GetCacheLengthUnit() const noexcept;
     void SetCacheLengthUnit(VirtualizationCacheLengthUnit value) noexcept;
 
-    ScrollData GetData() const noexcept override { return data_; }
+    ScrollData GetData() const noexcept override { return state_ != nullptr ? state_->data : ScrollData{}; }
     void SetViewport(Size viewport) noexcept override;
     void SetHorizontalOffset(double value) noexcept override;
     void SetVerticalOffset(double value) noexcept override;

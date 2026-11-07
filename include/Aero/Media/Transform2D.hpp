@@ -8,7 +8,6 @@
 #include <Aero/Base/Result.hpp>
 #include <Aero/Base/Span.hpp>
 #include <Aero/DependencyProperty.hpp>
-#include <Aero/Media/FreezableCollection.hpp>
 
 #include <cstdint>
 
@@ -143,8 +142,7 @@ private:
     bool FreezeCore(bool isChecking) noexcept override;
     void OnChildChanged(Freezable&) noexcept;
 
-    FreezableCollection<Transform> children_;
-    FreezableChangedHandler childChangedHandler_;
+    Base::Vector<Ref<Transform>> children_{&Base::GetDefaultAllocator()};
 };
 
 } // namespace Aero::Media

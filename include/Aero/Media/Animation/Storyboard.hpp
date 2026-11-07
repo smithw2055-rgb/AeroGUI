@@ -3,8 +3,8 @@
 // TimelineGroup, ParallelTimeline, and Storyboard.
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/Span.hpp>
+#include <Aero/Base/Vector.hpp>
 #include <Aero/Media/Animation/Timeline.hpp>
-#include <Aero/Media/FreezableCollection.hpp>
 #include <Aero/DependencyProperty.hpp>
 
 #include <utility>
@@ -21,18 +21,19 @@ public:
     void ClearTimelines() noexcept { Clear(); }
     Span<const Ref<Timeline>> GetTimelines() const noexcept { return timelines_.AsSpan(); }
     Span<const Ref<Timeline>> Children() const noexcept { return GetTimelines(); }
-    std::uint32_t Count() const noexcept { return timelines_.GetCount(); }
+    std::uint32_t Count() const noexcept { return timelines_.Size(); }
 
 protected:
-    explicit TimelineGroup(Meta::TypeId runtimeType) noexcept : Timeline(runtimeType) {}
+    explicit TimelineGroup(Meta::TypeId runtimeType) noexcept
+        : Timeline(runtimeType),
+          timelines_(&Base::GetDefaultAllocator()) {}
     ~TimelineGroup() override;
     bool FreezeCore(bool isChecking) noexcept override;
     void CloneCore(const Freezable& source) override;
 
 private:
     void OnTimelineChanged(Freezable&) noexcept;
-    FreezableCollection<Timeline> timelines_;
-    FreezableChangedHandler timelineChangedHandler_;
+    Base::Vector<Ref<Timeline>> timelines_;
 };
 
 class AERO_GUI_API ParallelTimeline : public TimelineGroup {
