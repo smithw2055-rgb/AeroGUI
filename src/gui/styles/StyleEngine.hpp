@@ -167,6 +167,9 @@ private:
         const Style& style) const noexcept;
     std::uint32_t FindApplication(
         const DependencyObject& object) const noexcept;
+    void RemoveApplicationAt(
+        DependencyObject& object,
+        std::uint32_t index) noexcept;
     Base::Result<void> ClearSetters(
         DependencyObject& object,
         const Style& style) noexcept;

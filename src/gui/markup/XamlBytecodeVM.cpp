@@ -753,17 +753,9 @@ Base::Result<void> XamlVM::Execute(
             if (context.schema == nullptr || candidateName.Empty()) {
                 return Meta::InvalidTypeId;
             }
-            Base::StringView prefix;
-            Base::StringView localName;
-            SplitRelaxedQualifiedXamlName(candidateName, prefix, localName);
-            Base::Result<const Meta::TypeInfo*> resolved =
-                context.schema->ResolveType(Meta::AeroNamespaceUri(), localName);
-            if (!resolved) {
-                resolved = context.schema->ResolveType(WpfPresentationNamespace, localName);
-            }
-            return (resolved && resolved.Value() != nullptr)
-                ? resolved.Value()->Id()
-                : Meta::InvalidTypeId;
+            const Meta::TypeInfo* resolved = ResolveBytecodeTypeByName(
+                *context.schema, program.namespaces.AsSpan(), candidateName, false);
+            return resolved != nullptr ? resolved->Id() : Meta::InvalidTypeId;
         };
 
         Base::StringView typeName = key;
@@ -1898,14 +1890,12 @@ Base::Result<void> XamlVM::Execute(
                 : Base::StringView{};
             if (!keyStr.Empty()) {
                 if (ip->flags == 1U) {
-                    Base::Result<const Meta::TypeInfo*> resolved = context.schema != nullptr
-                        ? context.schema->ResolveType(Meta::AeroNamespaceUri(), keyStr)
-                        : Base::Status::Failure(Base::ErrorCode::NotFound, "No schema");
-                    if (!resolved && context.schema != nullptr) {
-                        resolved = context.schema->ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), keyStr);
-                    }
-                    if (resolved && resolved.Value() != nullptr) {
-                        dict->Set(resolved.Value()->Id(), itemVal);
+                    const Meta::TypeInfo* resolved = context.schema != nullptr
+                        ? ResolveBytecodeTypeByName(
+                              *context.schema, program.namespaces.AsSpan(), keyStr, false)
+                        : nullptr;
+                    if (resolved != nullptr) {
+                        dict->Set(resolved->Id(), itemVal);
                     } else {
                         dict->Set(keyStr, itemVal);
                     }

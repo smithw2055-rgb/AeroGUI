@@ -514,16 +514,16 @@ Base::Result<void> InteractivityEngine::EvaluateDataTemplateTrigger(
                     setter.target.Lock();
                 if (!target) continue;
 
-                Meta::PropertyValue valueToApply = setter.value;
-                if (setter.value.IsDynamicResource()) {
-                    (void)ResolveTriggerSetterValue(
+                Meta::PropertyValue valueToApply;
+                if (!ResolveTriggerSetterValue(
                         *target,
                         setter.property,
                         setter.value,
                         valueToApply,
                         context.root,
                         nullptr,
-                        /*fallbackToDefaultOnMissingResource=*/true);
+                        /*fallbackToDefaultOnMissingResource=*/true)) {
+                    continue;
                 }
 
                 Base::Result<void> applied =

@@ -277,6 +277,13 @@ struct XamlBytecodeProgram {
     void Clear() noexcept;
 };
 
+const Meta::TypeInfo* ResolveBytecodeTypeByName(
+    const Schema& schema,
+    Base::Span<const XamlBytecodeProgram::NamespaceEntry> namespaces,
+    Base::StringView rawName,
+    bool allowLanguageNamespace = false,
+    bool tryExtensionSuffix = false) noexcept;
+
 class XamlBytecodeContainer : public Base::Object {
 public:
     static constexpr Base::MetaTypeId StaticTypeId() noexcept {

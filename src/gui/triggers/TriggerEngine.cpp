@@ -310,10 +310,8 @@ void TriggerEngine::EvaluateTriggers(
                 continue;
             }
             for (const StyleTriggerSetter& setter : triggers[triggerIndex].setters) {
-                if (ShouldApplyOrClearTriggerSetter(setter.value) &&
-                    clearedFilter.TryAcquire(setter.property)) {
-                    (void)values_.ClearTriggerValue(object, setter.property);
-                }
+                (void)ClearResolvedTriggerSetter(
+                    values_, object, setter.property, setter.value, &clearedFilter);
             }
         }
     }
@@ -321,10 +319,8 @@ void TriggerEngine::EvaluateTriggers(
     for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
         if (!activeStates.Get(index)) continue;
         for (const StyleTriggerSetter& setter : triggers[index].setters) {
-            PropertyValue setterValue;
-            if (ResolveTriggerSetterValue(object, setter.property, setter.value, setterValue)) {
-                (void)values_.SetTriggerValue(object, setter.property, setterValue);
-            }
+            (void)ApplyResolvedTriggerSetter(
+                values_, object, setter.property, setter.value);
         }
     }
     (void)values_.Flush();
@@ -368,10 +364,8 @@ void TriggerEngine::ClearTriggerSetters(
     TriggerSubscriptionFilter clearedFilter;
     for (const TriggerPlan& trigger : StyleRuntimeTriggers(style)) {
         for (const StyleTriggerSetter& setter : trigger.setters) {
-            if (ShouldApplyOrClearTriggerSetter(setter.value) &&
-                clearedFilter.TryAcquire(setter.property)) {
-                (void)values_.ClearTriggerValue(object, setter.property);
-            }
+            (void)ClearResolvedTriggerSetter(
+                values_, object, setter.property, setter.value, &clearedFilter);
         }
     }
 }

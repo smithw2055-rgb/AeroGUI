@@ -93,6 +93,36 @@ Base::Result<PropertyValue> ConvertTemplateBindingValue(
     return PropertyValue{};
 }
 
+void RevertTemplateProjection(
+    ElementTree* tree,
+    Aero::Controls::TemplateContentProjection& projection) noexcept {
+    if ((projection.presenter == nullptr &&
+         projection.contentHost == nullptr) ||
+        projection.content == nullptr) {
+        return;
+    }
+    if (tree != nullptr) {
+        (void)tree->DetachVisual(projection.projectedMount);
+    }
+    if (projection.presenter != nullptr) {
+        (void)projection.presenter->SetContent(nullptr);
+    } else {
+        (void)projection.contentHost->SetContent(nullptr);
+    }
+    if (tree != nullptr &&
+        projection.detachedOriginalVisual &&
+        projection.originalVisualParent != nullptr &&
+        (projection.originalVisualParent->GetVisualParent() != nullptr ||
+         projection.originalVisualParent == tree->Root())) {
+        (void)tree->AttachVisualChild(
+            *projection.originalVisualParent, *projection.content);
+    }
+    if (projection.attachedLogical && projection.owner != nullptr && tree != nullptr) {
+        (void)tree->DetachLogical(
+            *projection.owner, *projection.content);
+    }
+}
+
 } // namespace
 
 Base::Result<void> TemplateBuilder::SetRoot(
@@ -293,23 +323,7 @@ TemplateBuilder::ProjectContentCore(
     ::Aero::Media::Visual* currentVisualParent = content->GetVisualParent();
 
     auto restore = [&]() noexcept {
-        (void)state.tree->DetachVisual(
-            projection.projectedMount);
-        if (presenter != nullptr) {
-            (void)presenter->SetContent(nullptr);
-        } else {
-            (void)contentHost->SetContent(nullptr);
-        }
-        if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr &&
-            (projection.originalVisualParent->GetVisualParent() != nullptr ||
-             (state.tree != nullptr && projection.originalVisualParent == state.tree->Root()))) {
-            (void)state.tree->AttachVisualChild(
-                *projection.originalVisualParent, *content);
-        }
-        if (projection.attachedLogical) {
-            (void)state.tree->DetachLogical(owner, *content);
-        }
+        RevertTemplateProjection(state.tree, projection);
     };
 
     if (content->GetLogicalParent() == nullptr) {
@@ -521,30 +535,7 @@ void TemplateBuilder::Rollback() noexcept {
     auto& state = *static_cast<Aero::Controls::TemplateBuildState*>(state_);
     for (std::uint32_t index = state.projections.Size();
          index > 0U; --index) {
-        Aero::Controls::TemplateContentProjection& projection = state.projections[index - 1U];
-        if ((projection.presenter == nullptr &&
-             projection.contentHost == nullptr) ||
-            projection.content == nullptr) {
-            continue;
-        }
-        (void)state.tree->DetachVisual(
-            projection.projectedMount);
-        if (projection.presenter != nullptr) {
-            (void)projection.presenter->SetContent(nullptr);
-        } else {
-            (void)projection.contentHost->SetContent(nullptr);
-        }
-        if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr &&
-            (projection.originalVisualParent->GetVisualParent() != nullptr ||
-             (state.tree != nullptr && projection.originalVisualParent == state.tree->Root()))) {
-            (void)state.tree->AttachVisualChild(
-                *projection.originalVisualParent, *projection.content);
-        }
-        if (projection.attachedLogical && projection.owner != nullptr) {
-            (void)state.tree->DetachLogical(
-                *projection.owner, *projection.content);
-        }
+        RevertTemplateProjection(state.tree, state.projections[index - 1U]);
     }
     state.projections.Clear();
 
@@ -1497,6 +1488,16 @@ Base::Result<void> FrameworkTemplateState::Seal(
         return programSealed.GetStatus();
     }
     templateState->resources.Seal();
+    for (const Base::Ref<Base::Object>& authored : templateState->authoredTriggers) {
+        if (!authored) continue;
+        if (auto* mt = ::Aero::TryCast<MultiTrigger>(authored.Get())) {
+            mt->ReleaseAuthored();
+        } else if (auto* trig = ::Aero::TryCast<Trigger>(authored.Get())) {
+            if (trig->GetEnterActions().Empty() && trig->GetExitActions().Empty()) {
+                trig->ReleaseAuthored();
+            }
+        }
+    }
     templateState->authoredVisualTree.Reset();
     templateState->authoredTriggers.Clear();
     templateState->authoredVisualStateGroups.Clear();
@@ -1875,11 +1876,7 @@ Base::Result<void> TemplateEngine::Subscribe(
         }
     }
 
-    struct SourcePropertyPair {
-        DependencyObject* source = nullptr;
-        DependencyPropertyHandle property;
-    };
-    Base::BasicVector<SourcePropertyPair, 16U> childSubscriptions;
+    TriggerTargetSubscriptionFilter childFilter;
 
     for (const TemplatePropertyTrigger& trigger : triggers) {
         for (const TemplateTriggerCondition& condition : trigger.conditions) {
@@ -1904,15 +1901,9 @@ Base::Result<void> TemplateEngine::Subscribe(
                         static_cast<std::uint32_t>(&instance - instances_.Data());
                     static_cast<void>(triggerSourceToInstance_.Insert(source, instanceIndex));
                 }
-                bool duplicate = false;
-                for (const SourcePropertyPair& existing : childSubscriptions) {
-                    if (existing.source == source && existing.property == condition.property) {
-                        duplicate = true;
-                        break;
-                    }
+                if (!childFilter.TryAcquire(source, condition.property)) {
+                    continue;
                 }
-                if (duplicate) continue;
-                childSubscriptions.PushBack({source, condition.property});
             }
             source->AddValueChangedHandler(condition.property, propertyChangedHandler_);
         }
@@ -1935,11 +1926,7 @@ void TemplateEngine::Unsubscribe(
         }
     }
 
-    struct SourcePropertyPair {
-        DependencyObject* source = nullptr;
-        DependencyPropertyHandle property;
-    };
-    Base::BasicVector<SourcePropertyPair, 16U> childSubscriptions;
+    TriggerTargetSubscriptionFilter childFilter;
 
     for (const TemplatePropertyTrigger& trigger : triggers) {
         for (const TemplateTriggerCondition& condition : trigger.conditions) {
@@ -1955,15 +1942,9 @@ void TemplateEngine::Unsubscribe(
                 if (feSource == nullptr || feSource->GetTemplatedParent() != instance.parent) {
                     triggerSourceToInstance_.Erase(source);
                 }
-                bool duplicate = false;
-                for (const SourcePropertyPair& existing : childSubscriptions) {
-                    if (existing.source == source && existing.property == condition.property) {
-                        duplicate = true;
-                        break;
-                    }
+                if (!childFilter.TryAcquire(source, condition.property)) {
+                    continue;
                 }
-                if (duplicate) continue;
-                childSubscriptions.PushBack({source, condition.property});
             }
             (void)source->RemoveValueChangedHandler(condition.property, propertyChangedHandler_);
         }
@@ -2265,11 +2246,8 @@ Base::Result<void> TemplateEngine::EvaluateTriggers(
         for (const TemplateTriggerSetter& setter : trigger.setters) {
             DependencyObject* target = FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
             if (target == nullptr) continue;
-            PropertyValue setterValue;
-            if (!ResolveTriggerSetterValue(*target, setter.property, setter.value, setterValue, instance.parent, resources_)) {
-                continue;
-            }
-            Base::Result<void> applied = values_->SetTriggerValue(*target, setter.property, setterValue);
+            Base::Result<bool> applied = ApplyResolvedTriggerSetter(
+                *values_, *target, setter.property, setter.value, instance.parent, resources_);
             if (!applied) return applied.GetStatus();
         }
         instance.triggerStatesMask |= (UINT64_C(1) << index);
@@ -2304,15 +2282,11 @@ Base::Result<void> TemplateEngine::ClearProviders(
         const TemplatePropertyTrigger& trigger = triggers[index];
         for (const TemplateTriggerSetter& setter :
              trigger.setters) {
-            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
-                continue;
-            }
             DependencyObject* target =
                 FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
             if (target != nullptr) {
-                Base::Result<void> cleared =
-                    values_->ClearTriggerValue(
-                        *target, setter.property);
+                Base::Result<bool> cleared = ClearResolvedTriggerSetter(
+                    *values_, *target, setter.property, setter.value);
                 if (!cleared) return cleared.GetStatus();
             }
         }
@@ -2339,32 +2313,7 @@ Base::Result<void> TemplateEngine::ClearAt(
 
     for (std::uint32_t projectionIndex = instance.projections.Size();
          projectionIndex > 0U; --projectionIndex) {
-        Aero::Controls::TemplateContentProjection& projection =
-            instance.projections[projectionIndex - 1U];
-        if ((projection.presenter == nullptr &&
-             projection.contentHost == nullptr) ||
-            projection.content == nullptr) {
-            continue;
-        }
-        Base::Result<void> projectedDetached =
-            tree_->DetachVisual(projection.projectedMount);
-        (void)projectedDetached;
-        if (projection.presenter != nullptr) {
-            projection.presenter->SetContent(nullptr);
-        } else {
-            projection.contentHost->SetContent(nullptr);
-        }
-        if (projection.detachedOriginalVisual &&
-            projection.originalVisualParent != nullptr &&
-            (projection.originalVisualParent->GetVisualParent() != nullptr ||
-             (tree_ != nullptr && projection.originalVisualParent == tree_->Root()))) {
-            (void)tree_->AttachVisualChild(
-                *projection.originalVisualParent, *projection.content);
-        }
-        if (projection.attachedLogical && projection.owner != nullptr) {
-            (void)tree_->DetachLogical(
-                *projection.owner, *projection.content);
-        }
+        RevertTemplateProjection(tree_, instance.projections[projectionIndex - 1U]);
     }
 
     for (std::uint32_t partIndex = instance.parts.Size();

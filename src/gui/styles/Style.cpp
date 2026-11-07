@@ -547,6 +547,74 @@ void Style::AddPropertyTrigger(
     if (!planned) { AERO_ASSERT(false); return; }
 }
 
+namespace {
+
+bool PopulateTriggerPlanSettersAndActions(
+    const SetterTriggerBase& source,
+    TriggerPlan& plan) noexcept {
+    for (const Base::Ref<Setter>& authored : source.GetAuthoredSetters()) {
+        if (!authored || !authored->GetProperty().IsValid() ||
+            authored->GetValue().IsUnset()) {
+            return false;
+        }
+        plan.setters.PushBack({
+            authored->GetProperty(), authored->GetValue()});
+    }
+    plan.enterActions.Append(source.GetEnterActions());
+    plan.exitActions.Append(source.GetExitActions());
+    return true;
+}
+
+bool SplitOwnerQualifiedStyleProperty(
+    Base::StringView name,
+    Base::StringView& outOwnerName,
+    Base::StringView& outPropertyName) noexcept {
+    std::uint32_t dot = UINT32_MAX;
+    for (std::uint32_t index = 0U; index < name.SizeBytes(); ++index) {
+        if (name[index] == '.') dot = index;
+    }
+    if (dot == UINT32_MAX || dot == 0U || dot + 1U >= name.SizeBytes()) {
+        return false;
+    }
+    Base::StringView owner = name.Substr(0U, dot);
+    outPropertyName = name.Substr(dot + 1U, name.SizeBytes() - dot - 1U);
+    for (std::uint32_t index = 0U; index < owner.SizeBytes(); ++index) {
+        if (owner[index] == ':') {
+            owner = owner.Substr(index + 1U, owner.SizeBytes() - index - 1U);
+            break;
+        }
+    }
+    outOwnerName = owner;
+    return !outOwnerName.Empty() && !outPropertyName.Empty();
+}
+
+const Meta::DependencyProperty* FindOwnerQualifiedStyleProperty(
+    const DependencyPropertyRegistry& properties,
+    Base::StringView ownerName,
+    Base::StringView propertyName,
+    TypeId* outOwnerTypeId = nullptr) noexcept {
+    if (const Meta::TypeInfo* ownerType =
+            properties.Types().FindType(Meta::AeroNamespaceUri(), ownerName)) {
+        if (const Meta::DependencyProperty* found =
+                properties.Find(ownerType->Id(), propertyName)) {
+            if (outOwnerTypeId != nullptr) *outOwnerTypeId = ownerType->Id();
+            return found;
+        }
+    }
+    for (const Meta::TypeInfo& type : properties.Types().Types()) {
+        if (type.Name() == ownerName) {
+            if (const Meta::DependencyProperty* found =
+                    properties.Find(type.Id(), propertyName)) {
+                if (outOwnerTypeId != nullptr) *outOwnerTypeId = type.Id();
+                return found;
+            }
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
 void Style::AddTrigger(
     const Trigger& trigger) noexcept {
     if (sealed_) { AERO_ASSERT(false); return; }
@@ -554,15 +622,7 @@ void Style::AddTrigger(
     TriggerPlan plan;
     plan.property = trigger.property_;
     plan.value = trigger.value_;
-    for (const Base::Ref<Setter>& authored : trigger.GetAuthoredSetters()) {
-        if (!authored || !authored->GetProperty().IsValid() ||
-            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-        plan.setters.PushBack({
-            authored->GetProperty(), authored->GetValue()});
-    }
-    plan.enterActions.Append(
-        trigger.GetEnterActions());
-    plan.exitActions.Append(trigger.GetExitActions());
+    if (!PopulateTriggerPlanSettersAndActions(trigger, plan)) { AERO_ASSERT(false); return; }
     Base::Result<void> planned =
         GetProgram().AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -576,16 +636,7 @@ void Style::AddTrigger(
     TriggerPlan plan;
     plan.binding = trigger.GetBinding();
     plan.value = trigger.GetAuthoredValue();
-    for (const Base::Ref<Setter>& authored :
-         trigger.GetAuthoredSetters()) {
-        if (!authored || !authored->GetProperty().IsValid() ||
-            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-        plan.setters.PushBack({
-            authored->GetProperty(), authored->GetValue()});
-    }
-    plan.enterActions.Append(
-        trigger.GetEnterActions());
-    plan.exitActions.Append(trigger.GetExitActions());
+    if (!PopulateTriggerPlanSettersAndActions(trigger, plan)) { AERO_ASSERT(false); return; }
     Base::Result<void> planned =
         GetProgram().AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -613,16 +664,7 @@ void Style::AddTrigger(
         extra.value = condition->GetAuthoredValue();
         plan.extraBindings.PushBack(std::move(extra));
     }
-    for (const Base::Ref<Setter>& authored :
-         trigger.GetAuthoredSetters()) {
-        if (!authored || !authored->GetProperty().IsValid() ||
-            authored->GetValue().IsUnset()) { AERO_ASSERT(false); return; }
-        plan.setters.PushBack({
-            authored->GetProperty(), authored->GetValue()});
-    }
-    plan.enterActions.Append(
-        trigger.GetEnterActions());
-    plan.exitActions.Append(trigger.GetExitActions());
+    if (!PopulateTriggerPlanSettersAndActions(trigger, plan)) { AERO_ASSERT(false); return; }
     Base::Result<void> planned =
         GetProgram().AddAuthoredTrigger(std::move(plan));
     if (!planned) { AERO_ASSERT(false); return; }
@@ -641,30 +683,12 @@ Base::Result<void> Style::Seal(
         for (const Base::Ref<SetterBase>& authored : program.authoredSetterObjects) {
             Setter* setter = ::Aero::TryCast<Setter>(authored.Get());
             if (setter == nullptr) continue;
-            Base::StringView name = setter->GetPropertyName();
-            std::uint32_t dot = UINT32_MAX;
-            for (std::uint32_t index = 0U;
-                 index < name.SizeBytes(); ++index) {
-                if (name[index] == '.') dot = index;
-            }
-            if (dot == UINT32_MAX || dot == 0U) continue;
-            Base::StringView owner = name.Substr(0U, dot);
-            const Base::StringView propertyName = name.Substr(
-                dot + 1U, name.SizeBytes() - dot - 1U);
-            for (std::uint32_t index = 0U;
-                 index < owner.SizeBytes(); ++index) {
-                if (owner[index] == ':') {
-                    owner = owner.Substr(
-                        index + 1U, owner.SizeBytes() - index - 1U);
-                    break;
-                }
-            }
-            for (const TypeInfo& type : properties.Types().Types()) {
-                if (type.Name() == owner &&
-                    properties.Find(type.Id(), propertyName) != nullptr) {
-                    targetType_ = type.Id();
-                    break;
-                }
+            Base::StringView ownerName;
+            Base::StringView propertyName;
+            if (SplitOwnerQualifiedStyleProperty(
+                    setter->GetPropertyName(), ownerName, propertyName)) {
+                (void)FindOwnerQualifiedStyleProperty(
+                    properties, ownerName, propertyName, &targetType_);
             }
             if (targetType_ != InvalidTypeId) break;
         }
@@ -698,31 +722,10 @@ Base::Result<void> Style::Seal(
         if (propName.Empty()) return {};
         const Meta::DependencyProperty* resolved = properties.Find(targetType_, propName);
         if (resolved == nullptr) {
-            std::uint32_t dot = UINT32_MAX;
-            for (std::uint32_t i = 0U; i < propName.SizeBytes(); ++i) {
-                if (propName[i] == '.') dot = i;
-            }
-            if (dot != UINT32_MAX && dot > 0U && dot + 1U < propName.SizeBytes()) {
-                Base::StringView ownerName = propName.Substr(0U, dot);
-                const Base::StringView unqualifiedName = propName.Substr(dot + 1U, propName.SizeBytes() - dot - 1U);
-                for (std::uint32_t i = 0U; i < ownerName.SizeBytes(); ++i) {
-                    if (ownerName[i] == ':') {
-                        ownerName = ownerName.Substr(i + 1U, ownerName.SizeBytes() - i - 1U);
-                        break;
-                    }
-                }
-                const Meta::TypeInfo* ownerType = properties.Types().FindType(Meta::AeroNamespaceUri(), ownerName);
-                if (ownerType != nullptr) {
-                    resolved = properties.Find(ownerType->Id(), unqualifiedName);
-                }
-                if (resolved == nullptr) {
-                    for (const Meta::TypeInfo& type : properties.Types().Types()) {
-                        if (type.Name() == ownerName) {
-                            resolved = properties.Find(type.Id(), unqualifiedName);
-                            if (resolved != nullptr) break;
-                        }
-                    }
-                }
+            Base::StringView ownerName;
+            Base::StringView unqualifiedName;
+            if (SplitOwnerQualifiedStyleProperty(propName, ownerName, unqualifiedName)) {
+                resolved = FindOwnerQualifiedStyleProperty(properties, ownerName, unqualifiedName);
                 if (resolved == nullptr) {
                     resolved = properties.Find(targetType_, unqualifiedName);
                 }
@@ -758,6 +761,7 @@ Base::Result<void> Style::Seal(
                 }
             }
         }
+        setter->ReleaseAuthored();
     }
 
     auto appendTriggerSetters = [&](Span<const Base::Ref<Setter>> setters, TriggerPlan& plan) noexcept {
@@ -779,6 +783,7 @@ Base::Result<void> Style::Seal(
                 }
                 plan.setters.PushBack({sp, sVal});
             }
+            s->ReleaseAuthored();
         }
     };
 
@@ -804,6 +809,7 @@ Base::Result<void> Style::Seal(
             if (plan.property.IsValid() && !plan.value.IsUnset()) {
                 program.triggers.PushBack(std::move(plan));
             }
+            trigger->ReleaseAuthored();
         } else if (DataTrigger* dataTrigger = ::Aero::TryCast<DataTrigger>(entry.Get())) {
             if (dataTrigger->GetBinding() && !dataTrigger->GetValue().IsUnset()) {
                 TriggerPlan plan;
@@ -816,6 +822,7 @@ Base::Result<void> Style::Seal(
                     program.triggers.PushBack(std::move(plan));
                 }
             }
+            dataTrigger->ReleaseAuthored();
         } else if (MultiDataTrigger* multiDataTrigger = ::Aero::TryCast<MultiDataTrigger>(entry.Get())) {
             if (!multiDataTrigger->GetConditions().Empty()) {
                 TriggerPlan plan;
@@ -846,6 +853,7 @@ Base::Result<void> Style::Seal(
                     }
                 }
             }
+            multiDataTrigger->ReleaseAuthored();
         }
     }
 
@@ -1242,14 +1250,7 @@ Base::Result<void> StyleEngine::Clear(
     }
     if (existing != UINT32_MAX) {
         triggerEngine_->RemovePendingTriggerEvaluation(object);
-        object.SetStyleApplicationIndex(UINT32_MAX);
-        if (existing + 1U != applications_.Size()) {
-            applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
-            if (applications_[existing].object != nullptr) {
-                applications_[existing].object->SetStyleApplicationIndex(existing);
-            }
-        }
-        applications_.PopBack();
+        RemoveApplicationAt(object, existing);
     }
     return {};
 }
@@ -1267,14 +1268,7 @@ bool StyleEngine::DetachObject(
         triggerEngine_->ClearTriggerSetters(object, style);
     }
     (void)ClearSetters(object, style);
-    object.SetStyleApplicationIndex(UINT32_MAX);
-    if (existing + 1U != applications_.Size()) {
-        applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
-        if (applications_[existing].object != nullptr) {
-            applications_[existing].object->SetStyleApplicationIndex(existing);
-        }
-    }
-    applications_.PopBack();
+    RemoveApplicationAt(object, existing);
     return true;
 }
 
@@ -1294,6 +1288,19 @@ std::uint32_t StyleEngine::FindApplication(
     return (idx < applications_.Size() && applications_[idx].object == &object)
         ? idx
         : UINT32_MAX;
+}
+
+void StyleEngine::RemoveApplicationAt(
+    DependencyObject& object,
+    std::uint32_t index) noexcept {
+    object.SetStyleApplicationIndex(UINT32_MAX);
+    if (index + 1U != applications_.Size()) {
+        applications_[index] = std::move(applications_[applications_.Size() - 1U]);
+        if (applications_[index].object != nullptr) {
+            applications_[index].object->SetStyleApplicationIndex(index);
+        }
+    }
+    applications_.PopBack();
 }
 
 Base::Result<void> StyleEngine::ClearSetters(
@@ -1505,14 +1512,7 @@ void StyleEngine::OnObjectDestroyed(
         triggerEngine_->RemovePendingTriggerEvaluation(object);
     }
     DetachSetterBindings(object);
-    object.SetStyleApplicationIndex(UINT32_MAX);
-    if (existing + 1U != applications_.Size()) {
-        applications_[existing] = std::move(applications_[applications_.Size() - 1U]);
-        if (applications_[existing].object != nullptr) {
-            applications_[existing].object->SetStyleApplicationIndex(existing);
-        }
-    }
-    applications_.PopBack();
+    RemoveApplicationAt(object, existing);
 }
 
 void StyleEngine::SetTriggerActionHandler(

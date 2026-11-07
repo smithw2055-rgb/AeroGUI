@@ -126,6 +126,12 @@ class AERO_GUI_API SetterTriggerBase : public TriggerBase {
 public:
     void AddAuthoredSetter(Ref<Setter> setter) noexcept;
     void ClearAuthoredSetters() noexcept { authoredSetters_.Clear(); }
+    void ReleaseAuthoredSetters() noexcept {
+        for (const Ref<Setter>& setter : authoredSetters_) {
+            if (setter) setter->ReleaseAuthored();
+        }
+        authoredSetters_.Clear();
+    }
     Span<const Ref<Setter>> GetAuthoredSetters() const noexcept {
         return {authoredSetters_.Data(), authoredSetters_.Size()};
     }
@@ -201,6 +207,7 @@ public:
         value_ = {};
         propertyName_.Clear();
         sourceName_.Clear();
+        ReleaseAuthoredSetters();
     }
 
 private:
@@ -238,6 +245,7 @@ public:
         propertyName_.Clear();
         sourceName_.Clear();
         authoredValue_ = {};
+        ReleaseAuthoredSetters();
     }
 
 private:
@@ -261,6 +269,13 @@ public:
     MultiTrigger() noexcept : SetterTriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
+    void ReleaseAuthored() noexcept {
+        for (const Ref<Condition>& condition : conditions_) {
+            if (condition) condition->ReleaseAuthored();
+        }
+        conditions_.Clear();
+        ReleaseAuthoredSetters();
+    }
     Span<const Ref<Condition>> GetConditions() const noexcept { return {conditions_.Data(), conditions_.Size()}; }
 
 private:
@@ -274,6 +289,13 @@ public:
     MultiDataTrigger() noexcept : SetterTriggerBase(StaticTypeId()) {}
     void AddCondition(Ref<Condition> condition) noexcept;
     void ClearConditions() noexcept { conditions_.Clear(); }
+    void ReleaseAuthored() noexcept {
+        for (const Ref<Condition>& condition : conditions_) {
+            if (condition) condition->ReleaseAuthored();
+        }
+        conditions_.Clear();
+        ReleaseAuthoredSetters();
+    }
     Span<const Ref<Condition>> GetConditions() const noexcept { return {conditions_.Data(), conditions_.Size()}; }
 
 private:

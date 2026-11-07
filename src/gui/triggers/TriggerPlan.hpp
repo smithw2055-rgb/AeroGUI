@@ -97,6 +97,73 @@ struct TriggerSubscriptionFilter {
     }
 };
 
+template<class TSession>
+inline Base::Result<bool> ApplyResolvedTriggerSetter(
+    TSession& values,
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    const PropertyValue& rawValue,
+    FrameworkElement* fallbackScope = nullptr,
+    const ResourceDictionary* fallbackResources = nullptr,
+    bool fallbackToDefaultOnMissingResource = false) noexcept {
+    PropertyValue resolvedValue;
+    if (!ResolveTriggerSetterValue(
+            target,
+            property,
+            rawValue,
+            resolvedValue,
+            fallbackScope,
+            fallbackResources,
+            fallbackToDefaultOnMissingResource)) {
+        return false;
+    }
+    Base::Result<void> applied =
+        values.SetTriggerValue(target, property, resolvedValue);
+    if (!applied) return applied.GetStatus();
+    return true;
+}
+
+template<class TSession>
+inline Base::Result<bool> ClearResolvedTriggerSetter(
+    TSession& values,
+    DependencyObject& target,
+    DependencyPropertyHandle property,
+    const PropertyValue& rawValue,
+    TriggerSubscriptionFilter* clearedFilter = nullptr) noexcept {
+    if (!ShouldApplyOrClearTriggerSetter(rawValue)) {
+        return false;
+    }
+    if (clearedFilter != nullptr && !clearedFilter->TryAcquire(property)) {
+        return false;
+    }
+    Base::Result<void> cleared =
+        values.ClearTriggerValue(target, property);
+    if (!cleared) return cleared.GetStatus();
+    return true;
+}
+
+// Shared deduplicating (target, property) subscription filter for template child triggers.
+struct TriggerTargetSubscriptionFilter {
+    struct Entry {
+        DependencyObject* source = nullptr;
+        DependencyPropertyHandle property;
+    };
+    Base::BasicVector<Entry, 16U> entries;
+
+    bool TryAcquire(
+        DependencyObject* source,
+        DependencyPropertyHandle property) noexcept {
+        if (source == nullptr || !property.IsValid()) return false;
+        for (const Entry& existing : entries) {
+            if (existing.source == source && existing.property == property) {
+                return false;
+            }
+        }
+        entries.PushBack({source, property});
+        return true;
+    }
+};
+
 // Shared inline 64-bit mask + overflow vector for Style and Template trigger evaluation.
 struct TriggerActiveBitset {
     std::uint64_t inlineMask = 0ULL;

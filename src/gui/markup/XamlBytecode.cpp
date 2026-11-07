@@ -419,6 +419,76 @@ private:
 };
 
 
+const Meta::TypeInfo* ResolveBytecodeTypeByName(
+    const Schema& schema,
+    Base::Span<const XamlBytecodeProgram::NamespaceEntry> namespaces,
+    Base::StringView rawName,
+    bool allowLanguageNamespace,
+    bool tryExtensionSuffix) noexcept {
+    Base::StringView typeName = TrimAscii(rawName);
+    if (typeName.Empty()) return nullptr;
+    Base::StringView unwrappedType;
+    if (TryUnwrapTypeExtensionLiteral(typeName, unwrappedType)) {
+        typeName = unwrappedType;
+    }
+    Base::StringView prefix{};
+    Base::StringView localName{};
+    SplitRelaxedQualifiedXamlName(typeName, prefix, localName);
+    char extWithSuffix[96];
+    Base::StringView localWithSuffix{};
+    if (tryExtensionSuffix) {
+        const int extLen = std::snprintf(
+            extWithSuffix, sizeof(extWithSuffix), "%.*sExtension",
+            static_cast<int>(localName.SizeBytes()), localName.Data());
+        if (extLen > 0 && extLen < static_cast<int>(sizeof(extWithSuffix))) {
+            localWithSuffix = Base::StringView(extWithSuffix, static_cast<std::uint32_t>(extLen));
+        }
+    }
+    if (!prefix.Empty()) {
+        for (std::uint32_t nsIdx = namespaces.Size(); nsIdx > 0U; --nsIdx) {
+            if (namespaces[nsIdx - 1U].prefix.View() == prefix) {
+                const Base::StringView nsUri = namespaces[nsIdx - 1U].uri.View();
+                if (!localWithSuffix.Empty()) {
+                    Base::Result<const Meta::TypeInfo*> resolved =
+                        schema.ResolveType(nsUri, localWithSuffix);
+                    if (resolved && resolved.Value() != nullptr) {
+                        return resolved.Value();
+                    }
+                }
+                Base::Result<const Meta::TypeInfo*> resolved =
+                    schema.ResolveType(nsUri, localName);
+                if (resolved && resolved.Value() != nullptr) {
+                    return resolved.Value();
+                }
+                break;
+            }
+        }
+    }
+    if (!localWithSuffix.Empty()) {
+        Base::Result<const Meta::TypeInfo*> resolved =
+            schema.ResolveType(Meta::AeroNamespaceUri(), localWithSuffix);
+        if (resolved && resolved.Value() != nullptr) return resolved.Value();
+        if (allowLanguageNamespace) {
+            resolved = schema.ResolveType(LanguageNamespaceUri(), localWithSuffix);
+            if (resolved && resolved.Value() != nullptr) return resolved.Value();
+        }
+        resolved = schema.ResolveType(WpfPresentationNamespace, localWithSuffix);
+        if (resolved && resolved.Value() != nullptr) return resolved.Value();
+    }
+    Base::Result<const Meta::TypeInfo*> resolved =
+        schema.ResolveType(Meta::AeroNamespaceUri(), localName);
+    if (resolved && resolved.Value() != nullptr) return resolved.Value();
+    if (allowLanguageNamespace) {
+        resolved = schema.ResolveType(LanguageNamespaceUri(), localName);
+        if (resolved && resolved.Value() != nullptr) return resolved.Value();
+    }
+    resolved = schema.ResolveType(WpfPresentationNamespace, localName);
+    if (resolved && resolved.Value() != nullptr) return resolved.Value();
+    resolved = schema.ResolveType(Meta::AeroNamespaceUri(), typeName);
+    if (resolved && resolved.Value() != nullptr) return resolved.Value();
+    return nullptr;
+}
+
 Base::Result<void> CompileNodesToBytecode(
     Base::Span<const Node> nodes,
     std::size_t& nodeIndex,
@@ -959,45 +1029,9 @@ Base::Result<void> CompileNodesToBytecode(
                         }
 
                         Meta::TypeId extTypeId = Meta::InvalidTypeId;
-                        Base::StringView extPrefix{};
-                        Base::StringView extLocalName{};
-                        SplitRelaxedQualifiedXamlName(extName, extPrefix, extLocalName);
-                        char extWithSuffix[64];
-                        const int extLen = std::snprintf(extWithSuffix, sizeof(extWithSuffix), "%.*sExtension",
-                            static_cast<int>(extLocalName.SizeBytes()), extLocalName.Data());
-                        const Base::StringView extWithSuffixView = (extLen > 0 && extLen < static_cast<int>(sizeof(extWithSuffix)))
-                            ? Base::StringView(extWithSuffix, static_cast<std::uint32_t>(extLen))
-                            : Base::StringView{};
-                        Base::Result<const Meta::TypeInfo*> resolvedExt = Base::Status::Failure(Base::ErrorCode::NotFound, "ext not found");
-                        if (!extPrefix.Empty()) {
-                            for (std::uint32_t nsIdx = outProgram.namespaces.Size(); nsIdx > 0U; --nsIdx) {
-                                if (outProgram.namespaces[nsIdx - 1U].prefix.View() == extPrefix) {
-                                    resolvedExt = schema.ResolveType(outProgram.namespaces[nsIdx - 1U].uri.View(), extWithSuffixView);
-                                    if (!resolvedExt) {
-                                        resolvedExt = schema.ResolveType(outProgram.namespaces[nsIdx - 1U].uri.View(), extLocalName);
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                        if (!resolvedExt) {
-                            resolvedExt = schema.ResolveType(
-                                Meta::AeroNamespaceUri(), extWithSuffixView);
-                        }
-                        if (!resolvedExt) {
-                            resolvedExt = schema.ResolveType(
-                                Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml"), extWithSuffixView);
-                        }
-                        if (!resolvedExt) {
-                            resolvedExt = schema.ResolveType(
-                                Meta::AeroNamespaceUri(), extLocalName);
-                        }
-                        if (!resolvedExt) {
-                            resolvedExt = schema.ResolveType(
-                                Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml"), extLocalName);
-                        }
-                        if (resolvedExt && resolvedExt.Value() != nullptr) {
-                            extTypeId = resolvedExt.Value()->Id();
+                        if (const Meta::TypeInfo* resolvedExt = ResolveBytecodeTypeByName(
+                                schema, outProgram.namespaces.AsSpan(), extName, true, true)) {
+                            extTypeId = resolvedExt->Id();
                         }
 
                         if (extTypeId != Meta::InvalidTypeId) {
@@ -1017,41 +1051,16 @@ Base::Result<void> CompileNodesToBytecode(
                 : Meta::TypeOf<Base::String>();
 
             if (mf.isTargetType || targetType == Meta::TypeOf<Meta::TypeReference>()) {
-                Base::StringView typeName = TrimAscii(strVal);
-                Base::StringView unwrappedType;
-                if (TryUnwrapTypeExtensionLiteral(typeName, unwrappedType)) {
-                    typeName = unwrappedType;
-                }
-                Base::StringView prefix{};
-                Base::StringView localName{};
-                SplitRelaxedQualifiedXamlName(typeName, prefix, localName);
-                Base::Result<const Meta::TypeInfo*> resolved = Base::Status::Failure(Base::ErrorCode::NotFound, "type not found");
-                if (!prefix.Empty()) {
-                    for (std::uint32_t nsIdx = namespaces.Size(); nsIdx > 0U; --nsIdx) {
-                        if (namespaces[nsIdx - 1U].prefix.View() == prefix) {
-                            resolved = schema.ResolveType(namespaces[nsIdx - 1U].uri.View(), localName);
-                            break;
-                        }
-                    }
-                }
-                if (!resolved) {
-                    resolved = schema.ResolveType(Meta::AeroNamespaceUri(), localName);
-                }
-                if (!resolved) {
-                    resolved = schema.ResolveType(Base::StringView("http://schemas.microsoft.com/winfx/2006/xaml/presentation"), localName);
-                }
-                if (!resolved) {
-                    resolved = schema.ResolveType(Meta::AeroNamespaceUri(), typeName);
-                }
-                if (resolved && resolved.Value() != nullptr) {
-                    Meta::TypeReference ref{resolved.Value()->Id()};
+                if (const Meta::TypeInfo* resolved = ResolveBytecodeTypeByName(
+                        schema, outProgram.namespaces.AsSpan(), strVal, false)) {
+                    Meta::TypeReference ref{resolved->Id()};
                     builder.EmitSetPropertyValue(
                         mf.parentSlot,
                         Meta::DependencyPropertyHandle{mf.memberId},
                         Meta::ValueCodec<Meta::TypeReference>::Encode(ref).Value());
                     if (objectStack.Back().isTemplate ||
                         objectStack.Back().typeId == Style::StaticTypeId()) {
-                        objectStack.Back().templateTargetType = resolved.Value()->Id();
+                        objectStack.Back().templateTargetType = resolved->Id();
                     }
                     break;
                 }
@@ -1406,6 +1415,68 @@ Base::Result<Value> ConvertTriggerValue(
         value, targetType, property, runtime, properties, "Template Trigger");
 }
 
+struct ResolvedTemplateSetter {
+    std::uint32_t slot = 0U;
+    std::int32_t partIndex = -1;
+    DependencyPropertyHandle property;
+    Value value;
+};
+
+Base::Result<bool> ResolveAndConvertTemplateSetter(
+    Setter& setter,
+    const XamlBytecodeProgram& program,
+    TypeId defaultTargetType,
+    bool emptyTargetUsesRootSlot,
+    const NameScope* fallbackAuthoredNames,
+    Meta::Registry& runtime,
+    DependencyPropertyRegistry& properties,
+    bool requireTargetName,
+    const char* missingPropertyRequirementMessage,
+    const char* missingTargetMessage,
+    const char* missingPropertyMessage,
+    ResolvedTemplateSetter& outResolved) noexcept {
+    const Base::StringView targetName = setter.GetTargetName();
+    const Base::StringView propertyName = setter.GetPropertyName();
+    if (!emptyTargetUsesRootSlot &&
+        (propertyName.Empty() || (requireTargetName && targetName.Empty()))) {
+        return InvalidTemplateCompiler(missingPropertyRequirementMessage);
+    }
+    std::uint32_t slot = 0U;
+    TypeId targetType = defaultTargetType;
+    if (!targetName.Empty()) {
+        slot = program.FindSlotByName(targetName);
+        if (slot == UINT32_MAX || slot >= program.slotNames.Size()) {
+            if (fallbackAuthoredNames != nullptr &&
+                fallbackAuthoredNames->Find(targetName) != nullptr) {
+                return false;
+            }
+            return InvalidTemplateCompiler(missingTargetMessage);
+        }
+        targetType = program.GetSlotType(slot);
+    } else if (emptyTargetUsesRootSlot) {
+        if (program.slotNames.Empty()) {
+            return InvalidTemplateCompiler(missingTargetMessage);
+        }
+        slot = 0U;
+        targetType = program.GetSlotType(0U);
+    }
+    const DependencyProperty* property =
+        ResolveTemplateProperty(properties, targetType, propertyName);
+    if (property == nullptr) {
+        return InvalidTemplateCompiler(missingPropertyMessage);
+    }
+    Base::Result<Value> converted = ConvertSetterValue(
+        setter, targetType, *property, runtime, properties);
+    if (!converted) return converted.GetStatus();
+    outResolved.slot = slot;
+    outResolved.partIndex = !targetName.Empty()
+        ? program.FindPartIndexByName(targetName)
+        : -1;
+    outResolved.property = property->Handle();
+    outResolved.value = std::move(converted).Value();
+    return true;
+}
+
 Base::Result<void> AttachCompiledTemplateTriggers(
     const XamlBytecodeProgram& program,
     const Base::Vector<Base::Ref<Base::Object>>& objects,
@@ -1631,40 +1702,34 @@ CompilePropertyTriggers(
     auto appendSetters = [&controlTemplate, &program, &runtime, &properties](
         Base::Span<const Base::Ref<Setter>> setters,
         TemplatePropertyTrigger& trigger) -> Base::Result<void> {
+        const NameScope& fallbackNames = FrameworkTemplateState::AuthoredNames(controlTemplate);
         for (const Base::Ref<Setter>& setterObject : setters) {
-            if (!setterObject || setterObject->GetPropertyName().Empty()) {
+            if (!setterObject) {
                 return InvalidTemplateCompiler(
                     "ControlTemplate Trigger Setter requires Property");
             }
-            const Base::StringView targetName = setterObject->GetTargetName();
-            TypeId targetType = controlTemplate.GetTargetType();
-            if (!targetName.Empty()) {
-                const std::uint32_t slot = program.FindSlotByName(targetName);
-                if (slot == UINT32_MAX) {
-                    if (FrameworkTemplateState::AuthoredNames(controlTemplate).Find(
-                            targetName) != nullptr) {
-                        continue;
-                    }
-                    return InvalidTemplateCompiler(
-                        "ControlTemplate Trigger Setter target was not found");
-                }
-                targetType = program.GetSlotType(slot);
-            }
-            const DependencyProperty* property = ResolveTemplateProperty(
-                properties, targetType, setterObject->GetPropertyName());
-            if (property == nullptr) {
-                return InvalidTemplateCompiler(
-                    "ControlTemplate Trigger Setter property was not found");
-            }
-            Base::Result<Value> value = ConvertSetterValue(
-                *setterObject, targetType, *property, runtime, properties);
-            if (!value) return value.GetStatus();
+            ResolvedTemplateSetter resolved;
+            Base::Result<bool> status = ResolveAndConvertTemplateSetter(
+                *setterObject,
+                program,
+                controlTemplate.GetTargetType(),
+                /*emptyTargetUsesRootSlot=*/false,
+                &fallbackNames,
+                runtime,
+                properties,
+                /*requireTargetName=*/false,
+                "ControlTemplate Trigger Setter requires Property",
+                "ControlTemplate Trigger Setter target was not found",
+                "ControlTemplate Trigger Setter property was not found",
+                resolved);
+            if (!status) return status.GetStatus();
+            if (!status.Value()) continue;
             TemplateTriggerSetter setter;
-            Base::Result<void> assigned = setter.targetName.Assign(targetName);
+            Base::Result<void> assigned = setter.targetName.Assign(setterObject->GetTargetName());
             if (!assigned) return assigned.GetStatus();
-            setter.targetPartIndex = program.FindPartIndexByName(targetName);
-            setter.property = property->Handle();
-            setter.value = std::move(value).Value();
+            setter.targetPartIndex = resolved.partIndex;
+            setter.property = resolved.property;
+            setter.value = std::move(resolved.value);
             trigger.setters.PushBack(std::move(setter));
         }
         return {};
@@ -1749,35 +1814,31 @@ CompileVisualStates(
                     return InvalidTemplateCompiler(
                         "VisualState contains an invalid Setter");
                 }
-                const auto& sourceSetter = static_cast<const Setter&>(*setterObject);
-                if (sourceSetter.GetTargetName().Empty() ||
-                    sourceSetter.GetPropertyName().Empty()) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter requires TargetName and Property");
-                }
-                const std::uint32_t slot = program.FindSlotByName(sourceSetter.GetTargetName());
-                if (slot == UINT32_MAX) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter target was not found");
-                }
-                const TypeId targetType = program.GetSlotType(slot);
-                const DependencyProperty* property = ResolveTemplateProperty(
-                    properties, targetType, sourceSetter.GetPropertyName());
-                if (property == nullptr) {
-                    return InvalidTemplateCompiler(
-                        "Visual state Setter property was not found");
-                }
-                Base::Result<Value> value = ConvertSetterValue(
-                    sourceSetter, targetType, *property, runtime, properties);
-                if (!value) return value.GetStatus();
+                auto& sourceSetter = static_cast<Setter&>(*setterObject);
+                ResolvedTemplateSetter resolved;
+                Base::Result<bool> status = ResolveAndConvertTemplateSetter(
+                    sourceSetter,
+                    program,
+                    Meta::InvalidTypeId,
+                    /*emptyTargetUsesRootSlot=*/false,
+                    nullptr,
+                    runtime,
+                    properties,
+                    /*requireTargetName=*/true,
+                    "Visual state Setter requires TargetName and Property",
+                    "Visual state Setter target was not found",
+                    "Visual state Setter property was not found",
+                    resolved);
+                if (!status) return status.GetStatus();
 
                 VisualStateSetterPlan setter;
                 assigned = setter.targetName.Assign(sourceSetter.GetTargetName());
                 if (!assigned) return assigned.GetStatus();
-                setter.targetPartIndex = program.FindPartIndexByName(sourceSetter.GetTargetName());
-                setter.property = property->Handle();
-                setter.value = std::move(value).Value();
+                setter.targetPartIndex = resolved.partIndex;
+                setter.property = resolved.property;
+                setter.value = std::move(resolved.value);
                 state.setters.PushBack(std::move(setter));
+                sourceSetter.ReleaseAuthored();
             }
             group.states.PushBack(std::move(state));
         }
@@ -1963,26 +2024,25 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
     }
     for (const Base::Ref<Setter>& setter : setters) {
         if (!setter) continue;
-        const std::uint32_t target = setter->GetTargetName().Empty()
-            ? 0U : program.FindSlotByName(setter->GetTargetName());
-        if (target >= program.slotNames.Size()) {
-            return InvalidTemplateCompiler(
-                "Template trigger Setter target was not found");
-        }
-        const TypeId targetType = program.GetSlotType(target);
-        const DependencyProperty* property = ResolveTemplateProperty(
-            properties, targetType, setter->GetPropertyName());
-        if (property == nullptr) {
-            return InvalidTemplateCompiler(
-                "Template trigger Setter property was not found");
-        }
-        Base::Result<Value> value = ConvertSetterValue(
-            *setter, targetType, *property, runtime, properties);
-        if (!value) return value.GetStatus();
+        ResolvedTemplateSetter resolved;
+        Base::Result<bool> status = ResolveAndConvertTemplateSetter(
+            *setter,
+            program,
+            Meta::InvalidTypeId,
+            /*emptyTargetUsesRootSlot=*/true,
+            nullptr,
+            runtime,
+            properties,
+            /*requireTargetName=*/false,
+            "Template trigger Setter property was not found",
+            "Template trigger Setter target was not found",
+            "Template trigger Setter property was not found",
+            resolved);
+        if (!status) return status.GetStatus();
         CompiledTriggerSetter compiledSetter;
-        compiledSetter.target = target;
-        compiledSetter.property = property->Handle();
-        compiledSetter.value = std::move(value).Value();
+        compiledSetter.target = resolved.slot;
+        compiledSetter.property = resolved.property;
+        compiledSetter.value = std::move(resolved.value);
         plan.setters.PushBack(std::move(compiledSetter));
     }
     return plan;

@@ -266,6 +266,12 @@ struct Loader::LoaderState {
 
     struct Operation;
 
+    template<class TCallback>
+    static Base::Result<XamlDocument> Run(
+        LoaderState* state,
+        Base::IAllocator* allocator,
+        TCallback&& callback) noexcept;
+
     Schema* schema_ = nullptr;
     XamlProviderRegistry* providers_ = nullptr;
     Diagnostics::IDiagnosticSink* diagnostics_ = nullptr;
@@ -1670,165 +1676,115 @@ Loader::~Loader() noexcept {
     state_ = nullptr;
 }
 
-Base::Result<XamlDocument> Loader::Load(
-    Base::StringView uri,
-    const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
+template<class TCallback>
+Base::Result<XamlDocument> Loader::LoaderState::Run(
+    LoaderState* state,
+    Base::IAllocator* allocator,
+    TCallback&& callback) noexcept {
+    if (state == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Markup loader allocation failed");
     }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    Base::Result<Base::ResourceUri> resolved =
-        ResolveRequestedUri(uri, {});
-    if (!resolved) {
-        return AdoptResult(
-            operation.Failure(
+    Operation operation(
+        *state->schema_, *state->providers_,
+        state->diagnostics_, state->loadState_);
+    return AdoptResult(callback(operation), *allocator);
+}
+
+Base::Result<XamlDocument> Loader::Load(
+    Base::StringView uri,
+    const XamlReaderSettings& options) noexcept {
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) -> Base::Result<LoaderResult> {
+        Base::Result<Base::ResourceUri> resolved = ResolveRequestedUri(uri, {});
+        if (!resolved) {
+            return operation.Failure(
                 resolved.GetStatus(),
                 LoaderDiagnosticCodes::InvalidUri,
-                Base::StringView("XAML resource URI is invalid")),
-            *allocator_);
-    }
-    return AdoptResult(
-        operation.LoadCore(resolved.Value(), options, {}),
-        *allocator_);
+                Base::StringView("XAML resource URI is invalid"));
+        }
+        return operation.LoadCore(resolved.Value(), options, {});
+    });
 }
 
 Base::Result<XamlDocument> Loader::Load(
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    return AdoptResult(
-        operation.LoadCore(uri, options, {}), *allocator_);
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) {
+        return operation.LoadCore(uri, options, {});
+    });
 }
 
 Base::Result<XamlDocument> Loader::Parse(
     Base::StringView text,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    return AdoptResult(
-        operation.ParseCore(text, baseUri, options, {}, true),
-        *allocator_);
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) {
+        return operation.ParseCore(text, baseUri, options, {}, true);
+    });
 }
 
 Base::Result<XamlDocument> Loader::Parse(
     Base::Stream& stream,
     const Base::ResourceUri& baseUri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    return AdoptResult(
-        operation.ParseStreamCore(
-            stream, baseUri, options, {}, true),
-        *allocator_);
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) {
+        return operation.ParseStreamCore(stream, baseUri, options, {}, true);
+    });
 }
 
 Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     Base::StringView uri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    Base::Result<Base::ResourceUri> resolved =
-        ResolveRequestedUri(uri, {});
-    if (!resolved) {
-        return AdoptResult(
-            operation.Failure(
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) -> Base::Result<LoaderResult> {
+        Base::Result<Base::ResourceUri> resolved = ResolveRequestedUri(uri, {});
+        if (!resolved) {
+            return operation.Failure(
                 resolved.GetStatus(),
                 LoaderDiagnosticCodes::InvalidUri,
-                Base::StringView("XAML component URI is invalid")),
-            *allocator_);
-    }
-    Base::Ref<Base::Object> retained =
-        Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
-    if (!retained) {
-        return AdoptResult(
-            operation.Failure(
+                Base::StringView("XAML component URI is invalid"));
+        }
+        Base::Ref<Base::Object> retained =
+            Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
+        if (!retained) {
+            return operation.Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "LoadComponent requires a managed root object"),
                 LoaderDiagnosticCodes::LoadComponentTypeMismatch,
-                Base::StringView(
-                    "XAML component root cannot be retained")),
-            *allocator_);
-    }
-    return AdoptResult(
-        operation.LoadCore(resolved.Value(), options, retained),
-        *allocator_);
+                Base::StringView("XAML component root cannot be retained"));
+        }
+        return operation.LoadCore(resolved.Value(), options, retained);
+    });
 }
 
 Base::Result<XamlDocument> Loader::LoadComponent(
     Base::Object& existingRoot,
     const Base::ResourceUri& uri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    Base::Ref<Base::Object> retained =
-        Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
-    if (!retained) {
-        return AdoptResult(
-            operation.Failure(
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) -> Base::Result<LoaderResult> {
+        Base::Ref<Base::Object> retained =
+            Base::Ref<Base::Object>::TryFromBorrowed(existingRoot);
+        if (!retained) {
+            return operation.Failure(
                 Base::Status::Failure(
                     Base::ErrorCode::InvalidArgument,
                     "LoadComponent requires a managed root object"),
                 LoaderDiagnosticCodes::LoadComponentTypeMismatch,
-                Base::StringView(
-                    "XAML component root cannot be retained")),
-            *allocator_);
-    }
-    return AdoptResult(
-        operation.LoadCore(uri, options, retained), *allocator_);
+                Base::StringView("XAML component root cannot be retained"));
+        }
+        return operation.LoadCore(uri, options, retained);
+    });
 }
+
 Base::Result<XamlDocument> Loader::LoadCompiled(
     Base::Span<const std::uint8_t> bytes,
     const Base::ResourceUri& originUri,
     const XamlReaderSettings& options) noexcept {
-    if (state_ == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory,
-            "Markup loader allocation failed");
-    }
-    LoaderState::Operation operation(
-        *state_->schema_, *state_->providers_,
-        state_->diagnostics_, state_->loadState_);
-    return AdoptResult(
-        operation.LoadCompiled(bytes, originUri, options),
-        *allocator_);
+    return LoaderState::Run(state_, allocator_, [&](LoaderState::Operation& operation) {
+        return operation.LoadCompiled(bytes, originUri, options);
+    });
 }
 } // namespace Aero::Markup
 

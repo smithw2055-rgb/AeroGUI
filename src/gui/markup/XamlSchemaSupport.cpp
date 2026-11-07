@@ -1403,10 +1403,7 @@ Base::Result<void> XamlStyleSchemaFacet::FinalizeStyle(
                 *trigger, "MultiDataTrigger");
             if (!settersResolved) return settersResolved.GetStatus();
             style.AddTrigger(*trigger);
-            for (const Base::Ref<Aero::Condition>& condition :
-                 trigger->GetConditions()) {
-                if (condition) condition->ReleaseAuthored();
-            }
+            trigger->ReleaseAuthored();
             continue;
         }
         return Base::Status::Failure(
@@ -1546,13 +1543,6 @@ Base::Status InvalidTemplateXaml(
     return Base::Status::Failure(
         Base::ErrorCode::ValidationFailed,
         message);
-}
-
-bool TemplateHasTypeFlag(
-    TypeFlags value,
-    TypeFlags flag) noexcept {
-    return (static_cast<std::uint32_t>(value) &
-        static_cast<std::uint32_t>(flag)) != 0U;
 }
 
 inline void ApplyTemplateBaseUriIfEmpty(
