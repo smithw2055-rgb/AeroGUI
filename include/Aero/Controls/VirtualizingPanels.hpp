@@ -17,15 +17,23 @@ enum class VirtualizationCacheLengthUnit : std::uint8_t {
 };
 
 struct VirtualizationCacheLength {
-    double cacheBeforeViewport = 0.0;
-    double cacheAfterViewport = 0.0;
+    float cacheBeforeViewport = 0.0f;
+    float cacheAfterViewport = 0.0f;
+
+    constexpr VirtualizationCacheLength() noexcept = default;
+    constexpr VirtualizationCacheLength(double before, double after) noexcept
+        : cacheBeforeViewport(static_cast<float>(before)),
+          cacheAfterViewport(static_cast<float>(after)) {}
 };
+
+static_assert(sizeof(VirtualizationCacheLength) == 8,
+              "VirtualizationCacheLength must be 8 bytes");
 
 constexpr VirtualizationCacheLength CanonicalizeInlineValue(
     const VirtualizationCacheLength& value) noexcept {
     return {
-        (value.cacheBeforeViewport == 0.0) ? 0.0 : value.cacheBeforeViewport,
-        (value.cacheAfterViewport == 0.0) ? 0.0 : value.cacheAfterViewport};
+        (value.cacheBeforeViewport == 0.0f) ? 0.0f : value.cacheBeforeViewport,
+        (value.cacheAfterViewport == 0.0f) ? 0.0f : value.cacheAfterViewport};
 }
 
 using ::Aero::Meta::TypeId;

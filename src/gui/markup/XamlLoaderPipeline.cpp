@@ -98,6 +98,7 @@ Base::Result<LoaderResult> ExecuteCompiledDocumentOnVM(
             Base::ErrorCode::InvalidState,
             "Failed to compile XAML document to valid bytecode");
     }
+    Base::Ref<Base::Object> programHolder = document.BytecodeProgram();
     document.ReleaseNodesAfterBytecode();
 
     const XamlBytecodeProgram& program = *bytecodeReady.Value();
@@ -842,7 +843,8 @@ struct Loader::LoaderState::Operation {
         Operation* operation = nullptr;
         const XamlReaderSettings* options = nullptr;
         const Base::ResourceUri* origin = nullptr;
-        const CompiledDocument* compiled = nullptr;
+        const Base::ResourceUri* compiledOrigin = nullptr;
+        const Base::Vector<Base::ResourceUri>* compiledDependencies = nullptr;
     };
 
     struct PendingResourceMerge {
@@ -910,11 +912,12 @@ struct Loader::LoaderState::Operation {
         LoaderResult& destination,
         const Base::ResourceUri& dependency,
         const XamlReaderSettings& options) noexcept;
-    Base::Result<void> FinalizeResult(
+    Base::Result< void> FinalizeResult(
         LoaderResult& result,
         const XamlReaderSettings& options,
         const Base::ResourceUri& origin,
-        const CompiledDocument* compiled) noexcept;
+        const Base::ResourceUri* compiledOrigin,
+        const Base::Vector<Base::ResourceUri>* compiledDependencies) noexcept;
     static Base::Result<void> FinalizeLoad(
         LoaderResult& result,
         void* context) noexcept;
@@ -1000,8 +1003,11 @@ Loader::LoaderState::Operation::LoadCompiledDocument(
     // are committed by the load finalizer before queued StaticResource
     // references are written.
     context.deferUnresolvedStaticResources = true;
+    const Base::ResourceUri compiledOrigin = document.OriginUri();
+    Base::Vector<Base::ResourceUri> compiledDependencies;
+    compiledDependencies.Append(document.Dependencies());
     FinalizeState finalize{
-        this, &options, &originUri, &document};
+        this, &options, &originUri, &compiledOrigin, &compiledDependencies};
     context.finalize = &FinalizeLoad;
     context.finalizeContext = &finalize;
     Base::Result<LoaderResult> loaded =
@@ -1243,22 +1249,24 @@ Base::Result<void> Loader::LoaderState::Operation::FinalizeLoad(
         result,
         *finalize->options,
         *finalize->origin,
-        finalize->compiled);
+        finalize->compiledOrigin,
+        finalize->compiledDependencies);
 }
 
 Base::Result<void> Loader::LoaderState::Operation::FinalizeResult(
     LoaderResult& result,
     const XamlReaderSettings& options,
     const Base::ResourceUri& origin,
-    const CompiledDocument* compiled) noexcept {
+    const Base::ResourceUri* compiledOrigin,
+    const Base::Vector<Base::ResourceUri>* compiledDependencies) noexcept {
     const Base::ResourceUri& effectiveOrigin =
-        compiled != nullptr && origin.Empty()
-        ? compiled->OriginUri()
+        compiledOrigin != nullptr && origin.Empty()
+        ? *compiledOrigin
         : origin;
     result.canonicalUri = effectiveOrigin;
-    if (compiled != nullptr) {
+    if (compiledDependencies != nullptr) {
         for (const Base::ResourceUri& dependency :
-             compiled->Dependencies()) {
+             *compiledDependencies) {
             Base::Result<void> appended =
                 AppendDependency(
                     result, dependency, options);

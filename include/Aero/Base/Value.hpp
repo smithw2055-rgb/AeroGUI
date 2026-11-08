@@ -151,6 +151,10 @@ public:
     std::int64_t AsSignedInteger() const noexcept;
     std::uint64_t AsUnsignedInteger() const noexcept;
     double AsDouble() const noexcept;
+    double ToDouble(double fallback = 0.0) const noexcept;
+    float ToFloat(float fallback = 0.0f) const noexcept;
+    std::int32_t ToInt32(std::int32_t fallback = 0) const noexcept;
+    bool ToBool(bool fallback = false) const noexcept;
     StringView AsString() const noexcept;
     StringView AsDynamicResourceKey() const noexcept;
     const Ref<Base::Object>& AsObject() const noexcept;

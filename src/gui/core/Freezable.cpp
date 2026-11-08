@@ -405,8 +405,14 @@ void Freezable::OnChanged() noexcept {
             ? retained.Get()
             : record.unmanagedObject;
         const Meta::DependencyPropertyHandle property = record.property;
-        if (consumer != nullptr && property.IsValid()) {
-            (*consumer).InvalidateSubProperty(property);
+        if (consumer != nullptr) {
+            if (property.IsValid()) {
+                (*consumer).InvalidateSubProperty(property);
+            } else if (auto* parentFreezable = ::Aero::TryCast<Freezable>(consumer)) {
+                parentFreezable->WritePostscript();
+            } else if (auto* visual = ::Aero::TryCast<Media::Visual>(consumer)) {
+                visual->InvalidateRenderDrawing();
+            }
         }
     }
     for (std::uint32_t index = 0U;

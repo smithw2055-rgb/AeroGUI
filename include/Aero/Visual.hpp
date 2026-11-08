@@ -116,7 +116,11 @@ public:
     bool IsRenderAttached() const noexcept { return (visualFlags_ & kFlagRenderAttached) != 0U; }
 
     Visual* GetVisualParent() const noexcept { return visualParent_; }
-    ::Aero::DependencyObject* GetLogicalParent() const noexcept { return logicalParent_; }
+    ::Aero::DependencyObject* GetLogicalParent() const noexcept {
+        const std::uint8_t mode = LogicalParentMode();
+        if (mode == 1U) return visualParent_;
+        return mode == 0U ? nullptr : DistinctLogicalParentFromRare();
+    }
     std::uint16_t TreeDepth() const noexcept { return treeDepth_; }
 
 
@@ -197,8 +201,24 @@ private:
         }
     }
 
+    void SetLogicalParent(::Aero::DependencyObject* parent) noexcept {
+        if (parent == nullptr) {
+            if (LogicalParentMode() == 2U) {
+                SetDistinctLogicalParentInRare(nullptr);
+            }
+            SetLogicalParentMode(0U);
+        } else if (parent == static_cast<::Aero::DependencyObject*>(visualParent_)) {
+            if (LogicalParentMode() == 2U) {
+                SetDistinctLogicalParentInRare(nullptr);
+            }
+            SetLogicalParentMode(1U);
+        } else {
+            SetDistinctLogicalParentInRare(parent);
+            SetLogicalParentMode(2U);
+        }
+    }
+
     ::Aero::ElementTree* tree_ = nullptr;
-    ::Aero::DependencyObject* logicalParent_ = nullptr;
     Visual* visualParent_ = nullptr;
     Visual* firstVisualChild_ = nullptr;
     Visual* nextVisualSibling_ = nullptr;
@@ -214,6 +234,8 @@ private:
     std::uint8_t visualFlags_ = 0U;
     std::uint16_t treeDepth_ = 0U;
 };
+
+static_assert(sizeof(Visual) == 112, "Visual must be 112 bytes");
 
 } // namespace Aero::Media
 

@@ -26,15 +26,18 @@ using Meta::NoMetadataBase;
 
 struct Length {
     AERO_DECLARE_TYPE(Length, NoMetadataBase)
-    double value = 0.0;
+    float value = 0.0f;
     bool isAuto = true;
-    std::uint8_t reserved_[7]{};
+    std::uint8_t reserved_[3]{};
 
     static constexpr Length Auto() noexcept { return {}; }
     static constexpr Length Pixels(double value) noexcept {
-        return {(value == 0.0) ? 0.0 : value, false, {}};
+        const float f = static_cast<float>(value);
+        return {(f == 0.0f) ? 0.0f : f, false, {}};
     }
 };
+
+static_assert(sizeof(Length) == 8, "Length must be 8 bytes");
 
 constexpr Length CanonicalizeInlineValue(const Length& value) noexcept {
     return value.isAuto ? Length::Auto() : Length::Pixels(value.value);

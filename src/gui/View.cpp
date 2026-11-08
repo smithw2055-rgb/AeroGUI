@@ -117,6 +117,10 @@ void ViewFrame::Shutdown() noexcept {
     if (Images() != nullptr) {
         Images()->Shutdown(GetImageResources());
     }
+    if (gui != nullptr && Resources() != nullptr &&
+        gui->applicationResources == &Resources()->applicationResources) {
+        gui->applicationResources = nullptr;
+    }
 
     if (engines != nullptr) {
         FreeObject(*allocator, Base::MemoryTag::Ui, engines);
@@ -325,11 +329,15 @@ Base::Result<void> LoadViewResources(
     Base::Result<Aero::ResourceDictionary*> target =
         state.Resources()->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state.Resources()->LoadLayer(
+    Base::Result<void> loaded = state.Resources()->LoadLayer(
         uri,
         *target.Value(),
         diagnostics,
         mode == ResourceLoadMode::Merge);
+    if (loaded && layer == ResourceLayer::Application && state.gui != nullptr) {
+        state.gui->applicationResources = &state.Resources()->applicationResources;
+    }
+    return loaded;
 }
 
 Base::Result<void>
@@ -346,11 +354,15 @@ LoadViewCompiledResources(
     Base::Result<Aero::ResourceDictionary*> target =
         state.Resources()->ResolveLayer(layer);
     if (!target) return target.GetStatus();
-    return state.Resources()->LoadCompiledLayer(
+    Base::Result<void> loaded = state.Resources()->LoadCompiledLayer(
         bytes,
         originUri,
         *target.Value(),
         mode == ResourceLoadMode::Merge);
+    if (loaded && layer == ResourceLayer::Application && state.gui != nullptr) {
+        state.gui->applicationResources = &state.Resources()->applicationResources;
+    }
+    return loaded;
 }
 
 void SetViewResourceDictionary(
@@ -374,6 +386,9 @@ void SetViewResourceDictionary(
     if (mode == ResourceLoadMode::Merge) {
         target->AddMerged(shared);
         (void)state.Resources()->RebuildDynamicEnvironment();
+        if (layer == ResourceLayer::Application && state.gui != nullptr) {
+            state.gui->applicationResources = &state.Resources()->applicationResources;
+        }
         return;
     }
 
@@ -382,7 +397,12 @@ void SetViewResourceDictionary(
     *target.Value() = std::move(shared);
     Base::Result<void> rebuilt =
         state.Resources()->RebuildDynamicEnvironment();
-    if (rebuilt) return;
+    if (rebuilt) {
+        if (layer == ResourceLayer::Application && state.gui != nullptr) {
+            state.gui->applicationResources = &state.Resources()->applicationResources;
+        }
+        return;
+    }
     *target.Value() = std::move(previous);
     Base::Result<void> restored =
         state.Resources()->RebuildDynamicEnvironment();

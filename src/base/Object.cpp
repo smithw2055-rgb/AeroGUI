@@ -147,12 +147,12 @@ void Object::Release() noexcept {
         ReleaseWeak(control);
     }
 
-    if ((managedFlags_ & kManagedSystemAllocator) != 0U) {
+    if ((coreTypeMask_ & kManagedSystemAllocator) != 0U) {
         this->~Object();
         GetSystemAllocator().Deallocate(this, 0U, alignof(Object), MemoryTag::Object);
         return;
     }
-    AERO_ASSERT((managedFlags_ & kManagedCustomAllocator) != 0U);
+    AERO_ASSERT((coreTypeMask_ & kManagedCustomAllocator) != 0U);
     const CustomAllocationHeader* header =
         reinterpret_cast<const CustomAllocationHeader*>(this) - 1;
     DestroyObjectFn destroy = header->destroy;
@@ -180,25 +180,42 @@ bool Object::TryAddStrongReference() noexcept {
     return false;
 }
 
+void Object::PromoteConstructingObject() noexcept {
+    std::uint32_t expected = 0U;
+    (void)strongCount_.compare_exchange_strong(
+        expected,
+        1U,
+        std::memory_order_acq_rel,
+        std::memory_order_relaxed);
+}
+
 void Object::AttachSystemManagedLifetime() noexcept {
-    AERO_ASSERT(strongCount_.load(std::memory_order_relaxed) == 0U);
-    AERO_ASSERT(control_.load(std::memory_order_relaxed) == nullptr);
-    managedFlags_ = kManagedSystemAllocator;
-    strongCount_.store(1U, std::memory_order_release);
+    coreTypeMask_ = static_cast<std::uint16_t>(
+        (coreTypeMask_ & kCoreTypeMaskBits) | kManagedSystemAllocator);
+    std::uint32_t expected = 0U;
+    (void)strongCount_.compare_exchange_strong(
+        expected,
+        1U,
+        std::memory_order_release,
+        std::memory_order_relaxed);
 }
 
 bool Object::AttachManagedLifetime(
     IAllocator& allocator,
     DestroyObjectFn destroy) noexcept {
     AERO_ASSERT(destroy != nullptr);
-    AERO_ASSERT(strongCount_.load(std::memory_order_relaxed) == 0U);
-    AERO_ASSERT(control_.load(std::memory_order_relaxed) == nullptr);
     CustomAllocationHeader* header =
         reinterpret_cast<CustomAllocationHeader*>(this) - 1;
     header->allocator = &allocator;
     header->destroy = destroy;
-    managedFlags_ = kManagedCustomAllocator;
-    strongCount_.store(1U, std::memory_order_release);
+    coreTypeMask_ = static_cast<std::uint16_t>(
+        (coreTypeMask_ & kCoreTypeMaskBits) | kManagedCustomAllocator);
+    std::uint32_t expected = 0U;
+    (void)strongCount_.compare_exchange_strong(
+        expected,
+        1U,
+        std::memory_order_release,
+        std::memory_order_relaxed);
     return true;
 }
 
@@ -259,7 +276,7 @@ bool WeakRefBase::Expired() const noexcept {
     }
     Object* object = control->object.load(std::memory_order_acquire);
     const bool expired = (object == nullptr) ||
-        (object->managedFlags_ != Object::kManagedNone && object->UseCount() == 0U);
+        ((object->coreTypeMask_ & Object::kManagedLifetimeMask) != 0U && object->UseCount() == 0U);
     ReleaseLockGuard(control);
     return expired;
 }
@@ -288,7 +305,7 @@ Object* WeakRefBase::PeekObject() const noexcept {
         return nullptr;
     }
     Object* object = control->object.load(std::memory_order_acquire);
-    if (object != nullptr && object->managedFlags_ != Object::kManagedNone && object->UseCount() == 0U) {
+    if (object != nullptr && (object->coreTypeMask_ & Object::kManagedLifetimeMask) != 0U && object->UseCount() == 0U) {
         object = nullptr;
     }
     ReleaseLockGuard(control);
@@ -312,7 +329,9 @@ bool WeakRefBase::TryAttach(Object& object) noexcept {
     if (control_ != nullptr) {
         Reset();
     }
-    if (object.managedFlags_ != Object::kManagedNone && object.UseCount() == 0U) {
+    const std::uint16_t managedFlags =
+        static_cast<std::uint16_t>(object.coreTypeMask_ & Object::kManagedLifetimeMask);
+    if (managedFlags != Object::kManagedNone && object.UseCount() == 0U) {
         return false;
     }
 
@@ -320,9 +339,9 @@ bool WeakRefBase::TryAttach(Object& object) noexcept {
     auto* control = static_cast<ObjectControlBlock*>(existing);
     if (control == nullptr) {
         IAllocator* objectAlloc = nullptr;
-        if ((object.managedFlags_ & Object::kManagedSystemAllocator) != 0U) {
+        if ((managedFlags & Object::kManagedSystemAllocator) != 0U) {
             objectAlloc = &GetSystemAllocator();
-        } else if ((object.managedFlags_ & Object::kManagedCustomAllocator) != 0U) {
+        } else if ((managedFlags & Object::kManagedCustomAllocator) != 0U) {
             const auto* header =
                 reinterpret_cast<const Object::CustomAllocationHeader*>(&object) - 1;
             objectAlloc = header->allocator;

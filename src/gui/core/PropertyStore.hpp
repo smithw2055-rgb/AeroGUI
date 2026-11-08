@@ -800,7 +800,15 @@ struct ChangeHandlerRecord {
 struct DependencyObjectRare {
     Base::Vector<ChangeHandlerRecord> changeHandlers;
     DependencyObject* inheritanceParent = nullptr;
+    DependencyObject* distinctLogicalParent = nullptr;
     std::uint32_t changeHandlerNotificationDepth = 0U;
+
+    bool IsEmpty() const noexcept {
+        return changeHandlers.Empty() &&
+            changeHandlerNotificationDepth == 0U &&
+            inheritanceParent == nullptr &&
+            distinctLogicalParent == nullptr;
+    }
 };
 
 class DependencyMutationScope {

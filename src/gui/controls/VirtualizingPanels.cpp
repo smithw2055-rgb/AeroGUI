@@ -314,10 +314,10 @@ VirtualizingStackPanel::CalculateRealizationRange() noexcept {
     const VirtualizationCacheLengthUnit unit = GetCacheLengthUnit();
     std::uint32_t before = 0U;
     std::uint32_t after = 0U;
-    if (cache.cacheBeforeViewport > 0.0 ||
-        cache.cacheAfterViewport > 0.0) {
-        const double beforeValue = std::max(0.0, cache.cacheBeforeViewport);
-        const double afterValue = std::max(0.0, cache.cacheAfterViewport);
+    if (cache.cacheBeforeViewport > 0.0f ||
+        cache.cacheAfterViewport > 0.0f) {
+        const double beforeValue = std::max(0.0, static_cast<double>(cache.cacheBeforeViewport));
+        const double afterValue = std::max(0.0, static_cast<double>(cache.cacheAfterViewport));
         if (unit == VirtualizationCacheLengthUnit::Pixel) {
             const double firstOffset = GetItemOffset(visibleFirstIndex_);
             const double lastOffset = visibleEnd < itemCount

@@ -2355,7 +2355,8 @@ Base::Result<void> BindCompiledSubProgramToTemplate(
             static_cast<void>(::Aero::Controls::FrameworkTemplateState::SetTargetType(*controlTemplate, tt));
         }
 
-        if (!subProg.vsmPrograms.Empty() && runtime != nullptr) {
+        if (!subProg.vsmPrograms.Empty() && runtime != nullptr &&
+            ::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*controlTemplate).Empty()) {
             static_cast<void>(MaterializeCompiledVsmPrograms(
                 *controlTemplate, subProg, *runtime, schema, /*ignoreUnresolvedResources=*/false));
         }

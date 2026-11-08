@@ -429,7 +429,9 @@ void UIElement::MeasureCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().previousMeasureConstraint = constraint;
         element.Layout().desiredSize = {};
-        element.Layout().untransformedDesiredSize = {};
+        if (element.rare_ != nullptr) {
+            element.rare_->hasCustomUntransformedDesiredSize = false;
+        }
         element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
         element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
@@ -452,7 +454,9 @@ void UIElement::MeasureCore(
     }
     desired.width = std::max(0.0f, desired.width);
     desired.height = std::max(0.0f, desired.height);
-    element.Layout().untransformedDesiredSize = desired;
+    if (element.rare_ != nullptr) {
+        element.rare_->hasCustomUntransformedDesiredSize = false;
+    }
     element.Layout().previousMeasureConstraint = constraint;
     element.Layout().desiredSize = desired;
     element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
@@ -484,7 +488,9 @@ void UIElement::ArrangeCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
         element.Layout().renderSize = {};
-        element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (element.rare_ != nullptr) {
+            element.rare_->hasCustomLayoutClip = false;
+        }
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
         ++element.Layout().layoutRevision;
@@ -502,7 +508,9 @@ void UIElement::ArrangeCore(
     }
     element.Layout().layoutSlot = slot;
     element.Layout().renderSize = render;
-    element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (element.rare_ != nullptr) {
+        element.rare_->hasCustomLayoutClip = false;
+    }
     element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
     element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
     ++element.Layout().layoutRevision;
@@ -541,7 +549,9 @@ void FrameworkElement::MeasureCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().previousMeasureConstraint = constraint;
         element.Layout().desiredSize = {};
-        element.Layout().untransformedDesiredSize = {};
+        if (element.rare_ != nullptr) {
+            element.rare_->hasCustomUntransformedDesiredSize = false;
+        }
         element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
         element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
@@ -598,7 +608,7 @@ void FrameworkElement::MeasureCore(
     desired = ClampSize(desired, minimum, maximum);
     if (hasWidth) desired.width = available.width;
     if (hasHeight) desired.height = available.height;
-    element.Layout().untransformedDesiredSize = desired;
+    const Size untransformedDesired = desired;
     if (layoutTransform) {
         const Rect transformed =
             Base::TransformBounds(
@@ -621,6 +631,15 @@ void FrameworkElement::MeasureCore(
     if (element.GetUseLayoutRounding()) {
         desired.width = RoundLayoutValue(desired.width, static_cast<float>(element.GetDpiScale()));
         desired.height = RoundLayoutValue(desired.height, static_cast<float>(element.GetDpiScale()));
+    }
+    const Size reconstructedUntransformed = Deflate(desired, margin);
+    if (reconstructedUntransformed.width != untransformedDesired.width ||
+        reconstructedUntransformed.height != untransformedDesired.height) {
+        UIElement::Rare& rare = element.EnsureRare();
+        rare.untransformedDesiredSize = untransformedDesired;
+        rare.hasCustomUntransformedDesiredSize = true;
+    } else if (element.rare_ != nullptr) {
+        element.rare_->hasCustomUntransformedDesiredSize = false;
     }
     element.Layout().previousMeasureConstraint = constraint;
     element.Layout().desiredSize = desired;
@@ -653,7 +672,9 @@ void FrameworkElement::ArrangeCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
         element.SetActualSize(0.0f, 0.0f);
-        element.Layout().layoutClip = {0.0f, 0.0f, 0.0f, 0.0f};
+        if (element.rare_ != nullptr) {
+            element.rare_->hasCustomLayoutClip = false;
+        }
         element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
         ++element.Layout().layoutRevision;
@@ -844,9 +865,19 @@ void FrameworkElement::ArrangeCore(
     clipRect.height = std::max(0.0f, clipRect.height);
 
     element.Layout().SetFlag(LayoutFlags::HasLayoutClip, hasLayoutClip);
-    element.Layout().layoutClip = (hasLayoutClip || clipsToBounds)
+    const Rect finalClip = (hasLayoutClip || clipsToBounds)
         ? clipRect
         : localBounds;
+    if (finalClip.x != localBounds.x ||
+        finalClip.y != localBounds.y ||
+        finalClip.width != localBounds.width ||
+        finalClip.height != localBounds.height) {
+        UIElement::Rare& rare = element.EnsureRare();
+        rare.layoutClip = finalClip;
+        rare.hasCustomLayoutClip = true;
+    } else if (element.rare_ != nullptr) {
+        element.rare_->hasCustomLayoutClip = false;
+    }
     element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
     element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
     ++element.Layout().layoutRevision;

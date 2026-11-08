@@ -479,6 +479,7 @@ Base::Result<void> ValidateSchemaCore(
         case NodeKind::Value: {
             if (!bindInstructions || frames.Empty() ||
                 (!node.IsFromAttribute() &&
+                 !node.HasCompiledValue() &&
                  IsWhitespaceOnly(node.Value()))) {
                 break;
             }
@@ -1216,7 +1217,7 @@ Base::Result<AxbValueRecord> MakeAxbValueRecord(
             record.payloadCount = 2U;
             record.payload[0] =
                 CopyValueBits<std::uint64_t>(
-                    decoded.Value().value);
+                    static_cast<double>(decoded.Value().value));
             record.payload[1] =
                 decoded.Value().isAuto ? 1U : 0U;
             return record;
@@ -1701,149 +1702,6 @@ Base::Result<void> ReconstructInstructionName(
             return namespaceUri.Assign(
                 ownerType->XamlNamespace());
         }
-    }
-    return {};
-}
-
-Base::Result<void> FormatDecodedCompiledValueText(
-    Base::String& destination,
-    const AxbValueRecord& record,
-    const ::Aero::Meta::Registry& domain,
-    Base::Span<const Meta::TypeId> types,
-    Base::Span<const Base::String> strings) noexcept {
-    if (record.kind != AxbValueKind::Text &&
-        record.typeIndex >= types.Size()) {
-        return {};
-    }
-    const Meta::TypeId type =
-        record.kind != AxbValueKind::Text
-        ? types[record.typeIndex]
-        : Meta::InvalidTypeId;
-    char buf[160]{};
-    const auto assignFormatted =
-        [&destination, &buf](int len) noexcept -> Base::Result<void> {
-            if (len <= 0 ||
-                static_cast<std::size_t>(len) >= sizeof(buf)) {
-                return {};
-            }
-            return destination.Assign(
-                Base::StringView(
-                    buf,
-                    static_cast<std::uint32_t>(len)));
-        };
-    switch (record.kind) {
-    case AxbValueKind::Boolean:
-        return destination.Assign(
-            record.payload[0] != 0U
-                ? Base::StringView("True")
-                : Base::StringView("False"));
-    case AxbValueKind::SignedInteger:
-        return assignFormatted(std::snprintf(
-            buf,
-            sizeof(buf),
-            "%lld",
-            static_cast<long long>(
-                CopyValueBits<std::int64_t>(record.payload[0]))));
-    case AxbValueKind::UnsignedInteger:
-        if (const Meta::EnumValueInfo* enumVal =
-                domain.Types().FindEnumValue(type, record.payload[0])) {
-            return destination.Assign(enumVal->Name());
-        }
-        return assignFormatted(std::snprintf(
-            buf,
-            sizeof(buf),
-            "%llu",
-            static_cast<unsigned long long>(record.payload[0])));
-    case AxbValueKind::Double:
-        return assignFormatted(std::snprintf(
-            buf,
-            sizeof(buf),
-            "%.17g",
-            CopyValueBits<double>(record.payload[0])));
-    case AxbValueKind::String:
-        return AssignInternedString(
-            destination,
-            strings,
-            static_cast<std::uint32_t>(record.payload[0]));
-    case AxbValueKind::Custom:
-        if (type == Meta::TypeOf<::Aero::Length>()) {
-            if (record.payload[1] != 0U) {
-                return destination.Assign("Auto");
-            }
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "%.9g",
-                CopyValueBits<double>(record.payload[0])));
-        }
-        if (type == Meta::TypeOf<Base::Thickness>() ||
-            type == Meta::TypeOf<Base::CornerRadius>()) {
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "%.9g,%.9g,%.9g,%.9g",
-                static_cast<double>(UnpackFloat(record.payload[0], false)),
-                static_cast<double>(UnpackFloat(record.payload[0], true)),
-                static_cast<double>(UnpackFloat(record.payload[1], false)),
-                static_cast<double>(UnpackFloat(record.payload[1], true))));
-        }
-        if (type == Meta::TypeOf<Base::Color>()) {
-            const auto toByte = [](float c) noexcept -> unsigned int {
-                const float clamped =
-                    c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
-                return static_cast<unsigned int>(clamped * 255.0f + 0.5f);
-            };
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "#%02X%02X%02X%02X",
-                toByte(UnpackFloat(record.payload[1], true)),
-                toByte(UnpackFloat(record.payload[0], false)),
-                toByte(UnpackFloat(record.payload[0], true)),
-                toByte(UnpackFloat(record.payload[1], false))));
-        }
-        if (type == Meta::TypeOf<Base::Point>()) {
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "%.9g,%.9g",
-                static_cast<double>(UnpackFloat(record.payload[0], false)),
-                static_cast<double>(UnpackFloat(record.payload[0], true))));
-        }
-        if (type == Meta::TypeOf<Base::Transform2D>()) {
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "%.17g,%.17g,%.17g,%.17g,%.17g,%.17g",
-                CopyValueBits<double>(record.payload[0]),
-                CopyValueBits<double>(record.payload[1]),
-                CopyValueBits<double>(record.payload[2]),
-                CopyValueBits<double>(record.payload[3]),
-                CopyValueBits<double>(record.payload[4]),
-                CopyValueBits<double>(record.payload[5])));
-        }
-        if (type == Meta::TypeOf<::Aero::GridLength>()) {
-            const auto unit =
-                static_cast<::Aero::GridUnitType>(record.payload[1]);
-            if (unit == ::Aero::GridUnitType::Auto) {
-                return destination.Assign("Auto");
-            }
-            if (unit == ::Aero::GridUnitType::Star) {
-                return assignFormatted(std::snprintf(
-                    buf,
-                    sizeof(buf),
-                    "%.9g*",
-                    CopyValueBits<double>(record.payload[0])));
-            }
-            return assignFormatted(std::snprintf(
-                buf,
-                sizeof(buf),
-                "%.9g",
-                CopyValueBits<double>(record.payload[0])));
-        }
-        return {};
-    case AxbValueKind::Text:
-        return {};
     }
     return {};
 }
@@ -2897,15 +2755,6 @@ CompiledDocument::Deserialize(
                         strings.AsSpan());
                 if (!decoded) {
                     return decoded.GetStatus();
-                }
-                assigned = FormatDecodedCompiledValueText(
-                    node.value_,
-                    stored,
-                    domain,
-                    types.AsSpan(),
-                    strings.AsSpan());
-                if (!assigned) {
-                    return assigned.GetStatus();
                 }
                 node.BindCompiledValue(
                     std::move(decoded).Value());

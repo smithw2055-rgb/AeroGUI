@@ -32,7 +32,7 @@ class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
 
 public:
-    TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    TypeId RuntimeType() const noexcept override { return Meta::ResolveCompactTypeId(compactTypeIndex_); }
     PropertyValue GetValue(DependencyPropertyHandle property) const noexcept;
     StringView GetStringView(DependencyPropertyHandle property) const noexcept;
     template<class TOwner, class TValue> PropertyAccess<TValue> GetValue(
@@ -112,6 +112,12 @@ protected:
         return true;
     }
     virtual bool VerifyMutationAllowed() const noexcept;
+    std::uint8_t LogicalParentMode() const noexcept { return logicalParentMode_; }
+    void SetLogicalParentMode(std::uint8_t mode) noexcept {
+        logicalParentMode_ = static_cast<std::uint8_t>(mode & 0x03U);
+    }
+    DependencyObject* DistinctLogicalParentFromRare() const noexcept;
+    void SetDistinctLogicalParentInRare(DependencyObject* parent) noexcept;
 
 private:
     friend class DependencyMutationScope;
@@ -177,7 +183,8 @@ private:
     Result<void> DropEngineValueStateInternal(DependencyPropertyHandle property) noexcept;
     void ReleaseExpression(StoredValueEntry& entry) noexcept;
     void RemoveStoredEntry(MemberId key) noexcept;
-    Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *registry_; }
+    Meta::DependencyPropertyRegistry* PropertyRegistryPtr() const noexcept;
+    Meta::DependencyPropertyRegistry& PropertyRegistry() const noexcept { return *PropertyRegistryPtr(); }
     Result<void> VerifyReady() const noexcept;
     Result<DependencyMutationScope> BeginMutation(DependencyPropertyHandle property) noexcept;
     void LeaveMutation() noexcept;
@@ -199,7 +206,7 @@ private:
     bool ClearLocalExpressionInternal(DependencyPropertyHandle property) noexcept;
     bool ClearAnimationValueInternal(DependencyPropertyHandle property) noexcept;
     Result<PropertyValue> GetAnimationBaseValueInternal(DependencyPropertyHandle property) noexcept;
-    bool HasPropertyRegistry() const noexcept { return registry_ != nullptr; }
+    bool HasPropertyRegistry() const noexcept { return PropertyRegistryPtr() != nullptr; }
     bool HasChangeHandlers() const noexcept;
     void NotifyReadOnlyRedirectedChange(
         DependencyPropertyHandle property,
@@ -217,19 +224,20 @@ private:
     DependencyObject* ExplicitInheritanceParent() const noexcept;
     void SetExplicitInheritanceParent(DependencyObject* parent) noexcept;
 
-    Meta::DependencyPropertyRegistry* registry_ = nullptr;
-    TypeId runtimeType_ = InvalidTypeId;
     void* valueStore_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
+    std::uint16_t compactTypeIndex_ = 0U;
     std::uint16_t unmaterializedQueueMask_ = 0U;
-    std::uint16_t registryEpoch_ = 0U;
     std::uint16_t styleAppIndex_ = UINT16_MAX;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
-    bool objectServicesAvailable_ : 1;
-    mutable bool typeVerified_ : 1;
-    bool hasExplicitInheritanceChildren_ : 1;
-    bool hasExplicitInheritanceParent_ : 1;
+    std::uint8_t objectServicesAvailable_ : 1;
+    mutable std::uint8_t typeVerified_ : 1;
+    std::uint8_t hasExplicitInheritanceChildren_ : 1;
+    std::uint8_t hasExplicitInheritanceParent_ : 1;
+    std::uint8_t logicalParentMode_ : 2;
 };
+
+static_assert(sizeof(DependencyObject) == 48, "DependencyObject must be 48 bytes");
 
 template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
     const DependencyPropertyRef<TOwner, TValue>& property) const noexcept {

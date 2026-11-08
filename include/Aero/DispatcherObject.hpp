@@ -20,10 +20,9 @@ public:
 protected:
     explicit DispatcherObject(Dispatcher& dispatcher) noexcept;
     ~DispatcherObject() override = default;
-
-private:
-    Dispatcher* dispatcher_ = nullptr;
 };
+
+static_assert(sizeof(DispatcherObject) == 24, "DispatcherObject must be 24 bytes");
 
 } // namespace Aero::Threading
 

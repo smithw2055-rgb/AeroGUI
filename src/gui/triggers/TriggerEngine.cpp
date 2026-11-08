@@ -214,12 +214,20 @@ bool ComparePropertyValues(
     return ComparePropertyValues(actual, expected, metadata, op);
 }
 
+bool EvaluateTriggerPropertyCondition(
+    const DependencyObject& source,
+    DependencyPropertyHandle property,
+    const Meta::PropertyValue& expected,
+    const Meta::Registry* metadata) noexcept {
+    const PropertyValue current = source.GetValue(property);
+    if (current.IsUnset()) return false;
+    return EvaluatePropertyTriggerCondition(current, expected, metadata);
+}
+
 bool TriggerPlan::IsConditionMet(
     const DependencyObject& object) const noexcept {
-    Base::Result<PropertyValue> current = object.GetValue(property);
-    if (!current) return false;
     const Meta::Registry* metadata = Meta::CurrentObjectFactory().metadata;
-    return EvaluatePropertyTriggerCondition(current.Value(), value, metadata);
+    return EvaluateTriggerPropertyCondition(object, property, value, metadata);
 }
 
 TriggerEngine::TriggerEngine(

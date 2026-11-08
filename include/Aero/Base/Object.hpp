@@ -48,21 +48,29 @@ public:
     // This accessor has no mutable state and intentionally does not make plain
     // Object instances report a runtime type.
     static constexpr MetaTypeId StaticTypeId() noexcept { return MakeMetaTypeId("Object"); }
-    std::uint16_t CoreTypeMask() const noexcept { return coreTypeMask_; }
+    std::uint16_t CoreTypeMask() const noexcept {
+        return static_cast<std::uint16_t>(coreTypeMask_ & kCoreTypeMaskBits);
+    }
 
 protected:
     Object() noexcept = default;
     virtual ~Object();
     void ExpireWeakReferences() noexcept;
     void AddCoreTypeFlag(std::uint16_t flag) noexcept {
-        coreTypeMask_ = static_cast<std::uint16_t>(coreTypeMask_ | flag);
+        coreTypeMask_ = static_cast<std::uint16_t>(coreTypeMask_ | (flag & kCoreTypeMaskBits));
     }
+    std::uint16_t ContextSlot() const noexcept { return contextSlot_; }
+    void SetContextSlot(std::uint16_t slot) noexcept { contextSlot_ = slot; }
+    void PromoteConstructingObject() noexcept;
 
 private:
+    static constexpr std::uint16_t kCoreTypeMaskBits = 0x3FFFU;
+
     enum ManagedLifetimeFlags : std::uint16_t {
         kManagedNone            = 0U,
-        kManagedSystemAllocator = 1U << 0U,
-        kManagedCustomAllocator = 1U << 1U,
+        kManagedSystemAllocator = 1U << 14U,
+        kManagedCustomAllocator = 1U << 15U,
+        kManagedLifetimeMask    = kManagedSystemAllocator | kManagedCustomAllocator,
     };
 
     struct CustomAllocationHeader {
@@ -72,7 +80,7 @@ private:
 
     mutable std::atomic<std::uint32_t> strongCount_{0U};
     std::uint16_t coreTypeMask_ = 0U;
-    std::uint16_t managedFlags_ = kManagedNone;
+    std::uint16_t contextSlot_ = 0U;
     mutable std::atomic<void*> control_{nullptr};
 
     bool TryAddStrongReference() noexcept;

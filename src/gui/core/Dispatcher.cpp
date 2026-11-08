@@ -87,7 +87,130 @@ struct CleanupInvocation  {
     void* context = nullptr;
 };
 
+struct ObjectContextSlotEntry {
+    std::atomic<Dispatcher*> dispatcher{nullptr};
+    std::atomic<Meta::DependencyPropertyRegistry*> registry{nullptr};
+    std::atomic<std::uint16_t> registryEpoch{0U};
+};
+
+constexpr std::uint32_t kMaxObjectContextSlots = 65536U;
+ObjectContextSlotEntry g_objectContextSlots[kMaxObjectContextSlots]{};
+std::atomic<std::uint32_t> g_objectContextSlotCount{1U};
+std::atomic_flag g_objectContextSlotLock = ATOMIC_FLAG_INIT;
+
+struct ThreadObjectContextCache {
+    Dispatcher* dispatcher = nullptr;
+    Meta::DependencyPropertyRegistry* registry = nullptr;
+    std::uint16_t registryEpoch = 0U;
+    std::uint16_t slot = 0U;
+};
+
+thread_local ThreadObjectContextCache t_objectContextCache{};
+
 } // namespace
+
+std::uint16_t AcquireObjectContextSlot(
+    Dispatcher* dispatcher,
+    Meta::DependencyPropertyRegistry* registry,
+    std::uint16_t registryEpoch) noexcept {
+    if (dispatcher == nullptr && registry == nullptr) {
+        return 0U;
+    }
+    if (t_objectContextCache.slot != 0U &&
+        t_objectContextCache.dispatcher == dispatcher &&
+        t_objectContextCache.registry == registry &&
+        t_objectContextCache.registryEpoch == registryEpoch &&
+        g_objectContextSlots[t_objectContextCache.slot].dispatcher.load(std::memory_order_relaxed) == dispatcher &&
+        g_objectContextSlots[t_objectContextCache.slot].registry.load(std::memory_order_relaxed) == registry) {
+        return t_objectContextCache.slot;
+    }
+
+    while (g_objectContextSlotLock.test_and_set(std::memory_order_acquire)) {
+    }
+    const std::uint32_t count = g_objectContextSlotCount.load(std::memory_order_relaxed);
+    std::uint16_t found = 0U;
+    for (std::uint32_t i = count; i > 1U; --i) {
+        const std::uint32_t idx = i - 1U;
+        if (g_objectContextSlots[idx].dispatcher.load(std::memory_order_relaxed) == dispatcher &&
+            g_objectContextSlots[idx].registry.load(std::memory_order_relaxed) == registry &&
+            g_objectContextSlots[idx].registryEpoch.load(std::memory_order_relaxed) == registryEpoch) {
+            found = static_cast<std::uint16_t>(idx);
+            break;
+        }
+    }
+    if (found == 0U) {
+        if (count < kMaxObjectContextSlots) {
+            found = static_cast<std::uint16_t>(count);
+            g_objectContextSlots[found].dispatcher.store(dispatcher, std::memory_order_relaxed);
+            g_objectContextSlots[found].registry.store(registry, std::memory_order_relaxed);
+            g_objectContextSlots[found].registryEpoch.store(registryEpoch, std::memory_order_relaxed);
+            g_objectContextSlotCount.store(count + 1U, std::memory_order_release);
+        } else {
+            for (std::uint32_t idx = 1U; idx < kMaxObjectContextSlots; ++idx) {
+                if (g_objectContextSlots[idx].dispatcher.load(std::memory_order_relaxed) == nullptr &&
+                    g_objectContextSlots[idx].registry.load(std::memory_order_relaxed) == nullptr) {
+                    found = static_cast<std::uint16_t>(idx);
+                    g_objectContextSlots[found].dispatcher.store(dispatcher, std::memory_order_relaxed);
+                    g_objectContextSlots[found].registry.store(registry, std::memory_order_relaxed);
+                    g_objectContextSlots[found].registryEpoch.store(registryEpoch, std::memory_order_release);
+                    break;
+                }
+            }
+            AERO_ASSERT(found != 0U);
+        }
+    }
+    g_objectContextSlotLock.clear(std::memory_order_release);
+
+    t_objectContextCache.dispatcher = dispatcher;
+    t_objectContextCache.registry = registry;
+    t_objectContextCache.registryEpoch = registryEpoch;
+    t_objectContextCache.slot = found;
+    return found;
+}
+
+Dispatcher* ResolveObjectContextDispatcher(std::uint16_t slot) noexcept {
+    return g_objectContextSlots[slot].dispatcher.load(std::memory_order_acquire);
+}
+
+Meta::DependencyPropertyRegistry* ResolveObjectContextRegistry(std::uint16_t slot) noexcept {
+    return g_objectContextSlots[slot].registry.load(std::memory_order_acquire);
+}
+
+std::uint16_t ResolveObjectContextRegistryEpoch(std::uint16_t slot) noexcept {
+    return g_objectContextSlots[slot].registryEpoch.load(std::memory_order_acquire);
+}
+
+void InvalidateDispatcherContextSlots(const Dispatcher* dispatcher) noexcept {
+    if (dispatcher == nullptr) return;
+    while (g_objectContextSlotLock.test_and_set(std::memory_order_acquire)) {
+    }
+    const std::uint32_t count = g_objectContextSlotCount.load(std::memory_order_relaxed);
+    for (std::uint32_t idx = 1U; idx < count; ++idx) {
+        if (g_objectContextSlots[idx].dispatcher.load(std::memory_order_relaxed) == dispatcher) {
+            g_objectContextSlots[idx].dispatcher.store(nullptr, std::memory_order_release);
+        }
+    }
+    g_objectContextSlotLock.clear(std::memory_order_release);
+    if (t_objectContextCache.dispatcher == dispatcher) {
+        t_objectContextCache = {};
+    }
+}
+
+void InvalidateRegistryContextSlots(const Meta::DependencyPropertyRegistry* registry) noexcept {
+    if (registry == nullptr) return;
+    while (g_objectContextSlotLock.test_and_set(std::memory_order_acquire)) {
+    }
+    const std::uint32_t count = g_objectContextSlotCount.load(std::memory_order_relaxed);
+    for (std::uint32_t idx = 1U; idx < count; ++idx) {
+        if (g_objectContextSlots[idx].registry.load(std::memory_order_relaxed) == registry) {
+            g_objectContextSlots[idx].registry.store(nullptr, std::memory_order_release);
+        }
+    }
+    g_objectContextSlotLock.clear(std::memory_order_release);
+    if (t_objectContextCache.registry == registry) {
+        t_objectContextCache = {};
+    }
+}
 
 DispatcherThreadToken CurrentDispatcherThreadToken() noexcept {
     return gCurrentThreadToken;
@@ -204,6 +327,7 @@ Dispatcher::~Dispatcher() noexcept {
 
     delete propertySlab_;
     propertySlab_ = nullptr;
+    InvalidateDispatcherContextSlots(this);
 }
 
 PropertySlab& Dispatcher::GetPropertySlab() noexcept {
@@ -689,25 +813,29 @@ bool Dispatcher::IsValidPriority(
 }
 
 DispatcherObject::DispatcherObject(
-    Dispatcher& dispatcher) noexcept
-    : dispatcher_(&dispatcher) {}
+    Dispatcher& dispatcher) noexcept {
+    SetContextSlot(AcquireObjectContextSlot(&dispatcher, nullptr, 0U));
+}
 
 bool DispatcherObject::CheckAccess() const noexcept {
-    return dispatcher_ != nullptr &&
-        dispatcher_->CheckAccess();
+    Dispatcher* const dispatcher = ResolveObjectContextDispatcher(ContextSlot());
+    return dispatcher != nullptr &&
+        dispatcher->CheckAccess();
 }
 
 Base::Result<void> DispatcherObject::VerifyAccess() const noexcept {
-    return dispatcher_ != nullptr
-        ? dispatcher_->VerifyAccess()
+    Dispatcher* const dispatcher = ResolveObjectContextDispatcher(ContextSlot());
+    return dispatcher != nullptr
+        ? dispatcher->VerifyAccess()
         : Base::Result<void>(Base::Status::Failure(
               Base::ErrorCode::NotInitialized,
               "DispatcherObject has no Dispatcher"));
 }
 
 Dispatcher& DispatcherObject::GetDispatcher() const noexcept {
-    AERO_ASSERT(dispatcher_ != nullptr);
-    return *dispatcher_;
+    Dispatcher* const dispatcher = ResolveObjectContextDispatcher(ContextSlot());
+    AERO_ASSERT(dispatcher != nullptr);
+    return *dispatcher;
 }
 
 } // namespace Aero::Threading

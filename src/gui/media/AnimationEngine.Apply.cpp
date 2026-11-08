@@ -122,6 +122,11 @@ bool AnimationEngine::ApplyTrack(
         track.originValue, track.destinationValue, progress, sampleTime);
     if (value.IsUnset()) return false;
 
+    if (track.target == nullptr ||
+        !DependencyObjectAccess::HasPropertyRegistry(track.target)) {
+        return false;
+    }
+
     const Meta::DependencyProperty* targetProperty =
         DependencyObjectAccess::PropertyRegistry(track.target).Find(
             track.property);
@@ -157,6 +162,11 @@ bool AnimationEngine::ApplyTrack(
     Base::Result<void> applied = values_->SetAnimationValue(
         *track.target, track.property, value);
     if (!applied) return false;
+    if (auto* targetFreezable = ::Aero::TryCast<Freezable>(track.target)) {
+        targetFreezable->InvalidateSubProperty(track.property);
+    } else if (auto* targetVisual = ::Aero::TryCast<Media::Visual>(track.target)) {
+        targetVisual->InvalidateRenderDrawing();
+    }
     track.valueApplied = true;
     ++diagnostics_.appliedValueCount;
 

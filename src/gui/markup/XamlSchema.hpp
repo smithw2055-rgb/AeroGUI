@@ -851,6 +851,9 @@ public:
         return namespaceUri_.View();
     }
     Base::StringView Value() const noexcept {
+        if (value_.Empty() && compiledValue_.Kind() == Meta::ValueKind::String) {
+            return compiledValue_.AsString();
+        }
         return value_.View();
     }
     ::Aero::Diagnostics::SourceSpan Source() const noexcept {

@@ -235,7 +235,7 @@ struct ProjectiveTransform2D {
     double m33 = 1.0;
 };
 
-using RenderNodeId = std::uint64_t;
+using RenderNodeId = std::uint32_t;
 constexpr RenderNodeId InvalidRenderNodeId = 0U;
 
 inline bool IsFiniteRect(Rect value) noexcept {

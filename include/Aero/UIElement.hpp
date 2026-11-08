@@ -102,7 +102,16 @@ public:
     Size GetDesiredSize() const noexcept { return layout_.desiredSize; }
     Size GetRenderSize() const noexcept { return layout_.renderSize; }
     Rect GetLayoutSlot() const noexcept { return layout_.layoutSlot; }
-    Rect GetLayoutClip() const noexcept { return layout_.layoutClip; }
+    Rect GetLayoutClip() const noexcept {
+        if (rare_ != nullptr && rare_->hasCustomLayoutClip) {
+            return rare_->layoutClip;
+        }
+        if ((CoreTypeMask() & Base::kCoreTypeFrameworkElement) != 0U &&
+            layout_.arrangeValid) {
+            return {0.0f, 0.0f, layout_.renderSize.width, layout_.renderSize.height};
+        }
+        return {};
+    }
     bool GetHasLayoutClip() const noexcept { return layout_.HasFlag(LayoutFlags::HasLayoutClip); }
     bool GetIsMeasureValid() const noexcept { return layout_.HasFlag(LayoutFlags::MeasureValid); }
     bool GetIsArrangeValid() const noexcept { return layout_.HasFlag(LayoutFlags::ArrangeValid); }
@@ -111,7 +120,7 @@ public:
     bool GetIsMeasuring() const noexcept { return layout_.HasFlag(LayoutFlags::Measuring); }
     bool GetIsArranging() const noexcept { return layout_.HasFlag(LayoutFlags::Arranging); }
     bool GetIsLayoutAttached() const noexcept { return layout_.HasFlag(LayoutFlags::LayoutAttached); }
-    Size GetUntransformedDesiredSize() const noexcept { return layout_.untransformedDesiredSize; }
+    Size GetUntransformedDesiredSize() const noexcept;
     Size GetPreviousMeasureConstraint() const noexcept { return layout_.previousMeasureConstraint; }
     bool GetClipToBounds() const noexcept { return layout_.clipToBounds; }
     // Property operations
@@ -337,11 +346,9 @@ class EventRouter;
 
     struct LayoutHot {
         Size desiredSize{};
-        Size untransformedDesiredSize{};
         Size renderSize{};
         Size previousMeasureConstraint{};
         Rect layoutSlot{};
-        Rect layoutClip{};
         std::uint32_t layoutRevision = 0U;
         // Cached from the dependency properties so measure, arrange, render,
         // and hit-testing do not look them up again in the DP store.
@@ -429,6 +436,10 @@ class EventRouter;
         void* routedHandlers = nullptr;
         void* inputBindings = nullptr;
         void* commandBindings = nullptr;
+        Rect layoutClip{};
+        Size untransformedDesiredSize{};
+        bool hasCustomLayoutClip = false;
+        bool hasCustomUntransformedDesiredSize = false;
     };
 
     LayoutHot& Layout() noexcept { return layout_; }
@@ -455,5 +466,7 @@ class EventRouter;
     LayoutHot layout_{};
     Rare* rare_ = nullptr;
 };
+
+static_assert(sizeof(UIElement) == 176, "UIElement must be 176 bytes");
 
 } // namespace Aero

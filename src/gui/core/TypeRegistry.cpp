@@ -29,6 +29,19 @@
 namespace Aero::Meta {
 namespace {
 
+struct CompactTypeIdTable {
+    static constexpr std::uint32_t kMaxTypes = 65536U;
+    static constexpr std::uint32_t kHashCapacity = 131072U;
+    static constexpr std::uint32_t kHashMask = kHashCapacity - 1U;
+
+    std::atomic<std::uint32_t> count{1U};
+    TypeId entries[kMaxTypes]{};
+    std::atomic<std::uint16_t> hashTable[kHashCapacity]{};
+    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+};
+
+CompactTypeIdTable g_compactTypeIdTable{};
+
 struct RuntimeTypeBinding {
     TypeId id = InvalidTypeId;
     TypeId baseType = InvalidTypeId;
@@ -59,6 +72,53 @@ constexpr Base::Status EmptyTypeNameStatus() noexcept {
 }
 
 } // namespace
+
+std::uint16_t InternCompactTypeId(TypeId type) noexcept {
+    if (type == InvalidTypeId) {
+        return 0U;
+    }
+    const std::uint32_t h = static_cast<std::uint32_t>(type ^ (type >> 32U)) &
+        CompactTypeIdTable::kHashMask;
+    for (std::uint32_t step = 0U; step < CompactTypeIdTable::kHashCapacity; ++step) {
+        const std::uint32_t bucket = (h + step) & CompactTypeIdTable::kHashMask;
+        const std::uint16_t idx =
+            g_compactTypeIdTable.hashTable[bucket].load(std::memory_order_acquire);
+        if (idx == 0U) {
+            break;
+        }
+        if (g_compactTypeIdTable.entries[idx] == type) {
+            return idx;
+        }
+    }
+
+    while (g_compactTypeIdTable.lock.test_and_set(std::memory_order_acquire)) {
+    }
+    std::uint16_t assigned = 0U;
+    for (std::uint32_t step = 0U; step < CompactTypeIdTable::kHashCapacity; ++step) {
+        const std::uint32_t bucket = (h + step) & CompactTypeIdTable::kHashMask;
+        const std::uint16_t idx =
+            g_compactTypeIdTable.hashTable[bucket].load(std::memory_order_relaxed);
+        if (idx == 0U) {
+            const std::uint32_t next =
+                g_compactTypeIdTable.count.fetch_add(1U, std::memory_order_relaxed);
+            AERO_ASSERT(next < CompactTypeIdTable::kMaxTypes);
+            assigned = static_cast<std::uint16_t>(next);
+            g_compactTypeIdTable.entries[assigned] = type;
+            g_compactTypeIdTable.hashTable[bucket].store(assigned, std::memory_order_release);
+            break;
+        }
+        if (g_compactTypeIdTable.entries[idx] == type) {
+            assigned = idx;
+            break;
+        }
+    }
+    g_compactTypeIdTable.lock.clear(std::memory_order_release);
+    return assigned;
+}
+
+TypeId ResolveCompactTypeId(std::uint16_t index) noexcept {
+    return g_compactTypeIdTable.entries[index];
+}
 
 Base::Status BindRuntimeTypeInfo(
     TypeId token,

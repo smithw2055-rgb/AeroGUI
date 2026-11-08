@@ -222,6 +222,83 @@ double Value::AsDouble() const noexcept {
     AERO_ASSERT(kind_ == ValueKind::Double);
     return LoadScalar<double>(storage_.inlineData);
 }
+double Value::ToDouble(double fallback) const noexcept {
+    switch (kind_) {
+    case ValueKind::Double:
+        return AsDouble();
+    case ValueKind::SignedInteger:
+        return static_cast<double>(AsSignedInteger());
+    case ValueKind::UnsignedInteger:
+        return static_cast<double>(AsUnsignedInteger());
+    case ValueKind::Boolean:
+        return AsBoolean() ? 1.0 : 0.0;
+    case ValueKind::String: {
+        const Base::StringView text = AsString();
+        if (text.Empty() || text.SizeBytes() >= 63U) return fallback;
+        char buffer[64];
+        std::memcpy(buffer, text.Data(), text.SizeBytes());
+        buffer[text.SizeBytes()] = '\0';
+        char* end = nullptr;
+        const double parsed = std::strtod(buffer, &end);
+        return (end != buffer && std::isfinite(parsed)) ? parsed : fallback;
+    }
+    default:
+        return fallback;
+    }
+}
+float Value::ToFloat(float fallback) const noexcept {
+    return static_cast<float>(ToDouble(static_cast<double>(fallback)));
+}
+std::int32_t Value::ToInt32(std::int32_t fallback) const noexcept {
+    switch (kind_) {
+    case ValueKind::SignedInteger:
+        return static_cast<std::int32_t>(AsSignedInteger());
+    case ValueKind::UnsignedInteger:
+        return static_cast<std::int32_t>(AsUnsignedInteger());
+    case ValueKind::Double:
+        return static_cast<std::int32_t>(AsDouble());
+    case ValueKind::Boolean:
+        return AsBoolean() ? 1 : 0;
+    case ValueKind::String: {
+        const Base::StringView text = AsString();
+        if (text.Empty() || text.SizeBytes() >= 63U) return fallback;
+        char buffer[64];
+        std::memcpy(buffer, text.Data(), text.SizeBytes());
+        buffer[text.SizeBytes()] = '\0';
+        char* end = nullptr;
+        const long long parsed = std::strtoll(buffer, &end, 10);
+        return end != buffer ? static_cast<std::int32_t>(parsed) : fallback;
+    }
+    default:
+        return fallback;
+    }
+}
+bool Value::ToBool(bool fallback) const noexcept {
+    switch (kind_) {
+    case ValueKind::Boolean:
+        return AsBoolean();
+    case ValueKind::SignedInteger:
+        return AsSignedInteger() != 0;
+    case ValueKind::UnsignedInteger:
+        return AsUnsignedInteger() != 0U;
+    case ValueKind::Double:
+        return AsDouble() != 0.0;
+    case ValueKind::String: {
+        const Base::StringView text = AsString();
+        if (text == Base::StringView("True") || text == Base::StringView("true") ||
+            text == Base::StringView("1")) {
+            return true;
+        }
+        if (text == Base::StringView("False") || text == Base::StringView("false") ||
+            text == Base::StringView("0")) {
+            return false;
+        }
+        return fallback;
+    }
+    default:
+        return fallback;
+    }
+}
 Base::StringView Value::AsString() const noexcept {
     AERO_ASSERT(kind_ == ValueKind::String);
     if (isShortString_) {

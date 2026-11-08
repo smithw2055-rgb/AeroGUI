@@ -270,6 +270,12 @@ inline bool EvaluatePropertyTriggerCondition(
     return ComparePropertyValues(current, expected, metadata);
 }
 
+bool EvaluateTriggerPropertyCondition(
+    const DependencyObject& source,
+    DependencyPropertyHandle property,
+    const Meta::PropertyValue& expected,
+    const Meta::Registry* metadata = nullptr) noexcept;
+
 inline bool IsTriggerConditionMet(
     const DependencyObject& object,
     const TriggerPlan& trigger) noexcept {

@@ -141,15 +141,12 @@ public:
     void ClearHeight() noexcept { ClearValue(HeightProperty); }
     double GetActualWidth() const noexcept { return static_cast<double>(GetRenderSize().width); }
     double GetActualHeight() const noexcept { return static_cast<double>(GetRenderSize().height); }
-    Size GetMinSize() const noexcept { return {layoutScalars_.minWidth, layoutScalars_.minHeight}; }
+    Size GetMinSize() const noexcept {
+        return layoutScalars_.hasMinMax ? GetMinSizeSlow() : Size{0.0f, 0.0f};
+    }
     void SetMinSize(Size value) noexcept;
     Size GetMaxSize() const noexcept {
-        const Size minimum = GetMinSize();
-        const double authoredWidth = layoutScalars_.maxWidth;
-        const double authoredHeight = layoutScalars_.maxHeight;
-        return {
-            authoredWidth < minimum.width ? minimum.width : authoredWidth,
-            authoredHeight < minimum.height ? minimum.height : authoredHeight};
+        return layoutScalars_.hasMinMax ? GetMaxSizeSlow() : Size{1.0e12f, 1.0e12f};
     }
     void SetMaxSize(Size value) noexcept;
     Thickness GetMargin() const noexcept { return layoutScalars_.margin; }
@@ -265,25 +262,32 @@ private:
     struct LayoutScalars {
         float width = 0.0f;
         float height = 0.0f;
-        float minWidth = 0.0f;
-        float maxWidth = 1.0e12f;
-        float minHeight = 0.0f;
-        float maxHeight = 1.0e12f;
         Thickness margin{};
         float dpiScale = 1.0f;
         HorizontalAlignment horizontalAlignment = HorizontalAlignment::Stretch;
         VerticalAlignment verticalAlignment = VerticalAlignment::Stretch;
         FlowDirection flowDirection = FlowDirection::LeftToRight;
-        bool hasWidth = false;
-        bool hasHeight = false;
-        bool useLayoutRounding = false;
-        bool snapsToDevicePixels = false;
-        bool hasLayoutTransform = false;
+        std::uint8_t hasWidth : 1;
+        std::uint8_t hasHeight : 1;
+        std::uint8_t useLayoutRounding : 1;
+        std::uint8_t snapsToDevicePixels : 1;
+        std::uint8_t hasLayoutTransform : 1;
+        std::uint8_t hasMinMax : 1;
+
+        LayoutScalars() noexcept
+            : hasWidth(0U)
+            , hasHeight(0U)
+            , useLayoutRounding(0U)
+            , snapsToDevicePixels(0U)
+            , hasLayoutTransform(0U)
+            , hasMinMax(0U) {}
     };
     // Authored triggers/behaviors, style prototypes, and viewbox projection
     // live off the hot instance. Empty elements pay one pointer.
     struct FrameworkRare;
 
+    Size GetMinSizeSlow() const noexcept;
+    Size GetMaxSizeSlow() const noexcept;
     FrameworkElement* GetRenderParent() const noexcept;
     FrameworkElementChildRange GetRenderChildren() const noexcept { return FrameworkElementChildRange(*this); }
     void SyncLayoutScalarProperty(DependencyPropertyHandle property, const Meta::PropertyValue& newValue) noexcept;
@@ -320,6 +324,8 @@ private:
     mutable ResourceDictionary* resources_ = nullptr;
     FrameworkRare* frameworkRare_ = nullptr;
 };
+
+static_assert(sizeof(FrameworkElement) == 232, "FrameworkElement must be 232 bytes");
 
 
 } // namespace Aero

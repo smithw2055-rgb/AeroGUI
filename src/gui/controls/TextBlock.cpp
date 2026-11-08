@@ -48,6 +48,7 @@ struct TextBlock::DocumentRare {
     Base::Vector<std::uint64_t> extraGlyphRuns;
     Base::Vector<TextHitRegion> textHitRegions;
     Base::Vector<Ref<Documents::Inline>> ownedInlines;
+    Base::Vector<UIElement*> scratchVisualChildren;
     Base::String flatText;
     Base::Vector<RichTextStyleRange> richTextStyleRanges;
     Ref<Documents::Inline> pendingInline;
@@ -388,21 +389,15 @@ void CollectInlineUiChildren(
     Base::Vector<UIElement*>& children,
     std::uint32_t depth = 0U) noexcept {
     if (depth >= 1024U) return;
-    const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((value)).Types();
-    if (types.IsDerivedFrom(
-            value.RuntimeType(),
-            Documents::InlineUIContainer::StaticTypeId())) {
-        UIElement* child =
-            static_cast<const Documents::InlineUIContainer&>(value).GetChild();
+    if (const auto* container = ::Aero::TryCast<Documents::InlineUIContainer>(&value)) {
+        UIElement* child = container->GetChild();
         if (child != nullptr) {
             static_cast<void>(children.PushBack(child));
         }
         return;
     }
-    if (types.IsDerivedFrom(
-            value.RuntimeType(), Documents::Span::StaticTypeId())) {
-        const auto& span = static_cast<const Documents::Span&>(value);
-        const Documents::InlineCollectionView inlines = span.GetInlines();
+    if (const auto* span = ::Aero::TryCast<Documents::Span>(&value)) {
+        const Documents::InlineCollectionView inlines = span->GetInlines();
         for (std::uint32_t index = 0U; index < inlines.GetCount(); ++index) {
             const Documents::Inline* nested = inlines.GetItem(index);
             if (nested != nullptr) {
@@ -416,7 +411,8 @@ void CollectInlineUiChildren(
 
 std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
     if (docRare_ == nullptr || docRare_->ownedInlines.Empty()) return 0U;
-    Base::Vector<UIElement*> children;
+    Base::Vector<UIElement*>& children = docRare_->scratchVisualChildren;
+    children.Clear();
     for (const Base::Ref<Documents::Inline>& item : docRare_->ownedInlines) {
         if (!item) continue;
         CollectInlineUiChildren(*item, children);
@@ -433,7 +429,8 @@ std::uint32_t TextBlock::GetVisualChildrenCount() const noexcept {
 ::Aero::Media::Visual* TextBlock::GetVisualChild(
     std::uint32_t index) const noexcept {
     if (docRare_ == nullptr || docRare_->ownedInlines.Empty()) return nullptr;
-    Base::Vector<UIElement*> children;
+    Base::Vector<UIElement*>& children = docRare_->scratchVisualChildren;
+    children.Clear();
     for (const Base::Ref<Documents::Inline>& item : docRare_->ownedInlines) {
         if (!item) continue;
         CollectInlineUiChildren(*item, children);

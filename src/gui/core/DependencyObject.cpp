@@ -154,13 +154,18 @@ bool DependencyObject::HasChangeHandlers() const noexcept {
     return rare_ != nullptr && !rare_->changeHandlers.Empty();
 }
 
+Meta::DependencyPropertyRegistry* DependencyObject::PropertyRegistryPtr() const noexcept {
+    return Threading::ResolveObjectContextRegistry(ContextSlot());
+}
+
 void DependencyObject::NotifyReadOnlyRedirectedChange(
     DependencyPropertyHandle property,
     const PropertyValue& oldValue,
     const PropertyValue& newValue) noexcept {
     const bool hasHandlers = HasChangeHandlers();
-    if (hasHandlers && registry_ != nullptr) {
-        if (const Meta::DependencyProperty* registered = registry_->Find(property)) {
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    if (hasHandlers && registry != nullptr) {
+        if (const Meta::DependencyProperty* registered = registry->Find(property)) {
             property = registered->Handle();
         }
     }
@@ -204,7 +209,7 @@ void DependencyObject::NotifyValueChanged(
             ++index;
         }
     }
-    if (rare_->changeHandlers.Empty() && rare_->inheritanceParent == nullptr) {
+    if (rare_->IsEmpty()) {
         delete rare_;
         rare_ = nullptr;
     }
@@ -238,16 +243,17 @@ Base::Result<void> DependencyObject::ApplyChange(
     ChangeKind kind, const PropertyValue* requestedValue) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
+        registry->Find(propertyHandle);
     if (property == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property was not found");
     propertyHandle = property->Handle();
-    const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
+    const PropertyMetadata* metadata = property->MetadataFor(DependencyObject::RuntimeType());
     if (metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     if (kind != ChangeKind::ReCoerce && property->GetIsReadOnly() &&
-        !registry_->ValidateKey(propertyHandle, key)) return ReadOnlyStatus();
+        !registry->ValidateKey(propertyHandle, key)) return ReadOnlyStatus();
     if ((kind == ChangeKind::SetLocal || kind == ChangeKind::SetCurrent) &&
         requestedValue == nullptr) return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -400,10 +406,11 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
+        registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(runtimeType_) : nullptr;
+        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
     if (property == nullptr || metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     propertyHandle = property->Handle();
@@ -424,10 +431,11 @@ DependencyObject::GetAnimationBaseValueInternal(
     DependencyPropertyHandle propertyHandle) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return ready.GetStatus();
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
+        registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(runtimeType_) : nullptr;
+        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
     if (property == nullptr || metadata == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -440,7 +448,7 @@ DependencyObject::GetAnimationBaseValueInternal(
     Base::Result<void> resolvedBase = EvaluateStoredBaseValue(
         *this, storedEntry, *metadata, propertyHandle, baseValue, nullptr);
     if (!resolvedBase) return resolvedBase.GetStatus();
-    return registry_->EvaluateValue(
+    return registry->EvaluateValue(
         *this, *property, *metadata, baseValue);
 }
 
@@ -481,7 +489,8 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         source.token = {PropertyValueRank::Animation, AnimationValueProviderOrigin, 0U};
         source.isAnimated = true;
     }
-    Base::Result<PropertyValue> evaluated = registry_->EvaluateValue(
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    Base::Result<PropertyValue> evaluated = registry->EvaluateValue(
         *this, property, metadata, candidate);
     if (!evaluated) return evaluated.GetStatus();
     PropertyValue newEffective = std::move(evaluated).Value();
@@ -551,8 +560,8 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         NotifyValueChanged(args);
         OnPropertyChanged(args);
         OnPropertyInvalidated(flags);
-        if (HasFlag(flags, PropertyInvalidationFlags::Inheritance) && registry_ != nullptr) {
-            registry_->NotifyInheritancePropertyChanged(*this, propertyHandle);
+        if (HasFlag(flags, PropertyInvalidationFlags::Inheritance) && registry != nullptr) {
+            registry->NotifyInheritancePropertyChanged(*this, propertyHandle);
         }
         storedEntry = FindStoredEntry(propertyHandle);
     }
@@ -709,20 +718,21 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
             Base::ErrorCode::InvalidState,
             "Cannot mutate a frozen Freezable");
     }
-    const Meta::DependencyProperty* registered = registry_->Find(property);
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    const Meta::DependencyProperty* registered = registry->Find(property);
     if (registered == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Dependency property was not found");
     }
     property = registered->Handle();
-    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
+    const PropertyMetadata* metadata = registered->MetadataFor(DependencyObject::RuntimeType());
     if (metadata == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
             "Dependency property does not apply to this type");
     }
-    Base::Result<void> valid = registry_->ValidateValue(*registered, *metadata, value);
+    Base::Result<void> valid = registry->ValidateValue(*registered, *metadata, value);
     if (!valid) return valid.GetStatus();
     StoredValueEntry* existing = FindStoredEntry(property);
     Base::Result<StoredValueEntry*> ensured = existing != nullptr
@@ -828,8 +838,9 @@ bool DependencyObject::RemoveValueChangedHandler(
     if (!property.IsValid() || handler.Empty()) {
         return false;
     }
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* descriptor =
-        registry_ != nullptr ? registry_->Find(property) : nullptr;
+        registry != nullptr ? registry->Find(property) : nullptr;
     if (descriptor != nullptr) {
         property = descriptor->Handle();
     }
@@ -847,7 +858,7 @@ bool DependencyObject::RemoveValueChangedHandler(
             record.active = false;
         } else {
             RemoveChangeHandler(index);
-            if (rare_->changeHandlers.Empty() && rare_->inheritanceParent == nullptr) {
+            if (rare_->IsEmpty()) {
                 delete rare_;
                 rare_ = nullptr;
             }
@@ -861,7 +872,8 @@ void DependencyObject::AddValueChangedHandler(
     DependencyPropertyHandle property,
     const DependencyPropertyChangedEventHandler& handler) noexcept {
     if (!VerifyReady()) return;
-    const Meta::DependencyProperty* descriptor = registry_->Find(property);
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    const Meta::DependencyProperty* descriptor = registry->Find(property);
     if (!property.IsValid() || handler.Empty() || descriptor == nullptr) {
         return;
     }
@@ -897,8 +909,9 @@ void DependencyObject::SetReadOnlyCurrentValue(
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return;
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
+        registry->Find(propertyHandle);
     if (property == nullptr) {
         return;
     }
@@ -906,7 +919,7 @@ void DependencyObject::SetReadOnlyCurrentValue(
         return;
     }
     DependencyPropertyKey key;
-    key.registry_ = registry_;
+    key.registry_ = registry;
     key.property_ = propertyHandle;
     key.secret_ = property->readOnlySecret_;
     (void)ApplyChange(
@@ -919,12 +932,14 @@ void DependencyObject::SetTemplateValue(
     Base::Result<void> ready = VerifyReady();
     if (!ready) return;
     if (!VerifyMutationAllowed()) return;
-    const Meta::DependencyProperty* registered = registry_->Find(property);
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    const Meta::DependencyProperty* registered = registry->Find(property);
     if (registered == nullptr) return;
     property = registered->Handle();
-    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType_);
+    const TypeId runtimeType = DependencyObject::RuntimeType();
+    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType);
     if (metadata == nullptr) return;
-    if (!registry_->ValidateValueFor(property, runtimeType_, value)) return;
+    if (!registry->ValidateValueFor(property, runtimeType, value)) return;
 
     StoredValueEntry* storedEntry = FindStoredEntry(property);
     const PropertyValue oldEffective = storedEntry != nullptr ? storedEntry->effectiveValue : metadata->defaultValue;
@@ -987,9 +1002,10 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     DependencyPropertyHandle propertyHandle) const noexcept {
     Base::Result<void> ready = VerifyReady();
     if (!ready) return {};
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
-    if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
+        registry->Find(propertyHandle);
+    if (property == nullptr || property->MetadataFor(DependencyObject::RuntimeType()) == nullptr) {
         return {};
     }
     auto* storedEntry = FindStoredEntry(propertyHandle);
@@ -1012,9 +1028,10 @@ PropertyValue DependencyObject::ReadLocalValue(
     if (storedEntry == nullptr || !storedEntry->HasLocal()) {
         return PropertyValue::Unset();
     }
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_->Find(propertyHandle);
-    if (property == nullptr || property->MetadataFor(runtimeType_) == nullptr) {
+        registry->Find(propertyHandle);
+    if (property == nullptr || property->MetadataFor(DependencyObject::RuntimeType()) == nullptr) {
         return PropertyValue::Unset();
     }
     return storedEntry->LocalValueOrUnset();
@@ -1043,12 +1060,13 @@ const PropertyValue* DependencyObject::FindEffectiveValuePtr(
         }
     }
 
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
-        registry_ != nullptr ? registry_->Find(propertyHandle) : nullptr;
+        registry != nullptr ? registry->Find(propertyHandle) : nullptr;
     if (property == nullptr) {
         return nullptr;
     }
-    const PropertyMetadata* metadata = property->MetadataFor(runtimeType_);
+    const PropertyMetadata* metadata = property->MetadataFor(DependencyObject::RuntimeType());
     if (metadata == nullptr) {
         return nullptr;
     }
@@ -1096,8 +1114,9 @@ MemberId DependencyObject::CanonicalPropertyKey(
     // P2.3: single-hash alias resolution; no descriptor load. The store is
     // always keyed by canonical handle (ApplyChange canonicalizes via
     // Find()->Handle() before EnsureStoredEntryDirect).
-    if (registry_ != nullptr) {
-        return registry_->CanonicalHandle(property);
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    if (registry != nullptr) {
+        return registry->CanonicalHandle(property);
     }
     return property.value;
 }
@@ -1133,9 +1152,10 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntry(
     if (existing != nullptr) {
         return existing;
     }
-    const Meta::DependencyProperty* property = registry_->Find(propertyHandle);
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    const Meta::DependencyProperty* property = registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(runtimeType_) : nullptr;
+        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
     if (property == nullptr || metadata == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::NotFound,
             "Dependency property does not apply to this object type");
@@ -1199,18 +1219,20 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
             Base::ErrorCode::InvalidState,
             "DependencyObject was created without an ObjectFactoryScope");
     }
-    if (registry_ == nullptr || !registry_->IsFrozen()) {
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    if (registry == nullptr || !registry->IsFrozen()) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Dependency property registry is not frozen");
     }
-    if (runtimeType_ == InvalidTypeId ||
-        registry_->Types().FindType(runtimeType_) == nullptr) {
+    const TypeId runtimeType = DependencyObject::RuntimeType();
+    if (runtimeType == InvalidTypeId ||
+        registry->Types().FindType(runtimeType) == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "DependencyObject runtime type is not registered");
     }
-    typeVerified_ = true;
+    typeVerified_ = 1U;
     return {};
 }
 
@@ -1223,10 +1245,10 @@ DependencyObject* DependencyObject::ExplicitInheritanceParent() const noexcept {
 
 void DependencyObject::SetExplicitInheritanceParent(DependencyObject* parent) noexcept {
     if (parent == nullptr) {
-        hasExplicitInheritanceParent_ = false;
+        hasExplicitInheritanceParent_ = 0U;
         if (rare_ != nullptr) {
             rare_->inheritanceParent = nullptr;
-            if (rare_->changeHandlers.Empty() && rare_->changeHandlerNotificationDepth == 0U) {
+            if (rare_->IsEmpty()) {
                 delete rare_;
                 rare_ = nullptr;
             }
@@ -1240,7 +1262,31 @@ void DependencyObject::SetExplicitInheritanceParent(DependencyObject* parent) no
         }
     }
     rare_->inheritanceParent = parent;
-    hasExplicitInheritanceParent_ = true;
+    hasExplicitInheritanceParent_ = 1U;
+}
+
+DependencyObject* DependencyObject::DistinctLogicalParentFromRare() const noexcept {
+    return rare_ != nullptr ? rare_->distinctLogicalParent : nullptr;
+}
+
+void DependencyObject::SetDistinctLogicalParentInRare(DependencyObject* parent) noexcept {
+    if (parent == nullptr) {
+        if (rare_ != nullptr) {
+            rare_->distinctLogicalParent = nullptr;
+            if (rare_->IsEmpty()) {
+                delete rare_;
+                rare_ = nullptr;
+            }
+        }
+        return;
+    }
+    if (rare_ == nullptr) {
+        rare_ = new (std::nothrow) DependencyObjectRare();
+        if (rare_ == nullptr) {
+            return;
+        }
+    }
+    rare_->distinctLogicalParent = parent;
 }
 
 } // namespace Aero

@@ -284,7 +284,12 @@ constexpr MemberId MakeMemberId(TypeId ownerType, MemberKind kind, StringView na
     builder.AddString(name);
     return builder.Finish();
 }
+constexpr MemberId MakePropertyId(TypeId ownerType, StringView name) noexcept {
+    return MakeMemberId(ownerType, MemberKind::Property, name);
+}
 AERO_GUI_API MemberId MakeMethodId(TypeId ownerType, StringView name, Span<const TypeId> parameterTypes) noexcept;
+AERO_GUI_API std::uint16_t InternCompactTypeId(TypeId type) noexcept;
+AERO_GUI_API TypeId ResolveCompactTypeId(std::uint16_t index) noexcept;
 
 
 } // namespace Aero::Meta

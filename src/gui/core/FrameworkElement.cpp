@@ -54,8 +54,31 @@ struct FrameworkElement::FrameworkRare {
     Base::Vector<Ref<Base::Object>> styleTriggerPrototypes;
     NameScope names;
     Base::Transform2D viewboxTransform{};
+    float minWidth = 0.0f;
+    float maxWidth = 1.0e12f;
+    float minHeight = 0.0f;
+    float maxHeight = 1.0e12f;
     bool hasViewboxTransform = false;
 };
+
+Size FrameworkElement::GetMinSizeSlow() const noexcept {
+    if (frameworkRare_ == nullptr) {
+        return {0.0f, 0.0f};
+    }
+    return {frameworkRare_->minWidth, frameworkRare_->minHeight};
+}
+
+Size FrameworkElement::GetMaxSizeSlow() const noexcept {
+    if (frameworkRare_ == nullptr) {
+        return {1.0e12f, 1.0e12f};
+    }
+    const Size minimum{frameworkRare_->minWidth, frameworkRare_->minHeight};
+    const float authoredWidth = frameworkRare_->maxWidth;
+    const float authoredHeight = frameworkRare_->maxHeight;
+    return {
+        authoredWidth < minimum.width ? minimum.width : authoredWidth,
+        authoredHeight < minimum.height ? minimum.height : authoredHeight};
+}
 
 FrameworkElement::FrameworkRare*
 FrameworkElement::EnsureFrameworkRare() noexcept {
@@ -73,6 +96,7 @@ void FrameworkElement::DropRareIfUnused() noexcept {
     if (!frameworkRare_->styleTriggerPrototypes.Empty()) return;
     if (frameworkRare_->names.Size() != 0U) return;
     if (frameworkRare_->hasViewboxTransform) return;
+    if (layoutScalars_.hasMinMax) return;
     delete frameworkRare_;
     frameworkRare_ = nullptr;
 }
@@ -238,27 +262,39 @@ void FrameworkElement::SyncLayoutScalarProperty(
     if (property == WidthProperty.Handle()) {
         Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
         if (decoded) {
-            layoutScalars_.hasWidth = !decoded.Value().isAuto;
+            layoutScalars_.hasWidth = !decoded.Value().isAuto ? 1U : 0U;
             layoutScalars_.width = decoded.Value().isAuto ? 0.0f : clampScalar(decoded.Value().value);
         }
     } else if (property == HeightProperty.Handle()) {
         Base::Result<Length> decoded = Meta::ValueCodec<Length>::Decode(newValue);
         if (decoded) {
-            layoutScalars_.hasHeight = !decoded.Value().isAuto;
+            layoutScalars_.hasHeight = !decoded.Value().isAuto ? 1U : 0U;
             layoutScalars_.height = decoded.Value().isAuto ? 0.0f : clampScalar(decoded.Value().value);
         }
-    } else if (property == MinWidthProperty.Handle()) {
+    } else if (property == MinWidthProperty.Handle() ||
+               property == MaxWidthProperty.Handle() ||
+               property == MinHeightProperty.Handle() ||
+               property == MaxHeightProperty.Handle()) {
         Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.minWidth = clampScalar(decoded.Value());
-    } else if (property == MaxWidthProperty.Handle()) {
-        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.maxWidth = clampScalar(decoded.Value());
-    } else if (property == MinHeightProperty.Handle()) {
-        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.minHeight = clampScalar(decoded.Value());
-    } else if (property == MaxHeightProperty.Handle()) {
-        Base::Result<double> decoded = Meta::ValueCodec<double>::Decode(newValue);
-        if (decoded) layoutScalars_.maxHeight = clampScalar(decoded.Value());
+        if (decoded) {
+            const float clamped = clampScalar(decoded.Value());
+            FrameworkRare* rare = EnsureFrameworkRare();
+            if (rare != nullptr) {
+                if (property == MinWidthProperty.Handle()) rare->minWidth = clamped;
+                else if (property == MaxWidthProperty.Handle()) rare->maxWidth = clamped;
+                else if (property == MinHeightProperty.Handle()) rare->minHeight = clamped;
+                else rare->maxHeight = clamped;
+                const bool nonDefault =
+                    rare->minWidth != 0.0f ||
+                    rare->minHeight != 0.0f ||
+                    rare->maxWidth != 1.0e12f ||
+                    rare->maxHeight != 1.0e12f;
+                layoutScalars_.hasMinMax = nonDefault ? 1U : 0U;
+                if (!nonDefault) {
+                    DropRareIfUnused();
+                }
+            }
+        }
     } else if (property == MarginProperty.Handle()) {
         Base::Result<Thickness> decoded = Meta::ValueCodec<Thickness>::Decode(newValue);
         if (decoded) layoutScalars_.margin = decoded.Value();
@@ -276,15 +312,15 @@ void FrameworkElement::SyncLayoutScalarProperty(
         if (decoded) layoutScalars_.flowDirection = decoded.Value();
     } else if (property == UseLayoutRoundingProperty.Handle()) {
         Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
-        if (decoded) layoutScalars_.useLayoutRounding = decoded.Value();
+        if (decoded) layoutScalars_.useLayoutRounding = decoded.Value() ? 1U : 0U;
     } else if (property == SnapsToDevicePixelsProperty.Handle()) {
         Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
-        if (decoded) layoutScalars_.snapsToDevicePixels = decoded.Value();
+        if (decoded) layoutScalars_.snapsToDevicePixels = decoded.Value() ? 1U : 0U;
     } else if (property == LayoutTransformProperty.Handle()) {
         layoutScalars_.hasLayoutTransform =
-            newValue.Kind() == Meta::ValueKind::Object &&
-            !newValue.IsNullObject() &&
-            newValue.AsObject() != nullptr;
+            (newValue.Kind() == Meta::ValueKind::Object &&
+             !newValue.IsNullObject() &&
+             newValue.AsObject() != nullptr) ? 1U : 0U;
     }
 }
 

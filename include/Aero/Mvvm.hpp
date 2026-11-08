@@ -18,13 +18,14 @@ public:
     ~ViewModelBase() override = default;
 
 protected:
-    explicit ViewModelBase(Base::MetaTypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit ViewModelBase(Base::MetaTypeId runtimeType) noexcept {
+        SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+    }
 
 public:
-    Base::MetaTypeId RuntimeType() const noexcept override { return runtimeType_; }
-
-private:
-    Base::MetaTypeId runtimeType_ = StaticTypeId();
+    Base::MetaTypeId RuntimeType() const noexcept override {
+        return Meta::ResolveCompactTypeId(ContextSlot());
+    }
 };
 
 template<class T>
@@ -76,7 +77,9 @@ public: \
     bool Set##name(const type& value) noexcept { \
         if (::Aero::MvvmPropertyEquals(name##_, value)) return false; \
         name##_ = value; \
-        this->RaisePropertyChanged(#name); \
+        constexpr ::Aero::Meta::MemberId kMemberId = \
+            ::Aero::Meta::MakePropertyId(Self::StaticTypeId(), #name); \
+        this->RaisePropertyChanged(kMemberId); \
         return true; \
     }
 

@@ -965,15 +965,6 @@ Base::Result<std::uint32_t> ExecuteViewFrame(ViewFrame& state, View& view) noexc
             if (!completed) return completed.GetStatus();
             AddFrameCallbacks(callbackCount, completed.Value());
         }
-        if (state.Animations()->Diagnostics().appliedValueCount != 0U) {
-            if (Aero::Media::Visual* rootVisual = state.RootVisual()) {
-                if (state.RenderTree() != nullptr &&
-                    state.RenderTree()->DirtyCount() == 0U) {
-                    state.RenderTree()->Invalidate(
-                        *rootVisual, ::Aero::Render::RenderInvalidation::Drawing);
-                }
-            }
-        }
     }
 
     // ---- Lifecycle ----

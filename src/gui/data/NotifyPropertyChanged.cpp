@@ -20,12 +20,17 @@ Meta::MemberId FindNotifyPropertyMember(
     if (factory.dependencyProperties != nullptr) {
         types = &factory.dependencyProperties->Types();
     }
-    if (types == nullptr) {
-        return Meta::InvalidMemberId;
+    const Meta::TypeId runtimeType = object.RuntimeType();
+    if (types != nullptr && runtimeType != Meta::InvalidTypeId) {
+        const Meta::PropertyInfo* property = types->FindProperty(
+            runtimeType, propertyName, true);
+        if (property != nullptr) {
+            return property->Id();
+        }
     }
-    const Meta::PropertyInfo* property = types->FindProperty(
-        object.RuntimeType(), propertyName, true);
-    return property != nullptr ? property->Id() : Meta::InvalidMemberId;
+    return runtimeType != Meta::InvalidTypeId
+        ? Meta::MakePropertyId(runtimeType, propertyName)
+        : Meta::InvalidMemberId;
 }
 
 } // namespace Aero::Data

@@ -393,9 +393,10 @@ Style::Style(
     TypeId targetType,
     const Style* basedOn,
     TypeId runtimeType) noexcept
-    : runtimeType_(runtimeType),
-      targetType_(targetType),
-      basedOn_(basedOn) {}
+    : targetType_(targetType),
+      basedOn_(basedOn) {
+    SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+}
 
 Style::~Style() {
     delete program_;

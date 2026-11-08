@@ -1085,6 +1085,9 @@ Base::Result<void> UserControl::InitializeComponent(StringView uri) noexcept {
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before UserControl::InitializeComponent");
     }
+    if (UseCount() == 0U) {
+        PromoteConstructingObject();
+    }
     return current->LoadComponent(*this, uri);
 }
 

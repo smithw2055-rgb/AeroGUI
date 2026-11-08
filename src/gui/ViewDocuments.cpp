@@ -473,13 +473,15 @@ Base::Result<void> ActivateMountedSubtree(
         return {};
     };
 
+    const bool previousDefer = state.deferGeneratedActivation;
     struct DeferGuard {
         bool& flag;
+        bool previous;
         bool active = true;
         ~DeferGuard() {
-            if (active) flag = false;
+            if (active) flag = previous;
         }
-    } deferGuard{state.deferGeneratedActivation};
+    } deferGuard{state.deferGeneratedActivation, previousDefer};
     state.deferGeneratedActivation = true;
 
     // Round 1
@@ -525,15 +527,17 @@ Base::Result<void> ActivateMountedSubtree(
         InvalidateLayoutSubtree(*rootElement);
     }
 
-    state.deferGeneratedActivation = false;
+    state.deferGeneratedActivation = previousDefer;
     deferGuard.active = false;
     if (state.Bindings() != nullptr) {
         Base::Result<std::uint32_t> flushed = state.Bindings()->Flush();
         if (!flushed) return flushed.GetStatus();
     }
 
-    Base::Result<void> generated = state.FlushGeneratedVisuals();
-    if (!generated) return generated.GetStatus();
+    if (!previousDefer) {
+        Base::Result<void> generated = state.FlushGeneratedVisuals();
+        if (!generated) return generated.GetStatus();
+    }
 
     if (state.Storyboards() != nullptr) {
         Base::Result<std::uint32_t> animations =

@@ -122,7 +122,6 @@ void BindingEngine::Shutdown() noexcept {
     deferredByTarget_.Clear();
     pendingDeferredActivations_.Clear();
     multiBindings_.Clear();
-    compiledPathCache_.Clear();
     sourceToBindings_.Clear();
     targetToBindings_.Clear();
     dataContextBindings_.Clear();
@@ -145,7 +144,8 @@ void BindingEngine::EnqueueDirtyRecord(BindingRecord& record) noexcept {
 }
 
 void BindingEngine::UpdatePollingRegistration(BindingRecord& record) noexcept {
-    if (record.handle.value == 0U) {
+    if (record.handle.value == 0U ||
+        (record.descriptor.mode == BindingMode::OneTime && record.applied)) {
         RemovePollingHandle(record.handle);
         return;
     }
@@ -1922,52 +1922,8 @@ BindingEngine::FindOrCompilePathPlan(
     Meta::TypeId sourceType,
     Base::StringView path,
     Meta::BindingPathCompileError* error) noexcept {
-    if (!metadata.IsReady() || sourceType == Meta::InvalidTypeId || path.Empty()) {
-        return CompiledBindingPath::Compile(metadata, sourceType, path, error)
-            .GetStatus();
-    }
-    const Base::HashCode key = Base::MixHash64(
-        sourceType ^ Base::DefaultHash<Base::StringView>{}(path) ^
-        Base::DefaultHash<const Meta::Registry*>{}(&metadata));
-    if (Base::Vector<CachedBindingPathPlan>* bucket =
-            compiledPathCache_.Find(key)) {
-        for (const CachedBindingPathPlan& entry : *bucket) {
-            if (entry.metadata == &metadata &&
-                entry.sourceType == sourceType &&
-                entry.path.View() == path) {
-                return &entry.plan;
-            }
-        }
-    }
-    Base::Result<CompiledBindingPath> compiled =
-        CompiledBindingPath::Compile(metadata, sourceType, path, error);
-    if (!compiled) {
-        return compiled.GetStatus();
-    }
-    CachedBindingPathPlan entry;
-    entry.metadata = &metadata;
-    entry.sourceType = sourceType;
-    Base::Result<void> assigned = entry.path.Assign(path);
-    if (!assigned) {
-        return assigned.GetStatus();
-    }
-    entry.plan = std::move(compiled).Value();
-    entry.plan.WarmCache(metadata);
-    Base::Vector<CachedBindingPathPlan>* bucket =
-        compiledPathCache_.Find(key);
-    if (bucket == nullptr) {
-        Base::Vector<CachedBindingPathPlan> created;
-        created.PushBack(std::move(entry));
-        auto inserted = compiledPathCache_.Insert(key, std::move(created));
-        if (inserted.entry == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::OutOfMemory,
-                "Failed to cache compiled binding path");
-        }
-        return &inserted.entry->Value().Back().plan;
-    }
-    bucket->PushBack(std::move(entry));
-    return &bucket->Back().plan;
+    return CompiledBindingPath::FindOrCompile(
+        metadata, sourceType, path, error);
 }
 
 Base::Result<void> BindingEngine::ResolveMetadataSource(

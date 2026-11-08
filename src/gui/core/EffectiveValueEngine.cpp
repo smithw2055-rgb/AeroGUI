@@ -319,6 +319,7 @@ DependencyPropertyRegistry::DependencyPropertyRegistry(
 }
 
 DependencyPropertyRegistry::~DependencyPropertyRegistry() noexcept {
+    Threading::InvalidateRegistryContextSlots(this);
     LiveRegistryLockGuard lock;
     if (prevLive_ != nullptr) {
         prevLive_->nextLive_ = nextLive_;
@@ -1089,25 +1090,33 @@ void DependencyMutationScope::Release() noexcept {
 
 DependencyObject::DependencyObject(TypeId runtimeType) noexcept
     : DispatcherObject(*CurrentObjectFactory().dispatcher),
-      registry_(CurrentObjectFactory().dependencyProperties),
-      runtimeType_(runtimeType),
       valueStore_(nullptr),
       rare_(nullptr),
-      registryEpoch_(registry_ != nullptr ? registry_->Epoch() : 0U),
-      objectServicesAvailable_(HasObjectFactory()),
-      typeVerified_(false),
-      hasExplicitInheritanceChildren_(false),
-      hasExplicitInheritanceParent_(false) {
+      compactTypeIndex_(Meta::InternCompactTypeId(runtimeType)),
+      objectServicesAvailable_(HasObjectFactory() ? 1U : 0U),
+      typeVerified_(0U),
+      hasExplicitInheritanceChildren_(0U),
+      hasExplicitInheritanceParent_(0U),
+      logicalParentMode_(0U) {
+    const Meta::ObjectFactoryState factory = CurrentObjectFactory();
+    SetContextSlot(Threading::AcquireObjectContextSlot(
+        factory.dispatcher,
+        factory.dependencyProperties,
+        factory.dependencyProperties != nullptr
+            ? factory.dependencyProperties->Epoch()
+            : 0U));
     AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
 }
 
 DependencyObject::~DependencyObject() {
-    if (registry_ != nullptr &&
+    Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
+    const std::uint16_t registryEpoch = Threading::ResolveObjectContextRegistryEpoch(ContextSlot());
+    if (registry != nullptr &&
         (styleAppIndex_ != UINT16_MAX || unmaterializedQueueMask_ != 0U ||
          hasExplicitInheritanceParent_ || hasExplicitInheritanceChildren_ ||
          valueStore_ != nullptr) &&
-        DependencyPropertyRegistry::IsLive(registry_, registryEpoch_)) {
-        registry_->NotifyObjectDestroyed(*this);
+        DependencyPropertyRegistry::IsLive(registry, registryEpoch)) {
+        registry->NotifyObjectDestroyed(*this);
     }
     if (rare_ != nullptr) {
         delete rare_;

@@ -367,13 +367,6 @@ private:
         Base::Vector<Data::BindingHandle> handles;
     };
 
-    struct CachedBindingPathPlan {
-        const Meta::Registry* metadata = nullptr;
-        Meta::TypeId sourceType = Meta::InvalidTypeId;
-        Base::String path;
-        CompiledBindingPath plan;
-    };
-
     Dispatcher* dispatcher_ = nullptr;
     Meta::Registry* metadata_ = nullptr;
     Base::Vector<BindingRecord> bindings_;
@@ -381,7 +374,6 @@ private:
     Base::HashMap<const DependencyObject*, Base::Vector<DeferredBindingRecord>> deferredByTarget_;
     Base::Vector<DependencyObject*> pendingDeferredActivations_;
     Base::Vector<MultiBindingGroup> multiBindings_;
-    Base::HashMap<Base::HashCode, Base::Vector<CachedBindingPathPlan>> compiledPathCache_;
     Base::HashMap<const Base::Object*, Base::Vector<BindingHandle>> sourceToBindings_;
     Base::HashMap<const DependencyObject*, Base::Vector<BindingHandle>> targetToBindings_;
     Base::Vector<BindingHandle> dataContextBindings_;

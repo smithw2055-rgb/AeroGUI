@@ -624,6 +624,14 @@ Base::Result<void> Gui::LoadComponent(
             Base::ErrorCode::NotInitialized,
             "Gui must be initialized before XAML component loading");
     }
+    GuiRuntime& state = *state_;
+    for (std::uint32_t index = 0U; index < state.pendingDocuments.Size();) {
+        if (state.pendingDocuments[index].document.root.Get() == &component) {
+            state.RemovePendingDocument(index);
+            continue;
+        }
+        ++index;
+    }
     const std::uint32_t externalRootReferences =
         component.UseCount();
     Base::Ref<Base::Object> root =
@@ -633,7 +641,6 @@ Base::Result<void> Gui::LoadComponent(
             Base::ErrorCode::InvalidArgument,
             "XAML component requires a managed root object");
     }
-    GuiRuntime& state = *state_;
     CollectUnclaimedDocuments(state);
     if (resources == nullptr) {
         if (auto* visual = TryCast<Media::Visual>(&component)) {
@@ -641,6 +648,11 @@ Base::Result<void> Gui::LoadComponent(
             if (env.application != nullptr) {
                 resources = const_cast<ResourceDictionary*>(env.application);
             }
+        }
+        if (resources == nullptr) {
+            resources = state.activeFallbackResources != nullptr
+                ? state.activeFallbackResources
+                : state.applicationResources;
         }
     }
     Markup::XamlReader reader(*this);

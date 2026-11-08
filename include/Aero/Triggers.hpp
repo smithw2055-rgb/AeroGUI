@@ -26,14 +26,15 @@ class AERO_GUI_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
 
 public:
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    Meta::TypeId RuntimeType() const noexcept override {
+        return Meta::ResolveCompactTypeId(ContextSlot());
+    }
 
 protected:
-    explicit SetterBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit SetterBase(Meta::TypeId runtimeType) noexcept {
+        SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+    }
     ~SetterBase() override = default;
-
-private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
 };
 
 using Meta::DependencyPropertyHandle;
@@ -97,7 +98,9 @@ class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
 
 public:
-    TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    TypeId RuntimeType() const noexcept override {
+        return Meta::ResolveCompactTypeId(ContextSlot());
+    }
     void AddEnterAction(Ref<Base::Object> action) noexcept;
     void AddExitAction(Ref<Base::Object> action) noexcept;
     void ClearEnterActions() noexcept;
@@ -109,14 +112,15 @@ public:
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept;
 
 protected:
-    explicit TriggerBase(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    explicit TriggerBase(TypeId runtimeType) noexcept {
+        SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+    }
     ~TriggerBase() override;
 
 private:
     struct ActionStorage;
     ActionStorage* EnsureActions() noexcept;
 
-    TypeId runtimeType_ = StaticTypeId();
     ActionStorage* actionStorage_ = nullptr;
 };
 

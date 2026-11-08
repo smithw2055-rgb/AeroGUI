@@ -183,7 +183,7 @@ CompiledPathCache& PathPlanCache() noexcept {
 
 } // namespace
 
-Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
+Base::Result<const CompiledBindingPath*> CompiledBindingPath::FindOrCompile(
     const Meta::Registry& runtime,
     Meta::TypeId rootType,
     Base::StringView path,
@@ -220,11 +220,14 @@ Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
     cacheKey.domain = &runtime;
     cacheKey.root = rootType;
     cacheKey.schema = schemaHash.Value();
-    const bool cacheable = static_cast<bool>(cacheKey.path.Assign(path));
-    if (cacheable) {
-        if (CompiledBindingPath* hit = PathPlanCache().plans.Find(cacheKey)) {
-            return *hit;
-        }
+    if (!cacheKey.path.Assign(path)) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate binding path cache key");
+    }
+    CompiledPathCache& cache = PathPlanCache();
+    if (const CompiledBindingPath* hit = cache.plans.Find(cacheKey)) {
+        return hit;
     }
 
     CompiledBindingPath plan;
@@ -233,15 +236,31 @@ Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
         return bound.GetStatus();
     }
     plan.schemaHash_ = schemaHash.Value();
+    plan.WarmCache(runtime);
 
-    if (cacheable) {
-        CompiledPathCache& cache = PathPlanCache();
-        if (cache.plans.Size() >= CompiledPathCache::Capacity) {
-            cache.plans.Clear();
-        }
-        static_cast<void>(cache.plans.Insert(cacheKey, plan));
+    if (cache.plans.Size() >= CompiledPathCache::Capacity) {
+        cache.plans.Clear();
     }
-    return plan;
+    auto inserted = cache.plans.Insert(std::move(cacheKey), std::move(plan));
+    if (inserted.entry == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to cache compiled binding path");
+    }
+    return &inserted.entry->Value();
+}
+
+Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
+    const Meta::Registry& runtime,
+    Meta::TypeId rootType,
+    Base::StringView path,
+    Meta::BindingPathCompileError* error) noexcept {
+    Base::Result<const CompiledBindingPath*> cached =
+        FindOrCompile(runtime, rootType, path, error);
+    if (!cached) {
+        return cached.GetStatus();
+    }
+    return *cached.Value();
 }
 
 void CompiledBindingPath::ClearStepCache(CompiledPathStep& step) noexcept {

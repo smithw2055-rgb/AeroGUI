@@ -882,6 +882,35 @@ Base::Result<void> CompileNodesToBytecode(
             if (!hasMemberForCurrent) {
                 if (!node.IsFromAttribute()) {
                     const ObjectFrame& currentObj = objectStack.Back();
+                    if (node.HasCompiledValue()) {
+                        if (currentObj.isValueNode) {
+                            builder.EmitSetSlotValue(currentObj.slot, node.CompiledValue());
+                            break;
+                        }
+                        if (Base::Result<ResolvedMember> contentMember = schema.ResolveContentMember(currentObj.typeId)) {
+                            builder.EmitSetPropertyValue(
+                                currentObj.slot,
+                                Meta::DependencyPropertyHandle{contentMember.Value().id},
+                                node.CompiledValue());
+                            break;
+                        }
+                        if (const Meta::PropertyInfo* textProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Text"), true)) {
+                            builder.EmitSetPropertyValue(
+                                currentObj.slot,
+                                Meta::DependencyPropertyHandle{textProp->Id()},
+                                node.CompiledValue());
+                            break;
+                        }
+                        if (const Meta::PropertyInfo* contentProp = schema.Types().FindProperty(currentObj.typeId, Base::StringView("Content"), true)) {
+                            builder.EmitSetPropertyValue(
+                                currentObj.slot,
+                                Meta::DependencyPropertyHandle{contentProp->Id()},
+                                node.CompiledValue());
+                            break;
+                        }
+                        builder.EmitSetSlotValue(currentObj.slot, node.CompiledValue());
+                        break;
+                    }
                     const bool isInlineCollectionHost =
                         currentObj.typeId == Controls::TextBlock::StaticTypeId() ||
                         schema.Types().IsDerivedFrom(currentObj.typeId, Documents::Span::StaticTypeId());
@@ -993,6 +1022,16 @@ Base::Result<void> CompileNodesToBytecode(
                     mf.parentSlot,
                     Meta::DependencyPropertyHandle{mf.memberId},
                     node.CompiledValue());
+                if ((mf.isTargetType || mf.valueType == Meta::TypeOf<Meta::TypeReference>()) &&
+                    node.CompiledValue().Type() == Meta::TypeOf<Meta::TypeReference>()) {
+                    if (Base::Result<Meta::TypeReference> decodedRef =
+                            Meta::ValueCodec<Meta::TypeReference>::Decode(node.CompiledValue())) {
+                        if (objectStack.Back().isTemplate ||
+                            objectStack.Back().typeId == Style::StaticTypeId()) {
+                            objectStack.Back().templateTargetType = decodedRef.Value().type;
+                        }
+                    }
+                }
                 break;
             }
 
@@ -1002,10 +1041,29 @@ Base::Result<void> CompileNodesToBytecode(
             }
             if (TrimAscii(strVal).Empty()) break;
 
+            const Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId)
+                ? mf.valueType
+                : Meta::TypeOf<Base::String>();
+
+            if (mf.isTargetType || targetType == Meta::TypeOf<Meta::TypeReference>()) {
+                if (const Meta::TypeInfo* resolved = ResolveBytecodeTypeByName(
+                        schema, outProgram.namespaces.AsSpan(), strVal, false)) {
+                    Meta::TypeReference ref{resolved->Id()};
+                    builder.EmitSetPropertyValue(
+                        mf.parentSlot,
+                        Meta::DependencyPropertyHandle{mf.memberId},
+                        Meta::ValueCodec<Meta::TypeReference>::Encode(ref).Value());
+                    if (objectStack.Back().isTemplate ||
+                        objectStack.Back().typeId == Style::StaticTypeId()) {
+                        objectStack.Back().templateTargetType = resolved->Id();
+                    }
+                    break;
+                }
+            }
+
             if (strVal.SizeBytes() > 0U && strVal[0] == '{') {
                 Base::StringView trimmed = TrimAscii(strVal);
                 if (trimmed == "{x:Null}" || trimmed == "{Null}") {
-                    Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId) ? mf.valueType : Meta::TypeOf<Base::String>();
                     builder.EmitSetPropertyValue(
                         mf.parentSlot,
                         Meta::DependencyPropertyHandle{mf.memberId},
@@ -1043,26 +1101,6 @@ Base::Result<void> CompileNodesToBytecode(
                             break;
                         }
                     }
-                }
-            }
-
-            const Meta::TypeId targetType = (mf.valueType != Meta::InvalidTypeId)
-                ? mf.valueType
-                : Meta::TypeOf<Base::String>();
-
-            if (mf.isTargetType || targetType == Meta::TypeOf<Meta::TypeReference>()) {
-                if (const Meta::TypeInfo* resolved = ResolveBytecodeTypeByName(
-                        schema, outProgram.namespaces.AsSpan(), strVal, false)) {
-                    Meta::TypeReference ref{resolved->Id()};
-                    builder.EmitSetPropertyValue(
-                        mf.parentSlot,
-                        Meta::DependencyPropertyHandle{mf.memberId},
-                        Meta::ValueCodec<Meta::TypeReference>::Encode(ref).Value());
-                    if (objectStack.Back().isTemplate ||
-                        objectStack.Back().typeId == Style::StaticTypeId()) {
-                        objectStack.Back().templateTargetType = resolved->Id();
-                    }
-                    break;
                 }
             }
 

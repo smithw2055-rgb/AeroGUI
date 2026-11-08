@@ -80,6 +80,12 @@ public:
         Base::StringView path,
         Meta::BindingPathCompileError* error = nullptr) noexcept;
 
+    static Base::Result<const CompiledBindingPath*> FindOrCompile(
+        const Meta::Registry& runtime,
+        Meta::TypeId rootType,
+        Base::StringView path,
+        Meta::BindingPathCompileError* error = nullptr) noexcept;
+
     Base::Result<void> PrecompileTokens(Base::StringView path) noexcept;
     Base::Result<void> BindToRoot(
         const Meta::Registry& runtime,

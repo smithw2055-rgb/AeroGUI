@@ -353,16 +353,14 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
             }
         }
 
-        if (condition.usesDataContext && source != nullptr &&
-            Metadata() != nullptr &&
-            Metadata()->Types().IsDerivedFrom(
-                source->RuntimeType(), FrameworkElement::StaticTypeId())) {
-            Meta::Value dataContext =
-                static_cast<FrameworkElement*>(source)->GetDataContext();
-            source = dataContext.Kind() == Meta::ValueKind::Object &&
-                    !dataContext.IsNullObject() && dataContext.AsObject()
-                ? dataContext.AsObject().Get()
-                : nullptr;
+        if (condition.usesDataContext && source != nullptr) {
+            if (auto* fe = ::Aero::TryCast<FrameworkElement>(source)) {
+                Meta::Value dataContext = fe->GetDataContext();
+                source = dataContext.Kind() == Meta::ValueKind::Object &&
+                        !dataContext.IsNullObject() && dataContext.AsObject()
+                    ? dataContext.AsObject().Get()
+                    : nullptr;
+            }
         }
 
         constexpr Base::StringView TemplatedParentPrefix(
@@ -370,14 +368,13 @@ Base::Object* InteractivityEngine::ResolveDataTemplateConditionSource(
         if (source != nullptr &&
             path.SizeBytes() > TemplatedParentPrefix.SizeBytes() &&
             path.Substr(0U, TemplatedParentPrefix.SizeBytes()) ==
-                TemplatedParentPrefix &&
-            Metadata() != nullptr &&
-            Metadata()->Types().IsDerivedFrom(
-                source->RuntimeType(), FrameworkElement::StaticTypeId())) {
-            source = static_cast<FrameworkElement*>(source)->GetTemplatedParent();
-            path = path.Substr(
-                TemplatedParentPrefix.SizeBytes(),
-                path.SizeBytes() - TemplatedParentPrefix.SizeBytes());
+                TemplatedParentPrefix) {
+            if (auto* fe = ::Aero::TryCast<FrameworkElement>(source)) {
+                source = fe->GetTemplatedParent();
+                path = path.Substr(
+                    TemplatedParentPrefix.SizeBytes(),
+                    path.SizeBytes() - TemplatedParentPrefix.SizeBytes());
+            }
         }
         return source;
     }

@@ -72,7 +72,9 @@ public:
     Style(const Style&) = delete;
     Style& operator=(const Style&) = delete;
 
-    TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    TypeId RuntimeType() const noexcept override {
+        return Meta::ResolveCompactTypeId(ContextSlot());
+    }
     void AddSetter(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     void AddSetter(const Setter& setter) noexcept;
     void AddTrigger(const Trigger& trigger) noexcept;
@@ -121,7 +123,6 @@ private:
     Program& GetProgram() noexcept;
     const Program& GetProgram() const noexcept;
 
-    TypeId runtimeType_ = StaticTypeId();
     TypeId targetType_ = InvalidTypeId;
     const Style* basedOn_ = nullptr;
     Ref<Base::Object> basedOnOwner_;

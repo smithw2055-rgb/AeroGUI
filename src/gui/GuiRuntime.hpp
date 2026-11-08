@@ -92,6 +92,8 @@ struct GuiRuntime final : public Base::Object {
     ResourceDictionary cachedDarkTheme;
     bool hasCachedLightTheme = false;
     bool hasCachedDarkTheme = false;
+    ResourceDictionary* activeFallbackResources = nullptr;
+    ResourceDictionary* applicationResources = nullptr;
 
     Base::Result<Markup::XamlDocument> Load(
         const Markup::LoadState* state,

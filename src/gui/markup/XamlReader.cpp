@@ -1526,10 +1526,13 @@ namespace Aero::Markup {
 namespace {
 struct XamlLoadScope {
     XamlLoadScope(
+        GuiRuntime& runtimeState,
         Threading::Dispatcher& dispatcher,
         GuiSchema& schema,
         DocumentCache& documents) noexcept
-        : factory(
+        : runtime(&runtimeState),
+          previousFallbackResources(runtimeState.activeFallbackResources),
+          factory(
               dispatcher,
               (
                   schema.Metadata()).DependencyProperties(),
@@ -1540,8 +1543,28 @@ struct XamlLoadScope {
             &(
                 schema.Metadata()).DependencyProperties();
         load.effectCommitMode = EffectCommitMode::Deferred;
+        if (runtimeState.activeFallbackResources != nullptr) {
+            load.fallbackResources = runtimeState.activeFallbackResources;
+        } else if (runtimeState.applicationResources != nullptr) {
+            load.fallbackResources = runtimeState.applicationResources;
+        }
     }
 
+    ~XamlLoadScope() noexcept {
+        if (runtime != nullptr) {
+            runtime->activeFallbackResources = previousFallbackResources;
+        }
+    }
+
+    void SetFallbackResources(ResourceDictionary* resources) noexcept {
+        load.fallbackResources = resources;
+        if (runtime != nullptr && resources != nullptr) {
+            runtime->activeFallbackResources = resources;
+        }
+    }
+
+    GuiRuntime* runtime = nullptr;
+    ResourceDictionary* previousFallbackResources = nullptr;
     Meta::ObjectFactoryScope factory;
     LoadState load;
 };
@@ -1557,7 +1580,7 @@ Base::Result<XamlDocument> XamlReader::Load(
             "Gui must be initialized before XAML loading");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     return state.Load(
         &scope.load, uri, settings, diagnostics);
 }
@@ -1573,9 +1596,9 @@ Base::Result<XamlDocument> XamlReader::Load(
             "Gui must be initialized before XAML loading");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     scope.load.resources = &resources;
-    scope.load.fallbackResources = &resources;
+    scope.SetFallbackResources(&resources);
     return state.Load(
         &scope.load, uri, settings, diagnostics);
 }
@@ -1590,7 +1613,7 @@ Base::Result<XamlDocument> XamlReader::Load(
             "Gui must be initialized before XAML loading");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     return state.Parse(
         &scope.load, source, baseUri, settings, diagnostics);
 }
@@ -1637,12 +1660,12 @@ Base::Result<XamlDocument> XamlReader::LoadComponentInto(
             "XAML component requires an existing root object");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     if (resources != nullptr) {
         // Ambient lookup only. `resources` is the document dictionary; wiring
         // Application.Resources there lets LoadComponent mutate/seal app-wide
         // styles and drops Button/Thumb hover storyboards.
-        scope.load.fallbackResources = resources;
+        scope.SetFallbackResources(resources);
     }
     Base::Result<XamlDocument> loaded = state.LoadComponentInto(
         &scope.load,
@@ -1669,7 +1692,7 @@ Base::Result<XamlDocument> XamlReader::Parse(
             "Gui must be initialized before XAML parsing");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     return state.Parse(
         &scope.load, source, baseUri, settings, diagnostics);
 }
@@ -1682,7 +1705,7 @@ Base::Result<XamlDocument> XamlReader::LoadCompiled(
             "Gui must be initialized before compiled XAML loading");
     }
     GuiRuntime& state = *gui_->state_;
-    XamlLoadScope scope(state.dispatcher, state.schema, state.documents);
+    XamlLoadScope scope(state, state.dispatcher, state.schema, state.documents);
     return state.LoadCompiled(
         &scope.load, bytes, originUri, XamlReaderSettings{});
 }

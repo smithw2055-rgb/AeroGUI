@@ -708,6 +708,21 @@ UIElement::Rare& UIElement::EnsureRare() noexcept {
     return *rare_;
 }
 
+Size UIElement::GetUntransformedDesiredSize() const noexcept {
+    if (!layout_.measureValid || layout_.visibility == Visibility::Collapsed) {
+        return {};
+    }
+    if (rare_ != nullptr && rare_->hasCustomUntransformedDesiredSize) {
+        return rare_->untransformedDesiredSize;
+    }
+    if ((CoreTypeMask() & Base::kCoreTypeFrameworkElement) != 0U) {
+        return Deflate(
+            layout_.desiredSize,
+            static_cast<const FrameworkElement*>(this)->GetMargin());
+    }
+    return layout_.desiredSize;
+}
+
 UIElement* UIElementChildRange::Iterator::operator*() const noexcept {
     return owner_ != nullptr ? owner_->GetLayoutChild(index_) : nullptr;
 }
