@@ -326,17 +326,10 @@ void FrameworkElement::OnPropertyChanged(
 void FrameworkElement::OnPropertyInvalidated(
     PropertyInvalidationFlags flags) noexcept {
     UIElement::OnPropertyInvalidated(flags);
-    if (HasFlag(flags, PropertyInvalidationFlags::Render)) {
-        InvalidateVisual();
-    }
 }
 
 void FrameworkElement::InvalidateVisual() noexcept {
-    Base::Result<void> access = VerifyAccess();
-    if (!access) {
-        return;
-    }
-    (*this).InvalidateRenderDrawing();
+    UIElement::InvalidateVisual();
 }
 
 void FrameworkElement::OnRender(
@@ -354,9 +347,11 @@ FrameworkElement::AuthoredTriggers() const noexcept {
 void FrameworkElement::AddAuthoredTrigger(
     Base::Ref<Base::Object> trigger) noexcept {
     if (!trigger) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->authoredTriggers.PushBack(std::move(trigger));
+    if (FrameworkRare* rare = EnsureFrameworkRare()) {
+        rare->authoredTriggers.PushBack(std::move(trigger));
+    } else {
+        AERO_ASSERT(false);
+    }
 }
 
 void FrameworkElement::ClearAuthoredTriggers() noexcept {
@@ -369,9 +364,11 @@ void FrameworkElement::ClearAuthoredTriggers() noexcept {
 void FrameworkElement::AddAuthoredBehavior(
     Base::Ref<Base::Object> behavior) noexcept {
     if (!behavior) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->authoredBehaviors.PushBack(std::move(behavior));
+    if (FrameworkRare* rare = EnsureFrameworkRare()) {
+        rare->authoredBehaviors.PushBack(std::move(behavior));
+    } else {
+        AERO_ASSERT(false);
+    }
 }
 
 void FrameworkElement::ClearAuthoredBehaviors() noexcept {
@@ -384,9 +381,11 @@ void FrameworkElement::ClearAuthoredBehaviors() noexcept {
 void FrameworkElement::AddStyleBehaviorPrototype(
     Base::Ref<Base::Object> behavior) noexcept {
     if (!behavior) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
+    if (FrameworkRare* rare = EnsureFrameworkRare()) {
+        rare->styleBehaviorPrototypes.PushBack(std::move(behavior));
+    } else {
+        AERO_ASSERT(false);
+    }
 }
 
 void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
@@ -399,9 +398,11 @@ void FrameworkElement::ClearStyleBehaviorPrototypes() noexcept {
 void FrameworkElement::AddStyleTriggerPrototype(
     Base::Ref<Base::Object> trigger) noexcept {
     if (!trigger) { AERO_ASSERT(false); return; }
-    FrameworkRare* rare = EnsureFrameworkRare();
-    if (rare == nullptr) { AERO_ASSERT(false); return; }
-    rare->styleTriggerPrototypes.PushBack(std::move(trigger));
+    if (FrameworkRare* rare = EnsureFrameworkRare()) {
+        rare->styleTriggerPrototypes.PushBack(std::move(trigger));
+    } else {
+        AERO_ASSERT(false);
+    }
 }
 
 void FrameworkElement::ClearStyleTriggerPrototypes() noexcept {

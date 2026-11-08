@@ -7,6 +7,7 @@
 #include <Aero/Base/HashMap.hpp>
 #include <Aero/Base/HashSet.hpp>
 #include <Aero/Base/Result.hpp>
+#include <Aero/Base/Span.hpp>
 #include <Aero/Base/Vector.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Diagnostics.hpp>
@@ -178,6 +179,22 @@ private:
     bool flushing_ = false;
 
     Base::Result<void> VerifyMutable() const noexcept;
+    Base::Result<void> ResolveAndVerifyObjectProperty(
+        const DependencyObject& object,
+        DependencyPropertyHandle& inOutProperty,
+        const DependencyProperty** outRegistered = nullptr,
+        const PropertyMetadata** outMetadata = nullptr) const noexcept;
+    void ClearUnmaterializedQueueBit(
+        DependencyObject& object,
+        std::uint8_t inheritanceIndex,
+        const QueueLink* excludeLink = nullptr) const noexcept;
+    void UnregisterExplicitInheritanceChild(
+        DependencyObject* parent,
+        DependencyObject& child) noexcept;
+    Base::Result<void> PropagateToDescendants(
+        DependencyObject& root,
+        Base::Span<const DependencyProperty* const> properties,
+        DependencyPropertyHandle fallbackProperty = {}) noexcept;
     Base::Result<void> EnqueueStoredEntry(
         DependencyObject& object,
         DependencyPropertyHandle canonicalProperty,
@@ -491,4 +508,3 @@ private:
 };
 
 } // namespace Aero
-

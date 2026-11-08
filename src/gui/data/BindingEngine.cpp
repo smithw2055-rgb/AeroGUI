@@ -433,7 +433,9 @@ bool BindingEngine::ClearMultiBinding(
     std::uint32_t writeIndex = 0U;
     for (std::uint32_t readIndex = 0U; readIndex < multiBindings_.Size(); ++readIndex) {
         MultiBindingGroup& group = multiBindings_[readIndex];
-        if (group.target == &target && group.targetProperty == property) {
+        const bool match = group.target == &target &&
+            (!property.IsValid() || group.targetProperty == property);
+        if (match) {
             removed = true;
             for (BindingHandle h : group.handles) {
                 if (h.IsValid()) {
@@ -453,26 +455,7 @@ bool BindingEngine::ClearMultiBinding(
 
 bool BindingEngine::ClearMultiBinding(
     DependencyObject& target) noexcept {
-    bool removed = false;
-    std::uint32_t writeIndex = 0U;
-    for (std::uint32_t readIndex = 0U; readIndex < multiBindings_.Size(); ++readIndex) {
-        MultiBindingGroup& group = multiBindings_[readIndex];
-        if (group.target == &target) {
-            removed = true;
-            for (BindingHandle h : group.handles) {
-                if (h.IsValid()) {
-                    static_cast<void>(Detach(h));
-                }
-            }
-        } else {
-            if (writeIndex != readIndex) {
-                multiBindings_[writeIndex] = std::move(group);
-            }
-            ++writeIndex;
-        }
-    }
-    (void)multiBindings_.Resize(writeIndex);
-    return removed;
+    return ClearMultiBinding(target, DependencyPropertyHandle{});
 }
 
 BindingEngine::BindingRecord* BindingEngine::FindRecord(
@@ -867,17 +850,6 @@ Base::Result<PropertyValue> ConvertNullableBooleanValue(
     return Base::ValueConversion::ConvertNullableBooleanValue(value, targetType);
 }
 
-Base::Result<PropertyValue> ConvertThicknessValue(
-    const PropertyValue& value) noexcept {
-    return Base::ValueConversion::ConvertMetricValue(value, TypeOf<Base::Thickness>());
-}
-
-Base::Result<PropertyValue> ConvertLengthValue(
-    const PropertyValue& value,
-    TypeId targetType) noexcept {
-    return Base::ValueConversion::ConvertMetricValue(value, targetType);
-}
-
 Base::Result<PropertyValue> ConvertColorToBrush(
     const PropertyValue& value) noexcept {
     return Base::ValueConversion::ConvertColorAndBrushValue(
@@ -898,11 +870,15 @@ bool CanRoundTripObjectValue(
         types.IsAssignableFrom(targetType, sourceType);
 }
 
-bool TryParseFixedPrecision(
+namespace {
+
+bool TryParsePrecisionSpecifier(
     Base::StringView specifier,
+    char upperPrefix,
+    char lowerPrefix,
     std::uint32_t& precision) noexcept {
     if (specifier.Empty() ||
-        (specifier[0] != 'F' && specifier[0] != 'f')) {
+        (specifier[0] != upperPrefix && specifier[0] != lowerPrefix)) {
         return false;
     }
     if (specifier.SizeBytes() == 1U) {
@@ -923,29 +899,18 @@ bool TryParseFixedPrecision(
     return true;
 }
 
+} // namespace
+
+bool TryParseFixedPrecision(
+    Base::StringView specifier,
+    std::uint32_t& precision) noexcept {
+    return TryParsePrecisionSpecifier(specifier, 'F', 'f', precision);
+}
+
 bool TryParseCurrencyPrecision(
     Base::StringView specifier,
     std::uint32_t& precision) noexcept {
-    if (specifier.Empty() ||
-        (specifier[0] != 'C' && specifier[0] != 'c')) {
-        return false;
-    }
-    if (specifier.SizeBytes() == 1U) {
-        precision = 2U;
-        return true;
-    }
-    std::uint32_t parsed = 0U;
-    for (std::uint32_t index = 1U;
-         index < specifier.SizeBytes();
-         ++index) {
-        const char digit = specifier[index];
-        if (digit < '0' || digit > '9') return false;
-        parsed = parsed * 10U +
-            static_cast<std::uint32_t>(digit - '0');
-        if (parsed > 15U) return false;
-    }
-    precision = parsed;
-    return true;
+    return TryParsePrecisionSpecifier(specifier, 'C', 'c', precision);
 }
 
 bool IsZeroPaddingFormat(
@@ -1341,27 +1306,14 @@ Base::Result<PropertyValue> ConvertDefaultBindingValue(
     Base::StringView stringFormat,
     const Registry* metadata,
     TypeId formattedStringType) noexcept {
-    if ((value.Type() == TypeOf<bool>() &&
-         targetType == TypeOf<::Aero::Nullable<bool>>()) ||
-        (value.Type() == TypeOf<::Aero::Nullable<bool>>() &&
-         targetType == TypeOf<bool>())) {
-        return ConvertNullableBooleanValue(value, targetType);
-    }
-    if ((IsNumericType(value.Type()) &&
-         (targetType == TypeOf<Base::Thickness>() ||
-          targetType == TypeOf<Aero::Length>() ||
-          targetType == TypeOf<Aero::GridLength>() ||
-          targetType == TypeOf<Base::CornerRadius>())) ||
-        (value.Type() == TypeOf<Aero::Length>() &&
-         IsNumericType(targetType))) {
-        return Base::ValueConversion::ConvertMetricValue(value, targetType);
-    }
-    if (value.Type() == TypeOf<Base::Color>() &&
-        targetType == Media::Brush::StaticTypeId()) {
-        return ConvertColorToBrush(value);
-    }
-    if (IsNumericType(value.Type()) && IsNumericType(targetType)) {
-        return ConvertNumericValue(value, targetType);
+    const TypeRegistry* types =
+        (metadata != nullptr && metadata->IsReady()) ? &metadata->Types() : nullptr;
+    Base::Result<PropertyValue> converted =
+        Base::ValueConversion::TryConvertDefaultValue(
+            value, targetType, types, /*autoLengthAsZero=*/false);
+    if (converted ||
+        converted.GetStatus().code != Base::ErrorCode::Unsupported) {
+        return converted;
     }
     Base::Result<Base::String> text =
         FormatBindingString(value, stringFormat, metadata);
@@ -1800,8 +1752,8 @@ void BindingEngine::OnPropertyChanged(
     if (!dataContextBindings_.Empty()) {
         for (BindingHandle handle : dataContextBindings_) {
             BindingRecord* record = FindRecord(handle);
-            if (record == nullptr) continue;
-            if (record->sourceKind == BindingSourceKind::DataContext &&
+            if (record != nullptr &&
+                record->sourceKind == BindingSourceKind::DataContext &&
                 record->dataContextProperty == args.GetProperty() &&
                 record->dataContextOwner != &object &&
                 BindingOwnerSeesDataContextChange(record->dataContextOwner, object)) {
@@ -2337,10 +2289,15 @@ void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     }
 }
 
-void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {
-    if (target == nullptr || handle.value == 0U) return;
-    auto* found = targetToBindings_.Find(target);
-    if (found != nullptr) {
+namespace {
+
+template <typename TKey>
+void AddIndexedBindingHandle(
+    Base::HashMap<const TKey*, Base::Vector<BindingHandle>>& indexMap,
+    const TKey* key,
+    BindingHandle handle) noexcept {
+    if (key == nullptr || handle.value == 0U) return;
+    if (auto* found = indexMap.Find(key)) {
         for (BindingHandle existing : *found) {
             if (existing.value == handle.value) return;
         }
@@ -2348,55 +2305,45 @@ void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHand
     } else {
         Base::Vector<BindingHandle> vec;
         vec.PushBack(handle);
-        static_cast<void>(targetToBindings_.Insert(target, std::move(vec)));
+        static_cast<void>(indexMap.Insert(key, std::move(vec)));
     }
+}
+
+template <typename TKey>
+void RemoveIndexedBindingHandle(
+    Base::HashMap<const TKey*, Base::Vector<BindingHandle>>& indexMap,
+    const TKey* key,
+    BindingHandle handle) noexcept {
+    if (key == nullptr || handle.value == 0U) return;
+    if (auto* found = indexMap.Find(key)) {
+        for (std::uint32_t i = 0U; i < found->Size(); ++i) {
+            if ((*found)[i].value == handle.value) {
+                found->Erase(i);
+                break;
+            }
+        }
+        if (found->Empty()) {
+            indexMap.Erase(key);
+        }
+    }
+}
+
+} // namespace
+
+void BindingEngine::AddTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {
+    AddIndexedBindingHandle(targetToBindings_, target, handle);
 }
 
 void BindingEngine::RemoveTargetBinding(const DependencyObject* target, BindingHandle handle) noexcept {
-    if (target == nullptr || handle.value == 0U) return;
-    auto* found = targetToBindings_.Find(target);
-    if (found != nullptr) {
-        for (std::uint32_t i = 0U; i < found->Size(); ++i) {
-            if ((*found)[i].value == handle.value) {
-                found->Erase(i);
-                break;
-            }
-        }
-        if (found->Empty()) {
-            targetToBindings_.Erase(target);
-        }
-    }
+    RemoveIndexedBindingHandle(targetToBindings_, target, handle);
 }
 
 void BindingEngine::AddSourceBinding(const Base::Object* source, BindingHandle handle) noexcept {
-    if (source == nullptr || handle.value == 0U) return;
-    auto* found = sourceToBindings_.Find(source);
-    if (found != nullptr) {
-        for (BindingHandle existing : *found) {
-            if (existing.value == handle.value) return;
-        }
-        found->PushBack(handle);
-    } else {
-        Base::Vector<BindingHandle> vec;
-        vec.PushBack(handle);
-        static_cast<void>(sourceToBindings_.Insert(source, std::move(vec)));
-    }
+    AddIndexedBindingHandle(sourceToBindings_, source, handle);
 }
 
 void BindingEngine::RemoveSourceBinding(const Base::Object* source, BindingHandle handle) noexcept {
-    if (source == nullptr || handle.value == 0U) return;
-    auto* found = sourceToBindings_.Find(source);
-    if (found != nullptr) {
-        for (std::uint32_t i = 0U; i < found->Size(); ++i) {
-            if ((*found)[i].value == handle.value) {
-                found->Erase(i);
-                break;
-            }
-        }
-        if (found->Empty()) {
-            sourceToBindings_.Erase(source);
-        }
-    }
+    RemoveIndexedBindingHandle(sourceToBindings_, source, handle);
 }
 
 void BindingEngine::AddDataContextBinding(BindingHandle handle) noexcept {

@@ -48,6 +48,81 @@ thread_local ActiveMutation t_mutationStack[MaxMutationDepth]{};
 thread_local std::uint32_t t_mutationDepth = 0U;
 thread_local std::uint64_t t_nextValueRevision = 1U;
 
+// Unified base-value precedence resolution shared by GetAnimationBaseValueInternal
+// and RecomputeEffectiveValueCore.
+Base::Result<void> EvaluateStoredBaseValue(
+    DependencyObject& owner,
+    const StoredValueEntry* storedEntry,
+    const PropertyMetadata& metadata,
+    DependencyPropertyHandle propertyHandle,
+    PropertyValue& outBaseValue,
+    PropertyValueSourceInfo* outSource) noexcept {
+    PropertyValueSourceInfo source;
+    if (storedEntry == nullptr) {
+        outBaseValue = metadata.defaultValue;
+        source.rank = PropertyValueRank::Default;
+        if (outSource != nullptr) *outSource = source;
+        return {};
+    }
+
+    const StoredValueEntry& stored = *storedEntry;
+    PropertyProviderToken providerToken;
+    PropertyValue providerValue;
+    const bool hasProvider =
+        stored.TryGetWinnerProvider(providerToken, providerValue);
+    const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(&owner);
+    const bool isTemplateChild =
+        fe != nullptr && fe->GetTemplatedParent() != nullptr;
+
+    if (hasProvider &&
+        (providerToken.rank > PropertyValueRank::Local ||
+         (isTemplateChild &&
+          providerToken.rank >= PropertyValueRank::TemplatedParentTrigger))) {
+        outBaseValue = providerValue;
+        source.rank = providerToken.rank;
+        source.token = providerToken;
+    } else if (stored.HasExpression()) {
+        const PropertyExpression expression = stored.ExpressionOrEmpty();
+        Base::Result<PropertyValue> evaluated =
+            expression.evaluate(expression.context, owner, propertyHandle);
+        if (!evaluated) return evaluated.GetStatus();
+        if (evaluated.Value().IsUnset()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "A property expression returned Unset");
+        }
+        outBaseValue = std::move(evaluated).Value();
+        source.rank = PropertyValueRank::LocalExpression;
+        source.token = {PropertyValueRank::Local, LocalValueProviderOrigin, 1U};
+        source.expressionKind = expression.kind;
+        source.hasExpression = true;
+    } else if (stored.HasLocal()) {
+        outBaseValue = stored.LocalValueOrUnset();
+        source.rank = PropertyValueRank::Local;
+        source.token = {PropertyValueRank::Local, LocalValueProviderOrigin, 0U};
+    } else if (hasProvider) {
+        outBaseValue = providerValue;
+        source.rank = providerToken.rank;
+        source.token = providerToken;
+    } else if (stored.HasInherited()) {
+        outBaseValue = stored.InheritedValueOrUnset();
+        source.rank = PropertyValueRank::Inherited;
+        source.isInherited = true;
+    } else {
+        outBaseValue = metadata.defaultValue;
+        source.rank = PropertyValueRank::Default;
+    }
+
+    if (stored.HasCurrent()) {
+        outBaseValue = stored.CurrentValueOrUnset();
+        source.isCurrentValue = true;
+    }
+    if (outSource != nullptr) {
+        *outSource = source;
+    }
+    return {};
+}
+
 } // namespace
 
 PropertyInvalidationFlags DependencyObject::AccumulateInvalidations(
@@ -361,40 +436,10 @@ DependencyObject::GetAnimationBaseValueInternal(
     propertyHandle = property->Handle();
     const StoredValueEntry* storedEntry =
         FindStoredEntry(propertyHandle);
-    PropertyValue baseValue = metadata->defaultValue;
-    if (storedEntry != nullptr) {
-        const StoredValueEntry& stored = *storedEntry;
-        PropertyProviderToken providerToken;
-        PropertyValue providerValue;
-        const bool hasProvider =
-            stored.TryGetWinnerProvider(providerToken, providerValue);
-        if (hasProvider &&
-            providerToken.rank > PropertyValueRank::Local) {
-            baseValue = providerValue;
-        } else if (stored.HasExpression()) {
-            const PropertyExpression expression =
-                stored.ExpressionOrEmpty();
-            Base::Result<PropertyValue> evaluated =
-                expression.evaluate(
-                    expression.context, *this, propertyHandle);
-            if (!evaluated) return evaluated.GetStatus();
-            if (evaluated.Value().IsUnset()) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::ValidationFailed,
-                    "A property expression returned Unset");
-            }
-            baseValue = std::move(evaluated).Value();
-        } else if (stored.HasLocal()) {
-            baseValue = stored.LocalValueOrUnset();
-        } else if (hasProvider) {
-            baseValue = providerValue;
-        } else if (stored.HasInherited()) {
-            baseValue = stored.InheritedValueOrUnset();
-        }
-        if (stored.HasCurrent()) {
-            baseValue = stored.CurrentValueOrUnset();
-        }
-    }
+    PropertyValue baseValue;
+    Base::Result<void> resolvedBase = EvaluateStoredBaseValue(
+        *this, storedEntry, *metadata, propertyHandle, baseValue, nullptr);
+    if (!resolvedBase) return resolvedBase.GetStatus();
     return registry_->EvaluateValue(
         *this, *property, *metadata, baseValue);
 }
@@ -415,57 +460,21 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     }
     const StoredValueEntry& stored = *storedEntry;
     const bool hasExpression = stored.HasExpression();
-    const PropertyExpression expression = stored.ExpressionOrEmpty();
     const bool hasLocal = stored.HasLocal();
     const PropertyValue localValue = stored.LocalValueOrUnset();
     const bool hasCurrent = stored.HasCurrent();
-    const PropertyValue currentValue = stored.CurrentValueOrUnset();
     const bool hasInherited = stored.HasInherited();
     const PropertyValue inheritedValue = stored.InheritedValueOrUnset();
     const bool hasAnimation = stored.HasAnimation();
     const PropertyValue animationValue = stored.AnimationValueOrUnset();
-    PropertyProviderToken providerToken;
-    PropertyValue providerValue;
-    const bool hasProvider = stored.TryGetWinnerProvider(providerToken, providerValue);
-
-    const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(this);
-    const bool isTemplateChild = fe != nullptr && fe->GetTemplatedParent() != nullptr;
+    const bool hasProvider = stored.HasProviders();
 
     PropertyValue baseValue;
     PropertyValueSourceInfo source;
-    if (hasProvider && (providerToken.rank > PropertyValueRank::Local ||
-                        (isTemplateChild && providerToken.rank >= PropertyValueRank::TemplatedParentTrigger))) {
-        baseValue = providerValue;
-        source.rank = providerToken.rank;
-        source.token = providerToken;
-    } else if (hasExpression) {
-        Base::Result<PropertyValue> evaluated = expression.evaluate(
-            expression.context, *this, propertyHandle);
-        if (!evaluated) return evaluated.GetStatus();
-        if (evaluated.Value().IsUnset()) return Base::Status::Failure(
-            Base::ErrorCode::ValidationFailed, "A property expression returned Unset");
-        baseValue = std::move(evaluated).Value();
-        source.rank = PropertyValueRank::LocalExpression;
-        source.token = {PropertyValueRank::Local, LocalValueProviderOrigin, 1U};
-        source.expressionKind = expression.kind;
-        source.hasExpression = true;
-    } else if (hasLocal) {
-        baseValue = localValue;
-        source.rank = PropertyValueRank::Local;
-        source.token = {PropertyValueRank::Local, LocalValueProviderOrigin, 0U};
-    } else if (hasProvider) {
-        baseValue = providerValue;
-        source.rank = providerToken.rank;
-        source.token = providerToken;
-    } else if (hasInherited) {
-        baseValue = inheritedValue;
-        source.rank = PropertyValueRank::Inherited;
-        source.isInherited = true;
-    } else {
-        baseValue = metadata.defaultValue;
-        source.rank = PropertyValueRank::Default;
-    }
-    if (hasCurrent) { baseValue = currentValue; source.isCurrentValue = true; }
+    Base::Result<void> resolvedBase = EvaluateStoredBaseValue(
+        *this, &stored, metadata, propertyHandle, baseValue, &source);
+    if (!resolvedBase) return resolvedBase.GetStatus();
+
     PropertyValue candidate = hasAnimation ? animationValue : baseValue;
     if (hasAnimation) {
         source.rank = PropertyValueRank::Animation;
@@ -548,12 +557,9 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         storedEntry = FindStoredEntry(propertyHandle);
     }
     if (storedEntry != nullptr) {
-        const StoredValueEntry& finalEntry = *storedEntry;
-        const bool shouldStore = finalEntry.HasLocal() || finalEntry.HasCurrent() ||
-            finalEntry.HasExpression() || finalEntry.HasInherited() || finalEntry.HasAnimation() ||
-            finalEntry.HasProviders() ||
-            finalEntry.effectiveValue != metadata.defaultValue;
-        if (!shouldStore) RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
+        if (!storedEntry->HasNonDefaultState(metadata.defaultValue)) {
+            RemoveStoredEntry(CanonicalPropertyKey(propertyHandle));
+        }
     }
     return {};
 }

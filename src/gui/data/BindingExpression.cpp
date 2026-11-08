@@ -138,14 +138,6 @@ Base::Status TemplateBindingExpression::UpdateTarget() noexcept {
 
 namespace {
 
-Base::Status BindingOpsInvalidArgument(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::InvalidArgument, message);
-}
-
-Base::Status BindingOpsNotInitialized(const char* message) noexcept {
-    return Base::Status::Failure(Base::ErrorCode::NotInitialized, message);
-}
-
 Base::Status BindingOpsNotFound(const char* message) noexcept {
     return Base::Status::Failure(Base::ErrorCode::NotFound, message);
 }

@@ -1,24 +1,30 @@
+#include "gui/core/ValueConversion.hpp"
 #include <Aero/PropertyPath.hpp>
 
 namespace Aero {
+namespace {
+
+Base::StringView StripXmlNamespacePrefix(Base::StringView token) noexcept {
+    for (std::uint32_t i = 0U; i < token.SizeBytes(); ++i) {
+        if (token[i] == ':') {
+            return token.Substr(i + 1U, token.SizeBytes() - i - 1U);
+        }
+    }
+    return token;
+}
+
+} // namespace
 
 Base::Result<void> PropertyPath::ParseTokens(
     Base::StringView path,
     Base::Vector<PropertyPathToken>& outTokens) noexcept {
     outTokens.Clear();
 
-    // Trim outer whitespace
-    std::uint32_t start = 0U;
-    std::uint32_t len = path.SizeBytes();
-    while (start < len && (path[start] == ' ' || path[start] == '\t' || path[start] == '\r' || path[start] == '\n')) {
-        ++start;
-    }
-    while (len > start && (path[len - 1U] == ' ' || path[len - 1U] == '\t' || path[len - 1U] == '\r' || path[len - 1U] == '\n')) {
-        --len;
-    }
-    if (start >= len) return {};
+    path = Base::ValueConversion::Trim(path);
+    const std::uint32_t len = path.SizeBytes();
+    if (len == 0U) return {};
 
-    std::uint32_t cursor = start;
+    std::uint32_t cursor = 0U;
     while (cursor < len) {
         // Skip dots or whitespace between segments
         while (cursor < len && (path[cursor] == '.' || path[cursor] == ' ' || path[cursor] == '\t')) {
@@ -50,14 +56,7 @@ Base::Result<void> PropertyPath::ParseTokens(
                 if (inner[i] == '.') dot = i;
             }
             if (dot != UINT32_MAX) {
-                Base::StringView typePart = inner.Substr(0U, dot);
-                // Strip XML prefix if any (e.g. local:Type)
-                for (std::uint32_t i = 0U; i < typePart.SizeBytes(); ++i) {
-                    if (typePart[i] == ':') {
-                        typePart = typePart.Substr(i + 1U, typePart.SizeBytes() - i - 1U);
-                    }
-                }
-                token.typeQualifier = typePart;
+                token.typeQualifier = StripXmlNamespacePrefix(inner.Substr(0U, dot));
                 token.propertyName = inner.Substr(dot + 1U, inner.SizeBytes() - dot - 1U);
             } else {
                 token.propertyName = inner;

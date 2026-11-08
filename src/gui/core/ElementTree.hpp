@@ -386,6 +386,9 @@ private:
     ElementTree* prevActiveTree_ = nullptr;
     ElementTree* nextActiveTree_ = nullptr;
 
+    static void CollectActiveTreesForDispatcher(
+        const ::Aero::Threading::Dispatcher& dispatcher,
+        Base::BasicVector<ElementTree*, 4U>& outTrees) noexcept;
     Base::Result<void> VerifyMutation(
         const ::Aero::Media::Visual& first,
         const ::Aero::Media::Visual* second = nullptr) const noexcept;

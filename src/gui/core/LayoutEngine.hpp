@@ -54,11 +54,12 @@ private:
     bool flushing_ = false;
 
     Base::Result<void> VerifyElement(const UIElement& element) const noexcept;
-    Base::Result<void> QueueMeasure(UIElement& element) noexcept;
-    Base::Result<void> QueueArrange(UIElement& element) noexcept;
+    void PropagateInvalidation(UIElement& element, bool invalidateMeasure) noexcept;
+    void ClearQueuedFlags(
+        Base::Vector<VisualHandle>& queue,
+        UIElement::LayoutFlags flag) const noexcept;
     void RemoveQueued(UIElement& element) noexcept;
     UIElement* ResolveQueued(VisualHandle handle) const noexcept;
-    Base::Result<VisualHandle> EnqueueHandle(UIElement& element) noexcept;
     void MeasureElement(UIElement& element, Size constraint) noexcept;
     void ArrangeElement(UIElement& element, Rect slot) noexcept;
 };

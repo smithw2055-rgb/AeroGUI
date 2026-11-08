@@ -353,6 +353,17 @@ bool ElementTree::HasActiveVisualHoldingObject(
     return false;
 }
 
+void ElementTree::CollectActiveTreesForDispatcher(
+    const ::Aero::Threading::Dispatcher& dispatcher,
+    Base::BasicVector<ElementTree*, 4U>& outTrees) noexcept {
+    std::lock_guard<std::mutex> lock(g_activeTreesMutex);
+    for (ElementTree* tree = g_activeTreesHead; tree != nullptr; tree = tree->nextActiveTree_) {
+        if (tree->dispatcher_ == &dispatcher) {
+            (void)outTrees.PushBack(tree);
+        }
+    }
+}
+
 bool ElementTree::HasActiveVisualOrBindingOnDispatcher(
     const ::Aero::Threading::Dispatcher& dispatcher,
     const DependencyObject& target,
@@ -364,14 +375,7 @@ bool ElementTree::HasActiveVisualOrBindingOnDispatcher(
         return false;
     }
     Base::BasicVector<ElementTree*, 4U> dispatcherTrees;
-    {
-        std::lock_guard<std::mutex> lock(g_activeTreesMutex);
-        for (ElementTree* tree = g_activeTreesHead; tree != nullptr; tree = tree->nextActiveTree_) {
-            if (tree->dispatcher_ == &dispatcher) {
-                (void)dispatcherTrees.PushBack(tree);
-            }
-        }
-    }
+    CollectActiveTreesForDispatcher(dispatcher, dispatcherTrees);
     for (const ElementTree* tree : dispatcherTrees) {
         if (const auto* treeBindings = tree->Bindings();
             treeBindings != nullptr &&
@@ -396,14 +400,7 @@ bool ElementTree::HasAnyBindingOnDispatcher(
         return false;
     }
     Base::BasicVector<ElementTree*, 4U> dispatcherTrees;
-    {
-        std::lock_guard<std::mutex> lock(g_activeTreesMutex);
-        for (ElementTree* tree = g_activeTreesHead; tree != nullptr; tree = tree->nextActiveTree_) {
-            if (tree->dispatcher_ == &dispatcher) {
-                (void)dispatcherTrees.PushBack(tree);
-            }
-        }
-    }
+    CollectActiveTreesForDispatcher(dispatcher, dispatcherTrees);
     for (const ElementTree* tree : dispatcherTrees) {
         if (const auto* treeBindings = tree->Bindings();
             treeBindings != nullptr &&
@@ -424,14 +421,7 @@ void ElementTree::DetachObjectFromAllBindingsOnDispatcher(
         return;
     }
     Base::BasicVector<ElementTree*, 4U> dispatcherTrees;
-    {
-        std::lock_guard<std::mutex> lock(g_activeTreesMutex);
-        for (ElementTree* tree = g_activeTreesHead; tree != nullptr; tree = tree->nextActiveTree_) {
-            if (tree->dispatcher_ == &dispatcher) {
-                (void)dispatcherTrees.PushBack(tree);
-            }
-        }
-    }
+    CollectActiveTreesForDispatcher(dispatcher, dispatcherTrees);
     for (ElementTree* tree : dispatcherTrees) {
         if (auto* treeBindings = tree->Bindings();
             treeBindings != nullptr && treeBindings != alreadyDetached) {
@@ -459,14 +449,6 @@ void ElementTree::InvalidateNodeHandle(
             if (activeHandleCount_ > 0U) --activeHandleCount_;
         }
     }
-    if (activeRepeatButton_ == static_cast<void*>(&node)) {
-        activeRepeatButton_ = nullptr;
-        repeatElapsed_ = 0U;
-        nextRepeat_ = 0U;
-    }
-    if (viewState_ != nullptr) {
-        viewState_->UntrackVisualNode(node);
-    }
     auto* curBindings = Bindings();
     if (curBindings != nullptr) {
         static_cast<void>(curBindings->DetachObject(node));
@@ -481,11 +463,7 @@ void ElementTree::InvalidateNodeHandle(
     if (values_ != nullptr) {
         static_cast<void>(values_->DetachObject(node));
     }
-    node.handleIndex_ = UINT32_MAX;
-    node.handleGeneration_ = 0U;
-    if (node.tree_ == this) {
-        node.tree_ = nullptr;
-    }
+    InvalidateNodeHandleFromDestructor(node);
 }
 
 void ElementTree::InvalidateNodeHandleFromDestructor(::Aero::Media::Visual& node) noexcept {
@@ -856,9 +834,7 @@ void ElementTree::ApplyLoadedSubtree(::Aero::Media::Visual& node, bool loaded) n
 void ElementTree::ClearDetachedPresentation(::Aero::Media::Visual& node) noexcept {
     UIElement* element = ::Aero::TryCast<UIElement>(&node);
     if (element != nullptr) {
-        element->Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
-        element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
-        element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
+        element->Layout().ClearQueueAndAttachmentFlags();
     }
     (node).RenderAttached() = false;
     (node).RenderQueued() = false;
@@ -1825,9 +1801,7 @@ Base::Result<void> ElementTree::DetachVisualEdges(
             if (childElement != nullptr &&
                 childElement->GetIsLayoutAttached() &&
                 ElementTree::LayoutOf(*childElement) == nullptr) {
-                childElement->Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
-                childElement->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
-                childElement->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
+                childElement->Layout().ClearQueueAndAttachmentFlags();
             }
             auto* curLayout = Layout();
             state.layoutAttached =

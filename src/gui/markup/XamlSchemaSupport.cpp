@@ -2391,19 +2391,16 @@ const ::Aero::Meta::DependencyProperty* ResolveXamlDependencyProperty(
 
     if (targetPropertyType == ::Aero::Length::StaticTypeId() ||
         targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Length>() ||
-        targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>()) {
-        auto metric = ::Aero::Base::ValueConversion::ConvertMetricValue(value, targetPropertyType);
-        if (metric) return metric;
-    }
-
-    if (targetPropertyType == ::Aero::Media::Brush::StaticTypeId() &&
-        value.Type() == ::Aero::Meta::TypeOf<::Aero::Base::Color>()) {
-        return ::Aero::Base::ValueConversion::ConvertColorAndBrushValue(value, targetPropertyType);
-    }
-
-    if (targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {
-        auto nullable = ::Aero::Base::ValueConversion::ConvertNullableBooleanValue(value, targetPropertyType);
-        if (nullable) return nullable;
+        targetPropertyType == ::Aero::Meta::TypeOf<::Aero::GridLength>() ||
+        targetPropertyType == ::Aero::Media::Brush::StaticTypeId() ||
+        targetPropertyType == ::Aero::Meta::TypeOf<::Aero::Nullable<bool>>()) {
+        auto converted = ::Aero::Base::ValueConversion::TryConvertDefaultValue(
+            value, targetPropertyType);
+        if (converted) return converted;
+        if (targetPropertyType == ::Aero::Media::Brush::StaticTypeId() &&
+            value.Type() == ::Aero::Meta::TypeOf<::Aero::Base::Color>()) {
+            return converted;
+        }
     }
 
     if (value.IsNullObject() && value.Type() != targetPropertyType) {

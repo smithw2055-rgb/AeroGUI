@@ -53,73 +53,36 @@ struct PropertyProviderContribution {
 class PropertyProviderSet {
 public:
     bool Set(PropertyProviderToken token, const PropertyValue& value) noexcept {
-        if (!token.IsValid() || value.IsUnset()) { return false; } const std::uint32_t existing = Find(token);
-        if (existing != UINT32_MAX) {
-            contributions_[existing].value = value;
-            return true;
-        }
-        contributions_.PushBack({token, value});
-        NoteInserted(contributions_.Size() - 1U);
-        return true;
+        return UpsertContribution(token, value);
     }
 
     bool Set(PropertyProviderToken token, PropertyValue&& value) noexcept {
-        if (!token.IsValid() || value.IsUnset()) { return false; } const std::uint32_t existing = Find(token);
-        if (existing != UINT32_MAX) {
-            contributions_[existing].value = std::move(value);
-            return true;
-        }
-        PropertyProviderContribution contribution;
-        contribution.token = token;
-        contribution.value = std::move(value);
-        contributions_.PushBack(std::move(contribution));
-        NoteInserted(contributions_.Size() - 1U);
-        return true;
+        return UpsertContribution(token, std::move(value));
     }
 
-    bool Remove(PropertyProviderToken token) noexcept { const std::uint32_t index = Find(token);
+    bool Remove(PropertyProviderToken token) noexcept {
+        const std::uint32_t index = Find(token);
         if (index == UINT32_MAX) return false;
         RemoveAt(index);
         return true;
     }
 
     std::uint32_t RemoveOrigin(std::uint32_t origin) noexcept {
-        std::uint32_t removed = 0U;
-        std::uint32_t index = 0U;
-        while (index < contributions_.Size()) {
-            if (contributions_[index].token.origin == origin) {
-                EraseAtUnchecked(index);
-                ++removed;
-            } else { ++index; }
-        }
-        if (removed != 0U) RefreshWinner();
-        return removed;
+        return RemoveMatching([origin](PropertyProviderToken token) noexcept {
+            return token.origin == origin;
+        });
     }
 
     std::uint32_t Remove(PropertyValueRank rank, std::uint32_t origin) noexcept {
-        std::uint32_t removed = 0U;
-        std::uint32_t index = 0U;
-        while (index < contributions_.Size()) { const PropertyProviderToken token = contributions_[index].token;
-            if (token.rank == rank && token.origin == origin) {
-                EraseAtUnchecked(index);
-                ++removed;
-            } else { ++index; }
-        }
-        if (removed != 0U) RefreshWinner();
-        return removed;
+        return RemoveMatching([rank, origin](PropertyProviderToken token) noexcept {
+            return token.rank == rank && token.origin == origin;
+        });
     }
 
     std::uint32_t RemoveRank(PropertyValueRank rank) noexcept {
-        std::uint32_t removed = 0U;
-        std::uint32_t index = 0U;
-        while (index < contributions_.Size()) {
-            if (contributions_[index].token.rank == rank) {
-                EraseAtUnchecked(index);
-                ++removed;
-            } else { ++index; }
-        }
-        if (removed != 0U) RefreshWinner();
-        return removed;
+        return RemoveMatching([rank](PropertyProviderToken token) noexcept {
+            return token.rank == rank;
+        });
     }
 
     void Clear() noexcept {
@@ -151,6 +114,38 @@ private:
     // empty. Order-independent because Winner is defined by comparison.
     std::uint32_t winner_ = UINT32_MAX;
 
+    template <typename TValue>
+    bool UpsertContribution(PropertyProviderToken token, TValue&& value) noexcept {
+        if (!token.IsValid() || value.IsUnset()) {
+            return false;
+        }
+        const std::uint32_t existing = Find(token);
+        if (existing != UINT32_MAX) {
+            contributions_[existing].value = std::forward<TValue>(value);
+            return true;
+        }
+        PropertyProviderContribution contribution{token, std::forward<TValue>(value)};
+        contributions_.PushBack(std::move(contribution));
+        NoteInserted(contributions_.Size() - 1U);
+        return true;
+    }
+
+    template <typename TPredicate>
+    std::uint32_t RemoveMatching(TPredicate&& predicate) noexcept {
+        std::uint32_t removed = 0U;
+        std::uint32_t index = 0U;
+        while (index < contributions_.Size()) {
+            if (predicate(contributions_[index].token)) {
+                EraseAtUnchecked(index);
+                ++removed;
+            } else {
+                ++index;
+            }
+        }
+        if (removed != 0U) RefreshWinner();
+        return removed;
+    }
+
     std::uint32_t Find(PropertyProviderToken token) const noexcept {
         for (std::uint32_t index = 0U;
              index < contributions_.Size();
@@ -176,7 +171,8 @@ private:
         } else if (winner_ == index) { RefreshWinner(); }
     }
 
-    void EraseAtUnchecked(std::uint32_t index) noexcept { const std::uint32_t last = contributions_.Size() - 1U;
+    void EraseAtUnchecked(std::uint32_t index) noexcept {
+        const std::uint32_t last = contributions_.Size() - 1U;
         if (index != last) { contributions_[index] = std::move(contributions_[last]); }
         contributions_.PopBack();
     }

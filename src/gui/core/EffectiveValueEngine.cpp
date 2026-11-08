@@ -52,40 +52,20 @@ Base::Result<Meta::PropertyValue> NormalizeValueForProperty(
             ? &metadata->Types()
             : property.Types();
 
-    const Meta::TypeId nullableBooleanType =
-        Meta::TypeOf<::Aero::Nullable<bool>>();
-    if (targetType == nullableBooleanType ||
-        (targetType == Meta::TypeOf<bool>() && value.Type() == nullableBooleanType)) {
-        Base::Result<Meta::PropertyValue> nullableConverted =
-            Base::ValueConversion::ConvertNullableBooleanValue(value, targetType);
-        if (nullableConverted || value.Type() == nullableBooleanType) {
-            return nullableConverted;
-        }
-    }
-
     if (targetType == Meta::TypeOf<Base::String>() &&
         value.Kind() == Meta::ValueKind::Object &&
         value.IsNullObject()) {
         return Meta::ValueCodec<Base::String>::Encode(Base::String{});
     }
 
-    if (targetType == Meta::TypeOf<double>() &&
-        value.Type() == Meta::TypeOf<Aero::Length>()) {
-        Base::Result<Aero::Length> length =
-            Meta::ValueCodec<Aero::Length>::Decode(value);
-        if (!length) return length.GetStatus();
-        return Meta::ValueCodec<double>::Encode(
-            length.Value().isAuto ? 0.0 : length.Value().value);
-    }
-
-    if (targetType == Meta::TypeOf<Aero::Length>() ||
-        targetType == Meta::TypeOf<Base::Thickness>() ||
-        targetType == Meta::TypeOf<Base::CornerRadius>() ||
-        targetType == Meta::TypeOf<double>()) {
-        Base::Result<Meta::PropertyValue> metricConverted =
-            Base::ValueConversion::ConvertMetricValue(value, targetType);
-        if (metricConverted) {
-            return metricConverted;
+    {
+        Base::Result<Meta::PropertyValue> defaultConverted =
+            Base::ValueConversion::TryConvertDefaultValue(
+                value, targetType, types, /*autoLengthAsZero=*/true);
+        if (defaultConverted ||
+            (targetType == Meta::TypeOf<bool>() &&
+             value.Type() == Meta::TypeOf<::Aero::Nullable<bool>>())) {
+            return defaultConverted;
         }
     }
 
@@ -1325,12 +1305,11 @@ Base::Result<void> EffectiveValueEngine::EnqueueUnmaterialized(
     return {};
 }
 
-Base::Result<::Aero::StoredValueEntry*>
-EffectiveValueEngine::EnsureAndQueueProperty(
-    DependencyObject& object,
+Base::Result<void> EffectiveValueEngine::ResolveAndVerifyObjectProperty(
+    const DependencyObject& object,
     DependencyPropertyHandle& inOutProperty,
     const DependencyProperty** outRegistered,
-    const PropertyMetadata** outMetadata) noexcept {
+    const PropertyMetadata** outMetadata) const noexcept {
     if (&object.GetDispatcher() != dispatcher_) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
@@ -1347,6 +1326,20 @@ EffectiveValueEngine::EnsureAndQueueProperty(
     }
     inOutProperty = registered->Handle();
     if (outRegistered != nullptr) *outRegistered = registered;
+    if (outMetadata != nullptr) *outMetadata = metadata;
+    return {};
+}
+
+Base::Result<::Aero::StoredValueEntry*>
+EffectiveValueEngine::EnsureAndQueueProperty(
+    DependencyObject& object,
+    DependencyPropertyHandle& inOutProperty,
+    const DependencyProperty** outRegistered,
+    const PropertyMetadata** outMetadata) noexcept {
+    const PropertyMetadata* metadata = nullptr;
+    Base::Result<void> verified = ResolveAndVerifyObjectProperty(
+        object, inOutProperty, outRegistered, &metadata);
+    if (!verified) return verified.GetStatus();
     if (outMetadata != nullptr) *outMetadata = metadata;
 
     PropertyStore* store = object.Store();
@@ -1394,28 +1387,31 @@ EffectiveValueEngine::AcquireLink() noexcept {
     return link;
 }
 
+void EffectiveValueEngine::ClearUnmaterializedQueueBit(
+    DependencyObject& object,
+    std::uint8_t inheritanceIndex,
+    const QueueLink* excludeLink) const noexcept {
+    if (inheritanceIndex < kMaxDirectInheritanceBits) {
+        object.unmaterializedQueueMask_ &=
+            static_cast<std::uint16_t>(~UnmaterializedBitFor(inheritanceIndex));
+        return;
+    }
+    for (const QueueLink* cursor = queueHead_; cursor != nullptr; cursor = cursor->next) {
+        if (cursor != excludeLink &&
+            cursor->object == &object &&
+            cursor->unmaterialized &&
+            cursor->inheritanceIndex >= kMaxDirectInheritanceBits) {
+            return;
+        }
+    }
+    object.unmaterializedQueueMask_ &=
+        static_cast<std::uint16_t>(~kOverflowUnmaterializedBit);
+}
+
 void EffectiveValueEngine::RecycleLink(QueueLink* link) noexcept {
     if (link == nullptr) return;
     if (link->unmaterialized && link->object != nullptr) {
-        if (link->inheritanceIndex < kMaxDirectInheritanceBits) {
-            link->object->unmaterializedQueueMask_ &=
-                static_cast<std::uint16_t>(~UnmaterializedBitFor(link->inheritanceIndex));
-        } else {
-            bool hasOtherOverflow = false;
-            for (const QueueLink* cursor = queueHead_; cursor != nullptr; cursor = cursor->next) {
-                if (cursor != link &&
-                    cursor->object == link->object &&
-                    cursor->unmaterialized &&
-                    cursor->inheritanceIndex >= kMaxDirectInheritanceBits) {
-                    hasOtherOverflow = true;
-                    break;
-                }
-            }
-            if (!hasOtherOverflow) {
-                link->object->unmaterializedQueueMask_ &=
-                    static_cast<std::uint16_t>(~kOverflowUnmaterializedBit);
-            }
-        }
+        ClearUnmaterializedQueueBit(*link->object, link->inheritanceIndex, link);
     }
     link->object = nullptr;
     link->property = DependencyPropertyHandle{};
@@ -1446,6 +1442,26 @@ void EffectiveValueEngine::ClearQueueLinks() noexcept {
         cursor = next;
     }
     linkFree_ = nullptr;
+}
+
+void EffectiveValueEngine::UnregisterExplicitInheritanceChild(
+    DependencyObject* parent,
+    DependencyObject& child) noexcept {
+    if (parent == nullptr || childrenByParent_.Empty()) {
+        return;
+    }
+    if (auto* list = childrenByParent_.Find(parent)) {
+        for (std::uint32_t i = 0U; i < list->Size(); ++i) {
+            if ((*list)[i] == &child) {
+                list->Erase(i);
+                break;
+            }
+        }
+        if (list->Empty()) {
+            childrenByParent_.Erase(parent);
+            parent->hasExplicitInheritanceChildren_ = false;
+        }
+    }
 }
 
 DependencyObject* EffectiveValueEngine::InheritanceParent(
@@ -1502,20 +1518,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
     DependencyObject* explicitTarget = coveredByVisualTree ? nullptr : parent;
 
     if (explicitPrevious != explicitTarget) {
-        if (explicitPrevious != nullptr) {
-            if (auto* list = childrenByParent_.Find(explicitPrevious)) {
-                for (std::uint32_t i = 0U; i < list->Size(); ++i) {
-                    if ((*list)[i] == &child) {
-                        list->Erase(i);
-                        break;
-                    }
-                }
-                if (list->Empty()) {
-                    childrenByParent_.Erase(explicitPrevious);
-                    explicitPrevious->hasExplicitInheritanceChildren_ = false;
-                }
-            }
-        }
+        UnregisterExplicitInheritanceChild(explicitPrevious, child);
         child.SetExplicitInheritanceParent(explicitTarget);
         if (explicitTarget != nullptr) {
             if (child.ExplicitInheritanceParent() != explicitTarget) {
@@ -1625,9 +1628,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             HasFlag(childMeta->flags, FrameworkPropertyMetadataOptions::Inherits);
         const bool childShielded =
             childEntry != nullptr && childInherits &&
-            (childEntry->HasLocal() || childEntry->HasExpression() ||
-             childEntry->HasProviders() || childEntry->HasCurrent() ||
-             childEntry->HasAnimation()) &&
+            childEntry->HasInheritanceShieldingValue() &&
             inheritableHandle != UIElement::IsEnabledProperty.Handle();
         if (childEntry != nullptr) {
             Base::Result<void> queued =
@@ -1643,116 +1644,16 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         }
     }
 
-    if (propsToPropagate.Size() == 1U) {
-        return QueueDescendants(child, propsToPropagate[0]->Handle());
-    }
-    if (propsToPropagate.Size() > 1U) {
-        struct CleanupGuard {
-            Base::Vector<DependencyObject*>& f;
-            Base::HashSet<DependencyObject*>& v;
-            ~CleanupGuard() {
-                f.Clear();
-                v.Clear();
-            }
-        } guard{frontier_, visited_};
-
-        frontier_.Clear();
-        visited_.Clear();
-        frontier_.PushBack(&child);
-        visited_.Insert(&child);
-
-        auto enqueueAll = [&](DependencyObject* current, DependencyObject* desc) -> Base::Result<void> {
-            if (desc == nullptr || desc == current || !visited_.Insert(desc).inserted) {
-                return {};
-            }
-            if (&desc->GetDispatcher() != dispatcher_) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "DependencyObject belongs to another Dispatcher");
-            }
-            const TypeId descType = desc->RuntimeType();
-            PropertyStore* descStore = desc->Store();
-            bool anyUnshielded = false;
-            for (const DependencyProperty* prop : propsToPropagate) {
-                const DependencyPropertyHandle propHandle = prop->Handle();
-                const std::uint8_t inhIndex = prop->InheritanceIndex();
-                const PropertyMetadata* metadata = prop->MetadataFor(descType);
-                const bool inherits = metadata != nullptr &&
-                    HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits);
-                StoredValueEntry* existing = descStore != nullptr
-                    ? descStore->entries.Find(propHandle.value)
-                    : nullptr;
-                const bool shielded =
-                    existing != nullptr && inherits &&
-                    (existing->HasLocal() || existing->HasExpression() ||
-                     existing->HasProviders() || existing->HasCurrent() ||
-                     existing->HasAnimation()) &&
-                    propHandle != UIElement::IsEnabledProperty.Handle();
-                if (!shielded) {
-                    anyUnshielded = true;
-                }
-                if (inherits || existing != nullptr) {
-                    if (metadata == nullptr) {
-                        return Base::Status::Failure(
-                            Base::ErrorCode::NotFound,
-                            "Dependency property does not apply to this object type");
-                    }
-                    Base::Result<void> queued = existing != nullptr
-                        ? EnqueueStoredEntry(*desc, propHandle, *existing, /*descendantsQueued=*/!shielded)
-                        : EnqueueUnmaterialized(*desc, propHandle, /*descendantsQueued=*/true, inhIndex);
-                    if (!queued) return queued.GetStatus();
-                }
-            }
-            if (anyUnshielded) {
-                frontier_.PushBack(desc);
-            }
-            return {};
-        };
-
-        auto isDeferredToVisualDescendant = [](DependencyObject* parentObj, DependencyObject* cand) noexcept {
-            if (auto* childVis = ::Aero::TryCast<::Aero::Media::Visual>(cand)) {
-                ::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*childVis);
-                if (vParent != nullptr && vParent != parentObj) {
-                    for (::Aero::Media::Visual* anc = vParent; anc != nullptr; anc = ::Aero::Media::VisualTreeHelper::GetParent(*anc)) {
-                        if (anc == parentObj) return true;
-                    }
-                }
-            }
-            return false;
-        };
-        for (std::uint32_t frontierIdx = 0U; frontierIdx < frontier_.Size(); ++frontierIdx) {
-            DependencyObject* current = frontier_[frontierIdx];
-            if (!childrenByParent_.Empty()) {
-                if (auto* explicitChildren = childrenByParent_.Find(current)) {
-                    for (DependencyObject* desc : *explicitChildren) {
-                        if (isDeferredToVisualDescendant(current, desc)) continue;
-                        Base::Result<void> res = enqueueAll(current, desc);
-                        if (!res) return res.GetStatus();
-                    }
-                }
-            }
-            if (auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(current)) {
-                const std::uint32_t vCount = ::Aero::Media::VisualTreeHelper::GetChildrenCount(*visual);
-                for (std::uint32_t i = 0U; i < vCount; ++i) {
-                    Base::Result<void> res = enqueueAll(current, ::Aero::Media::VisualTreeHelper::GetChild(*visual, i));
-                    if (!res) return res.GetStatus();
-                }
-            }
-            const std::uint32_t lCount = ::Aero::LogicalTreeHelper::GetChildrenCount(*current);
-            for (std::uint32_t i = 0U; i < lCount; ++i) {
-                DependencyObject* lChild = ::Aero::LogicalTreeHelper::GetChild(*current, i);
-                if (isDeferredToVisualDescendant(current, lChild)) continue;
-                Base::Result<void> res = enqueueAll(current, lChild);
-                if (!res) return res.GetStatus();
-            }
-        }
+    if (!propsToPropagate.Empty()) {
+        return PropagateToDescendants(child, propsToPropagate.AsSpan());
     }
     return {};
 }
 
-Base::Result<void> EffectiveValueEngine::QueueDescendants(
-    DependencyObject& parent,
-    DependencyPropertyHandle property) noexcept {
+Base::Result<void> EffectiveValueEngine::PropagateToDescendants(
+    DependencyObject& root,
+    Base::Span<const DependencyProperty* const> properties,
+    DependencyPropertyHandle fallbackProperty) noexcept {
     struct CleanupGuard {
         Base::Vector<DependencyObject*>& f;
         Base::HashSet<DependencyObject*>& v;
@@ -1764,68 +1665,86 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
 
     frontier_.Clear();
     visited_.Clear();
-    frontier_.PushBack(&parent);
-    visited_.Insert(&parent);
-    const DependencyProperty* registered = registry_->Find(property);
-    if (registered != nullptr) {
-        property = registered->Handle();
-    }
-    const std::uint8_t inhIndex = registered != nullptr
-        ? registered->InheritanceIndex()
-        : 0xFFU;
+    frontier_.PushBack(&root);
+    visited_.Insert(&root);
 
-    auto enqueue = [&](DependencyObject* current, DependencyObject* child) -> Base::Result<void> {
-        if (child == nullptr || child == current || !visited_.Insert(child).inserted) {
+    auto enqueue = [&](DependencyObject* current, DependencyObject* desc) -> Base::Result<void> {
+        if (desc == nullptr || desc == current || !visited_.Insert(desc).inserted) {
             return {};
         }
-        const PropertyMetadata* metadata = registered != nullptr
-            ? registered->MetadataFor(child->RuntimeType())
-            : nullptr;
-        const bool inherits = metadata != nullptr &&
-            HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits);
-        PropertyStore* childStore = child->Store();
-        StoredValueEntry* existing = childStore != nullptr
-            ? childStore->entries.Find(property.value)
-            : nullptr;
-        const bool shielded =
-            existing != nullptr && inherits &&
-            (existing->HasLocal() || existing->HasExpression() ||
-             existing->HasProviders() || existing->HasCurrent() ||
-             existing->HasAnimation()) &&
-            property != UIElement::IsEnabledProperty.Handle();
-        if (inherits || existing != nullptr) {
-            if (&child->GetDispatcher() != dispatcher_) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::InvalidArgument,
-                    "DependencyObject belongs to another Dispatcher");
+        const TypeId descType = desc->RuntimeType();
+        PropertyStore* descStore = desc->Store();
+        bool anyUnshielded = false;
+
+        if (!properties.Empty()) {
+            for (const DependencyProperty* prop : properties) {
+                const DependencyPropertyHandle propHandle = prop->Handle();
+                const std::uint8_t inhIndex = prop->InheritanceIndex();
+                const PropertyMetadata* metadata = prop->MetadataFor(descType);
+                const bool inherits = metadata != nullptr &&
+                    HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits);
+                StoredValueEntry* existing = descStore != nullptr
+                    ? descStore->entries.Find(propHandle.value)
+                    : nullptr;
+                const bool shielded =
+                    existing != nullptr && inherits &&
+                    existing->HasInheritanceShieldingValue() &&
+                    propHandle != UIElement::IsEnabledProperty.Handle();
+                if (!shielded) {
+                    anyUnshielded = true;
+                }
+                if (inherits || existing != nullptr) {
+                    if (&desc->GetDispatcher() != dispatcher_) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::InvalidArgument,
+                            "DependencyObject belongs to another Dispatcher");
+                    }
+                    if (metadata == nullptr) {
+                        return Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "Dependency property does not apply to this object type");
+                    }
+                    Base::Result<void> queued = existing != nullptr
+                        ? EnqueueStoredEntry(*desc, propHandle, *existing, /*descendantsQueued=*/!shielded)
+                        : EnqueueUnmaterialized(*desc, propHandle, /*descendantsQueued=*/true, inhIndex);
+                    if (!queued) return queued.GetStatus();
+                }
             }
-            if (registered == nullptr || metadata == nullptr) {
+        } else {
+            StoredValueEntry* existing = descStore != nullptr
+                ? descStore->entries.Find(fallbackProperty.value)
+                : nullptr;
+            if (existing != nullptr) {
+                if (&desc->GetDispatcher() != dispatcher_) {
+                    return Base::Status::Failure(
+                        Base::ErrorCode::InvalidArgument,
+                        "DependencyObject belongs to another Dispatcher");
+                }
                 return Base::Status::Failure(
                     Base::ErrorCode::NotFound,
                     "Dependency property does not apply to this object type");
             }
-            Base::Result<void> queued = existing != nullptr
-                ? EnqueueStoredEntry(*child, property, *existing, /*descendantsQueued=*/!shielded)
-                : EnqueueUnmaterialized(*child, property, /*descendantsQueued=*/true, inhIndex);
-            if (!queued) return queued.GetStatus();
+            anyUnshielded = true;
         }
-        if (!shielded) {
-            frontier_.PushBack(child);
+
+        if (anyUnshielded) {
+            frontier_.PushBack(desc);
         }
         return {};
     };
 
-        auto isDeferredToVisualDescendant = [](DependencyObject* parentObj, DependencyObject* cand) noexcept {
-            if (auto* childVis = ::Aero::TryCast<::Aero::Media::Visual>(cand)) {
-                ::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*childVis);
-                if (vParent != nullptr && vParent != parentObj) {
-                    for (::Aero::Media::Visual* anc = vParent; anc != nullptr; anc = ::Aero::Media::VisualTreeHelper::GetParent(*anc)) {
-                        if (anc == parentObj) return true;
-                    }
+    auto isDeferredToVisualDescendant = [](DependencyObject* parentObj, DependencyObject* cand) noexcept {
+        if (auto* childVis = ::Aero::TryCast<::Aero::Media::Visual>(cand)) {
+            ::Aero::Media::Visual* vParent = ::Aero::Media::VisualTreeHelper::GetParent(*childVis);
+            if (vParent != nullptr && vParent != parentObj) {
+                for (::Aero::Media::Visual* anc = vParent; anc != nullptr; anc = ::Aero::Media::VisualTreeHelper::GetParent(*anc)) {
+                    if (anc == parentObj) return true;
                 }
             }
-            return false;
-        };
+        }
+        return false;
+    };
+
     for (std::uint32_t cursor = 0U; cursor < frontier_.Size(); ++cursor) {
         DependencyObject* current = frontier_[cursor];
         if (!childrenByParent_.Empty()) {
@@ -1853,6 +1772,19 @@ Base::Result<void> EffectiveValueEngine::QueueDescendants(
         }
     }
     return {};
+}
+
+Base::Result<void> EffectiveValueEngine::QueueDescendants(
+    DependencyObject& parent,
+    DependencyPropertyHandle property) noexcept {
+    const DependencyProperty* registered = registry_->Find(property);
+    if (registered != nullptr) {
+        return PropagateToDescendants(
+            parent,
+            Base::Span<const DependencyProperty* const>(&registered, 1U),
+            registered->Handle());
+    }
+    return PropagateToDescendants(parent, {}, property);
 }
 
 void EffectiveValueEngine::OnInheritancePropertyChanged(
@@ -1885,11 +1817,7 @@ Base::Result<void> EffectiveValueEngine::Apply(
             if (const PropertyMetadata* ancMeta = registered->MetadataFor(inheritFrom->RuntimeType())) {
                 if (const StoredValueEntry* ancEntry =
                         inheritFrom->FindStoredEntry(property)) {
-                    if (ancEntry->HasLocal() || ancEntry->HasCurrent() ||
-                        ancEntry->HasExpression() || ancEntry->HasInherited() ||
-                        ancEntry->HasAnimation() ||
-                        ancEntry->HasProviders() ||
-                        ancEntry->effectiveValue != ancMeta->defaultValue) {
+                    if (ancEntry->HasNonDefaultState(ancMeta->defaultValue)) {
                         inherited = &ancEntry->effectiveValue;
                         break;
                     }
@@ -2014,24 +1942,7 @@ Base::Result<std::uint32_t> EffectiveValueEngine::Flush() noexcept {
             continue;
         }
         if (link->unmaterialized) {
-            if (link->inheritanceIndex < kMaxDirectInheritanceBits) {
-                object->unmaterializedQueueMask_ &=
-                    static_cast<std::uint16_t>(~UnmaterializedBitFor(link->inheritanceIndex));
-            } else {
-                bool hasOtherOverflow = false;
-                for (const QueueLink* cursor = queueHead_; cursor != nullptr; cursor = cursor->next) {
-                    if (cursor->object == object &&
-                        cursor->unmaterialized &&
-                        cursor->inheritanceIndex >= kMaxDirectInheritanceBits) {
-                        hasOtherOverflow = true;
-                        break;
-                    }
-                }
-                if (!hasOtherOverflow) {
-                    object->unmaterializedQueueMask_ &=
-                        static_cast<std::uint16_t>(~kOverflowUnmaterializedBit);
-                }
-            }
+            ClearUnmaterializedQueueBit(*object, link->inheritanceIndex);
         }
         DependencyObject* prevPropagatingObj = activePropagatingObject_;
         DependencyPropertyHandle prevPropagatingProp = activePropagatingProperty_;
@@ -2188,21 +2099,8 @@ Base::Result<void> EffectiveValueEngine::SetProviderContribution(
             Base::ErrorCode::InvalidArgument,
             "Property provider contribution is invalid");
     }
-    if (&object.GetDispatcher() != dispatcher_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DependencyObject belongs to another Dispatcher");
-    }
-    const DependencyProperty* registered = registry_->Find(property);
-    const PropertyMetadata* metadata = registered != nullptr
-        ? registered->MetadataFor(object.RuntimeType())
-        : nullptr;
-    if (registered == nullptr || metadata == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
-    }
-    property = registered->Handle();
+    Base::Result<void> verified = ResolveAndVerifyObjectProperty(object, property);
+    if (!verified) return verified.GetStatus();
     Base::Result<void> applied =
         object.ApplyProviderContributionInternal(property, token, value);
     if (!applied) return applied.GetStatus();
@@ -2285,21 +2183,8 @@ Base::Result<void> EffectiveValueEngine::SetLocalExpression(
     DependencyObject& object, DependencyPropertyHandle property,
     const PropertyExpression& expression) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (&object.GetDispatcher() != dispatcher_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DependencyObject belongs to another Dispatcher");
-    }
-    const DependencyProperty* registered = registry_->Find(property);
-    const PropertyMetadata* metadata = registered != nullptr
-        ? registered->MetadataFor(object.RuntimeType())
-        : nullptr;
-    if (registered == nullptr || metadata == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
-    }
-    property = registered->Handle();
+    Base::Result<void> verified = ResolveAndVerifyObjectProperty(object, property);
+    if (!verified) return verified.GetStatus();
     Base::Result<void> applied =
         object.ApplyLocalExpressionInternal(property, expression);
     if (!applied) return applied.GetStatus();
@@ -2333,21 +2218,8 @@ Base::Result<void> EffectiveValueEngine::SetAnimationValue(
     DependencyObject& object, DependencyPropertyHandle property,
     const PropertyValue& value) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
-    if (&object.GetDispatcher() != dispatcher_) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "DependencyObject belongs to another Dispatcher");
-    }
-    const DependencyProperty* registered = registry_->Find(property);
-    const PropertyMetadata* metadata = registered != nullptr
-        ? registered->MetadataFor(object.RuntimeType())
-        : nullptr;
-    if (registered == nullptr || metadata == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Dependency property does not apply to this object type");
-    }
-    property = registered->Handle();
+    Base::Result<void> verified = ResolveAndVerifyObjectProperty(object, property);
+    if (!verified) return verified.GetStatus();
     Base::Result<void> applied =
         object.ApplyAnimationValueInternal(property, value);
     if (!applied) return applied.GetStatus();
@@ -2424,20 +2296,7 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
     }
     object.unmaterializedQueueMask_ = 0U;
     if (DependencyObject* previousParent = object.ExplicitInheritanceParent()) {
-        if (!childrenByParent_.Empty()) {
-            if (auto* list = childrenByParent_.Find(previousParent)) {
-                for (std::uint32_t i = 0U; i < list->Size(); ++i) {
-                    if ((*list)[i] == &object) {
-                        list->Erase(i);
-                        break;
-                    }
-                }
-                if (list->Empty()) {
-                    childrenByParent_.Erase(previousParent);
-                    previousParent->hasExplicitInheritanceChildren_ = false;
-                }
-            }
-        }
+        UnregisterExplicitInheritanceChild(previousParent, object);
         object.SetExplicitInheritanceParent(nullptr);
     }
     if (object.hasExplicitInheritanceChildren_ && !childrenByParent_.Empty()) {
@@ -2466,9 +2325,7 @@ bool EffectiveValueEngine::HasObjectState(
         return false;
     }
     for (const auto& record : store->entries) {
-        const StoredValueEntry& entry = record.Value();
-        if (entry.Queued() || entry.HasProviders() || entry.HasExpression() ||
-            entry.HasInherited() || entry.HasAnimation() || entry.HasCurrent()) {
+        if (record.Value().HasEngineState()) {
             return true;
         }
     }
@@ -2478,24 +2335,7 @@ bool EffectiveValueEngine::HasObjectState(
 Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
     OnObjectDestroyed(object);
-    PropertyStore* store = object.Store();
-    if (store == nullptr || store->entries.Empty()) {
-        return {};
-    }
-    Base::BasicVector<MemberId, 16U> keys;
-    for (const auto& record : store->entries) {
-        const StoredValueEntry& entry = record.Value();
-        if (entry.Queued() || entry.HasProviders() || entry.HasExpression() ||
-            entry.HasInherited() || entry.HasAnimation() || entry.HasCurrent()) {
-            keys.PushBack(record.Key());
-        }
-    }
-    for (MemberId key : keys) {
-        Base::Result<void> cleared =
-            (object).DropEngineValueStateInternal(DependencyPropertyHandle{key});
-        if (!cleared) return cleared.GetStatus();
-    }
-    return {};
+    return object.DropAllEngineValueState();
 }
 
 std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {
@@ -2550,9 +2390,7 @@ Base::Result<void> DependencyObject::DropAllEngineValueState() noexcept {
     }
     Base::BasicVector<MemberId, 16U> keys;
     for (const auto& record : store->entries) {
-        const StoredValueEntry& entry = record.Value();
-        if (entry.Queued() || entry.HasProviders() || entry.HasExpression() ||
-            entry.HasInherited() || entry.HasAnimation() || entry.HasCurrent()) {
+        if (record.Value().HasEngineState()) {
             keys.PushBack(record.Key());
         }
     }
@@ -2576,6 +2414,31 @@ void DependencyObject::DetachPropertyDependencyObjects(
     if (alreadyVisited && !isVisual) {
         return;
     }
+
+    const auto resolveItemsSource = [](Base::Object* target) noexcept -> Collections::IItemsSource* {
+        if (target == nullptr) return nullptr;
+        if (auto* items = ::Aero::TryCastToInterface<Collections::IItemsSource>(target)) {
+            return items;
+        }
+        return Collections::CollectionAsItemsSource(target);
+    };
+
+    const auto anyItemDependencyObject = [&](Base::Object* container, auto&& predicate) noexcept -> bool {
+        Collections::IItemsSource* itemsSource = resolveItemsSource(container);
+        if (itemsSource == nullptr) return false;
+        const std::uint32_t count = itemsSource->GetCount();
+        for (std::uint32_t i = 0U; i < count; ++i) {
+            Base::Ref<Base::Object> item = itemsSource->GetItem(i);
+            if (item) {
+                if (auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
+                    if (predicate(itemDO)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
 
     const auto hasDetachableTreeState = [&](const auto& self,
                                             const DependencyObject& candidate,
@@ -2611,24 +2474,11 @@ void DependencyObject::DetachPropertyDependencyObjects(
                         return true;
                     }
                 } else if (ref->UseCount() <= 1U) {
-                    Collections::IItemsSource* itemsSource =
-                        ::Aero::TryCastToInterface<Collections::IItemsSource>(ref.Get());
-                    if (itemsSource == nullptr) {
-                        itemsSource = Collections::CollectionAsItemsSource(ref.Get());
-                    }
-                    if (itemsSource != nullptr) {
-                        const std::uint32_t count = itemsSource->GetCount();
-                        for (std::uint32_t i = 0U; i < count; ++i) {
-                            Base::Ref<Base::Object> item = itemsSource->GetItem(i);
-                            if (item) {
-                                if (const auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
-                                    if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
-                                        self(self, *itemDO, depth + 1U)) {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
+                    if (anyItemDependencyObject(ref.Get(), [&](DependencyObject* itemDO) noexcept {
+                            return ::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
+                                self(self, *itemDO, depth + 1U);
+                        })) {
+                        return true;
                     }
                 }
                 return false;
@@ -2647,28 +2497,12 @@ void DependencyObject::DetachPropertyDependencyObjects(
                 }
             }
         }
-        Collections::IItemsSource* itemsSource =
-            ::Aero::TryCastToInterface<Collections::IItemsSource>(
-                const_cast<DependencyObject*>(&candidate));
-        if (itemsSource == nullptr) {
-            itemsSource = Collections::CollectionAsItemsSource(
-                const_cast<DependencyObject*>(&candidate));
-        }
-        if (itemsSource != nullptr) {
-            const std::uint32_t count = itemsSource->GetCount();
-            for (std::uint32_t i = 0U; i < count; ++i) {
-                Base::Ref<Base::Object> item = itemsSource->GetItem(i);
-                if (item) {
-                    if (const auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
-                        if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
-                            self(self, *itemDO, depth + 1U)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
+        return anyItemDependencyObject(
+            const_cast<DependencyObject*>(&candidate),
+            [&](DependencyObject* itemDO) noexcept {
+                return ::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
+                    self(self, *itemDO, depth + 1U);
+            });
     };
 
     const auto isSharedOutside = [&](DependencyObject* candidate, std::uint32_t expectedRefs) noexcept {
@@ -2720,20 +2554,10 @@ void DependencyObject::DetachPropertyDependencyObjects(
                     if (auto* depObj = ::Aero::TryCast<DependencyObject>(ref.Get())) {
                         recordPropertyObject(depObj);
                     } else if (ref->UseCount() <= 1U) {
-                        Collections::IItemsSource* itemsSource =
-                            ::Aero::TryCastToInterface<Collections::IItemsSource>(ref.Get());
-                        if (itemsSource == nullptr) {
-                            itemsSource = Collections::CollectionAsItemsSource(ref.Get());
-                        }
-                        if (itemsSource != nullptr) {
-                            const std::uint32_t count = itemsSource->GetCount();
-                            for (std::uint32_t i = 0U; i < count; ++i) {
-                                Base::Ref<Base::Object> item = itemsSource->GetItem(i);
-                                if (item) {
-                                    recordPropertyObject(::Aero::TryCast<DependencyObject>(item.Get()));
-                                }
-                            }
-                        }
+                        static_cast<void>(anyItemDependencyObject(ref.Get(), [&](DependencyObject* itemDO) noexcept {
+                            recordPropertyObject(itemDO);
+                            return false;
+                        }));
                     }
                 }
             }
@@ -2760,26 +2584,14 @@ void DependencyObject::DetachPropertyDependencyObjects(
             if (isSharedOutside(child, expectedRefs)) {
                 continue;
             }
-            Collections::IItemsSource* itemsSource =
-                ::Aero::TryCastToInterface<Collections::IItemsSource>(child);
-            if (itemsSource == nullptr) {
-                itemsSource = Collections::CollectionAsItemsSource(child);
-            }
-            if (itemsSource != nullptr) {
-                const std::uint32_t count = itemsSource->GetCount();
-                for (std::uint32_t i = 0U; i < count; ++i) {
-                    Base::Ref<Base::Object> item = itemsSource->GetItem(i);
-                    if (item) {
-                        if (auto* itemDO = ::Aero::TryCast<DependencyObject>(item.Get())) {
-                            if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
-                                hasDetachableTreeState(hasDetachableTreeState, *itemDO, 0U) &&
-                                !isSharedOutside(itemDO, 2U)) {
-                                itemDO->DetachPropertyDependencyObjects(bindings, values, animations, visited);
-                            }
-                        }
-                    }
+            static_cast<void>(anyItemDependencyObject(child, [&](DependencyObject* itemDO) noexcept {
+                if (::Aero::TryCast<Aero::Media::Visual>(itemDO) == nullptr &&
+                    hasDetachableTreeState(hasDetachableTreeState, *itemDO, 0U) &&
+                    !isSharedOutside(itemDO, 2U)) {
+                    itemDO->DetachPropertyDependencyObjects(bindings, values, animations, visited);
                 }
-            }
+                return false;
+            }));
             child->DetachPropertyDependencyObjects(bindings, values, animations, visited);
         }
     }

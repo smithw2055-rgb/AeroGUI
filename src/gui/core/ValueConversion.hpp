@@ -69,7 +69,7 @@ Result<void> FormatScalarValue(
 Result<String> FormatScalarValue(
     const Meta::Value& value) noexcept;
 
-// Unified runtime Value coercion & conversion kernel (Phase 1 deduplication).
+// Unified runtime Value coercion & conversion kernel.
 bool IsNumericType(Meta::TypeId type) noexcept;
 bool TryExtractNumber(
     const Meta::Value& value,
@@ -83,11 +83,17 @@ Result<Meta::Value> ConvertNullableBooleanValue(
     Meta::TypeId targetType) noexcept;
 Result<Meta::Value> ConvertMetricValue(
     const Meta::Value& value,
-    Meta::TypeId targetType) noexcept;
+    Meta::TypeId targetType,
+    bool autoLengthAsZero = false) noexcept;
 Result<Meta::Value> ConvertColorAndBrushValue(
     const Meta::Value& value,
     Meta::TypeId targetType,
     const Meta::TypeRegistry* types = nullptr) noexcept;
+Result<Meta::Value> TryConvertDefaultValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType,
+    const Meta::TypeRegistry* types = nullptr,
+    bool autoLengthAsZero = false) noexcept;
 Result<Meta::Value> ConvertTextToValueFallback(
     const Meta::TypeRegistry* types,
     Meta::TypeId targetType,

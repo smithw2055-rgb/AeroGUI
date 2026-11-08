@@ -101,7 +101,14 @@ struct StoredValueEntry {
         RankShift = 10U,
         RankMask = 0x7FU,
         OriginShift = 17U,
-        OriginMask = 0x7FFFU
+        OriginMask = 0x7FFFU,
+
+        EngineStateMask = QueuedBit | HasInlineProviderBit | HasExpressionBit |
+            HasInheritedBit | HasAnimationBit | HasCurrentBit,
+        ShieldingStateMask = HasLocalBit | HasExpressionBit | HasInlineProviderBit |
+            HasCurrentBit | HasAnimationBit,
+        ActiveValueMask = HasLocalBit | HasCurrentBit | HasExpressionBit |
+            HasInheritedBit | HasAnimationBit | HasInlineProviderBit
     };
 
     PropertyValue effectiveValue;
@@ -174,6 +181,22 @@ struct StoredValueEntry {
     bool HasProviders() const noexcept {
         return HasInlineProvider() ||
             (rare != nullptr && !rare->baseProviders.GetIsEmpty());
+    }
+
+    bool HasEngineState() const noexcept {
+        return (packedFlags & EngineStateMask) != 0U ||
+            (rare != nullptr && !rare->baseProviders.GetIsEmpty());
+    }
+
+    bool HasInheritanceShieldingValue() const noexcept {
+        return (packedFlags & ShieldingStateMask) != 0U ||
+            (rare != nullptr && !rare->baseProviders.GetIsEmpty());
+    }
+
+    bool HasNonDefaultState(const PropertyValue& defaultValue) const noexcept {
+        return (packedFlags & ActiveValueMask) != 0U ||
+            (rare != nullptr && !rare->baseProviders.GetIsEmpty()) ||
+            effectiveValue != defaultValue;
     }
 
     void SetHasLocal(bool value) noexcept { SetFlag(HasLocalBit, value); }
@@ -577,41 +600,13 @@ struct PropertyStore {
         Entries& operator=(const Entries&) = delete;
 
         Entries(Entries&& other) noexcept {
-            if (other.data_ == other.inlineEntries_) {
-                for (std::uint32_t i = 0; i < other.size_; ++i) {
-                    inlineEntries_[i] = std::move(other.inlineEntries_[i]);
-                }
-                data_ = inlineEntries_;
-            } else {
-                data_ = other.data_;
-                other.data_ = other.inlineEntries_;
-            }
-            bloomMask_ = other.bloomMask_;
-            size_ = other.size_;
-            capacity_ = other.capacity_;
-            other.bloomMask_ = 0ULL;
-            other.size_ = 0U;
-            other.capacity_ = InlineCapacity;
+            MoveFrom(std::move(other));
         }
 
         Entries& operator=(Entries&& other) noexcept {
             if (this == &other) return *this;
             Clear();
-            if (other.data_ == other.inlineEntries_) {
-                for (std::uint32_t i = 0; i < other.size_; ++i) {
-                    inlineEntries_[i] = std::move(other.inlineEntries_[i]);
-                }
-                data_ = inlineEntries_;
-            } else {
-                data_ = other.data_;
-                other.data_ = other.inlineEntries_;
-            }
-            bloomMask_ = other.bloomMask_;
-            size_ = other.size_;
-            capacity_ = other.capacity_;
-            other.bloomMask_ = 0ULL;
-            other.size_ = 0U;
-            other.capacity_ = InlineCapacity;
+            MoveFrom(std::move(other));
             return *this;
         }
 
@@ -624,43 +619,13 @@ struct PropertyStore {
         const PropertyStoreEntry* end() const noexcept { return data_ + size_; }
 
         StoredValueEntry* Find(MemberId key) noexcept {
-            const std::uint64_t bits = KeyBloomBits(key);
-            if ((bloomMask_ & bits) != bits) {
-                return nullptr;
-            }
-            if (size_ <= 8U) {
-                for (std::uint32_t i = 0U; i < size_; ++i) {
-                    if (data_[i].key == key) {
-                        return &data_[i].value;
-                    }
-                }
-                return nullptr;
-            }
-            const std::uint32_t idx = LowerBound(key);
-            if (idx < size_ && data_[idx].key == key) {
-                return &data_[idx].value;
-            }
-            return nullptr;
+            const std::uint32_t idx = FindIndex(key);
+            return idx != UINT32_MAX ? &data_[idx].value : nullptr;
         }
 
         const StoredValueEntry* Find(MemberId key) const noexcept {
-            const std::uint64_t bits = KeyBloomBits(key);
-            if ((bloomMask_ & bits) != bits) {
-                return nullptr;
-            }
-            if (size_ <= 8U) {
-                for (std::uint32_t i = 0U; i < size_; ++i) {
-                    if (data_[i].key == key) {
-                        return &data_[i].value;
-                    }
-                }
-                return nullptr;
-            }
-            const std::uint32_t idx = LowerBound(key);
-            if (idx < size_ && data_[idx].key == key) {
-                return &data_[idx].value;
-            }
-            return nullptr;
+            const std::uint32_t idx = FindIndex(key);
+            return idx != UINT32_MAX ? &data_[idx].value : nullptr;
         }
 
         struct InsertResult {
@@ -720,6 +685,41 @@ struct PropertyStore {
         }
 
     private:
+        void MoveFrom(Entries&& other) noexcept {
+            if (other.data_ == other.inlineEntries_) {
+                for (std::uint32_t i = 0U; i < other.size_; ++i) {
+                    inlineEntries_[i] = std::move(other.inlineEntries_[i]);
+                }
+                data_ = inlineEntries_;
+            } else {
+                data_ = other.data_;
+                other.data_ = other.inlineEntries_;
+            }
+            bloomMask_ = other.bloomMask_;
+            size_ = other.size_;
+            capacity_ = other.capacity_;
+            other.bloomMask_ = 0ULL;
+            other.size_ = 0U;
+            other.capacity_ = InlineCapacity;
+        }
+
+        std::uint32_t FindIndex(MemberId key) const noexcept {
+            const std::uint64_t bits = KeyBloomBits(key);
+            if ((bloomMask_ & bits) != bits) {
+                return UINT32_MAX;
+            }
+            if (size_ <= 8U) {
+                for (std::uint32_t i = 0U; i < size_; ++i) {
+                    if (data_[i].key == key) {
+                        return i;
+                    }
+                }
+                return UINT32_MAX;
+            }
+            const std::uint32_t idx = LowerBound(key);
+            return (idx < size_ && data_[idx].key == key) ? idx : UINT32_MAX;
+        }
+
         std::uint32_t LowerBound(MemberId key) const noexcept {
             std::uint32_t lo = 0U;
             std::uint32_t hi = size_;

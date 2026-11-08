@@ -172,6 +172,11 @@ private:
         Meta::TypeId stepOwnerType,
         const Meta::PropertyInfo* property,
         CompiledPathStep& step) noexcept;
+    static Base::Result<void> EnsureStepResolved(
+        const Meta::Registry& runtime,
+        Meta::TypeId currentType,
+        CompiledPathStep& step,
+        bool forWrite) noexcept;
     static Base::Result<void> EnsureStepResolvedForRead(
         const Meta::Registry& runtime,
         Meta::TypeId currentType,
@@ -180,6 +185,10 @@ private:
         const Meta::Registry& runtime,
         Meta::TypeId currentType,
         CompiledPathStep& step) noexcept;
+    static Base::Result<Meta::PropertyValue> ValidateAndCoerceStepReadValue(
+        const Meta::Registry& runtime,
+        const CompiledPathStep& step,
+        const Meta::PropertyValue& value) noexcept;
     static Base::Result<Meta::PropertyValue> ReadSinglePropertyStep(
         const Meta::Registry& runtime,
         const Base::Object& object,

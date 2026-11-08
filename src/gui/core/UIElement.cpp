@@ -176,62 +176,70 @@ Base::Ref<Geometry> UIElement::GetClip() const noexcept {
     return GetValue(ClipProperty);
 }
 
-void UIElement::AddInputBinding(
-    Base::Ref<Input::InputBinding> binding) noexcept {
-    if (!binding || !binding->Finalize()) { AERO_ASSERT(false); return; }
-    Rare& rare = EnsureRare();
-    auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::InputBinding>>*&>(
-        rare.inputBindings);
+namespace {
+
+template <typename TBinding>
+void AppendRareBinding(void*& rawSlot, Base::Ref<TBinding> binding) noexcept {
+    if (!binding || !binding->Finalize()) {
+        AERO_ASSERT(false);
+        return;
+    }
+    auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<TBinding>>*&>(rawSlot);
     if (storage == nullptr) {
-        storage = new (std::nothrow) Base::Vector<Base::Ref<Input::InputBinding>>();
-        if (storage == nullptr) { AERO_ASSERT(false); return; }
+        storage = new (std::nothrow) Base::Vector<Base::Ref<TBinding>>();
+        if (storage == nullptr) {
+            AERO_ASSERT(false);
+            return;
+        }
     }
     storage->PushBack(std::move(binding));
 }
 
+template <typename TBinding>
+void ClearRareBindings(void* rawSlot) noexcept {
+    if (rawSlot == nullptr) return;
+    static_cast<Base::Vector<Base::Ref<TBinding>>*>(rawSlot)->Clear();
+}
+
+template <typename TBinding>
+Base::Span<const Base::Ref<TBinding>> ReadRareBindings(const void* rawSlot) noexcept {
+    if (rawSlot == nullptr) return {};
+    const auto* storage = static_cast<const Base::Vector<Base::Ref<TBinding>>*>(rawSlot);
+    return {storage->Data(), storage->Size()};
+}
+
+} // namespace
+
+void UIElement::AddInputBinding(
+    Base::Ref<Input::InputBinding> binding) noexcept {
+    AppendRareBinding(EnsureRare().inputBindings, std::move(binding));
+}
+
 void UIElement::ClearInputBindings() noexcept {
-    if (rare_ == nullptr || rare_->inputBindings == nullptr) return;
-    static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
-        rare_->inputBindings)->Clear();
+    if (rare_ != nullptr) ClearRareBindings<Input::InputBinding>(rare_->inputBindings);
 }
 
 Base::Span<const Base::Ref<Input::InputBinding>>
 UIElement::GetInputBindings() const noexcept {
-    if (rare_ == nullptr || rare_->inputBindings == nullptr) {
-        return {};
-    }
-    const auto* storage = static_cast<
-        const Base::Vector<Base::Ref<Input::InputBinding>>*>(rare_->inputBindings);
-    return {storage->Data(), storage->Size()};
+    return rare_ != nullptr
+        ? ReadRareBindings<Input::InputBinding>(rare_->inputBindings)
+        : Base::Span<const Base::Ref<Input::InputBinding>>{};
 }
 
 void UIElement::AddCommandBinding(
     Base::Ref<Input::CommandBinding> binding) noexcept {
-    if (!binding || !binding->Finalize()) { AERO_ASSERT(false); return; }
-    Rare& rare = EnsureRare();
-    auto*& storage = reinterpret_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*&>(
-        rare.commandBindings);
-    if (storage == nullptr) {
-        storage = new (std::nothrow) Base::Vector<Base::Ref<Input::CommandBinding>>();
-        if (storage == nullptr) { AERO_ASSERT(false); return; }
-    }
-    storage->PushBack(std::move(binding));
+    AppendRareBinding(EnsureRare().commandBindings, std::move(binding));
 }
 
 void UIElement::ClearCommandBindings() noexcept {
-    if (rare_ == nullptr || rare_->commandBindings == nullptr) return;
-    static_cast<Base::Vector<Base::Ref<Input::CommandBinding>>*>(
-        rare_->commandBindings)->Clear();
+    if (rare_ != nullptr) ClearRareBindings<Input::CommandBinding>(rare_->commandBindings);
 }
 
 Base::Span<const Base::Ref<Input::CommandBinding>>
 UIElement::GetCommandBindings() const noexcept {
-    if (rare_ == nullptr || rare_->commandBindings == nullptr) {
-        return {};
-    }
-    const auto* storage = static_cast<
-        const Base::Vector<Base::Ref<Input::CommandBinding>>*>(rare_->commandBindings);
-    return {storage->Data(), storage->Size()};
+    return rare_ != nullptr
+        ? ReadRareBindings<Input::CommandBinding>(rare_->commandBindings)
+        : Base::Span<const Base::Ref<Input::CommandBinding>>{};
 }
 
 // from src/gui/controls/Layout.cpp
@@ -259,36 +267,26 @@ void UIElement::SyncHotProperty(
         if (decoded) {
             layout_.blendMode = decoded.Value();
         }
-    } else if (property == EffectProperty.Handle()) {
-        layout_.SetRenderRare(
-            LayoutHot::kRenderRareEffect,
-            newValue.Kind() == Meta::ValueKind::Object &&
+    } else {
+        std::uint8_t rareBit = 0U;
+        if (property == EffectProperty.Handle()) {
+            rareBit = LayoutHot::kRenderRareEffect;
+        } else if (property == ClipProperty.Handle()) {
+            rareBit = LayoutHot::kRenderRareClip;
+        } else if (property == OpacityMaskProperty.Handle()) {
+            rareBit = LayoutHot::kRenderRareOpacityMask;
+        } else if (property == RenderTransformProperty.Handle()) {
+            rareBit = LayoutHot::kRenderRareRenderTransform;
+        } else if (property == Transform3DProperty.Handle()) {
+            rareBit = LayoutHot::kRenderRareTransform3D;
+        }
+        if (rareBit != 0U) {
+            const bool hasObject =
+                newValue.Kind() == Meta::ValueKind::Object &&
                 !newValue.IsNullObject() &&
-                newValue.AsObject() != nullptr);
-    } else if (property == ClipProperty.Handle()) {
-        layout_.SetRenderRare(
-            LayoutHot::kRenderRareClip,
-            newValue.Kind() == Meta::ValueKind::Object &&
-                !newValue.IsNullObject() &&
-                newValue.AsObject() != nullptr);
-    } else if (property == OpacityMaskProperty.Handle()) {
-        layout_.SetRenderRare(
-            LayoutHot::kRenderRareOpacityMask,
-            newValue.Kind() == Meta::ValueKind::Object &&
-                !newValue.IsNullObject() &&
-                newValue.AsObject() != nullptr);
-    } else if (property == RenderTransformProperty.Handle()) {
-        layout_.SetRenderRare(
-            LayoutHot::kRenderRareRenderTransform,
-            newValue.Kind() == Meta::ValueKind::Object &&
-                !newValue.IsNullObject() &&
-                newValue.AsObject() != nullptr);
-    } else if (property == Transform3DProperty.Handle()) {
-        layout_.SetRenderRare(
-            LayoutHot::kRenderRareTransform3D,
-            newValue.Kind() == Meta::ValueKind::Object &&
-                !newValue.IsNullObject() &&
-                newValue.AsObject() != nullptr);
+                newValue.AsObject() != nullptr;
+            layout_.SetRenderRare(rareBit, hasObject);
+        }
     }
 }
 
@@ -754,9 +752,7 @@ UIElement::UIElement(TypeId runtimeType) noexcept
 
 
 UIElement::~UIElement() {
-    layout_.SetFlag(LayoutFlags::LayoutAttached, false);
-    layout_.SetFlag(LayoutFlags::MeasureQueued, false);
-    layout_.SetFlag(LayoutFlags::ArrangeQueued, false);
+    layout_.ClearQueueAndAttachmentFlags();
     CleanupHandlers();
     if (rare_ != nullptr && rare_->inputBindings != nullptr) {
         delete static_cast<Base::Vector<Base::Ref<Input::InputBinding>>*>(
@@ -792,31 +788,32 @@ void OnRenderStateChanged(
     (visual).InvalidateRenderState();
 }
 
+namespace {
+
+void InvalidateFrameworkElementRenderState(DependencyObject& object) noexcept {
+    if (FrameworkElement* owner = ::Aero::TryCast<::Aero::FrameworkElement>(&object)) {
+        owner->InvalidateRenderState();
+    }
+}
+
+} // namespace
+
 void OnOpacityMaskChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    (*owner).InvalidateRenderState();
+    InvalidateFrameworkElementRenderState(object);
 }
 
 void OnRenderTransformChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    (*owner).InvalidateRenderState();
+    InvalidateFrameworkElementRenderState(object);
 }
 
 void OnEffectChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs&) noexcept {
-    FrameworkElement* owner =
-        ::Aero::TryCast<::Aero::FrameworkElement>(&object);
-    if (owner == nullptr) return;
-    (*owner).InvalidateRenderState();
+    InvalidateFrameworkElementRenderState(object);
 }
 
 

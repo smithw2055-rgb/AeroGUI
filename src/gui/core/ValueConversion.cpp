@@ -631,7 +631,8 @@ Base::Result<Meta::Value> ConvertNullableBooleanValue(
 
 Base::Result<Meta::Value> ConvertMetricValue(
     const Meta::Value& value,
-    Meta::TypeId targetType) noexcept {
+    Meta::TypeId targetType,
+    bool autoLengthAsZero) noexcept {
     long double rawNumber = 0.0L;
     if (TryExtractNumber(value, rawNumber, false)) {
         const double number = static_cast<double>(rawNumber);
@@ -661,9 +662,14 @@ Base::Result<Meta::Value> ConvertMetricValue(
         Base::Result<::Aero::Length> length = Meta::ValueCodec<::Aero::Length>::Decode(value);
         if (!length) return length.GetStatus();
         if (length.Value().isAuto) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "Auto Length cannot be converted to a numeric target");
+            if (!autoLengthAsZero) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "Auto Length cannot be converted to a numeric target");
+            }
+            return ConvertNumericValue(
+                Meta::Value::FromDouble(Meta::TypeOf<double>(), 0.0),
+                targetType);
         }
         return ConvertNumericValue(
             Meta::Value::FromDouble(Meta::TypeOf<double>(), length.Value().value),
@@ -712,6 +718,44 @@ Base::Result<Meta::Value> ConvertColorAndBrushValue(
     return Base::Status::Failure(
         Base::ErrorCode::InvalidArgument,
         "Color/Brush conversion is incompatible");
+}
+
+Base::Result<Meta::Value> TryConvertDefaultValue(
+    const Meta::Value& value,
+    Meta::TypeId targetType,
+    const Meta::TypeRegistry* types,
+    bool autoLengthAsZero) noexcept {
+    const Meta::TypeId nullableBoolType = Meta::TypeOf<::Aero::Nullable<bool>>();
+    if ((targetType == nullableBoolType &&
+         (value.IsNullObject() ||
+          value.Kind() == Meta::ValueKind::Boolean ||
+          value.Type() == Meta::TypeOf<bool>())) ||
+        (targetType == Meta::TypeOf<bool>() && value.Type() == nullableBoolType)) {
+        return ConvertNullableBooleanValue(value, targetType);
+    }
+    if ((IsNumericType(value.Type()) &&
+         (targetType == Meta::TypeOf<Base::Thickness>() ||
+          targetType == Meta::TypeOf<::Aero::Length>() ||
+          targetType == ::Aero::Length::StaticTypeId() ||
+          targetType == Meta::TypeOf<::Aero::GridLength>() ||
+          targetType == Meta::TypeOf<Base::CornerRadius>())) ||
+        (value.Type() == Meta::TypeOf<::Aero::Length>() &&
+         IsNumericType(targetType))) {
+        return ConvertMetricValue(value, targetType, autoLengthAsZero);
+    }
+    if ((value.Type() == Meta::TypeOf<Base::Color>() &&
+         (targetType == ::Aero::Media::Brush::StaticTypeId() ||
+          targetType == ::Aero::Media::SolidColorBrush::StaticTypeId())) ||
+        (targetType == Meta::TypeOf<Base::Color>() &&
+         value.Kind() == Meta::ValueKind::Object)) {
+        return ConvertColorAndBrushValue(value, targetType, types);
+    }
+    if (IsNumericType(value.Type()) && IsNumericType(targetType)) {
+        return ConvertNumericValue(value, targetType);
+    }
+    return Base::Status::Failure(
+        Base::ErrorCode::Unsupported,
+        "No non-text default conversion applies to the source and target types");
 }
 
 Base::Result<Meta::Value> ConvertTextToValueFallback(
@@ -797,7 +841,8 @@ bool HasDefaultTargetConversion(
         (sourceType == Meta::TypeOf<::Aero::Length>() &&
          IsNumericType(targetType)) ||
         (sourceType == Meta::TypeOf<Base::Color>() &&
-         targetType == ::Aero::Media::Brush::StaticTypeId()) ||
+         (targetType == ::Aero::Media::Brush::StaticTypeId() ||
+          targetType == ::Aero::Media::SolidColorBrush::StaticTypeId())) ||
         (targetType == Meta::TypeOf<Base::String>() &&
          sourceType != Meta::InvalidTypeId) ||
         (sourceType == Meta::TypeOf<Base::String>() &&
@@ -816,4 +861,3 @@ Meta::Value UnboxItemValue(const Meta::Value& value) noexcept {
 }
 
 } // namespace Aero::Base::ValueConversion
-

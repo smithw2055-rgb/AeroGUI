@@ -408,6 +408,11 @@ class EventRouter;
         void InvalidateArrangeFlags() noexcept {
             arrangeValid = false;
         }
+        void ClearQueueAndAttachmentFlags() noexcept {
+            layoutAttached = false;
+            measureQueued = false;
+            arrangeQueued = false;
+        }
         bool HasRenderRare(std::uint8_t mask) const noexcept {
             return (renderRareMask & mask) != 0U;
         }

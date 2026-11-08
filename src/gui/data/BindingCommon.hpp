@@ -112,13 +112,6 @@ Base::Result<PropertyValue> ConvertNullableBooleanValue(
     const PropertyValue& value,
     TypeId targetType) noexcept;
 
-Base::Result<PropertyValue> ConvertThicknessValue(
-    const PropertyValue& value) noexcept;
-
-Base::Result<PropertyValue> ConvertLengthValue(
-    const PropertyValue& value,
-    TypeId targetType) noexcept;
-
 Base::Result<PropertyValue> ConvertColorToBrush(
     const PropertyValue& value) noexcept;
 

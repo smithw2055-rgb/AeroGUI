@@ -315,39 +315,14 @@ UIElement* LayoutEngine::ResolveQueued(VisualHandle handle) const noexcept {
     return visual != nullptr ? ::Aero::TryCast<UIElement>(visual) : nullptr;
 }
 
-Base::Result<VisualHandle> LayoutEngine::EnqueueHandle(
-    UIElement& element) noexcept {
-    const VisualHandle handle = ElementTree::HandleOf(element);
-    if (!handle.IsValid()) {
-        return InvalidState("Layout element has no ElementTree handle");
+void LayoutEngine::ClearQueuedFlags(
+    Base::Vector<VisualHandle>& queue,
+    UIElement::LayoutFlags flag) const noexcept {
+    for (const VisualHandle handle : queue) {
+        if (UIElement* element = ResolveQueued(handle)) {
+            element->Layout().SetFlag(flag, false);
+        }
     }
-    return handle;
-}
-
-Base::Result<void> LayoutEngine::QueueMeasure(
-    UIElement& element) noexcept {
-    if (element.GetIsMeasureQueued()) return {};
-    const VisualHandle handle = ElementTree::HandleOf(element);
-    if (!handle.IsValid()) {
-        element.Layout().SetFlag(UIElement::LayoutFlags::MeasureValid, false);
-        return {};
-    }
-    measureQueue_.PushBack(handle);
-    element.Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
-    return {};
-}
-
-Base::Result<void> LayoutEngine::QueueArrange(
-    UIElement& element) noexcept {
-    if (element.GetIsArrangeQueued()) return {};
-    const VisualHandle handle = ElementTree::HandleOf(element);
-    if (!handle.IsValid()) {
-        element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeValid, false);
-        return {};
-    }
-    arrangeQueue_.PushBack(handle);
-    element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
-    return {};
 }
 
 void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
@@ -371,21 +346,35 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
     element.Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
 }
 
-void LayoutEngine::InvalidateMeasure(
-    UIElement& element) noexcept {
+void LayoutEngine::PropagateInvalidation(
+    UIElement& element,
+    bool invalidateMeasure) noexcept {
+    Base::Vector<VisualHandle>& targetQueue =
+        invalidateMeasure ? measureQueue_ : arrangeQueue_;
+    const UIElement::LayoutFlags queuedFlag =
+        invalidateMeasure
+            ? UIElement::LayoutFlags::MeasureQueued
+            : UIElement::LayoutFlags::ArrangeQueued;
+
     UIElement* current = &element;
     while (current != nullptr) {
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
 
-        const bool wasValid = current->GetIsMeasureValid();
-        current->Layout().InvalidateMeasureFlags();
+        const bool wasValid = invalidateMeasure
+            ? current->GetIsMeasureValid()
+            : current->GetIsArrangeValid();
+        if (invalidateMeasure) {
+            current->Layout().InvalidateMeasureFlags();
+        } else {
+            current->Layout().InvalidateArrangeFlags();
+        }
 
-        if (!current->GetIsMeasureQueued()) {
+        if (!current->Layout().HasFlag(queuedFlag)) {
             const VisualHandle handle = ElementTree::HandleOf(*current);
             if (handle.IsValid()) {
-                measureQueue_.PushBack(handle);
-                current->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, true);
+                targetQueue.PushBack(handle);
+                current->Layout().SetFlag(queuedFlag, true);
             }
         }
 
@@ -400,31 +389,12 @@ void LayoutEngine::InvalidateMeasure(
     }
 }
 
-void LayoutEngine::InvalidateArrange(
-    UIElement& element) noexcept {
-    UIElement* current = &element;
-    while (current != nullptr) {
-        Base::Result<void> verified = VerifyElement(*current);
-        if (!verified) { AERO_ASSERT(false); return; }
+void LayoutEngine::InvalidateMeasure(UIElement& element) noexcept {
+    PropagateInvalidation(element, /*invalidateMeasure=*/true);
+}
 
-        const bool wasValid = current->GetIsArrangeValid();
-        current->Layout().InvalidateArrangeFlags();
-
-        if (!current->GetIsArrangeQueued()) {
-            const VisualHandle handle = ElementTree::HandleOf(*current);
-            if (handle.IsValid()) {
-                arrangeQueue_.PushBack(handle);
-                current->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, true);
-            }
-        }
-
-        if (current != &element && !wasValid) {
-            break;
-        }
-
-        current = current->GetIsLayoutAttached()
-            ? current->LayoutParent() : nullptr;
-    }
+void LayoutEngine::InvalidateArrange(UIElement& element) noexcept {
+    PropagateInvalidation(element, /*invalidateMeasure=*/false);
 }
 
 void UIElement::MeasureCore(
@@ -953,12 +923,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             measureWorkQueue_.Clear();
             measureWorkQueue_.Swap(measureQueue_);
             sortWorkQueueByDepth(measureWorkQueue_);
-            for (const VisualHandle handle : measureWorkQueue_) {
-                UIElement* element = ResolveQueued(handle);
-                if (element != nullptr) {
-                    element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
-                }
-            }
+            ClearQueuedFlags(measureWorkQueue_, UIElement::LayoutFlags::MeasureQueued);
             for (const VisualHandle handle : measureWorkQueue_) {
                 UIElement* element = ResolveQueued(handle);
                 if (element == nullptr ||
@@ -983,12 +948,7 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
             arrangeWorkQueue_.Clear();
             arrangeWorkQueue_.Swap(arrangeQueue_);
             sortWorkQueueByDepth(arrangeWorkQueue_);
-            for (const VisualHandle handle : arrangeWorkQueue_) {
-                UIElement* element = ResolveQueued(handle);
-                if (element != nullptr) {
-                    element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
-                }
-            }
+            ClearQueuedFlags(arrangeWorkQueue_, UIElement::LayoutFlags::ArrangeQueued);
             for (const VisualHandle handle : arrangeWorkQueue_) {
                 UIElement* element = ResolveQueued(handle);
                 if (element == nullptr ||
@@ -1074,14 +1034,8 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     // A converged root has recursively measured and arranged every attached
     // descendant. Remove stale queue handles created during template
     // application so the next frame starts from a clean layout state.
-    for (const VisualHandle handle : measureQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::MeasureQueued, false);
-    }
-    for (const VisualHandle handle : arrangeQueue_) {
-        UIElement* element = ResolveQueued(handle);
-        if (element != nullptr) element->Layout().SetFlag(UIElement::LayoutFlags::ArrangeQueued, false);
-    }
+    ClearQueuedFlags(measureQueue_, UIElement::LayoutFlags::MeasureQueued);
+    ClearQueuedFlags(arrangeQueue_, UIElement::LayoutFlags::ArrangeQueued);
     measureQueue_.Clear();
     arrangeQueue_.Clear();
 
