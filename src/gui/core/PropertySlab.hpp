@@ -22,7 +22,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <mutex>
 #include <new>
 
 namespace Aero {
@@ -34,7 +33,6 @@ private:
     };
 
     struct SlabState {
-        mutable std::mutex mutex;
         FreeNode* rareFree = nullptr;
         FreeNode* storeFree = nullptr;
         std::size_t rareCount = 0U;
@@ -57,17 +55,12 @@ public:
 
     ~PropertySlab() noexcept {
         if (state_ == nullptr) { return; }
-        bool deleteNow = false;
-        {
-            std::lock_guard<std::mutex> lock(state_->mutex);
-            DrainList(state_->rareFree);
-            state_->rareCount = 0U;
-            DrainList(state_->storeFree);
-            state_->storeCount = 0U;
-            state_->alive = false;
-            deleteNow = (state_->outstanding == 0U);
-        }
-        if (deleteNow) {
+        DrainList(state_->rareFree);
+        state_->rareCount = 0U;
+        DrainList(state_->storeFree);
+        state_->storeCount = 0U;
+        state_->alive = false;
+        if (state_->outstanding == 0U) {
             delete state_;
         }
         state_ = nullptr;
@@ -95,9 +88,7 @@ public:
     // Live (not yet released) slab-owned blocks. Diagnostic only; no
     // enforcement, since leaked host objects may outlive teardown.
     std::uint32_t OutstandingBlocks() const noexcept {
-        if (state_ == nullptr) { return 0U; }
-        std::lock_guard<std::mutex> lock(state_->mutex);
-        return state_->outstanding;
+        return state_ != nullptr ? state_->outstanding : 0U;
     }
 
     // Drops pooled (recycled) blocks. Live blocks are untouched; they belong
@@ -105,7 +96,6 @@ public:
     // Dispatcher is destroyed (DispatcherObject holds a Dispatcher&).
     void Clear() noexcept {
         if (state_ == nullptr) { return; }
-        std::lock_guard<std::mutex> lock(state_->mutex);
         DrainList(state_->rareFree);
         state_->rareCount = 0U;
         DrainList(state_->storeFree);
@@ -128,7 +118,6 @@ private:
     SlabState* state_ = nullptr;
 
     void* Allocate(std::size_t size, FreeNode*& freeList, std::size_t& pooled) noexcept {
-        std::lock_guard<std::mutex> lock(state_->mutex);
         if (freeList != nullptr) {
             // Free-list nodes ARE payload pointers (their headers stay
             // attached in front); return as-is, do not re-add the offset.
@@ -161,42 +150,32 @@ private:
     }
 
     static void ReleaseRareToOwner(SlabState* owner, void* payload) noexcept {
-        bool deleteOwner = false;
-        {
-            std::lock_guard<std::mutex> lock(owner->mutex);
-            if (owner->outstanding != 0U) { --owner->outstanding; }
-            if (owner->alive && owner->rareCount < kMaxPooledPerClass) {
-                auto* node = static_cast<FreeNode*>(payload);
-                node->next = owner->rareFree;
-                owner->rareFree = node;
-                ++owner->rareCount;
-            } else {
-                std::free(PayloadToHeader(payload));
-                deleteOwner = (!owner->alive && owner->outstanding == 0U);
+        if (owner->outstanding != 0U) { --owner->outstanding; }
+        if (owner->alive && owner->rareCount < kMaxPooledPerClass) {
+            auto* node = static_cast<FreeNode*>(payload);
+            node->next = owner->rareFree;
+            owner->rareFree = node;
+            ++owner->rareCount;
+        } else {
+            std::free(PayloadToHeader(payload));
+            if (!owner->alive && owner->outstanding == 0U) {
+                delete owner;
             }
-        }
-        if (deleteOwner) {
-            delete owner;
         }
     }
 
     static void ReleaseStoreToOwner(SlabState* owner, void* payload) noexcept {
-        bool deleteOwner = false;
-        {
-            std::lock_guard<std::mutex> lock(owner->mutex);
-            if (owner->outstanding != 0U) { --owner->outstanding; }
-            if (owner->alive && owner->storeCount < kMaxPooledPerClass) {
-                auto* node = static_cast<FreeNode*>(payload);
-                node->next = owner->storeFree;
-                owner->storeFree = node;
-                ++owner->storeCount;
-            } else {
-                std::free(PayloadToHeader(payload));
-                deleteOwner = (!owner->alive && owner->outstanding == 0U);
+        if (owner->outstanding != 0U) { --owner->outstanding; }
+        if (owner->alive && owner->storeCount < kMaxPooledPerClass) {
+            auto* node = static_cast<FreeNode*>(payload);
+            node->next = owner->storeFree;
+            owner->storeFree = node;
+            ++owner->storeCount;
+        } else {
+            std::free(PayloadToHeader(payload));
+            if (!owner->alive && owner->outstanding == 0U) {
+                delete owner;
             }
-        }
-        if (deleteOwner) {
-            delete owner;
         }
     }
 

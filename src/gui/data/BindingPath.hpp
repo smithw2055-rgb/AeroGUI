@@ -84,9 +84,24 @@ public:
         const Meta::Registry& runtime,
         Meta::TypeId rootType,
         Base::StringView path,
-        Meta::BindingPathCompileError* error = nullptr) noexcept;
+        Meta::BindingPathCompileError* error = nullptr,
+        const CompiledBindingPath* precompiledTokens = nullptr) noexcept;
+
+    static void RegisterPrecompiled(
+        Base::StringView path,
+        const CompiledBindingPath& precompiled) noexcept;
 
     Base::Result<void> PrecompileTokens(Base::StringView path) noexcept;
+    void SetPrecompiledSteps(Base::Vector<CompiledPathStep>&& steps) noexcept {
+        steps_ = std::move(steps);
+        tokenizeAttempted_ = true;
+        tokenized_ = !steps_.Empty();
+        valid_ = false;
+        targetValidated_ = false;
+    }
+    bool IsTokenized() const noexcept {
+        return tokenized_;
+    }
     Base::Result<void> BindToRoot(
         const Meta::Registry& runtime,
         Meta::TypeId rootType,

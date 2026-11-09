@@ -196,7 +196,6 @@ protected:
     void ClearFallbackPresenter() noexcept override;
     void OnApplyTemplate() noexcept override;
     void OnContentChanged(const Value& oldContent, const Value& newContent) override;
-    void OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept override;
     Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
     std::uint32_t GetVisualChildrenCount() const noexcept override;
@@ -216,23 +215,18 @@ private:
     void DetachScrollBars() noexcept;
     void OnScrollBarValueChanged(DependencyObject& sender, const DependencyPropertyChangedEventArgs& args) noexcept;
 
-    void EnsureCommands() noexcept;
-    void UnregisterCommands() noexcept;
-
-    void OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnLineRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnPageUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnPageDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnPageLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnPageRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnScrollToTopCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnScrollToBottomCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-
-    Base::Vector<Input::CommandBindingHandle> commandHandles_;
+    static void OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnLineRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnPageRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToTopCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToBottomCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
 
     ScrollContentPresenter* contentPresenter_ = nullptr;
     Ref<ScrollContentPresenter> ownedPresenter_;

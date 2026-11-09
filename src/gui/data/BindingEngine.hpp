@@ -23,9 +23,10 @@ using ::Aero::Meta::Registry;
 using Meta::PropertyValue;
 using Meta::TypeId;
 
-// Internal dependency-object endpoint used to compose MultiBinding from normal
-// BindingEngine expressions. Value is an AnyValue dependency property because
-// each child expression may expose a different concrete metadata type.
+// Internal dependency-object endpoint used to compose MultiBinding and
+// TriggerRuntime DataTrigger expressions from normal BindingEngine expressions.
+// Value is an AnyValue dependency property because each expression may expose
+// a different concrete metadata type.
 class MultiBindingProxy final : public DependencyObject {
     AERO_DECLARE_TYPE_NAMED(
         MultiBindingProxy,
@@ -240,6 +241,7 @@ public:
     bool Detach(BindingHandle handle) noexcept;
     bool UpdateSource(BindingHandle handle) noexcept;
     bool UpdateTarget(BindingHandle handle) noexcept;
+    bool EvaluateNow(BindingHandle handle) noexcept;
     BindingHandle FindBinding(
         DependencyObject& target,
         DependencyPropertyHandle property) const noexcept;
@@ -295,7 +297,7 @@ public:
         return flushing_;
     }
     bool HasDirtyBindings() const noexcept {
-        return hasDirtyBindings_ || !dirtyQueue_.Empty() || !pollingQueue_.Empty();
+        return hasDirtyBindings_ || !dirtyQueue_.Empty();
     }
     Meta::Registry* Metadata() const noexcept {
         return metadata_;
@@ -349,10 +351,8 @@ private:
         bool sourceDirty = true;
         bool targetDirty = true;
         bool forceSourceUpdate = false;
-        bool pollHintEmitted = false;
         bool lostFocusSubscribed = false;
         bool inDirtyQueue = false;
-        bool inPollingQueue = false;
         Base::Status lastStatus{};
     };
 
@@ -378,21 +378,17 @@ private:
     Base::HashMap<const DependencyObject*, Base::Vector<BindingHandle>> targetToBindings_;
     Base::Vector<BindingHandle> dataContextBindings_;
     Base::Vector<BindingHandle> dirtyQueue_;
-    Base::Vector<BindingHandle> pollingQueue_;
     Base::Vector<BindingHandle> workQueue_;
     bool initialized_ = false;
     std::uint64_t nextHandle_ = 1U;
     bool flushing_ = false;
     bool hasPendingDetaches_ = false;
     bool hasDirtyBindings_ = true;
-    std::uint32_t pollingBindingCount_ = 0U;
     std::uint32_t writesDataContextCount_ = 0U;
     Base::Status lastError_;
     DependencyPropertyChangedEventHandler propertyChangedHandler_;
 
     void EnqueueDirtyRecord(BindingRecord& record) noexcept;
-    void UpdatePollingRegistration(BindingRecord& record) noexcept;
-    void RemovePollingHandle(BindingHandle handle) noexcept;
 
     Base::Result<std::uint32_t>
     ActivatePendingDeferred() noexcept;

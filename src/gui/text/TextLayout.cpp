@@ -759,6 +759,11 @@ Base::Result<void> TextLayout::ShapeAndMeasure(
     }
 
     pending.naturalSize_ = {maximumWidth, lineY};
+    if (maximumWidth > 0.0F &&
+        (pending.alignment_ != TextAlignment::Left ||
+         pending.direction_ == TextDirection::RightToLeft)) {
+        pending.Arrange(maximumWidth);
+    }
     pending.size_ = pending.naturalSize_;
     *this = std::move(pending);
     return {};

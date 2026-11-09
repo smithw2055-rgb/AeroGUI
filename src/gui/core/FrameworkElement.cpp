@@ -567,13 +567,17 @@ Base::Object* FrameworkElement::FindNameObject(
                 ? object
                 : nullptr;
         }
-        // UserControl (LoadComponent ColorSelector) is a namescope. Walking
-        // to Window made FindName("LayoutRoot") return the Window grid, then
-        // SetContent tried to parent that grid under ColorSelector (cycle).
-        if (::Aero::TryCast<Controls::UserControl>(
-                const_cast<FrameworkElement*>(current)) != nullptr) {
-            if (current->frameworkRare_ != nullptr && current->frameworkRare_->names.Size() != 0U) { return nullptr; }
-            break;
+        // A non-root element with its own populated NameScope (such as a
+        // component loaded via LoadComponent) forms an isolated NameScope
+        // boundary; do not walk past it into the outer document's NameScope.
+        if (current->frameworkRare_ != nullptr &&
+            current->frameworkRare_->names.Size() != 0U) {
+            if (const auto* curVisual = ::Aero::TryCast<::Aero::Media::Visual>(current);
+                curVisual != nullptr &&
+                (curVisual->GetLogicalParent() != nullptr ||
+                 curVisual->GetVisualParent() != nullptr)) {
+                return nullptr;
+            }
         }
         ::Aero::Media::Visual* visual =
             ::Aero::TryCast<::Aero::Media::Visual>(
@@ -827,10 +831,22 @@ AERO_DESCRIBE(FrameworkElement) {
                 .Validate(&ValidateLength))
         .Property(
             FrameworkElement::ActualWidthProperty,
-            0.0)
+            FrameworkPropertyMetadata(0.0).ComputedReader(
+                [](const DependencyObject& obj) noexcept -> PropertyValue {
+                    const auto& fe = static_cast<const FrameworkElement&>(obj);
+                    return PropertyValue::FromDouble(
+                        Meta::TypeOf<double>(),
+                        static_cast<double>(fe.GetRenderSize().width));
+                }))
         .Property(
             FrameworkElement::ActualHeightProperty,
-            0.0)
+            FrameworkPropertyMetadata(0.0).ComputedReader(
+                [](const DependencyObject& obj) noexcept -> PropertyValue {
+                    const auto& fe = static_cast<const FrameworkElement&>(obj);
+                    return PropertyValue::FromDouble(
+                        Meta::TypeOf<double>(),
+                        static_cast<double>(fe.GetRenderSize().height));
+                }))
         .Property(
             FrameworkElement::MinWidthProperty,
             FrameworkPropertyMetadata(0.0, AffectsMeasure)

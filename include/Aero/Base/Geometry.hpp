@@ -238,6 +238,13 @@ struct ProjectiveTransform2D {
 using RenderNodeId = std::uint32_t;
 constexpr RenderNodeId InvalidRenderNodeId = 0U;
 
+static_assert(sizeof(Point) <= 16U && std::is_trivially_copyable_v<Point>, "Point must fit inline in Value SBO");
+static_assert(sizeof(Size) <= 16U && std::is_trivially_copyable_v<Size>, "Size must fit inline in Value SBO");
+static_assert(sizeof(Rect) == 16U && std::is_trivially_copyable_v<Rect>, "Rect must fit inline in Value SBO");
+static_assert(sizeof(Thickness) == 16U && std::is_trivially_copyable_v<Thickness>, "Thickness must fit inline in Value SBO");
+static_assert(sizeof(CornerRadius) == 16U && std::is_trivially_copyable_v<CornerRadius>, "CornerRadius must fit inline in Value SBO");
+static_assert(sizeof(Color) == 16U && std::is_trivially_copyable_v<Color>, "Color must fit inline in Value SBO");
+
 inline bool IsFiniteRect(Rect value) noexcept {
     return std::isfinite(value.x) && std::isfinite(value.y) &&
         std::isfinite(value.width) && std::isfinite(value.height);

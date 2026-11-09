@@ -13,6 +13,7 @@
 #include <Aero/Controls/Items.hpp>
 #include <Aero/Triggers.hpp>
 #include "gui/triggers/TriggerPlan.hpp"
+#include "gui/triggers/TriggerEngine.hpp"
 #include "gui/templates/TemplateInstance.hpp"
 
 #include "render/RenderTree.hpp"
@@ -2150,111 +2151,28 @@ void TemplateEngine::DetachDynamicResources(
 
 Base::Result<void> TemplateEngine::EvaluateTriggers(
     Instance& instance) noexcept {
-    const Base::Span<const TemplatePropertyTrigger> triggers =
-        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
-    const bool firstEval = !instance.triggersEvaluated;
-    if (firstEval) {
-        instance.triggersEvaluated = true;
-        instance.triggerStatesMask = 0ULL;
-        for (const TemplatePropertyTrigger& trigger : triggers) {
-            for (const TemplateTriggerSetter& setter : trigger.setters) {
-                if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
-                    continue;
-                }
-                DependencyObject* target =
-                    FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
-                if (target == nullptr) {
-                    return Base::Status::Failure(
-                        Base::ErrorCode::NotFound,
-                        "Template trigger target name was not found");
-                }
-            }
-        }
-    }
-
-    if (triggers.Empty()) {
-        Base::Result<std::uint32_t> flushed = values_->Flush();
-        if (!flushed) return flushed.GetStatus();
-        return {};
-    }
-
-    TriggerActiveBitset activeStates(triggers.Size());
-    bool anyStateChanged = firstEval;
-    for (std::uint32_t index = 0U; index < triggers.Size(); ++index) {
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        bool active = true;
-        for (const TemplateTriggerCondition& triggerCondition :
-             trigger.conditions) {
-            DependencyObject* source = FindTarget(
-                instance, triggerCondition.sourceName.View(), triggerCondition.sourcePartIndex);
-            if (source == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Template trigger source name was not found");
-            }
-            Base::Result<PropertyValue> current =
-                source->GetValue(triggerCondition.property);
-            if (!current) return current.GetStatus();
-            if (!triggerCondition.IsMet(
-                    *source,
-                    current.Value())) {
-                active = false;
-                break;
-            }
-        }
-        activeStates.Set(index, active);
-        const std::uint64_t bit = index < 64U ? (UINT64_C(1) << index) : 0ULL;
-        const bool wasActive = (instance.triggerStatesMask & bit) != 0ULL;
-        if (active != wasActive) {
-            anyStateChanged = true;
-        }
-    }
-
-    if (!anyStateChanged) {
-        return {};
-    }
-
-    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
-        const std::uint64_t bit = (UINT64_C(1) << index);
-        if ((instance.triggerStatesMask & bit) == 0ULL) {
-            continue;
-        }
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        for (const TemplateTriggerSetter& setter : trigger.setters) {
-            if (!ShouldApplyOrClearTriggerSetter(setter.value)) {
-                continue;
-            }
-            DependencyObject* target =
-                FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
-            if (target == nullptr) {
-                return Base::Status::Failure(
-                    Base::ErrorCode::NotFound,
-                    "Template trigger target name was not found");
-            }
-            Base::Result<void> cleared =
-                values_->ClearTriggerValue(
-                    *target, setter.property);
-            if (!cleared) return cleared.GetStatus();
-        }
-        instance.triggerStatesMask &= ~bit;
-    }
-
-    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
-        const bool active = activeStates.Get(index);
-        if (!active) continue;
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        for (const TemplateTriggerSetter& setter : trigger.setters) {
-            DependencyObject* target = FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
-            if (target == nullptr) continue;
-            Base::Result<bool> applied = ApplyResolvedTriggerSetter(
-                *values_, *target, setter.property, setter.value, instance.parent, resources_);
-            if (!applied) return applied.GetStatus();
-        }
-        instance.triggerStatesMask |= (UINT64_C(1) << index);
-    }
-    Base::Result<std::uint32_t> flushed = values_->Flush();
-    if (!flushed) return flushed.GetStatus();
-    if (!firstEval) {
+    struct TemplateTargetLookupContext {
+        const TemplateEngine* engine = nullptr;
+        const Instance* instance = nullptr;
+    } lookup{this, &instance};
+    const auto resolveTarget = +[](
+        const void* ctx,
+        Base::StringView name,
+        std::int32_t& inOutPartIndex) noexcept -> DependencyObject* {
+        const auto* state = static_cast<const TemplateTargetLookupContext*>(ctx);
+        return state->engine->FindTarget(*state->instance, name, inOutPartIndex);
+    };
+    Base::Result<bool> evaluated = TriggerRuntime::EvaluateControlTemplateTriggers(
+        *values_,
+        *instance.plan,
+        instance.parent,
+        resources_,
+        instance.triggersEvaluated,
+        instance.triggerStatesMask,
+        resolveTarget,
+        &lookup);
+    if (!evaluated) return evaluated.GetStatus();
+    if (evaluated.Value()) {
         (void)ApplyBindings(instance, DependencyPropertyHandle{});
     }
     return {};
@@ -2273,25 +2191,23 @@ Base::Result<void> TemplateEngine::ClearProviders(
             if (!cleared) return cleared.GetStatus();
         }
     }
-    const Base::Span<const TemplatePropertyTrigger> triggers =
-        Aero::Controls::FrameworkTemplateState::Triggers(*instance.plan);
-    for (std::uint32_t index = 0U; index < triggers.Size() && index < 64U; ++index) {
-        if ((instance.triggerStatesMask & (UINT64_C(1) << index)) == 0ULL) {
-            continue;
-        }
-        const TemplatePropertyTrigger& trigger = triggers[index];
-        for (const TemplateTriggerSetter& setter :
-             trigger.setters) {
-            DependencyObject* target =
-                FindTarget(instance, setter.targetName.View(), setter.targetPartIndex);
-            if (target != nullptr) {
-                Base::Result<bool> cleared = ClearResolvedTriggerSetter(
-                    *values_, *target, setter.property, setter.value);
-                if (!cleared) return cleared.GetStatus();
-            }
-        }
-    }
-    return {};
+    struct TemplateTargetLookupContext {
+        const TemplateEngine* engine = nullptr;
+        const Instance* instance = nullptr;
+    } lookup{this, &instance};
+    const auto resolveTarget = +[](
+        const void* ctx,
+        Base::StringView name,
+        std::int32_t& inOutPartIndex) noexcept -> DependencyObject* {
+        const auto* state = static_cast<const TemplateTargetLookupContext*>(ctx);
+        return state->engine->FindTarget(*state->instance, name, inOutPartIndex);
+    };
+    return TriggerRuntime::ClearControlTemplateTriggerSetters(
+        *values_,
+        *instance.plan,
+        instance.triggerStatesMask,
+        resolveTarget,
+        &lookup);
 }
 
 Base::Result<void> TemplateEngine::ClearAt(

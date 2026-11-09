@@ -49,8 +49,22 @@ void UIElement::ArrangeChild(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr || !child.GetIsLayoutAttached() ||
         child.LayoutParent() != this) {
-        AERO_ASSERT(false && "ArrangeChild: child is not attached to this parent");
-        return;
+        const auto* parentInfo = DependencyObjectAccess::PropertyRegistry(*this).Types().FindType(RuntimeType());
+        const auto* childInfo = DependencyObjectAccess::PropertyRegistry(child).Types().FindType(child.RuntimeType());
+        std::fprintf(stderr,
+            "ArrangeChild unattached: parent=%p (%.*s) child=%p (%.*s) layout=%p isAttached=%d layoutParent=%p visualParent=%p\n",
+            static_cast<void*>(this),
+            parentInfo ? static_cast<int>(parentInfo->Name().SizeBytes()) : 7,
+            parentInfo ? parentInfo->Name().Data() : "unknown",
+            static_cast<void*>(&child),
+            childInfo ? static_cast<int>(childInfo->Name().SizeBytes()) : 7,
+            childInfo ? childInfo->Name().Data() : "unknown",
+            static_cast<void*>(layout),
+            child.GetIsLayoutAttached() ? 1 : 0,
+            static_cast<void*>(child.LayoutParent()),
+            static_cast<void*>(child.GetVisualParent()));
+        std::fflush(stderr);
+        std::_Exit(1);
     }
     layout->ArrangeElement(child, finalRect);
 }
@@ -65,8 +79,22 @@ void UIElement::MeasureChild(
         ElementTree::LayoutOf(*this));
     if (layout == nullptr || !child.GetIsLayoutAttached() ||
         child.LayoutParent() != this) {
-        AERO_ASSERT(false && "MeasureChild: child is not attached to this parent");
-        return;
+        const auto* parentInfo = DependencyObjectAccess::PropertyRegistry(*this).Types().FindType(RuntimeType());
+        const auto* childInfo = DependencyObjectAccess::PropertyRegistry(child).Types().FindType(child.RuntimeType());
+        std::fprintf(stderr,
+            "MeasureChild unattached: parent=%p (%.*s) child=%p (%.*s) layout=%p isAttached=%d layoutParent=%p visualParent=%p\n",
+            static_cast<void*>(this),
+            parentInfo ? static_cast<int>(parentInfo->Name().SizeBytes()) : 7,
+            parentInfo ? parentInfo->Name().Data() : "unknown",
+            static_cast<void*>(&child),
+            childInfo ? static_cast<int>(childInfo->Name().SizeBytes()) : 7,
+            childInfo ? childInfo->Name().Data() : "unknown",
+            static_cast<void*>(layout),
+            child.GetIsLayoutAttached() ? 1 : 0,
+            static_cast<void*>(child.LayoutParent()),
+            static_cast<void*>(child.GetVisualParent()));
+        std::fflush(stderr);
+        std::_Exit(1);
     }
     layout->MeasureElement(child, availableSize);
 }
@@ -254,8 +282,10 @@ void UIElement::SyncHotProperty(
         }
     } else if (property == VisibilityProperty.Handle()) {
         Base::Result<Visibility> decoded = Meta::ValueCodec<Visibility>::Decode(newValue);
-        if (decoded) {
+        if (decoded && layout_.visibility != decoded.Value()) {
             layout_.visibility = decoded.Value();
+            layout_.neverMeasured = true;
+            layout_.neverArranged = true;
         }
     } else if (property == ClipToBoundsProperty.Handle()) {
         Base::Result<bool> decoded = Meta::ValueCodec<bool>::Decode(newValue);
@@ -494,12 +524,27 @@ namespace {
 
 struct InputClassHandlerRecord {
     TypeId type = InvalidTypeId;
-    RoutedEventHandle event{};
     UIElement::ClassHandler handler = nullptr;
 };
 
-InputClassHandlerRecord gInputClassHandlers[128];
-std::uint32_t gInputClassHandlerCount = 0U;
+struct InputClassHandlerBucket {
+    RoutedEventHandle event{};
+    InputClassHandlerRecord records[16]{};
+    std::uint32_t count = 0U;
+};
+
+InputClassHandlerBucket gInputClassHandlerBuckets[64];
+std::uint32_t gInputClassHandlerBucketCount = 0U;
+
+InputClassHandlerBucket* FindInputClassHandlerBucket(
+    RoutedEventHandle event) noexcept {
+    for (std::uint32_t i = 0U; i < gInputClassHandlerBucketCount; ++i) {
+        if (gInputClassHandlerBuckets[i].event == event) {
+            return &gInputClassHandlerBuckets[i];
+        }
+    }
+    return nullptr;
+}
 
 const TypeRegistry* ClassHandlerTypes(const UIElement& element) noexcept {
     if (!DependencyObjectAccess::HasPropertyRegistry((element))) {
@@ -517,22 +562,30 @@ void UIElement::RegisterClassHandler(
     if (!event.IsValid() || handler == nullptr || ownerType == InvalidTypeId) {
         return;
     }
-    for (std::uint32_t index = 0U; index < gInputClassHandlerCount; ++index) {
-        InputClassHandlerRecord& record = gInputClassHandlers[index];
-        if (record.type == ownerType && record.event == event) {
+    InputClassHandlerBucket* bucket = FindInputClassHandlerBucket(event);
+    if (bucket == nullptr) {
+        AERO_ASSERT(gInputClassHandlerBucketCount < 64U);
+        if (gInputClassHandlerBucketCount >= 64U) {
+            return;
+        }
+        bucket = &gInputClassHandlerBuckets[gInputClassHandlerBucketCount++];
+        bucket->event = event;
+        bucket->count = 0U;
+    }
+    for (std::uint32_t index = 0U; index < bucket->count; ++index) {
+        InputClassHandlerRecord& record = bucket->records[index];
+        if (record.type == ownerType) {
             record.handler = handler;
             return;
         }
     }
-    AERO_ASSERT(gInputClassHandlerCount < 128U);
-    if (gInputClassHandlerCount >= 128U) {
+    AERO_ASSERT(bucket->count < 16U);
+    if (bucket->count >= 16U) {
         return;
     }
-    InputClassHandlerRecord& record = gInputClassHandlers[gInputClassHandlerCount];
+    InputClassHandlerRecord& record = bucket->records[bucket->count++];
     record.type = ownerType;
-    record.event = event;
     record.handler = handler;
-    ++gInputClassHandlerCount;
 }
 
 void UIElement::EnsureInputClassHandlers() noexcept {
@@ -569,30 +622,27 @@ void UIElement::InvokeClassHandler(
     RoutedEventHandle event,
     RoutedEventArgs& args) noexcept {
     EnsureInputClassHandlers();
+    const InputClassHandlerBucket* bucket = FindInputClassHandlerBucket(event);
+    if (bucket == nullptr || bucket->count == 0U) {
+        return;
+    }
+    const TypeId runtimeType = RuntimeType();
     const TypeRegistry* types = ClassHandlerTypes(*this);
-    TypeId current = RuntimeType();
-    for (std::uint32_t depth = 0U;
-         current != InvalidTypeId && depth < 32U;
-         ++depth) {
-        for (std::uint32_t index = 0U; index < gInputClassHandlerCount; ++index) {
-            const InputClassHandlerRecord& record = gInputClassHandlers[index];
-            if (record.type == current && record.event == event) {
-                record.handler(*this, args);
-                return;
+    const InputClassHandlerRecord* best = nullptr;
+    for (std::uint32_t index = 0U; index < bucket->count; ++index) {
+        const InputClassHandlerRecord& record = bucket->records[index];
+        if (record.type == runtimeType) {
+            record.handler(*this, args);
+            return;
+        }
+        if (types != nullptr && types->IsDerivedFrom(runtimeType, record.type)) {
+            if (best == nullptr || types->IsDerivedFrom(record.type, best->type)) {
+                best = &record;
             }
         }
-        if (types == nullptr) {
-            return;
-        }
-        const TypeInfo* info = types->FindType(current);
-        if (info == nullptr) {
-            return;
-        }
-        const TypeId base = info->BaseType();
-        if (base == current) {
-            return;
-        }
-        current = base;
+    }
+    if (best != nullptr) {
+        best->handler(*this, args);
     }
 }
 

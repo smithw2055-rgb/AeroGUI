@@ -72,6 +72,10 @@ public:
     Base::Vector<AnimationEventSubscription> animationEventSubscriptions;
     Base::Status eventTriggerStatus;
 
+    Aero::Controls::DataTemplateTriggerInstance* activeActionDataTemplateContext = nullptr;
+    const Aero::NameScope* activeActionNames = nullptr;
+    Base::Status activeActionStatus = Base::Status::Ok();
+
     struct PendingLoadedTrigger {
         MediaAnimation::EventTrigger* trigger = nullptr;
         Aero::FrameworkElement* owner = nullptr;

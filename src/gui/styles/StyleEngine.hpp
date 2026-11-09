@@ -96,6 +96,7 @@ Base::Result<void> ClearStyleSetters(
 
 
 class TriggerEngine;
+using TriggerRuntime = TriggerEngine;
 
 class StyleEngine {
 public:

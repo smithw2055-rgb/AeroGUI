@@ -226,13 +226,9 @@ public:
         DependencyObject& node,
         AnimationEngine* animations,
         Base::HashSet<DependencyObject*>& visited) noexcept;
-    bool HasActiveVisualHoldingObject(
-        const DependencyObject& target,
-        const Base::HashSet<DependencyObject*>& detachedSet) const noexcept;
     static bool HasActiveVisualOrBindingOnDispatcher(
         const ::Aero::Threading::Dispatcher& dispatcher,
         const DependencyObject& target,
-        bool checkVisualProperties,
         const Base::HashSet<DependencyObject*>& detachedSet,
         const Aero::BindingEngine* alreadyChecked = nullptr) noexcept;
     static bool HasAnyBindingOnDispatcher(
@@ -416,6 +412,7 @@ private:
     Base::Result<void> RegisterHandleSubtree(::Aero::Media::Visual& node) noexcept;
     Base::Result<void> AttachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> AttachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
+    Base::Result<void> AttachVisualDescendantSubtree(::Aero::Media::Visual& parent) noexcept;
     Base::Result<void> DetachLayout(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
     Base::Result<void> DetachRender(::Aero::Media::Visual& parent, ::Aero::Media::Visual& child, bool& attached) noexcept;
 };

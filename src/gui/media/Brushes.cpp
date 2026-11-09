@@ -206,12 +206,26 @@ bool TryPrepareGpuGradient(
     if (!brush || bounds.width <= 0.0 || bounds.height <= 0.0) {
         return false;
     }
+    const float opacity = static_cast<float>(
+        std::clamp(brush->GetOpacity(), 0.0, 1.0));
     const auto* linear = ::Aero::TryCast<LinearGradientBrush>(brush.Get());
     const auto* radial = ::Aero::TryCast<RadialGradientBrush>(brush.Get());
     const GradientBrush* gradient = linear != nullptr
         ? static_cast<const GradientBrush*>(linear)
         : static_cast<const GradientBrush*>(radial);
-    if (gradient == nullptr) return false;
+    if (gradient == nullptr) {
+        if (!brush->GetShader()) return false;
+        gpu.bounds = bounds;
+        gpu.brush = reinterpret_cast<std::uintptr_t>(brush.Get());
+        gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Repeat);
+        gpu.start = {bounds.x, bounds.y};
+        gpu.delta = {bounds.width, bounds.height};
+        gpu.len2 = gpu.delta.x * gpu.delta.x + gpu.delta.y * gpu.delta.y;
+        if (gpu.len2 <= 1.0e-12) return false;
+        gpu.kind = kGpuPaintLinear;
+        gpu.uniforms[0] = opacity;
+        return true;
+    }
     if (gradient->GetSpreadMethod() == GradientSpreadMethod::Repeat) {
         gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::Repeat);
     } else if (gradient->GetSpreadMethod() == GradientSpreadMethod::Reflect) {
@@ -220,9 +234,7 @@ bool TryPrepareGpuGradient(
         gpu.wrapMode = static_cast<std::uint8_t>(Render::RenderWrapMode::ClampToEdge);
     }
     gpu.bounds = bounds;
-    gpu.brush = reinterpret_cast<std::uintptr_t>(gradient);
-    const float opacity = static_cast<float>(
-        std::clamp(brush->GetOpacity(), 0.0, 1.0));
+    gpu.brush = reinterpret_cast<std::uintptr_t>(brush.Get());
     if (gradient->GetRelativeTransform()) {
         gpu.hasInverse = InvertTransform(
             gradient->GetRelativeTransform()->GetMatrix(), gpu.inverse);
@@ -274,9 +286,18 @@ bool TryPrepareGpuGradient(
         radiusY *= bounds.height;
     }
     if (radiusX <= 1.0e-6 || radiusY <= 1.0e-6) return false;
-    const Point c{
+    Point c{
         (center.x - origin.x) / radiusX,
         (center.y - origin.y) / radiusY};
+    const double cLen2 = c.x * c.x + c.y * c.y;
+    if (!std::isfinite(cLen2)) return false;
+    if (cLen2 >= 1.0 - 1.0e-4) {
+        const double invScale = 0.999 / std::sqrt(cLen2);
+        c.x *= invScale;
+        c.y *= invScale;
+        origin.x = center.x - c.x * radiusX;
+        origin.y = center.y - c.y * radiusY;
+    }
     const double d = 1.0 - c.x * c.x - c.y * c.y;
     if (d <= 1.0e-5 || !std::isfinite(d)) return false;
     gpu.origin = origin;
@@ -742,7 +763,9 @@ void PaintBrushGeometry(
             viewbox.y = std::clamp(viewbox.y, 0.0f, 1.0f);
             viewbox.width = std::clamp(viewbox.width, 0.0f, 1.0f - viewbox.x);
             viewbox.height = std::clamp(viewbox.height, 0.0f, 1.0f - viewbox.y);
-            const Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+            const Color tint = brush->GetShader()
+                ? ::Aero::Media::SampleBrush(brush, 0.5, {1.0f, 1.0f, 1.0f, 1.0f})
+                : Color{1.0f, 1.0f, 1.0f, 1.0f};
             builder.DrawPatternMesh(
                 mesh,
                 imageId,
@@ -788,29 +811,13 @@ void PaintBrushGeometry(
         }
         return;
     }
-    const bool spatial = IsSpatialGradientBrush(brush.Get());
-    Color solid{};
-    if (!spatial) {
-        solid = ::Aero::Media::SampleBrush(brush);
-        if (solid.alpha <= 0.0F) return;
+    const Color solid = ::Aero::Media::SampleBrush(brush);
+    if (solid.alpha <= 0.0F) return;
+    if (mesh != Render::InvalidRenderMeshId) {
+        builder.DrawMesh(mesh, solid);
+        return;
     }
-    const auto emit = [&](Point pa, Point pb, Point pc)
-        noexcept -> void {
-        const Color ca =
-            spatial ? SampleBrushAt(brush, pa, bounds, isRtl) : solid;
-        const Color cb =
-            spatial ? SampleBrushAt(brush, pb, bounds, isRtl) : solid;
-        const Color cc =
-            spatial ? SampleBrushAt(brush, pc, bounds, isRtl) : solid;
-        if (ca.alpha <= 0.0F && cb.alpha <= 0.0F && cc.alpha <= 0.0F) {
-            return;
-        }
-        const Point quad[4] = {pa, pb, pc, pc};
-        const Color colors[4] = {ca, cb, cc, cc};
-        builder.FillGradientQuad(quad, colors);
-    };
-    const bool radial =
-        ::Aero::TryCast<RadialGradientBrush>(brush.Get()) != nullptr;
+    const Color colors[4] = {solid, solid, solid, solid};
     for (std::uint32_t index = 0U; index + 2U < indices.Size(); index += 3U) {
         const std::uint32_t ia = indices[index];
         const std::uint32_t ib = indices[index + 1U];
@@ -819,23 +826,9 @@ void PaintBrushGeometry(
             ic >= vertices.Size()) {
             continue;
         }
-        const Point a = vertices[ia];
-        const Point b = vertices[ib];
-        const Point c = vertices[ic];
-        // Scanline tessellation already emits thin bands. Recursive midpoint
-        // splits turn each band into 64 quads and freeze the first frame on
-        // vector-heavy scenes (TicTacToe hills/bushes). Radial still needs one
-        // interior sample so the highlight is not flattened to the outline.
-        if (radial) {
-            const Point mid{
-                (a.x + b.x + c.x) / 3.0,
-                (a.y + b.y + c.y) / 3.0};
-            emit(a, b, mid);
-            emit(b, c, mid);
-            emit(c, a, mid);
-            continue;
-        }
-        emit(a, b, c);
+        const Point quad[4] = {
+            vertices[ia], vertices[ib], vertices[ic], vertices[ic]};
+        builder.FillGradientQuad(quad, colors);
     }
 }
 

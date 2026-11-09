@@ -29,6 +29,9 @@ class AERO_GUI_API PauseStoryboard : public ControllableStoryboardAction {
 
 public:
     PauseStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 class AERO_GUI_API ResumeStoryboard : public ControllableStoryboardAction {
@@ -36,6 +39,9 @@ class AERO_GUI_API ResumeStoryboard : public ControllableStoryboardAction {
 
 public:
     ResumeStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 class AERO_GUI_API StopStoryboard : public ControllableStoryboardAction {
@@ -43,6 +49,9 @@ class AERO_GUI_API StopStoryboard : public ControllableStoryboardAction {
 
 public:
     StopStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 class AERO_GUI_API RemoveStoryboard : public ControllableStoryboardAction {
@@ -50,6 +59,9 @@ class AERO_GUI_API RemoveStoryboard : public ControllableStoryboardAction {
 
 public:
     RemoveStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 class AERO_GUI_API SeekStoryboard : public ControllableStoryboardAction {
@@ -57,6 +69,9 @@ class AERO_GUI_API SeekStoryboard : public ControllableStoryboardAction {
 
 public:
     SeekStoryboard() noexcept : ControllableStoryboardAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetOffset() const noexcept { return offsetText_.View(); }
     AnimationTime GetOffsetMicroseconds() const noexcept { return offsetMicroseconds_; }
     void SetOffset(StringView value) noexcept;
@@ -72,6 +87,9 @@ class AERO_GUI_API BeginStoryboard : public TriggerAction {
 public:
     BeginStoryboard() noexcept : TriggerAction(StaticTypeId()) {}
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetName() const noexcept { return name_.View(); }
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
     void SetName(StringView value) noexcept;
@@ -90,6 +108,9 @@ public:
         Play = 0U, Stop, TogglePlayPause, Pause, Resume, SkipToFill
     };
     ControlStoryboardAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     Ref<Storyboard> GetStoryboard() const noexcept { return storyboard_; }
     void SetStoryboard(Ref<Storyboard> value) noexcept { storyboard_ = std::move(value); }
     Option GetControlOption() const noexcept { return option_; }

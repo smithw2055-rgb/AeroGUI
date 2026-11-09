@@ -12,6 +12,9 @@ class AERO_GUI_API PlayMediaAction : public TriggerAction {
 
 public:
     PlayMediaAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     void SetTargetName(StringView value) noexcept { (void)targetName_.Assign(value); }
 
@@ -24,6 +27,9 @@ class AERO_GUI_API PauseMediaAction : public TriggerAction {
 
 public:
     PauseMediaAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     void SetTargetName(StringView value) noexcept { (void)targetName_.Assign(value); }
 
@@ -36,6 +42,9 @@ class AERO_GUI_API StopMediaAction : public TriggerAction {
 
 public:
     StopMediaAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     void SetTargetName(StringView value) noexcept { (void)targetName_.Assign(value); }
 

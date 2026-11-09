@@ -2363,6 +2363,27 @@ public:
         Base::StringView key) noexcept;
 };
 
+// AeroGUI's application samples expose Loc both as a markup extension and as
+// attached Source / Resources properties.
+class LocExtensionToken : public Base::Object {
+    AERO_DECLARE_TYPE_NAMED(
+        LocExtensionToken,
+        Base::Object,
+        "urn:aero",
+        "Loc")
+public:
+    Meta::TypeId RuntimeType() const noexcept override {
+        return StaticTypeId();
+    }
+
+    inline static constexpr Meta::AttachedPropertyRef<
+        LocExtensionToken, Base::ResourceUri>
+        SourceProperty{"Source"};
+    inline static constexpr Meta::AttachedPropertyRef<
+        LocExtensionToken, Base::Ref<Aero::ResourceDictionary>>
+        ResourcesProperty{"Resources"};
+};
+
 // Compatibility provider for AeroGUIExtensions.Loc. Its attached Source is
 // registered by the markup schema; the provider supplies values to ordinary
 // property attributes such as {aero:Loc TitleLabel}.

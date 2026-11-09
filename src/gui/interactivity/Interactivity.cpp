@@ -1,5 +1,6 @@
 #include <Aero/Interactivity/Behavior.hpp>
 #include <Aero/FrameworkElement.hpp>
+#include "gui/ViewFrame.hpp"
 #include "gui/core/FrameworkElementSeams.hpp"
 #include "gui/core/ElementTree.hpp"
 #include "gui/core/LayoutEngine.hpp"
@@ -7,6 +8,7 @@
 #include "gui/core/RoutedEvents.hpp"
 #include "gui/core/EventRouter.hpp"
 #include "gui/core/Describe.hpp"
+#include "gui/core/ValueConversion.hpp"
 #include <Aero/Interactivity/Conditions.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 #include <Aero/Interactivity/InteractionTriggers.hpp>
@@ -23,6 +25,471 @@
 #include "gui/core/PropertyStore.hpp"
 
 namespace Aero::Interactivity {
+
+namespace {
+
+StoryboardHost* ResolveStoryboardHost(FrameworkElement& owner) noexcept {
+    ElementTree* tree = ElementTree::Of(owner);
+    ViewFrame* view = tree != nullptr ? tree->GetViewState() : nullptr;
+    return view != nullptr ? view->Storyboards() : nullptr;
+}
+
+void RecordActionFailure(StoryboardHost* host, const Base::Status& status) noexcept {
+    if (host != nullptr) {
+        host->activeActionStatus = status;
+    }
+}
+
+} // namespace
+
+void TriggerAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(associatedObject);
+    static_cast<void>(parameter);
+}
+
+void ChangePropertyAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    if (host == nullptr || host->Metadata() == nullptr) {
+        return;
+    }
+    Base::Result<Base::Object*> resolvedTarget =
+        host->ResolveTargetObject(
+            GetTargetObject(),
+            GetTargetName(),
+            associatedObject,
+            host->activeActionDataTemplateContext,
+            host->activeActionNames,
+            this);
+    if (!resolvedTarget) {
+        RecordActionFailure(host, resolvedTarget.GetStatus());
+        return;
+    }
+    Base::Object* targetObject = resolvedTarget.Value();
+    if (targetObject == nullptr ||
+        !host->Metadata()->Types().IsDerivedFrom(
+            targetObject->RuntimeType(),
+            DependencyObject::StaticTypeId())) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "ChangePropertyAction TargetName did not resolve to a DependencyObject"));
+        return;
+    }
+    auto& target = static_cast<DependencyObject&>(*targetObject);
+    Base::Result<StoryboardHost::ResolvedAnimationProperty> resolved =
+        host->ResolveAnimationProperty(target, GetPropertyName());
+    if (!resolved) {
+        RecordActionFailure(host, resolved.GetStatus());
+        return;
+    }
+
+    DependencyObject& propertyTarget = *resolved.Value().target;
+    const Meta::DependencyPropertyHandle propertyHandle = resolved.Value().property;
+    const Meta::DependencyProperty* property =
+        (*host->Metadata()).DependencyProperties().Find(propertyHandle);
+    if (property == nullptr) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "ChangePropertyAction property metadata was not found"));
+        return;
+    }
+
+    Meta::PropertyValue value = GetValue();
+    Base::Ref<Data::Binding> valueBinding = GetValueBinding();
+    if (valueBinding) {
+        if (host->Interactivity() == nullptr) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "ChangePropertyAction ValueBinding requires an active InteractivityEngine"));
+            return;
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            host->Interactivity()->EvaluateAuthoredBinding(
+                *valueBinding,
+                associatedObject,
+                host->activeActionDataTemplateContext,
+                host->activeActionNames,
+                this);
+        if (!evaluated) {
+            RecordActionFailure(host, evaluated.GetStatus());
+            return;
+        }
+        value = std::move(evaluated).Value();
+    }
+    Base::Result<Meta::PropertyValue> coerced =
+        NormalizeValueForProperty(
+            host->Metadata(),
+            *property,
+            std::move(value));
+    if (!coerced) {
+        RecordActionFailure(host, coerced.GetStatus());
+        return;
+    }
+    propertyTarget.SetCurrentValue(
+        propertyHandle,
+        std::move(coerced).Value());
+}
+
+void InvokeCommandAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    if (host == nullptr || host->Metadata() == nullptr) {
+        return;
+    }
+    Base::Ref<Input::ICommand> command = GetCommand();
+    if (!command && GetCommandBinding()) {
+        if (host->Interactivity() == nullptr) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "InvokeCommandAction CommandBinding requires an active InteractivityEngine"));
+            return;
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            host->Interactivity()->EvaluateAuthoredBinding(
+                *GetCommandBinding(),
+                associatedObject,
+                host->activeActionDataTemplateContext,
+                host->activeActionNames,
+                this);
+        if (!evaluated) {
+            RecordActionFailure(host, evaluated.GetStatus());
+            return;
+        }
+        if (evaluated.Value().Kind() != Meta::ValueKind::Object ||
+            evaluated.Value().IsNullObject() ||
+            !evaluated.Value().AsObject() ||
+            !host->Metadata()->Types().IsDerivedFrom(
+                evaluated.Value().AsObject()->RuntimeType(),
+                Input::ICommand::StaticTypeId())) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::InvalidArgument,
+                    "InvokeCommandAction Binding did not return ICommand"));
+            return;
+        }
+        command = Base::Ref<Input::ICommand>::FromBorrowed(
+            *static_cast<Input::ICommand*>(
+                evaluated.Value().AsObject().Get()));
+    }
+    if (!command) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "InvokeCommandAction Command is unavailable"));
+        return;
+    }
+
+    Meta::PropertyValue resolvedParameter = GetCommandParameter();
+    if (GetCommandParameterBinding()) {
+        if (host->Interactivity() == nullptr) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "InvokeCommandAction CommandParameterBinding requires an active InteractivityEngine"));
+            return;
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            host->Interactivity()->EvaluateAuthoredBinding(
+                *GetCommandParameterBinding(),
+                associatedObject,
+                host->activeActionDataTemplateContext,
+                host->activeActionNames,
+                this);
+        if (!evaluated) {
+            RecordActionFailure(host, evaluated.GetStatus());
+            return;
+        }
+        resolvedParameter = std::move(evaluated).Value();
+    }
+    if (resolvedParameter.IsUnset() && !parameter.IsUnset()) {
+        resolvedParameter = parameter;
+    }
+    if (resolvedParameter.IsUnset()) {
+        resolvedParameter = Meta::PropertyValue::NullObject(
+            Meta::TypeOf<Base::Object>());
+    }
+    UIElement* target = TryCast<UIElement>(&associatedObject);
+    if (target == nullptr) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "InvokeCommandAction owner is not a UIElement"));
+        return;
+    }
+    const bool canExecute = host->Input() != nullptr
+        ? host->Input()->CanExecute(*command, resolvedParameter, *target)
+        : command->CanExecute(resolvedParameter, target);
+    if (!canExecute) return;
+    if (host->Input() != nullptr) {
+        Base::Result<bool> executed =
+            host->Input()->Execute(*command, resolvedParameter, *target);
+        if (!executed) {
+            RecordActionFailure(host, executed.GetStatus());
+        }
+        return;
+    }
+    command->Execute(resolvedParameter, target);
+}
+
+void SetFocusAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    if (host == nullptr || host->Metadata() == nullptr) {
+        return;
+    }
+    if (!GetEngage() || host->Input() == nullptr) return;
+    Base::Result<Base::Object*> resolvedTarget =
+        host->ResolveTargetObject(
+            GetTargetObject(),
+            GetTargetName(),
+            associatedObject,
+            host->activeActionDataTemplateContext,
+            host->activeActionNames,
+            this);
+    if (!resolvedTarget) {
+        RecordActionFailure(host, resolvedTarget.GetStatus());
+        return;
+    }
+    Base::Object* targetObject = resolvedTarget.Value();
+    UIElement* target =
+        targetObject != nullptr && host->Metadata()->Types().IsDerivedFrom(
+            targetObject->RuntimeType(), UIElement::StaticTypeId())
+        ? static_cast<UIElement*>(targetObject)
+        : nullptr;
+    if (target == nullptr) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "SetFocusAction target is unavailable"));
+        return;
+    }
+    if (!target->GetIsLoaded()) {
+        if (host->view == nullptr || host->view->Focus() == nullptr) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "View focus host is unavailable"));
+            return;
+        }
+        host->view->Focus()->QueueFocus(*target);
+        return;
+    }
+    if (!target->GetIsEnabled()) return;
+    // Focus is best-effort. A failed SetFocus must not fail the
+    // EventTrigger (QuestLog MouseEnter -> SelectAction).
+    static_cast<void>(host->Input()->SetFocus(target));
+}
+
+void SelectAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    const Meta::TypeRegistry& types =
+        host != nullptr && host->Metadata() != nullptr
+        ? host->Metadata()->Types()
+        : DependencyObjectAccess::PropertyRegistry(associatedObject).Types();
+    if (types.IsDerivedFrom(
+            associatedObject.RuntimeType(),
+            Controls::ListBoxItem::StaticTypeId())) {
+        static_cast<Controls::ListBoxItem&>(associatedObject).SetIsSelected(true);
+        return;
+    }
+    if (types.IsDerivedFrom(
+            associatedObject.RuntimeType(),
+            Controls::TabItem::StaticTypeId())) {
+        static_cast<Controls::TabItem&>(associatedObject).SetIsSelected(true);
+        return;
+    }
+    RecordActionFailure(
+        host,
+        Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "SelectAction owner is not a selectable item container"));
+}
+
+void SelectAllAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    const Meta::TypeRegistry& types =
+        host != nullptr && host->Metadata() != nullptr
+        ? host->Metadata()->Types()
+        : DependencyObjectAccess::PropertyRegistry(associatedObject).Types();
+    if (types.IsDerivedFrom(
+            associatedObject.RuntimeType(),
+            Controls::Primitives::TextBoxBase::StaticTypeId())) {
+        static_cast<Controls::Primitives::TextBoxBase&>(associatedObject).SelectAll();
+        return;
+    }
+    RecordActionFailure(
+        host,
+        Base::Status::Failure(
+            Base::ErrorCode::Unsupported,
+            "SelectAllAction owner is not a text editor"));
+}
+
+void PlaySoundAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    if (!GetIsEnabled() || GetSource().Empty()) {
+        return;
+    }
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    const double volume = GetVolume();
+    if (!std::isfinite(volume) || volume < 0.0 || volume > 1.0) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "PlaySoundAction Volume must be between zero and one"));
+        return;
+    }
+    if (host == nullptr || host->view == nullptr) {
+        return;
+    }
+    if (!host->view->audio.Initialize()) {
+        // Audio is optional for headless and provider-free hosts.
+        return;
+    }
+    host->view->audio.SetEffectsVolume(static_cast<float>(volume));
+    host->view->audio.PlayEffect(GetSource());
+}
+
+void RemoveElementAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    if (host == nullptr || host->Metadata() == nullptr) {
+        return;
+    }
+    Base::Result<Base::Object*> resolvedTarget =
+        host->ResolveTargetObject(
+            GetTargetObject(),
+            {},
+            associatedObject,
+            host->activeActionDataTemplateContext,
+            host->activeActionNames,
+            this);
+    if (!resolvedTarget) {
+        RecordActionFailure(host, resolvedTarget.GetStatus());
+        return;
+    }
+    Base::Object* targetObject = resolvedTarget.Value();
+    if (targetObject == nullptr ||
+        !host->Metadata()->Types().IsDerivedFrom(
+            targetObject->RuntimeType(),
+            UIElement::StaticTypeId())) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "RemoveElementAction target is not a UIElement"));
+        return;
+    }
+    auto& target = static_cast<UIElement&>(*targetObject);
+    Media::Visual* current = TryCast<Media::Visual>(target.GetLogicalParent());
+    if (current == nullptr) current = target.GetVisualParent();
+    while (current != nullptr) {
+        if (host->Metadata()->Types().IsDerivedFrom(
+                current->RuntimeType(),
+                Controls::ItemsControl::StaticTypeId())) {
+            auto& items = static_cast<Controls::ItemsControl&>(*current);
+            std::uint32_t index = UINT32_MAX;
+            for (std::uint32_t candidate = 0U; candidate < items.GetCount(); ++candidate) {
+                Base::Ref<Base::Object> item = items.GetItem(candidate);
+                if (item.Get() == &target) {
+                    index = candidate;
+                    break;
+                }
+            }
+            if (index != UINT32_MAX) {
+                Base::Ref<Base::Object> removed = items.GetItems().RemoveAt(index);
+                if (!removed) {
+                    RecordActionFailure(
+                        host,
+                        Base::Status::Failure(
+                            Base::ErrorCode::NotFound,
+                            "Failed to remove item from ItemCollection"));
+                }
+                return;
+            }
+        }
+        current = TryCast<Media::Visual>(current->GetLogicalParent()) != nullptr
+            ? TryCast<Media::Visual>(current->GetLogicalParent())
+            : current->GetVisualParent();
+    }
+    RecordActionFailure(
+        host,
+        Base::Status::Failure(
+            Base::ErrorCode::NotFound,
+            "RemoveElementAction target is not owned by an ItemsControl"));
+}
+
+void LaunchUriOrFileAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveStoryboardHost(associatedObject);
+    String path;
+    if (GetPathBinding()) {
+        if (host == nullptr || host->Interactivity() == nullptr) {
+            RecordActionFailure(
+                host,
+                Base::Status::Failure(
+                    Base::ErrorCode::NotInitialized,
+                    "LaunchUriOrFileAction PathBinding requires an active InteractivityEngine"));
+            return;
+        }
+        Base::Result<Meta::PropertyValue> evaluated =
+            host->Interactivity()->EvaluateAuthoredBinding(
+                *GetPathBinding(),
+                associatedObject,
+                host->activeActionDataTemplateContext,
+                host->activeActionNames,
+                this);
+        if (!evaluated) {
+            RecordActionFailure(host, evaluated.GetStatus());
+            return;
+        }
+        if (evaluated.Value().Kind() == Meta::ValueKind::String) {
+            static_cast<void>(path.Assign(evaluated.Value().AsString()));
+        }
+    } else {
+        static_cast<void>(path.Assign(GetPath()));
+    }
+    if (path.View().Empty()) {
+        RecordActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "LaunchUriOrFileAction Path is empty"));
+    }
+}
 
 Behavior::~Behavior() {
     Detach();

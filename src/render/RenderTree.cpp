@@ -1181,6 +1181,15 @@ void RenderTree::Invalidate(
         dirtySubtree(dirtySubtree, element);
     }
 
+    for (::Aero::Media::Visual* curr = &element;
+         curr != nullptr;
+         curr = (*curr).RenderAttached() ? (*curr).GetVisualParent() : nullptr) {
+        if ((*curr).SubtreeRenderDirty() && curr != &element) {
+            break;
+        }
+        (*curr).SubtreeRenderDirty() = true;
+    }
+
     ::Aero::Media::Visual* unqueued[64];
     std::uint32_t count = 0U;
     Base::Vector<::Aero::Media::Visual*> overflow;
@@ -1459,33 +1468,47 @@ RenderEffectSnapshot RenderTree::BuildEffectSnapshot(
 
 std::uint32_t RenderTree::AppendGradientRamp(
     RenderFrame& plan,
-    const ::Aero::Media::GradientBrush& brush) noexcept {
+    const ::Aero::Media::Brush& brush) noexcept {
     const std::uintptr_t brushIdentity =
         reinterpret_cast<std::uintptr_t>(&brush);
     std::uint64_t revision = brush.GetRevision();
     const double brushOpacity = brush.GetOpacity();
     std::uint64_t opacityBits = 0U;
     std::memcpy(&opacityBits, &brushOpacity, sizeof(opacityBits));
-    revision = Base::MixHash64(
-        revision ^ opacityBits ^ static_cast<std::uint64_t>(brush.GetSpreadMethod()));
-    for (const auto& stop : brush.GetGradientStops()) {
-        if (stop) {
-            revision = Base::MixHash64(revision ^ stop->GetRevision());
-            const Color c = stop->GetColor();
-            const double offset = stop->GetOffset();
-            std::uint32_t rBits = 0, gBits = 0, bBits = 0, aBits = 0;
-            std::uint64_t oBits = 0;
-            std::memcpy(&rBits, &c.red, sizeof(rBits));
-            std::memcpy(&gBits, &c.green, sizeof(gBits));
-            std::memcpy(&bBits, &c.blue, sizeof(bBits));
-            std::memcpy(&aBits, &c.alpha, sizeof(aBits));
-            std::memcpy(&oBits, &offset, sizeof(oBits));
-            const std::uint64_t cBits =
-                (static_cast<std::uint64_t>(rBits) << 32) ^
-                (static_cast<std::uint64_t>(gBits)) ^
-                (static_cast<std::uint64_t>(bBits) << 16) ^
-                (static_cast<std::uint64_t>(aBits));
-            revision = Base::MixHash64(revision ^ cBits ^ oBits);
+    revision = Base::MixHash64(revision ^ opacityBits);
+    const auto* gradientBrush =
+        ::Aero::TryCast<const ::Aero::Media::GradientBrush>(&brush);
+    if (gradientBrush != nullptr) {
+        revision = Base::MixHash64(
+            revision ^ static_cast<std::uint64_t>(gradientBrush->GetSpreadMethod()));
+        for (const auto& stop : gradientBrush->GetGradientStops()) {
+            if (stop) {
+                revision = Base::MixHash64(revision ^ stop->GetRevision());
+                const Color c = stop->GetColor();
+                const double offset = stop->GetOffset();
+                std::uint32_t rBits = 0, gBits = 0, bBits = 0, aBits = 0;
+                std::uint64_t oBits = 0;
+                std::memcpy(&rBits, &c.red, sizeof(rBits));
+                std::memcpy(&gBits, &c.green, sizeof(gBits));
+                std::memcpy(&bBits, &c.blue, sizeof(bBits));
+                std::memcpy(&aBits, &c.alpha, sizeof(aBits));
+                std::memcpy(&oBits, &offset, sizeof(oBits));
+                const std::uint64_t cBits =
+                    (static_cast<std::uint64_t>(rBits) << 32) ^
+                    (static_cast<std::uint64_t>(gBits)) ^
+                    (static_cast<std::uint64_t>(bBits) << 16) ^
+                    (static_cast<std::uint64_t>(aBits));
+                revision = Base::MixHash64(revision ^ cBits ^ oBits);
+            }
+        }
+    }
+    const ::Aero::Media::BrushShader* brushShader = nullptr;
+    if (Base::Ref<Base::Object> shaderObj = brush.GetShader()) {
+        if (DependencyObjectAccess::HasPropertyRegistry(brush) &&
+            DependencyObjectAccess::PropertyRegistry(&brush).Types().IsDerivedFrom(
+                shaderObj->RuntimeType(), ::Aero::Media::BrushShader::StaticTypeId())) {
+            brushShader = static_cast<const ::Aero::Media::BrushShader*>(shaderObj.Get());
+            revision = Base::MixHash64(revision ^ brushShader->GetRevision());
         }
     }
 
@@ -1523,11 +1546,25 @@ std::uint32_t RenderTree::AppendGradientRamp(
 
     dst->brushIdentity = brushIdentity;
     dst->revision = revision;
+    Color baseColor{1.0F, 1.0F, 1.0F, static_cast<float>(brushOpacity)};
+    if (brush.RuntimeType() == ::Aero::Media::SolidColorBrush::StaticTypeId()) {
+        baseColor = static_cast<const ::Aero::Media::SolidColorBrush&>(brush).GetColor();
+        baseColor.alpha *= static_cast<float>(brushOpacity);
+    }
     for (std::uint32_t i = 0U; i < GradientRampWidth; ++i) {
         const double position =
             static_cast<double>(i) /
             static_cast<double>(GradientRampWidth - 1U);
-        const Color color = SampleGradient(brush, position);
+        Color color = gradientBrush != nullptr
+            ? SampleGradient(*gradientBrush, position)
+            : baseColor;
+        if (brushShader != nullptr) {
+            color = ::Aero::Media::ApplyShader(
+                *brushShader,
+                color,
+                Base::Point{static_cast<float>(position), static_cast<float>(position)},
+                Base::Size{1.0F, 1.0F});
+        }
         const float alpha = color.alpha;
         dst->pixels[i * 4U + 0U] = static_cast<std::uint8_t>(
             std::clamp(color.red * alpha * 255.0F + 0.5F, 0.0F, 255.0F));
@@ -1646,14 +1683,14 @@ void RenderTree::ResolveCommandGradients(
             auto& quad = plan.MutablePayloadAt<CmdGradientQuad>(h.payloadOffset);
             if (quad.gradientBrush != 0U) {
                 const auto* brush = reinterpret_cast<
-                    const ::Aero::Media::GradientBrush*>(quad.gradientBrush);
+                    const ::Aero::Media::Brush*>(quad.gradientBrush);
                 quad.gradientRamp = AppendGradientRamp(plan, *brush);
             }
         } else if (h.kind == RenderCommandKind::DrawGradientMesh) {
             auto& mesh = plan.MutablePayloadAt<CmdDrawGradientMesh>(h.payloadOffset);
             if (mesh.gradientBrush != 0U) {
                 const auto* brush = reinterpret_cast<
-                    const ::Aero::Media::GradientBrush*>(mesh.gradientBrush);
+                    const ::Aero::Media::Brush*>(mesh.gradientBrush);
                 mesh.gradientRamp = AppendGradientRamp(plan, *brush);
             }
         }
@@ -1987,7 +2024,7 @@ Base::Result<void> RenderTree::BuildSubtree(
         snapshot.payloadOffset = 0U;
         snapshot.payloadSize = 0U;
     }
-    snapshot.drawing = (visible && drawing != nullptr) ? drawing : nullptr;
+    snapshot.drawingIndex = (visible && drawing != nullptr) ? visual.drawingIndex_ : UINT32_MAX;
     const std::uint32_t selfIndex = plan.nodes_.Size();
     snapshot.subtreeEnd = selfIndex + 1U;
     snapshot.subtreeCommandCount = snapshot.commandCount;
@@ -2017,6 +2054,8 @@ Base::Result<void> RenderTree::BuildSubtree(
             plan.nodes_[selfIndex].subtreeCommandCount += childNode.subtreeCommandCount;
             if (childNode.effectIndex != UINT32_MAX ||
                 childNode.maskIndex != UINT32_MAX ||
+                childNode.geometryClipVertexCount != 0U ||
+                !childNode.isIdentityTransform ||
                 childNode.descendantHasEffectOrMask) {
                 plan.nodes_[selfIndex].descendantHasEffectOrMask = true;
             }
@@ -2085,7 +2124,7 @@ Base::Result<void> RenderTree::RefreshInPlace(
         const std::uint32_t selfIndex = cursor;
         RenderNodeSnapshot& stored = currentFrame_.nodes_[selfIndex];
         if (!needsCommandRepack &&
-            visual.RenderChildren().Empty() &&
+            !(visual).SubtreeRenderDirty() &&
             !(visual).RenderQueued() &&
             (visual).RenderValid() &&
             (visual).RenderDirtyFlags() == 0U &&
@@ -2093,8 +2132,10 @@ Base::Result<void> RenderTree::RefreshInPlace(
             stored.effectIndex == UINT32_MAX &&
             stored.maskIndex == UINT32_MAX &&
             stored.geometryClipVertexCount == 0U &&
-            stored.subtreeEnd == selfIndex + 1U &&
-            stored.commandOffset + stored.commandCount <= currentFrame_.commandHeaders_.Size() &&
+            !stored.descendantHasEffectOrMask &&
+            stored.subtreeEnd > selfIndex &&
+            stored.subtreeEnd <= currentFrame_.nodes_.Size() &&
+            stored.commandOffset + stored.subtreeCommandCount <= currentFrame_.commandHeaders_.Size() &&
             Base::LeavesZ0PlaneUnchanged(transform3D.accumulated)) {
             UIElement* cleanEl = ::Aero::TryCast<::Aero::UIElement>(&visual);
             FrameworkElement* cleanFe = ::Aero::TryCast<::Aero::FrameworkElement>(&visual);
@@ -2117,14 +2158,14 @@ Base::Result<void> RenderTree::RefreshInPlace(
                 DrawingRecord* rec = FindDrawing(visual);
                 if (cleanFe == nullptr ||
                     (rec != nullptr && rec->valid && rec->recordedSize == stored.renderSize)) {
-                    stored.drawing = (rec != nullptr && rec->valid) ? &rec->drawing : nullptr;
-                    if (stored.commandCount != 0U) {
+                    stored.drawingIndex = (rec != nullptr && rec->valid) ? visual.drawingIndex_ : UINT32_MAX;
+                    if (stored.subtreeCommandCount != 0U) {
                         ResolveCommandGradients(
                             currentFrame_,
                             stored.commandOffset,
-                            stored.commandCount);
+                            stored.subtreeCommandCount);
                     }
-                    ++cursor;
+                    cursor = stored.subtreeEnd;
                     return {};
                 }
             }
@@ -2170,7 +2211,7 @@ Base::Result<void> RenderTree::RefreshInPlace(
         }
         if (skipped) return {};
         static_cast<void>(clipped);
-        snapshot.drawing = (visible && drawing != nullptr) ? drawing : nullptr;
+        snapshot.drawingIndex = (visible && drawing != nullptr) ? visual.drawingIndex_ : UINT32_MAX;
         const std::uint32_t newPayloadSize =
             (snapshot.commandCount != 0U && drawing != nullptr)
             ? static_cast<std::uint32_t>(drawing->Payload().Size())
@@ -2228,6 +2269,8 @@ Base::Result<void> RenderTree::RefreshInPlace(
                 currentFrame_.nodes_[selfIndex].subtreeCommandCount += childNode.subtreeCommandCount;
                 if (childNode.effectIndex != UINT32_MAX ||
                     childNode.maskIndex != UINT32_MAX ||
+                    childNode.geometryClipVertexCount != 0U ||
+                    !childNode.isIdentityTransform ||
                     childNode.descendantHasEffectOrMask) {
                     currentFrame_.nodes_[selfIndex].descendantHasEffectOrMask = true;
                 }
@@ -2256,7 +2299,10 @@ Base::Result<void> RenderTree::RefreshInPlace(
         currentFrame_.commandPayload_.Clear();
         for (std::uint32_t i = 0U; i < currentFrame_.nodes_.Size(); ++i) {
             RenderNodeSnapshot& node = currentFrame_.nodes_[i];
-            const DisplayList* list = node.drawing;
+            const DisplayList* list =
+                (node.drawingIndex < drawings_.Size() && drawings_[node.drawingIndex].valid)
+                ? &drawings_[node.drawingIndex].drawing
+                : nullptr;
             node.commandOffset = currentFrame_.commandHeaders_.Size();
             if (node.commandCount != 0U && list != nullptr) {
                 node.payloadOffset =

@@ -7,12 +7,21 @@
 #include <Aero/Value.hpp>
 #include <Aero/Interactivity/Interaction.hpp>
 
+namespace Aero {
+class FrameworkElement;
+} // namespace Aero
+
 namespace Aero::Interactivity {
 
 // WPF TriggerAction is a DependencyObject so named actions can participate in
 // bindings and ChangePropertyAction targeting.
 class AERO_GUI_API TriggerAction : public ::Aero::DependencyObject {
     AERO_DECLARE_TYPE(TriggerAction, ::Aero::DependencyObject)
+
+public:
+    virtual void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept;
 
 protected:
     explicit TriggerAction(Meta::TypeId runtimeType) noexcept : DependencyObject(runtimeType) {}
@@ -26,6 +35,9 @@ class AERO_GUI_API ChangePropertyAction : public TriggerAction {
 
 public:
     ChangePropertyAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }
     const Meta::PropertyValue& GetValue() const noexcept { return value_; }
@@ -50,6 +62,9 @@ class AERO_GUI_API SetFocusAction : public TriggerAction {
 
 public:
     SetFocusAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetTargetName() const noexcept { return targetName_.View(); }
     void SetTargetName(StringView value) noexcept { (void)targetName_.Assign(value); }
     Ref<Aero::Data::Binding> GetTargetObject() const noexcept { return targetObject_; }
@@ -68,6 +83,9 @@ class AERO_GUI_API LaunchUriOrFileAction : public TriggerAction {
 
 public:
     LaunchUriOrFileAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     StringView GetPath() const noexcept { return path_.View(); }
     void SetPath(StringView value) noexcept;
     Ref<Aero::Data::Binding> GetPathBinding() const noexcept { return pathBinding_; }
@@ -83,6 +101,9 @@ class AERO_GUI_API RemoveElementAction : public TriggerAction {
 
 public:
     RemoveElementAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
     Ref<Aero::Data::Binding> GetTargetObject() const noexcept { return targetObject_; }
     void SetTargetObject(Ref<Aero::Data::Binding> value) noexcept { targetObject_ = std::move(value); }
 

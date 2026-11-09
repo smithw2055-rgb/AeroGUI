@@ -108,7 +108,8 @@ MetadataAuthoringSession::DependencyProperty(
     DependencyPropertyFlags propertyFlags,
     ValidateValueCallback validate,
     PropertyChangedCallback changed,
-    UpdateSourceTrigger updateSourceTrigger) noexcept {
+    UpdateSourceTrigger updateSourceTrigger,
+    ComputedPropertyReadCallback computedReader) noexcept {
     if (!Ok()) return *this;
     if (name.Empty() ||
         declaredHandle !=
@@ -130,6 +131,7 @@ MetadataAuthoringSession::DependencyProperty(
     registration.metadata.changed = changed;
     registration.metadata.defaultUpdateSourceTrigger =
         updateSourceTrigger;
+    registration.metadata.computedReader = computedReader;
 
     Base::Result<DependencyPropertyRegistrationResult>
         registered =

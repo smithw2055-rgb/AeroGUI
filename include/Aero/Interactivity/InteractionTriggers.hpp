@@ -65,6 +65,9 @@ class AERO_GUI_API InvokeCommandAction : public TriggerAction {
 
 public:
     InvokeCommandAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 
     Ref<Aero::Input::ICommand> GetCommand() const noexcept { return command_; }
     void SetCommand(Ref<Aero::Input::ICommand> value) noexcept { command_ = std::move(value); }
@@ -91,6 +94,9 @@ class AERO_GUI_API SelectAction : public TriggerAction {
 
 public:
     SelectAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 // Selects all text in the associated TextBox or PasswordBox.
@@ -99,6 +105,9 @@ class AERO_GUI_API SelectAllAction : public TriggerAction {
 
 public:
     SelectAllAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 };
 
 // Blend-compatible one-shot sound action. IsEnabled is a dependency property
@@ -108,6 +117,9 @@ class AERO_GUI_API PlaySoundAction : public TriggerAction {
 
 public:
     PlaySoundAction() noexcept : TriggerAction(StaticTypeId()) {}
+    void Invoke(
+        ::Aero::FrameworkElement& associatedObject,
+        const Meta::PropertyValue& parameter = {}) noexcept override;
 
     StringView GetSource() const noexcept { return source_.View(); }
     void SetSource(StringView value) noexcept { static_cast<void>(source_.Assign(value)); }

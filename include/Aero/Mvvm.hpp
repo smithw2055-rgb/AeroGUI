@@ -90,6 +90,9 @@ public: \
 #define AERO_REFLECT_3(ClassName, BaseClass, QName) \
     inline static constexpr auto __ClrNamespace = ::Aero::ClrNamespaceStorage(QName); \
     AERO_DECLARE_TYPE_NAMED(ClassName, BaseClass, std::string_view(__ClrNamespace.data), #ClassName) \
+    ::Aero::Base::MetaTypeId RuntimeType() const noexcept override { \
+        return StaticTypeId(); \
+    } \
     static void DescribeComponent(::Aero::Meta::TypeBuilder<ClassName>& builder) noexcept { \
         if constexpr (std::is_base_of_v<::Aero::ViewModelBase, ClassName>) { \
             builder.PropertyChangeNotifications(); \

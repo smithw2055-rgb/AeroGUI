@@ -69,6 +69,11 @@ Base::Vector<InternedCommandEntry>& InternedCommands() noexcept {
     return commands;
 }
 
+Base::Vector<CommandBinding::ClassBindingEntry>& StaticClassCommandBindings() noexcept {
+    static Base::Vector<CommandBinding::ClassBindingEntry> bindings;
+    return bindings;
+}
+
 Base::StringView LastDottedSegment(Base::StringView value) noexcept {
     std::uint32_t last = value.SizeBytes();
     for (std::uint32_t index = 0U; index < value.SizeBytes(); ++index) {
@@ -407,6 +412,35 @@ bool CommandBinding::Finalize() noexcept {
     return true;
 }
 
+void CommandBinding::RegisterClassBinding(
+    Meta::TypeId ownerType,
+    const CommandBinding& binding) noexcept {
+    if (ownerType == Meta::InvalidTypeId) return;
+    if (!const_cast<CommandBinding&>(binding).Finalize()) return;
+    RoutedCommand* command = binding.GetCommand();
+    if (command == nullptr) return;
+    std::lock_guard<std::mutex> lock(StaticRoutedCommandMutex());
+    for (ClassBindingEntry& existing : StaticClassCommandBindings()) {
+        if (existing.ownerType == ownerType &&
+            existing.command.Get() == command) {
+            existing.canExecute = binding.GetCanExecute();
+            existing.executed = binding.GetExecuted();
+            return;
+        }
+    }
+    ClassBindingEntry entry;
+    entry.ownerType = ownerType;
+    entry.command = Base::Ref<RoutedCommand>::TryFromBorrowed(*command);
+    entry.canExecute = binding.GetCanExecute();
+    entry.executed = binding.GetExecuted();
+    StaticClassCommandBindings().PushBack(std::move(entry));
+}
+
+Base::Span<const CommandBinding::ClassBindingEntry> CommandBinding::ClassBindings() noexcept {
+    const auto& bindings = StaticClassCommandBindings();
+    return {bindings.Data(), bindings.Size()};
+}
+
 void KeyBinding::SetCommandName(
     Base::StringView value) noexcept {
     Base::String candidate;
@@ -718,7 +752,8 @@ bool CommandState::CanExecute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
+            const auto& types = DependencyObjectAccess::PropertyRegistry((owner)).Types();
+            if (!types.IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -727,6 +762,21 @@ bool CommandState::CanExecute(
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
+                    (record.command.Get() != &command &&
+                     (record.command.Get() == nullptr ||
+                      record.command->GetName() != command.GetName()))) {
+                    continue;
+                }
+                const CanExecuteRoutedEventHandler& handler = record.canExecute;
+                if (!handler.Empty()) {
+                    handler.Invoke(&element, args);
+                } else if (!record.executed.Empty()) {
+                    args.SetCanExecute(true);
+                }
+                if (args.GetHandled() || !args.GetContinueRouting()) return false;
+            }
+            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
+                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType) ||
                     (record.command.Get() != &command &&
                      (record.command.Get() == nullptr ||
                       record.command->GetName() != command.GetName()))) {
@@ -764,7 +814,8 @@ bool CommandState::Execute(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& owner) noexcept {
-            if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
+            const auto& types = DependencyObjectAccess::PropertyRegistry((owner)).Types();
+            if (!types.IsDerivedFrom(
                     owner.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -773,6 +824,20 @@ bool CommandState::Execute(
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != ownerHandle.index ||
                     record.owner.generation != ownerHandle.generation ||
+                    (record.command.Get() != &command &&
+                     (record.command.Get() == nullptr ||
+                      record.command->GetName() != command.GetName()))) {
+                    continue;
+                }
+                const ExecutedRoutedEventHandler& handler = record.executed;
+                if (!handler.Empty()) {
+                    handler.Invoke(&element, args);
+                    invoked = true;
+                }
+                if (args.GetHandled() || !args.GetContinueRouting()) return false;
+            }
+            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
+                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType) ||
                     (record.command.Get() != &command &&
                      (record.command.Get() == nullptr ||
                       record.command->GetName() != command.GetName()))) {
@@ -804,7 +869,8 @@ bool CommandState::ProcessInput(
     Base::Result<void> routed = events_->VisitRoute(
         target, RoutingStrategy::Bubble,
         [&](DependencyObject& current) noexcept {
-            if (!DependencyObjectAccess::PropertyRegistry((current)).Types().IsDerivedFrom(
+            const auto& types = DependencyObjectAccess::PropertyRegistry((current)).Types();
+            if (!types.IsDerivedFrom(
                     current.RuntimeType(), UIElement::StaticTypeId())) {
                 return true;
             }
@@ -825,6 +891,17 @@ bool CommandState::ProcessInput(
             for (const BindingRecord& record : bindings_) {
                 if (record.owner.index != owner.index ||
                     record.owner.generation != owner.generation) {
+                    continue;
+                }
+                RoutedCommand* command = record.command.Get();
+                if (command == nullptr || !command->MatchesInput(input)) continue;
+                if (CanExecute(*command, Meta::Value::Unset(), target)) {
+                    result = Execute(*command, Meta::Value::Unset(), target);
+                    return false;
+                }
+            }
+            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
+                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType)) {
                     continue;
                 }
                 RoutedCommand* command = record.command.Get();

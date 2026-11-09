@@ -1056,6 +1056,7 @@ private:
     TypeRegistry* types_ = nullptr;
     BehaviorTable* behaviorRegistrations_ = nullptr;
     Base::Vector<Definition> definitions_;
+    Base::HashMap<MemberId, std::uint32_t> index_;
     bool frozen_ = false;
 };
 

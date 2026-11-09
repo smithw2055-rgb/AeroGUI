@@ -3,6 +3,7 @@
 #include <Aero/Base/Ref.hpp>
 #include <Aero/Base/String.hpp>
 #include <Aero/Base/Vector.hpp>
+#include <Aero/Data/BindingExpression.hpp>
 #include <Aero/DependencyProperty.hpp>
 #include <Aero/Controls/Control.hpp>
 
@@ -10,7 +11,10 @@
 
 namespace Aero {
 class EventTrigger;
-}
+namespace Data {
+class MultiBindingProxy;
+} // namespace Data
+} // namespace Aero
 
 namespace Aero::Controls {
 
@@ -27,18 +31,16 @@ struct DataTemplateTriggerSetter {
 
 struct DataTemplateTriggerCondition {
     // Property triggers are compiled directly to a DependencyProperty
-    // condition. Data triggers retain their Binding so the runtime can
-    // resolve ElementName against the document name scope and subscribe to
-    // the resulting source property.
+    // condition. Data triggers retain their Binding and attach a
+    // BindingEngine expression via MultiBindingProxy.
     Base::WeakRef<Base::Object> source;
     Base::Ref<Data::Binding> binding;
     Base::WeakRef<::Aero::DependencyObject> dependencySource;
     Meta::DependencyPropertyHandle property;
     Meta::PropertyValue value;
-    // A default Binding in a ControlTemplate observes the templated
-    // parent's current DataContext. Preserve that semantic until the
-    // instance is mounted instead of capturing the authoring-time object.
     bool usesDataContext = false;
+    Base::Ref<Data::MultiBindingProxy> bindingProxy;
+    Data::BindingHandle bindingHandle;
 };
 
 struct DataTemplatePropertyTrigger {

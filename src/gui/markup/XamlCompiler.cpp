@@ -702,23 +702,6 @@ void PrewarmCompiledDocumentBytecode(
     if (document.BytecodeProgram()) {
         return;
     }
-    if (!Meta::HasObjectFactory()) {
-        return;
-    }
-    const Meta::ObjectFactoryState factory =
-        Meta::CurrentObjectFactory();
-    if (!factory.IsValid() ||
-        schema.Metadata() == nullptr ||
-        (factory.metadata != nullptr &&
-         factory.metadata != schema.Metadata()) ||
-        factory.dependencyProperties !=
-            &schema.Metadata()->DependencyProperties()) {
-        return;
-    }
-    if (!Meta::DependencyPropertyRegistry::IsLive(factory.dependencyProperties)) {
-        return;
-    }
-
     Base::Result<const XamlBytecodeProgram*> compiled =
         EnsureDocumentBytecode(document, schema);
     if (!compiled || compiled.Value() == nullptr ||
@@ -780,7 +763,13 @@ Base::Result<void> CompiledDocument::ValidateSchema(
     if (nodes_.Empty() && bytecodeProgram_ != nullptr) {
         return ValidateCompiledCacheIdentity(identity_, schema.Domain());
     }
-    return ValidateSchemaCore(*this, schema);
+    Base::Result<void> valid = ValidateSchemaCore(*this, schema);
+    if (!valid) return valid.GetStatus();
+    if (!bytecodeProgram_ &&
+        ValidateCompiledCacheIdentity(identity_, schema.Domain())) {
+        PrewarmCompiledDocumentBytecode(*this, schema);
+    }
+    return {};
 }
 
 Base::Result<void> CompiledDocument::BindSchema(
@@ -858,7 +847,7 @@ namespace Aero::Markup {
 namespace {
 
 constexpr std::uint32_t CompiledDocumentMagic =
-    UINT32_C(0x32425841); // "AXB2"
+    UINT32_C(0x33425841); // "AXB3"
 constexpr std::uint32_t InvalidTableIndex = UINT32_MAX;
 
 enum class AxbSectionKind : std::uint32_t {
@@ -869,7 +858,8 @@ enum class AxbSectionKind : std::uint32_t {
     Values = 5U,
     Instructions = 6U,
     SourceMap = 7U,
-    SourceFallback = 8U
+    SourceFallback = 8U,
+    Bytecode = 9U
 };
 
 struct AxbSection {
@@ -1823,10 +1813,84 @@ Base::Result<void> CompiledDocument::AddDependency(
 Base::Result<Base::Vector<std::uint8_t>>
 CompiledDocument::Serialize(
     const CompiledDocumentSerializeOptions& options) const noexcept {
-    if (!IsValid() || nodes_.Empty()) {
+    if (!IsValid() || (nodes_.Empty() && bytecodeProgram_ == nullptr)) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
-            "AXB2 document is not valid");
+            "AXB3 document is not valid");
+    }
+    if (const auto* container = ::Aero::TryCast<const XamlBytecodeContainer>(bytecodeProgram_.Get());
+        container != nullptr && container->program.IsValid()) {
+        Base::Vector<AxbSection> sections;
+        auto addSection = [&sections](
+            AxbSectionKind kind,
+            std::uint32_t count,
+            Base::Vector<std::uint8_t>&& sectionBytes) noexcept -> Base::Result<void> {
+            AxbSection section;
+            section.kind = kind;
+            section.count = count;
+            section.bytes = std::move(sectionBytes);
+            sections.PushBack(std::move(section));
+            return {};
+        };
+
+        Base::Vector<std::uint8_t> dependencyBytes;
+        Base::Result<void> result = AppendString(
+            dependencyBytes, originUri_.Canonical());
+        if (!result) return result.GetStatus();
+        result = AppendU32(dependencyBytes, dependencies_.Size());
+        if (!result) return result.GetStatus();
+        for (const Base::ResourceUri& dependency : dependencies_) {
+            result = AppendString(dependencyBytes, dependency.Canonical());
+            if (!result) return result.GetStatus();
+        }
+        result = addSection(
+            AxbSectionKind::Dependencies,
+            dependencies_.Size(),
+            std::move(dependencyBytes));
+        if (!result) return result.GetStatus();
+
+        Base::Vector<std::uint8_t> bytecodeBytes;
+        result = SerializeBytecodeProgram(container->program, bytecodeBytes);
+        if (!result) return result.GetStatus();
+        result = addSection(
+            AxbSectionKind::Bytecode,
+            container->program.instructions.Size(),
+            std::move(bytecodeBytes));
+        if (!result) return result.GetStatus();
+
+        Base::Vector<std::uint8_t> output;
+        result = AppendU32(output, CompiledDocumentMagic);
+        if (!result) return result.GetStatus();
+        result = AppendU32(output, XamlCompiledDocumentEncodingVersion);
+        if (!result) return result.GetStatus();
+        result = AppendCompiledCacheIdentity(output, identity_);
+        if (!result) return result.GetStatus();
+        result = AppendU32(output, sections.Size());
+        if (!result) return result.GetStatus();
+
+        std::uint32_t sectionOffset = 40U + sections.Size() * 16U;
+        for (const AxbSection& section : sections) {
+            if (sectionOffset > UINT32_MAX - section.bytes.Size()) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::OutOfRange,
+                    "AXB3 document exceeds the 32-bit section range");
+            }
+            result = AppendU32(output, static_cast<std::uint32_t>(section.kind));
+            if (!result) return result.GetStatus();
+            result = AppendU32(output, sectionOffset);
+            if (!result) return result.GetStatus();
+            result = AppendU32(output, section.bytes.Size());
+            if (!result) return result.GetStatus();
+            result = AppendU32(output, section.count);
+            if (!result) return result.GetStatus();
+            sectionOffset += section.bytes.Size();
+        }
+        for (const AxbSection& section : sections) {
+            for (std::uint8_t byte : section.bytes) {
+                output.PushBack(byte);
+            }
+        }
+        return output;
     }
 
     Base::Vector<Base::String> strings;
@@ -2202,10 +2266,10 @@ CompiledDocument::Deserialize(
 
     Base::Result<std::uint32_t> sectionCount = decoder.ReadU32();
     if (!sectionCount) return sectionCount.GetStatus();
-    if (sectionCount.Value() < 6U || sectionCount.Value() > 8U) {
+    if (sectionCount.Value() < 2U || sectionCount.Value() > 9U) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
-            "AXB2 section count is invalid");
+            "AXB3 section count is invalid");
     }
     Base::Vector<AxbSectionDirectoryEntry> directory;
     directory.Reserve(sectionCount.Value());
@@ -2223,13 +2287,13 @@ CompiledDocument::Deserialize(
         if (kind.Value() < static_cast<std::uint32_t>(
                 AxbSectionKind::Dependencies) ||
             kind.Value() > static_cast<std::uint32_t>(
-                AxbSectionKind::SourceFallback) ||
+                AxbSectionKind::Bytecode) ||
             offset.Value() < payloadBegin ||
             offset.Value() > bytes.Size() ||
             size.Value() > bytes.Size() - offset.Value()) {
             return Base::Status::Failure(
                 Base::ErrorCode::ValidationFailed,
-                "AXB2 section directory is invalid");
+                "AXB3 section directory is invalid");
         }
         for (const AxbSectionDirectoryEntry& existing : directory) {
             const bool duplicate = existing.kind ==
@@ -2240,7 +2304,7 @@ CompiledDocument::Deserialize(
             if (duplicate || overlap) {
                 return Base::Status::Failure(
                     Base::ErrorCode::ValidationFailed,
-                    "AXB2 sections are duplicated or overlapping");
+                    "AXB3 sections are duplicated or overlapping");
             }
         }
         directory.PushBack({
@@ -2252,6 +2316,83 @@ CompiledDocument::Deserialize(
         directory.Data(), directory.Size()};
     const AxbSectionDirectoryEntry* dependencySection = FindSection(
         directorySpan, AxbSectionKind::Dependencies);
+    const AxbSectionDirectoryEntry* bytecodeSection = FindSection(
+        directorySpan, AxbSectionKind::Bytecode);
+    if (bytecodeSection != nullptr && dependencySection != nullptr) {
+        std::uint32_t totalStringBytes = 0U;
+        Base::Result<Decoder> openedDep = OpenSection(bytes, *dependencySection);
+        if (!openedDep) return openedDep.GetStatus();
+        Decoder depDecoder = openedDep.Value();
+        Base::Result<Base::String> originStr = depDecoder.ReadString(
+            totalStringBytes, limits.maxStringBytes);
+        if (!originStr) return originStr.GetStatus();
+        if (!originStr.Value().Empty()) {
+            Base::Result<Base::ResourceUri> parsedOrigin =
+                Base::ResourceUri::Parse(originStr.Value().View());
+            if (!parsedOrigin) return parsedOrigin.GetStatus();
+            document.originUri_ = std::move(parsedOrigin).Value();
+        }
+        Base::Result<std::uint32_t> depCount = depDecoder.ReadU32();
+        if (!depCount) return depCount.GetStatus();
+        if (depCount.Value() != dependencySection->count ||
+            depCount.Value() > limits.maxNodes) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB3 dependency table count is invalid");
+        }
+        for (std::uint32_t i = 0U; i < depCount.Value(); ++i) {
+            Base::Result<Base::String> depStr = depDecoder.ReadString(
+                totalStringBytes, limits.maxStringBytes);
+            if (!depStr) return depStr.GetStatus();
+            Base::Result<Base::ResourceUri> parsedDep =
+                Base::ResourceUri::Parse(depStr.Value().View());
+            if (!parsedDep) return parsedDep.GetStatus();
+            Base::Result<void> added = document.AddDependency(parsedDep.Value());
+            if (!added) return added.GetStatus();
+        }
+        if (!depDecoder.AtEnd()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB3 dependency table has trailing data");
+        }
+        if (!document.originUri_.Empty()) {
+            bool originListed = false;
+            for (const Base::ResourceUri& dependency : document.dependencies_) {
+                originListed = originListed || dependency == document.originUri_;
+            }
+            if (!originListed) {
+                return Base::Status::Failure(
+                    Base::ErrorCode::ValidationFailed,
+                    "Compiled XAML origin is absent from dependencies");
+            }
+        }
+
+        Base::Result<Decoder> openedBytecode = OpenSection(bytes, *bytecodeSection);
+        if (!openedBytecode) return openedBytecode.GetStatus();
+        Decoder bytecodeDecoder = openedBytecode.Value();
+        auto container = Base::MakeRef<XamlBytecodeContainer>();
+        if (!container) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "AXB3 bytecode container allocation failed");
+        }
+        Base::Result<void> decodedProg = DeserializeBytecodeProgram(
+            bytecodeDecoder,
+            domain,
+            limits,
+            totalStringBytes,
+            container->program);
+        if (!decodedProg) return decodedProg.GetStatus();
+        if (!bytecodeDecoder.AtEnd()) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB3 bytecode section has trailing data");
+        }
+        document.cachedNodeCount_ = container->program.instructions.Size();
+        document.SetBytecodeProgram(std::move(container));
+        return document;
+    }
+
     const AxbSectionDirectoryEntry* stringSection = FindSection(
         directorySpan, AxbSectionKind::Strings);
     const AxbSectionDirectoryEntry* typeSection = FindSection(

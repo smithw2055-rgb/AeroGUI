@@ -17,6 +17,7 @@ class AERO_GUI_API ICommand : public Base::Object {
 
 public:
     ~ICommand() override = default;
+    Base::MetaTypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     virtual bool CanExecute(const Value& parameter, UIElement* target = nullptr) noexcept = 0;
     virtual void Execute(const Value& parameter, UIElement* target = nullptr) noexcept = 0;

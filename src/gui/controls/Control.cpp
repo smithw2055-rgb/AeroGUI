@@ -24,7 +24,6 @@
 #include <Aero/TryCast.hpp>
 #include <Aero/VisualTreeHelper.hpp>
 #include <Aero/LogicalTreeHelper.hpp>
-#include "gui/controls/ContentHosting.hpp"
 #include "gui/controls/ItemsContainers.hpp"
 #include "gui/core/DependencyObjectAccess.hpp"
 #include <Aero/Gui.hpp>
@@ -109,35 +108,6 @@ void Control::OnRender(::Aero::Media::DrawingContext& context) noexcept {
 }
 
 // ============================================================================
-// AttachOwnedContentSubtree helper
-// ============================================================================
-
-void AttachOwnedContentSubtree(
-    ElementTree& tree,
-    UIElement& parent) noexcept {
-    const std::uint32_t count = Aero::Media::VisualTreeHelper::GetChildrenCount(parent);
-    for (std::uint32_t index = 0U; index < count; ++index) {
-        if (auto* childVisual = Aero::Media::VisualTreeHelper::GetChild(parent, index)) {
-            if (auto* child = ::Aero::TryCast<UIElement>(childVisual)) {
-                if (child->GetVisualParent() != nullptr &&
-                    child->GetVisualParent() != &parent) {
-                    static_cast<void>(tree.DetachVisual(
-                        *child->GetVisualParent(),
-                        static_cast<::Aero::Media::Visual&>(*child)));
-                }
-                if (child->GetVisualParent() != &parent || !child->GetIsLayoutAttached()) {
-                    static_cast<void>(tree.AttachVisualChild(parent, *child));
-                }
-                if (Aero::BindingEngine* bindings = Aero::ElementTree::BindingsOf(*child)) {
-                    static_cast<void>(bindings->ActivateDeferredWhenReady(*child));
-                }
-                AttachOwnedContentSubtree(tree, *child);
-            }
-        }
-    }
-}
-
-// ============================================================================
 // ContentControl
 // ============================================================================
 
@@ -183,7 +153,23 @@ void ContentControl::OnContentPropertyChanged(
     ::Aero::DependencyObject& object,
     const Meta::DependencyPropertyChangedEventArgs& change) noexcept {
     auto& control = static_cast<ContentControl&>(object);
+    const Value& oldVal = change.GetOldValue();
     const Value& val = change.GetNewValue();
+    if (!control.fallbackPresenter_ &&
+        oldVal.Kind() == Meta::ValueKind::Object && !oldVal.IsNullObject()) {
+        if (auto* oldElem = ::Aero::TryCast<UIElement>(oldVal.AsObject().Get())) {
+            UIElement* newElem = (val.Kind() == Meta::ValueKind::Object && !val.IsNullObject())
+                ? ::Aero::TryCast<UIElement>(val.AsObject().Get())
+                : nullptr;
+            if (oldElem != newElem && oldElem->GetVisualParent() == &control) {
+                if (ElementTree* tree = VisualTree(control)) {
+                    DetachVisualAttachment(tree, &control, oldElem);
+                } else {
+                    control.RemoveVisualChild(oldElem);
+                }
+            }
+        }
+    }
     if (val.Kind() == Meta::ValueKind::Object && !val.IsNullObject()) {
         control.ownedContent_ = val.AsObject();
     } else {
@@ -452,9 +438,6 @@ void ContentPresenter::HostUiElement(
         ownedContent_ = owner;
         InvalidateMeasure();
     }
-    if (tree != nullptr) {
-        AttachOwnedContentSubtree(*tree, element);
-    }
 }
 
 void ContentPresenter::ClearHostedContent() noexcept {
@@ -662,7 +645,6 @@ void ContentPresenter::SetContent(UIElement* content) noexcept {
         if (content->GetVisualParent() != this || !content->GetIsLayoutAttached()) {
             if (ElementTree* tree = VisualTree(this)) {
                 static_cast<void>(tree->AttachVisualChild(*this, *content));
-                AttachOwnedContentSubtree(*tree, *content);
             } else if (content->GetVisualParent() == nullptr) {
                 AddVisualChild(content);
             }

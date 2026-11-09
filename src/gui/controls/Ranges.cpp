@@ -18,7 +18,6 @@
 #include "gui/core/Describe.hpp"
 #include <Aero/ClassHandler.hpp>
 #include <Aero/VisualStateManager.hpp>
-#include "gui/controls/ContentHosting.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Events.hpp>
 
@@ -179,12 +178,16 @@ void Track::SetDecreaseRepeatButton(
             state.layoutAttached = decreaseRepeatButton_->GetIsLayoutAttached();
             state.renderAttached = decreaseRepeatButton_->IsRenderAttached();
             static_cast<void>(tree->DetachElement(state));
+        } else if (decreaseRepeatButton_->GetVisualParent() == this) {
+            RemoveVisualChild(decreaseRepeatButton_.Get());
         }
     }
     decreaseRepeatButton_ = std::move(value);
     if (decreaseRepeatButton_ != nullptr) {
         if (ElementTree* tree = VisualTree(this)) {
             static_cast<void>(tree->AttachElement(*this, *decreaseRepeatButton_));
+        } else if (decreaseRepeatButton_->GetVisualParent() != this) {
+            AddVisualChild(decreaseRepeatButton_.Get());
         }
     }
     InvalidateMeasure();
@@ -204,12 +207,16 @@ void Track::SetThumb(
             state.layoutAttached = thumb_->GetIsLayoutAttached();
             state.renderAttached = thumb_->IsRenderAttached();
             static_cast<void>(tree->DetachElement(state));
+        } else if (thumb_->GetVisualParent() == this) {
+            RemoveVisualChild(thumb_.Get());
         }
     }
     thumb_ = std::move(value);
     if (thumb_ != nullptr) {
         if (ElementTree* tree = VisualTree(this)) {
             static_cast<void>(tree->AttachElement(*this, *thumb_));
+        } else if (thumb_->GetVisualParent() != this) {
+            AddVisualChild(thumb_.Get());
         }
     }
     InvalidateMeasure();
@@ -229,12 +236,16 @@ void Track::SetIncreaseRepeatButton(
             state.layoutAttached = increaseRepeatButton_->GetIsLayoutAttached();
             state.renderAttached = increaseRepeatButton_->IsRenderAttached();
             static_cast<void>(tree->DetachElement(state));
+        } else if (increaseRepeatButton_->GetVisualParent() == this) {
+            RemoveVisualChild(increaseRepeatButton_.Get());
         }
     }
     increaseRepeatButton_ = std::move(value);
     if (increaseRepeatButton_ != nullptr) {
         if (ElementTree* tree = VisualTree(this)) {
             static_cast<void>(tree->AttachElement(*this, *increaseRepeatButton_));
+        } else if (increaseRepeatButton_->GetVisualParent() != this) {
+            AddVisualChild(increaseRepeatButton_.Get());
         }
     }
     InvalidateMeasure();
@@ -416,8 +427,7 @@ Orientation ScrollBar::GetOrientation() const noexcept {
 }
 
 ScrollBar::ScrollBar() noexcept
-    : RangeBase(StaticTypeId()),
-      commandHandles_(&Base::GetDefaultAllocator()) {
+    : RangeBase(StaticTypeId()) {
 }
 
 ScrollBar::~ScrollBar() {
@@ -425,7 +435,6 @@ ScrollBar::~ScrollBar() {
         static_cast<void>(ReleasePointer(pointerId_));
         dragging_ = false;
     }
-    UnregisterCommands();
 }
 
 void ScrollBar::OnApplyTemplate() noexcept {
@@ -440,7 +449,6 @@ void ScrollBar::OnApplyTemplate() noexcept {
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
-    EnsureCommands();
 }
 
 void ScrollBar::OnTemplateDetached() noexcept {
@@ -450,65 +458,10 @@ void ScrollBar::OnTemplateDetached() noexcept {
 
 void ScrollBar::OnVisualParentChanged(Visual* oldParent) noexcept {
     Control::OnVisualParentChanged(oldParent);
-    if (GetVisualParent() != nullptr) {
-        EnsureCommands();
-    } else {
-        if (dragging_) {
-            static_cast<void>(ReleasePointer(pointerId_));
-            dragging_ = false;
-        }
-        UnregisterCommands();
+    if (GetVisualParent() == nullptr && dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
     }
-}
-
-void ScrollBar::EnsureCommands() noexcept {
-    if (!commandHandles_.Empty()) return;
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input == nullptr) return;
-    using StaticCommandFn = void (*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
-    struct CommandEntry {
-        Base::StringView primary;
-        Base::StringView alias;
-        StaticCommandFn fn;
-    };
-    static constexpr CommandEntry kCommands[] = {
-        {"LineUpCommand", "LineUp", &ScrollBar::OnLineUpCommand},
-        {"LineDownCommand", "LineDown", &ScrollBar::OnLineDownCommand},
-        {"LineLeftCommand", "LineLeft", &ScrollBar::OnLineLeftCommand},
-        {"LineRightCommand", "LineRight", &ScrollBar::OnLineRightCommand},
-        {"PageUpCommand", "PageUp", &ScrollBar::OnPageUpCommand},
-        {"PageDownCommand", "PageDown", &ScrollBar::OnPageDownCommand},
-        {"PageLeftCommand", "PageLeft", &ScrollBar::OnPageLeftCommand},
-        {"PageRightCommand", "PageRight", &ScrollBar::OnPageRightCommand},
-        {"ScrollToTopCommand", "ScrollToTop", &ScrollBar::OnScrollToTopCommand},
-        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollBar::OnScrollToBottomCommand},
-        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollBar::OnScrollToLeftEndCommand},
-        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollBar::OnScrollToRightEndCommand},
-        {"ScrollToHorizontalOffsetCommand", "ScrollToHorizontalOffset", &ScrollBar::OnScrollToHorizontalOffsetCommand},
-        {"ScrollToVerticalOffsetCommand", "ScrollToVerticalOffset", &ScrollBar::OnScrollToVerticalOffsetCommand},
-    };
-    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
-        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
-        if (cmd) {
-            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
-            if (added) commandHandles_.PushBack(added.Value());
-        }
-    };
-    for (const CommandEntry& entry : kCommands) {
-        const ExecutedRoutedEventHandler handler(entry.fn);
-        addCmd(entry.primary, handler);
-        addCmd(entry.alias, handler);
-    }
-}
-
-void ScrollBar::UnregisterCommands() noexcept {
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input != nullptr) {
-        for (Input::CommandBindingHandle handle : commandHandles_) {
-            input->RemoveCommandBinding(handle);
-        }
-    }
-    commandHandles_.Clear();
 }
 
 
@@ -931,7 +884,8 @@ bool ScrollBar::DragThumb(
 }
 
 Slider::Slider() noexcept
-    : Primitives::RangeBase(StaticTypeId()) {
+    : Primitives::RangeBase(StaticTypeId()),
+      parsedTicks_(&Base::GetDefaultAllocator()) {
 }
 
 Slider::~Slider() {
@@ -939,7 +893,6 @@ Slider::~Slider() {
         static_cast<void>(ReleasePointer(pointerId_));
         dragging_ = false;
     }
-    UnregisterCommands();
 }
 
 void Slider::OnApplyTemplate() noexcept {
@@ -951,7 +904,6 @@ void Slider::OnApplyTemplate() noexcept {
         ? static_cast<Track*>(part)
         : nullptr;
     SynchronizeTrack();
-    EnsureCommands();
 }
 
 void Slider::OnTemplateDetached() noexcept {
@@ -961,47 +913,10 @@ void Slider::OnTemplateDetached() noexcept {
 
 void Slider::OnVisualParentChanged(Visual* oldParent) noexcept {
     Control::OnVisualParentChanged(oldParent);
-    if (GetVisualParent() != nullptr) {
-        EnsureCommands();
-    } else {
-        if (dragging_) {
-            static_cast<void>(ReleasePointer(pointerId_));
-            dragging_ = false;
-        }
-        UnregisterCommands();
+    if (GetVisualParent() == nullptr && dragging_) {
+        static_cast<void>(ReleasePointer(pointerId_));
+        dragging_ = false;
     }
-}
-
-void Slider::EnsureCommands() noexcept {
-    if (decreaseSmallCommand_.IsValid()) return;
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input == nullptr) return;
-    auto addCmd = [this, input](Base::StringView name, void (Slider::*method)(Base::Object*, ExecutedRoutedEventArgs&) noexcept, Input::CommandBindingHandle& out) noexcept {
-        auto cmd = Input::RoutedCommand::ResolveStatic(StaticTypeId(), name);
-        if (cmd) {
-            const ExecutedRoutedEventHandler handler(this, method);
-            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
-            if (added) out = added.Value();
-        }
-    };
-    addCmd("DecreaseSmall", &Slider::OnDecreaseSmallCommand, decreaseSmallCommand_);
-    addCmd("IncreaseSmall", &Slider::OnIncreaseSmallCommand, increaseSmallCommand_);
-    addCmd("DecreaseLarge", &Slider::OnDecreaseLargeCommand, decreaseLargeCommand_);
-    addCmd("IncreaseLarge", &Slider::OnIncreaseLargeCommand, increaseLargeCommand_);
-}
-
-void Slider::UnregisterCommands() noexcept {
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input != nullptr) {
-        if (decreaseSmallCommand_.IsValid()) input->RemoveCommandBinding(decreaseSmallCommand_);
-        if (increaseSmallCommand_.IsValid()) input->RemoveCommandBinding(increaseSmallCommand_);
-        if (decreaseLargeCommand_.IsValid()) input->RemoveCommandBinding(decreaseLargeCommand_);
-        if (increaseLargeCommand_.IsValid()) input->RemoveCommandBinding(increaseLargeCommand_);
-    }
-    decreaseSmallCommand_ = {};
-    increaseSmallCommand_ = {};
-    decreaseLargeCommand_ = {};
-    increaseLargeCommand_ = {};
 }
 
 
@@ -1107,38 +1022,59 @@ void Slider::OnKeyDown(KeyEventArgs& args) {
     }
 }
 
-void Slider::OnDecreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(DecreaseSmall());
-    args.SetHandled(true);
+void Slider::OnDecreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* slider = static_cast<Slider*>(sender)) {
+        static_cast<void>(slider->DecreaseSmall());
+        args.SetHandled(true);
+    }
 }
-void Slider::OnIncreaseSmallCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(IncreaseSmall());
-    args.SetHandled(true);
+void Slider::OnIncreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* slider = static_cast<Slider*>(sender)) {
+        static_cast<void>(slider->IncreaseSmall());
+        args.SetHandled(true);
+    }
 }
-void Slider::OnDecreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(DecreaseLarge());
-    args.SetHandled(true);
+void Slider::OnDecreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* slider = static_cast<Slider*>(sender)) {
+        static_cast<void>(slider->DecreaseLarge());
+        args.SetHandled(true);
+    }
 }
-void Slider::OnIncreaseLargeCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(IncreaseLarge());
-    args.SetHandled(true);
+void Slider::OnIncreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* slider = static_cast<Slider*>(sender)) {
+        static_cast<void>(slider->IncreaseLarge());
+        args.SetHandled(true);
+    }
 }
 
-Size Slider::MeasureOverride(Size availableSize) noexcept {
-    Size desired = Control::MeasureOverride(availableSize);
-    // BlendTutorial ColorSelector / Position sliders omit Height. An empty
-    // default template Grid measures 0x0, which collapses Grid Height="*"
-    // rows inside a StackPanel. Keep a theme-like minimum.
-    constexpr float kMinThickness = 18.0f;
-    constexpr float kMinLength = 32.0f;
-    if (GetOrientation() == Orientation::Horizontal) {
-        desired.height = std::max(desired.height, kMinThickness);
-        desired.width = std::max(desired.width, kMinLength);
-    } else {
-        desired.width = std::max(desired.width, kMinThickness);
-        desired.height = std::max(desired.height, kMinLength);
+void Slider::UpdateParsedTicks(Base::StringView text) noexcept {
+    parsedTicks_.Clear();
+    std::uint32_t start = 0U;
+    while (start < text.SizeBytes() && parsedTicks_.Size() < 1024U) {
+        while (start < text.SizeBytes() &&
+            (text[start] == ' ' ||
+             text[start] == '\t' ||
+             text[start] == ',' ||
+             text[start] == ';')) {
+            ++start;
+        }
+        if (start >= text.SizeBytes()) break;
+        std::uint32_t end = start;
+        while (end < text.SizeBytes() &&
+            text[end] != ' ' &&
+            text[end] != '\t' &&
+            text[end] != ',' &&
+            text[end] != ';') {
+            ++end;
+        }
+        Base::Result<double> parsed =
+            ::Aero::Base::ValueConversion::ParseDouble(
+                text.Substr(start, end - start));
+        if (parsed && std::isfinite(parsed.Value())) {
+            parsedTicks_.PushBack(parsed.Value());
+        }
+        start = end;
     }
-    return desired;
 }
 
 bool Slider::ValidateValueCore(
@@ -1184,7 +1120,11 @@ bool Slider::ValidateValueCore(
 void Slider::OnPropertyChanged(
     const DependencyPropertyChangedEventArgs& args) noexcept {
     RangeBase::OnPropertyChanged(args);
-    if (args.GetProperty() == OrientationProperty ||
+    if (args.GetProperty() == TicksProperty) {
+        UpdateParsedTicks(args.GetNewValue().Kind() == Meta::ValueKind::String
+            ? args.GetNewValue().AsString()
+            : Base::StringView{});
+    } else if (args.GetProperty() == OrientationProperty ||
         args.GetProperty() == MinimumProperty ||
         args.GetProperty() == MaximumProperty ||
         args.GetProperty() == ValueProperty ||
@@ -1325,45 +1265,23 @@ double Slider::GetSnapValue(double value) const noexcept {
         value, GetMinimum(), GetMaximum());
     if (!GetIsSnapToTickEnabled()) return value;
 
-    const Base::StringView ticks = GetTicks();
+    const Base::Span<const double> ticks = GetTickValues();
     bool found = false;
     double nearest = value;
     double distance =
         std::numeric_limits<double>::infinity();
-    std::uint32_t start = 0U;
-    while (start < ticks.SizeBytes()) {
-        while (start < ticks.SizeBytes() &&
-            (ticks[start] == ' ' ||
-             ticks[start] == '\t' ||
-             ticks[start] == ',' ||
-             ticks[start] == ';')) {
-            ++start;
-        }
-        if (start >= ticks.SizeBytes()) break;
-        std::uint32_t end = start;
-        while (end < ticks.SizeBytes() &&
-            ticks[end] != ' ' &&
-            ticks[end] != '\t' &&
-            ticks[end] != ',' &&
-            ticks[end] != ';') {
-            ++end;
-        }
-        Base::Result<double> parsed =
-            ::Aero::Base::ValueConversion::ParseDouble(
-                ticks.Substr(start, end - start));
-        if (parsed &&
-            parsed.Value() >= GetMinimum() &&
-            parsed.Value() <= GetMaximum()) {
+    for (double tickValue : ticks) {
+        if (tickValue >= GetMinimum() &&
+            tickValue <= GetMaximum()) {
             const double candidateDistance =
-                std::fabs(parsed.Value() - value);
+                std::fabs(tickValue - value);
             if (!found ||
                 candidateDistance < distance) {
                 found = true;
-                nearest = parsed.Value();
+                nearest = tickValue;
                 distance = candidateDistance;
             }
         }
-        start = end;
     }
     if (found) return nearest;
 
@@ -1448,214 +1366,9 @@ void Slider::SetValueFromTrackPoint(
     SetValue(GetSnapValue(value));
 }
 
-double Slider::GetNormalizedValueForLayout() const noexcept {
-    const double range = GetMaximum() - GetMinimum();
-    double normalized = range > 0.0
-        ? std::clamp(
-            (GetValue() - GetMinimum()) / range,
-            0.0, 1.0)
-        : 0.0;
-    const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
-    const bool invert = GetOrientation() == Orientation::Horizontal
-        ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
-        : !GetIsDirectionReversed();
-    if (invert) {
-        normalized = 1.0 - normalized;
-    }
-    return normalized;
-}
-
 Size Slider::ArrangeOverride(
     Size finalSize) noexcept {
     return Control::ArrangeOverride(finalSize);
-}
-
-void Slider::OnRender(
-    ::Aero::Media::DrawingContext& context) noexcept {
-    auto& builder = Aero::Render::DrawingBridge::Builder(context);
-    const TickPlacement placement =
-        GetTickPlacement();
-    const Size size = GetRenderSize();
-    if (size.width <= 0.0 ||
-        size.height <= 0.0) {
-        return;
-    }
-    const bool first =
-        placement == TickPlacement::TopLeft ||
-        placement == TickPlacement::Both;
-    const bool second =
-        placement == TickPlacement::BottomRight ||
-        placement == TickPlacement::Both;
-    const bool horizontal =
-        GetOrientation() ==
-        Orientation::Horizontal;
-    const double primary =
-        horizontal ? size.width : size.height;
-    constexpr double thumbLength = 14.0;
-    const double startPixel =
-        std::min(primary * 0.5, thumbLength * 0.5);
-    const double travel =
-        std::max(0.0,
-            primary - thumbLength);
-    const Color color = ::Aero::Media::SampleBrush(GetForeground());
-    if ((*this).RenderChildren().Empty()) {
-        Color trackColor = color;
-        trackColor.alpha *= 0.35F;
-        const double normalized =
-            GetNormalizedValueForLayout();
-        if (horizontal) {
-            builder.FillRoundedRect(
-                {
-                    startPixel,
-                    std::max(0.0f,
-                        (size.height - 4.0f) * 0.5f),
-                    travel,
-                    std::min(4.0f, size.height)},
-                trackColor,
-                2.0);
-            builder.FillRoundedRect(
-                {
-                    std::clamp(normalized, 0.0, 1.0) *
-                        travel,
-                    std::max(0.0f,
-                        static_cast<float>((size.height -
-                            thumbLength) * 0.5)),
-                    std::min(static_cast<float>(thumbLength), size.width),
-                    std::min(static_cast<float>(thumbLength), size.height)},
-                color,
-                thumbLength * 0.5);
-        } else {
-            builder.FillRoundedRect(
-                {
-                    std::max(0.0f,
-                        (size.width - 4.0f) * 0.5f),
-                    startPixel,
-                    std::min(4.0f, size.width),
-                    travel},
-                trackColor,
-                2.0);
-            builder.FillRoundedRect(
-                {
-                    std::max(0.0f,
-                        static_cast<float>((size.width -
-                            thumbLength) * 0.5)),
-                    std::clamp(normalized, 0.0, 1.0) *
-                        travel,
-                    std::min(static_cast<float>(thumbLength), size.width),
-                    std::min(static_cast<float>(thumbLength), size.height)},
-                color,
-                thumbLength * 0.5);
-        }
-    }
-    if (placement == TickPlacement::None) {
-        return;
-    }
-    // When templated, TickBar parts render ticks (WPF/Noesis parity).
-    // Slider::OnRender fallback would double-draw in accent Foreground
-    // over TickBar's thin Background ticks.
-    if (!(*this).RenderChildren().Empty()) {
-        return;
-    }
-    auto drawTick = [&](double value)
-        noexcept -> void {
-        if (value < GetMinimum() ||
-            value > GetMaximum()) {
-            return;
-        }
-        const double range =
-            GetMaximum() - GetMinimum();
-        double normalized = range > 0.0
-            ? (value - GetMinimum()) / range
-            : 0.0;
-        const bool isRtl = GetFlowDirection() == FlowDirection::RightToLeft;
-        const bool invert = horizontal
-            ? (isRtl ? !GetIsDirectionReversed() : GetIsDirectionReversed())
-            : !GetIsDirectionReversed();
-        if (invert) {
-            normalized = 1.0 - normalized;
-        }
-        const double pixel =
-            startPixel +
-            std::clamp(normalized, 0.0, 1.0) *
-                travel;
-        const float fPixel = static_cast<float>(pixel);
-        if (horizontal) {
-            const float center =
-                size.height * 0.5f;
-            if (first) {
-                builder.FillRect(
-                    {fPixel, std::max(0.0f, center - 9.0f),
-                     1.0f, std::min(5.0f, size.height)},
-                    color);
-            }
-            if (second) {
-                builder.FillRect(
-                    {fPixel, std::min(size.height, center + 4.0f),
-                     1.0f, std::min(5.0f, size.height)},
-                    color);
-            }
-        } else {
-            const float center =
-                size.width * 0.5f;
-            if (first) {
-                builder.FillRect(
-                    {std::max(0.0f, center - 9.0f), fPixel,
-                     std::min(5.0f, size.width), 1.0f},
-                    color);
-            }
-            if (second) {
-                builder.FillRect(
-                    {std::min(size.width, center + 4.0f), fPixel,
-                     std::min(5.0f, size.width), 1.0f},
-                    color);
-            }
-        }
-    };
-
-    const Base::StringView ticks = GetTicks();
-    if (!ticks.Empty()) {
-        std::uint32_t start = 0U;
-        std::uint32_t count = 0U;
-        while (start < ticks.SizeBytes() &&
-            count < 1024U) {
-            while (start < ticks.SizeBytes() &&
-                (ticks[start] == ' ' ||
-                 ticks[start] == '\t' ||
-                 ticks[start] == ',' ||
-                 ticks[start] == ';')) {
-                ++start;
-            }
-            if (start >= ticks.SizeBytes()) break;
-            std::uint32_t end = start;
-            while (end < ticks.SizeBytes() &&
-                ticks[end] != ' ' &&
-                ticks[end] != '\t' &&
-                ticks[end] != ',' &&
-                ticks[end] != ';') {
-                ++end;
-            }
-            Base::Result<double> parsed =
-                ::Aero::Base::ValueConversion::ParseDouble(
-                    ticks.Substr(start, end - start));
-            if (parsed) {
-                drawTick(parsed.Value());
-            }
-            start = end;
-            ++count;
-        }
-        return;
-    }
-
-    const double frequency = GetTickFrequency();
-    std::uint32_t count = 0U;
-    for (double value = GetMinimum();
-         value <= GetMaximum() +
-            frequency * 0.000001 &&
-         count < 1024U;
-         value += frequency, ++count) {
-        drawTick(std::min(value, GetMaximum()));
-    }
-    return;
 }
 
 Base::Ref<Media::Brush> TickBar::GetFill() const noexcept {
@@ -1750,31 +1463,10 @@ void TickBar::OnRender(
             1.0f}, color);
     };
 
-    const Base::StringView ticks = slider.GetTicks();
+    const Base::Span<const double> ticks = slider.GetTickValues();
     if (!ticks.Empty()) {
-        std::uint32_t begin = 0U;
-        std::uint32_t count = 0U;
-        while (begin < ticks.SizeBytes() && count < 1024U) {
-            while (begin < ticks.SizeBytes() &&
-                (ticks[begin] == ' ' || ticks[begin] == '\t' ||
-                 ticks[begin] == ',' || ticks[begin] == ';')) {
-                ++begin;
-            }
-            if (begin >= ticks.SizeBytes()) break;
-            std::uint32_t end = begin;
-            while (end < ticks.SizeBytes() &&
-                ticks[end] != ' ' && ticks[end] != '\t' &&
-                ticks[end] != ',' && ticks[end] != ';') {
-                ++end;
-            }
-            Base::Result<double> parsed =
-                ::Aero::Base::ValueConversion::ParseDouble(
-                    ticks.Substr(begin, end - begin));
-            if (parsed) {
-                drawTick(parsed.Value());
-            }
-            begin = end;
-            ++count;
+        for (double tickValue : ticks) {
+            drawTick(tickValue);
         }
         return;
     }
@@ -1821,16 +1513,8 @@ double ProgressBar::GetNormalizedValue() const noexcept {
 
 void ProgressBar::OnApplyTemplate() noexcept {
     RangeBase::OnApplyTemplate();
-    DependencyObject* trackPart = GetTemplateChild(Base::StringView("PART_Track"));
-    if (trackPart == nullptr) {
-        trackPart = GetTemplateChild(Base::StringView("TrackChrome"));
-    }
-    track_ = ::Aero::TryCast<FrameworkElement>(trackPart);
-    DependencyObject* indicatorPart = GetTemplateChild(Base::StringView("PART_Indicator"));
-    if (indicatorPart == nullptr) {
-        indicatorPart = GetTemplateChild(Base::StringView("Indicator"));
-    }
-    indicator_ = ::Aero::TryCast<FrameworkElement>(indicatorPart);
+    track_ = ::Aero::TryCast<FrameworkElement>(GetTemplateChild(Base::StringView("PART_Track")));
+    indicator_ = ::Aero::TryCast<FrameworkElement>(GetTemplateChild(Base::StringView("PART_Indicator")));
     UpdateIndicator(GetRenderSize());
 }
 
@@ -1925,35 +1609,42 @@ AERO_DESCRIBE(ScrollBar) {
     AERO_ON(ScrollBar, &ScrollBar::OnMouseMove, UIElement::MouseMoveEvent);
     AERO_ON(ScrollBar, &ScrollBar::OnKeyDown, UIElement::KeyDownEvent);
 
+    using StaticCommandFn = void (*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
+    struct CommandEntry {
+        Base::StringView primary;
+        Base::StringView alias;
+        StaticCommandFn fn;
+    };
+    static constexpr CommandEntry kCommands[] = {
+        {"LineUpCommand", "LineUp", &ScrollBar::OnLineUpCommand},
+        {"LineDownCommand", "LineDown", &ScrollBar::OnLineDownCommand},
+        {"LineLeftCommand", "LineLeft", &ScrollBar::OnLineLeftCommand},
+        {"LineRightCommand", "LineRight", &ScrollBar::OnLineRightCommand},
+        {"PageUpCommand", "PageUp", &ScrollBar::OnPageUpCommand},
+        {"PageDownCommand", "PageDown", &ScrollBar::OnPageDownCommand},
+        {"PageLeftCommand", "PageLeft", &ScrollBar::OnPageLeftCommand},
+        {"PageRightCommand", "PageRight", &ScrollBar::OnPageRightCommand},
+        {"ScrollToTopCommand", "ScrollToTop", &ScrollBar::OnScrollToTopCommand},
+        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollBar::OnScrollToBottomCommand},
+        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollBar::OnScrollToLeftEndCommand},
+        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollBar::OnScrollToRightEndCommand},
+        {"ScrollToHorizontalOffsetCommand", "ScrollToHorizontalOffset", &ScrollBar::OnScrollToHorizontalOffsetCommand},
+        {"ScrollToVerticalOffsetCommand", "ScrollToVerticalOffset", &ScrollBar::OnScrollToVerticalOffsetCommand},
+    };
+    auto addClassCmd = [](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
+        Input::RoutedCommand::RegisterStatic(ScrollBar::StaticTypeId(), name);
+        if (auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name)) {
+            Input::CommandBinding::RegisterClassBinding(
+                ScrollBar::StaticTypeId(),
+                Input::CommandBinding(std::move(cmd), handler));
+        }
+    };
+    for (const CommandEntry& entry : kCommands) {
+        const ExecutedRoutedEventHandler handler(entry.fn);
+        addClassCmd(entry.primary, handler);
+        addClassCmd(entry.alias, handler);
+    }
     for (Base::StringView commandName : {
-             Base::StringView("LineUpCommand"),
-             Base::StringView("LineUp"),
-             Base::StringView("LineDownCommand"),
-             Base::StringView("LineDown"),
-             Base::StringView("LineLeftCommand"),
-             Base::StringView("LineLeft"),
-             Base::StringView("LineRightCommand"),
-             Base::StringView("LineRight"),
-             Base::StringView("PageUpCommand"),
-             Base::StringView("PageUp"),
-             Base::StringView("PageDownCommand"),
-             Base::StringView("PageDown"),
-             Base::StringView("PageLeftCommand"),
-             Base::StringView("PageLeft"),
-             Base::StringView("PageRightCommand"),
-             Base::StringView("PageRight"),
-             Base::StringView("ScrollToTopCommand"),
-             Base::StringView("ScrollToTop"),
-             Base::StringView("ScrollToBottomCommand"),
-             Base::StringView("ScrollToBottom"),
-             Base::StringView("ScrollToLeftEndCommand"),
-             Base::StringView("ScrollToLeftEnd"),
-             Base::StringView("ScrollToRightEndCommand"),
-             Base::StringView("ScrollToRightEnd"),
-             Base::StringView("ScrollToHorizontalOffsetCommand"),
-             Base::StringView("ScrollToHorizontalOffset"),
-             Base::StringView("ScrollToVerticalOffsetCommand"),
-             Base::StringView("ScrollToVerticalOffset"),
              Base::StringView("DeferScrollToHorizontalOffsetCommand"),
              Base::StringView("DeferScrollToHorizontalOffset"),
              Base::StringView("DeferScrollToVerticalOffsetCommand"),
@@ -1967,13 +1658,24 @@ AERO_DESCRIBE(ScrollBar) {
 
 AERO_DESCRIBE(Slider) {
     using namespace Aero::Meta;
-    for (Base::StringView commandName : {
-             Base::StringView("DecreaseSmall"),
-             Base::StringView("IncreaseSmall"),
-             Base::StringView("DecreaseLarge"),
-             Base::StringView("IncreaseLarge")}) {
-        (void)Input::RoutedCommand::RegisterStatic(
-            Slider::StaticTypeId(), commandName);
+    using StaticCommandFn = void (*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
+    struct SliderCommandEntry {
+        Base::StringView name;
+        StaticCommandFn fn;
+    };
+    static constexpr SliderCommandEntry kSliderCommands[] = {
+        {"DecreaseSmall", &Slider::OnDecreaseSmallCommand},
+        {"IncreaseSmall", &Slider::OnIncreaseSmallCommand},
+        {"DecreaseLarge", &Slider::OnDecreaseLargeCommand},
+        {"IncreaseLarge", &Slider::OnIncreaseLargeCommand},
+    };
+    for (const SliderCommandEntry& entry : kSliderCommands) {
+        Input::RoutedCommand::RegisterStatic(Slider::StaticTypeId(), entry.name);
+        if (auto cmd = Input::RoutedCommand::ResolveStatic(Slider::StaticTypeId(), entry.name)) {
+            Input::CommandBinding::RegisterClassBinding(
+                Slider::StaticTypeId(),
+                Input::CommandBinding(std::move(cmd), ExecutedRoutedEventHandler(entry.fn)));
+        }
     }
 
     Register<Slider>(context)

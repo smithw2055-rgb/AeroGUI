@@ -55,8 +55,10 @@ Base::Result<RoutedEventHandle> RoutedEventTable::Register(
     if (!member) return member.GetStatus();
 
     definition.handle.value = member.Value();
+    const std::uint32_t index = definitions_.Size();
     definitions_.PushBack(std::move(definition));
-    return definitions_[definitions_.Size() - 1U].handle;
+    index_.Set(definitions_[index].handle.value, index);
+    return definitions_[index].handle;
 }
 
 Base::Result<void> RoutedEventTable::Freeze() noexcept {
@@ -71,8 +73,11 @@ Base::Result<void> RoutedEventTable::Freeze() noexcept {
 
 const RoutedEventTable::Definition* RoutedEventTable::Find(
     RoutedEventHandle event) const noexcept {
-    for (const Definition& definition : definitions_) {
-        if (definition.handle == event) return &definition;
+    if (!event.IsValid()) return nullptr;
+    if (const std::uint32_t* index = index_.Find(event.value)) {
+        if (*index < definitions_.Size()) {
+            return &definitions_[*index];
+        }
     }
     return nullptr;
 }

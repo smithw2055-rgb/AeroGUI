@@ -174,6 +174,7 @@ struct CompiledPathCache {
     static constexpr std::uint32_t Capacity = 1024U;
     Base::HashMap<CompiledPathKey, CompiledBindingPath, CompiledPathKeyHash>
         plans;
+    Base::HashMap<Base::String, CompiledBindingPath> precompiledTokens;
 };
 
 CompiledPathCache& PathPlanCache() noexcept {
@@ -183,11 +184,33 @@ CompiledPathCache& PathPlanCache() noexcept {
 
 } // namespace
 
+void CompiledBindingPath::RegisterPrecompiled(
+    Base::StringView path,
+    const CompiledBindingPath& precompiled) noexcept {
+    path = Base::ValueConversion::Trim(path);
+    if (path.Empty() || !precompiled.IsTokenized()) {
+        return;
+    }
+    CompiledPathCache& cache = PathPlanCache();
+    Base::String key;
+    if (!key.Assign(path)) {
+        return;
+    }
+    if (cache.precompiledTokens.Find(key) != nullptr) {
+        return;
+    }
+    if (cache.precompiledTokens.Size() >= CompiledPathCache::Capacity) {
+        cache.precompiledTokens.Clear();
+    }
+    static_cast<void>(cache.precompiledTokens.Insert(std::move(key), precompiled));
+}
+
 Base::Result<const CompiledBindingPath*> CompiledBindingPath::FindOrCompile(
     const Meta::Registry& runtime,
     Meta::TypeId rootType,
     Base::StringView path,
-    Meta::BindingPathCompileError* error) noexcept {
+    Meta::BindingPathCompileError* error,
+    const CompiledBindingPath* precompiledTokens) noexcept {
     ResetCompiledPathError(error);
     path = Base::ValueConversion::Trim(path);
     if (!runtime.IsReady() || rootType == Meta::InvalidTypeId || path.Empty()) {
@@ -231,6 +254,12 @@ Base::Result<const CompiledBindingPath*> CompiledBindingPath::FindOrCompile(
     }
 
     CompiledBindingPath plan;
+    if (precompiledTokens != nullptr && precompiledTokens->IsTokenized()) {
+        plan = *precompiledTokens;
+    } else if (const CompiledBindingPath* preTokenized =
+                   cache.precompiledTokens.Find(cacheKey.path)) {
+        plan = *preTokenized;
+    }
     Base::Result<void> bound = plan.BindToRoot(runtime, rootType, path, error);
     if (!bound) {
         return bound.GetStatus();
@@ -315,11 +344,15 @@ void CompiledBindingPath::PopulateStepCache(
         step.accessorWritable);
     step.dependencyProperty = runtime.DependencyProperties().Find(
         Meta::DependencyPropertyHandle{property->Id()});
+    const bool ownerIsDo = runtime.Types().IsAssignableFrom(
+        Meta::TypeOf<DependencyObject>(),
+        stepOwnerType);
+    if (step.dependencyProperty == nullptr && ownerIsDo) {
+        step.dependencyProperty = runtime.DependencyProperties().Find(
+            stepOwnerType, property->Name());
+    }
     step.ownerIsDependencyObject =
-        step.dependencyProperty != nullptr &&
-        runtime.Types().IsAssignableFrom(
-            Meta::TypeOf<DependencyObject>(),
-            stepOwnerType);
+        step.dependencyProperty != nullptr && ownerIsDo;
     const Meta::TypeInfo* outInfo =
         runtime.Types().FindType(property->ValueType());
     step.outputIsEnum =

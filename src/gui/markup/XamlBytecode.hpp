@@ -12,6 +12,7 @@
 #include <Aero/Controls/Control.hpp>
 #include <Aero/Resources.hpp>
 #include <Aero/Events.hpp>
+#include "gui/data/BindingPath.hpp"
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/templates/TemplateProgram.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
@@ -239,11 +240,15 @@ struct XamlBytecodeProgram {
     Base::Vector<Base::Ref<Base::Object>> objectRefs;
     Base::Vector<Base::Ref<Base::Object>> subPrograms;
 
+    // Precompiled BindingPaths & VisualStateGroupPlans persisted in AXB3.
+    Base::Vector<Base::String> bindingPathStrings;
+    Base::Vector<Data::CompiledBindingPath> bindingPaths;
+    Base::Vector<Controls::VisualStateGroupPlan> visualStateGroups;
+
     // Associated template plans (triggers, bindings, states)
     Base::Vector<CompiledTriggerPlan> dataTemplateTriggers;
     Base::Vector<CompiledTriggerPlan> controlTemplateDataTriggers;
     Base::Vector<Base::Ref<Media::Animation::EventTrigger>> controlTemplateEventTriggers;
-    Base::Vector<Base::Ref<Base::Object>> vsmPrograms;
     std::uint32_t contentPresenterSlot = UINT32_MAX;
     Base::Vector<Base::String> slotNames;
     Base::Vector<Meta::TypeId> slotTypes;
@@ -370,5 +375,16 @@ public:
 Base::Result<const XamlBytecodeProgram*> EnsureDocumentBytecode(
     const CompiledDocument& document,
     const Schema& schema) noexcept;
+
+Base::Result<void> SerializeBytecodeProgram(
+    const XamlBytecodeProgram& program,
+    Base::Vector<std::uint8_t>& output) noexcept;
+
+Base::Result<void> DeserializeBytecodeProgram(
+    Decoder& decoder,
+    const ::Aero::Meta::Registry& domain,
+    const CompiledDocumentLimits& limits,
+    std::uint32_t& totalStringBytes,
+    XamlBytecodeProgram& outProgram) noexcept;
 
 } // namespace Aero::Markup

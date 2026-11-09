@@ -737,27 +737,6 @@ public:
     }
 };
 
-// AeroGUI's application samples expose Loc both as a markup extension and as
-// an attached Source property.  The token deliberately lives in the normal
-// schema so the legacy AeroGUIExtensions namespace resolves to the same type
-// as other compatibility extensions.
-class LocExtensionToken
-    : public Base::Object {
-    AERO_DECLARE_TYPE_NAMED(
-        LocExtensionToken,
-        Base::Object,
-        "urn:aero",
-        "Loc")
-public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return StaticTypeId();
-    }
-
-    inline static constexpr Meta::AttachedPropertyRef<
-        LocExtensionToken, Base::ResourceUri>
-        SourceProperty{"Source"};
-};
-
 } // namespace
 
 Base::Result<void> PopulateMarkupMetadata(
@@ -801,6 +780,9 @@ Base::Result<void> PopulateMarkupMetadata(
         LocExtensionToken::SourceProperty,
         FrameworkPropertyMetadata(Base::ResourceUri{}, Inherits).Changed(
             &LocExtension::OnSourceChanged));
+    loc.Property(
+        LocExtensionToken::ResourcesProperty,
+        FrameworkPropertyMetadata(Base::Ref<Aero::ResourceDictionary>{}, Inherits));
     status = loc.Result();
     if (!status) return status.GetStatus();
     status = Meta::Register<StaticResourceObject>(context)

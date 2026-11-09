@@ -34,6 +34,7 @@ struct DependencyPropertyHandle {
 };
 
 constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(TypeId ownerType, StringView name) noexcept;
+AERO_GUI_API DependencyPropertyHandle ResolveDependencyPropertyHandle(DependencyPropertyHandle handle) noexcept;
 
 template<class TOwner, class TValue> class DependencyPropertyRef {
 public:
@@ -45,7 +46,8 @@ public:
 
     constexpr StringView Name() const noexcept { return name_; }
     constexpr DependencyPropertyHandle Handle() const noexcept { return handle_; }
-    constexpr operator DependencyPropertyHandle() const noexcept { return handle_; }
+    DependencyPropertyHandle ResolvedHandle() const noexcept { return ResolveDependencyPropertyHandle(handle_); }
+    operator DependencyPropertyHandle() const noexcept { return ResolveDependencyPropertyHandle(handle_); }
     constexpr MemberId Id() const noexcept { return handle_.value; }
 
     template<class TNewOwner> constexpr DependencyPropertyRef<TNewOwner, TValue> AddOwner() const noexcept {
@@ -72,6 +74,7 @@ public:
 
     constexpr StringView Name() const noexcept { return name_; }
     constexpr DependencyPropertyHandle Handle() const noexcept { return handle_; }
+    DependencyPropertyHandle ResolvedHandle() const noexcept { return ResolveDependencyPropertyHandle(handle_); }
     constexpr MemberId Id() const noexcept { return handle_.value; }
 
 private:
@@ -206,6 +209,7 @@ using PropertyChangedCallback = Base::Delegate<void(DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args)>;
 using DependencyPropertyChangedEventHandler = Base::Delegate<void(DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args)>;
+using ComputedPropertyReadCallback = PropertyValue (*)(const DependencyObject& object) noexcept;
 
 struct PropertyMetadata {
     PropertyValue defaultValue;
@@ -213,6 +217,7 @@ struct PropertyMetadata {
     UpdateSourceTrigger defaultUpdateSourceTrigger = UpdateSourceTrigger::Default;
     ValidateValueCallback validate = nullptr;
     PropertyChangedCallback changed = nullptr;
+    ComputedPropertyReadCallback computedReader = nullptr;
 };
 
 template<class TValue> class FrameworkPropertyMetadata;
@@ -267,6 +272,8 @@ public:
     std::uint32_t MetadataCount() const noexcept { return metadata_.Size(); }
     std::uint8_t InheritanceIndex() const noexcept { return inheritanceIndex_; }
     std::uint16_t GlobalIndex() const noexcept { return globalIndex_; }
+    bool HasDerivedDefaultOverride() const noexcept { return hasDerivedDefaultOverride_; }
+    ComputedPropertyReadCallback ComputedReader() const noexcept { return computedReader_; }
 
     // Metadata addresses become stable when the owning registry is frozen.
     const PropertyMetadata* MetadataFor(TypeId forType) const noexcept;
@@ -303,10 +310,12 @@ private:
     TypeId registeredOwnerType_ = InvalidTypeId;
     DependencyPropertyFlags flags_ = DependencyPropertyFlags::None;
     std::uint8_t inheritanceIndex_ = 0xFFU;
+    bool hasDerivedDefaultOverride_ = false;
     std::uint16_t globalIndex_ = 0xFFFFU;
     std::uint16_t ownerTreeIn_ = 0U;
     std::uint16_t ownerTreeOut_ = 0U;
     std::uint64_t readOnlySecret_ = 0U;
+    ComputedPropertyReadCallback computedReader_ = nullptr;
 
     struct MetadataCacheEntry {
         TypeId forType = InvalidTypeId;

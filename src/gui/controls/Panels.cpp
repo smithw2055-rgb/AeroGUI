@@ -729,9 +729,8 @@ void Panel::AddChildCore(const Base::Ref<Base::Object>& childObject, UIElement& 
     ownedChildren_.PushBack(childObject);
     if (child.GetVisualParent() != this) {
         if (ElementTree* tree = VisualTree(this)) {
-            // XAML Panel content uses AddChildCore, not UIElementCollection::Add.
-            // A live-tree Grid (LoadComponent ColorSelector) must still parent
-            // children visually or star rows measure 0 and ColorRect stays 0x0.
+            // XAML Panel content uses AddChildCore; attach to the live tree
+            // immediately when the Panel is already mounted.
             if (VisualTree(child) == nullptr &&
                 child.GetLogicalParent() == nullptr) {
                 Base::Result<ElementAttachment> attached =

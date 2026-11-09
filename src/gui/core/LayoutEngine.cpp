@@ -118,34 +118,6 @@ bool IsValidLayoutSize(Size value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
 
-UIElement* FindInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
-    UIElement* element = ::Aero::TryCast<::Aero::UIElement>(&(visual));
-    if (element != nullptr &&
-        element->GetVisibility() == Visibility::Collapsed) {
-        return nullptr;
-    }
-    if (element != nullptr &&
-        element->GetIsVisible() &&
-        (!element->GetIsMeasureValid() ||
-         !element->GetIsArrangeValid())) {
-        return element;
-    }
-    const std::uint32_t childCount =
-        ::Aero::Media::VisualTreeHelper::GetChildrenCount(visual);
-    for (std::uint32_t index = 0U; index < childCount; ++index) {
-        ::Aero::Media::Visual* child = ::Aero::Media::VisualTreeHelper::GetChild(visual, index);
-        if (child != nullptr) {
-            UIElement* invalid = FindInvalidVisibleLayout(*child);
-            if (invalid != nullptr) return invalid;
-        }
-    }
-    return nullptr;
-}
-
-bool HasInvalidVisibleLayout(::Aero::Media::Visual& visual) noexcept {
-    return FindInvalidVisibleLayout(visual) != nullptr;
-}
-
 bool IsValidLayoutRect(Rect value) noexcept {
     return IsFinite(value) && value.width >= 0.0 && value.height >= 0.0;
 }
@@ -226,11 +198,12 @@ Base::Result<void> LayoutEngine::Attach(
         if (child.LayoutParent() == &parent) {
             return {};
         }
-        // LoadComponent / UserControl content can reparent a Grid that was
-        // first joined under the Window (or left layoutAttached with a stale
-        // parent). Fail-closed blocked ColorSelector from hosting LayoutRoot.
+        // Allow reparenting a layout child that was previously attached to a
+        // different layout parent (e.g. during template or content hosting).
         UIElement* oldParent = child.LayoutParent();
         child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+        child.Layout().neverMeasured = true;
+        child.Layout().neverArranged = true;
         child.Layout().InvalidateMeasureFlags();
         if (oldParent != nullptr && oldParent != &parent) {
             InvalidateMeasure(*oldParent);
@@ -244,6 +217,8 @@ Base::Result<void> LayoutEngine::Attach(
     InvalidateMeasure(parent);
 
     child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, true);
+    child.Layout().neverMeasured = true;
+    child.Layout().neverArranged = true;
     child.Layout().InvalidateMeasureFlags();
     return {};
 }
@@ -268,6 +243,8 @@ Base::Result<void> LayoutEngine::Detach(
 
     RemoveQueued(child);
     child.Layout().SetFlag(UIElement::LayoutFlags::LayoutAttached, false);
+    child.Layout().neverMeasured = true;
+    child.Layout().neverArranged = true;
     child.Layout().InvalidateMeasureFlags();
     return {};
 }
@@ -349,6 +326,9 @@ void LayoutEngine::RemoveQueued(UIElement& element) noexcept {
 void LayoutEngine::PropagateInvalidation(
     UIElement& element,
     bool invalidateMeasure) noexcept {
+    if (!invalidateMeasure && element.GetIsArranging()) {
+        return;
+    }
     Base::Vector<VisualHandle>& targetQueue =
         invalidateMeasure ? measureQueue_ : arrangeQueue_;
     const UIElement::LayoutFlags queuedFlag =
@@ -361,16 +341,21 @@ void LayoutEngine::PropagateInvalidation(
         Base::Result<void> verified = VerifyElement(*current);
         if (!verified) { AERO_ASSERT(false); return; }
 
+        if (invalidateMeasure && current->GetIsMeasuring()) {
+            break;
+        }
+
         const bool wasValid = invalidateMeasure
             ? current->GetIsMeasureValid()
             : current->GetIsArrangeValid();
+        const bool wasQueued = current->Layout().HasFlag(queuedFlag);
         if (invalidateMeasure) {
             current->Layout().InvalidateMeasureFlags();
         } else {
             current->Layout().InvalidateArrangeFlags();
         }
 
-        if (!current->Layout().HasFlag(queuedFlag)) {
+        if (!wasQueued) {
             const VisualHandle handle = ElementTree::HandleOf(*current);
             if (handle.IsValid()) {
                 targetQueue.PushBack(handle);
@@ -378,9 +363,9 @@ void LayoutEngine::PropagateInvalidation(
             }
         }
 
-        // Once an ancestor is already invalid, all of its ancestors up to the root
-        // have already been invalidated and queued.
-        if (current != &element && !wasValid) {
+        // Once an ancestor is already invalid and queued, all of its ancestors
+        // up to the dirty root have already been invalidated and queued.
+        if (current != &element && !wasValid && wasQueued) {
             break;
         }
 
@@ -413,6 +398,9 @@ void UIElement::MeasureCore(
         return;
     }
 
+    const bool hadPreviousMeasure = !element.GetNeverMeasured();
+    const Size previousDesired = element.GetDesiredSize();
+
     VisualHandle pendingArrange{};
     bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
@@ -429,6 +417,8 @@ void UIElement::MeasureCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().previousMeasureConstraint = constraint;
         element.Layout().desiredSize = {};
+        element.Layout().neverMeasured = true;
+        element.Layout().neverArranged = true;
         if (element.rare_ != nullptr) {
             element.rare_->hasCustomUntransformedDesiredSize = false;
         }
@@ -440,6 +430,13 @@ void UIElement::MeasureCore(
         if (queueArrange) {
             layout.arrangeQueue_.PushBack(pendingArrange);
             element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+        }
+        if (hadPreviousMeasure && !SameSize(previousDesired, Size{})) {
+            if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+                if (!parent->GetIsMeasuring()) {
+                    layout.InvalidateMeasure(*parent);
+                }
+            }
         }
         return;
     }
@@ -459,6 +456,7 @@ void UIElement::MeasureCore(
     }
     element.Layout().previousMeasureConstraint = constraint;
     element.Layout().desiredSize = desired;
+    element.Layout().neverMeasured = false;
     element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
     element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
     element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
@@ -467,6 +465,19 @@ void UIElement::MeasureCore(
     if (queueArrange) {
         layout.arrangeQueue_.PushBack(pendingArrange);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+    }
+    if (hadPreviousMeasure && !SameSize(previousDesired, desired)) {
+        if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+            if (!parent->GetIsMeasuring()) {
+                layout.InvalidateMeasure(*parent);
+            }
+        }
+    } else if (element.GetNeverArranged()) {
+        if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+            if (!parent->GetIsMeasuring() && !parent->GetIsArranging()) {
+                layout.InvalidateArrange(*parent);
+            }
+        }
     }
 }
 
@@ -485,9 +496,19 @@ void UIElement::ArrangeCore(
         AERO_ASSERT(false && "Recursive layout operation is not allowed");
         return;
     }
+    const Rect rawSlot = slot;
+    if (element.GetIsArrangeValid() &&
+        !element.GetNeverArranged() &&
+        element.GetPreviousFinalRect() == rawSlot) {
+        return;
+    }
+    const Rect oldLayoutSlot = element.GetLayoutSlot();
+    const Size oldRenderSize = element.GetRenderSize();
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
+        element.SetPreviousFinalRect(rawSlot);
         element.Layout().renderSize = {};
+        element.Layout().neverArranged = true;
         if (element.rare_ != nullptr) {
             element.rare_->hasCustomLayoutClip = false;
         }
@@ -495,26 +516,46 @@ void UIElement::ArrangeCore(
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
         ++element.Layout().layoutRevision;
         ++layout.arrangedCount_;
+        if (ElementTree::RenderTreeOf(element) != nullptr) {
+            if (!SameSize(oldRenderSize, element.GetRenderSize())) {
+                element.InvalidateRenderDrawing();
+            } else if (oldLayoutSlot != element.GetLayoutSlot()) {
+                element.InvalidateRenderState();
+            }
+        }
         return;
     }
 
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    element.Layout().neverArranged = false;
     element.Layout().SetFlag(LayoutFlags::Arranging, true);
     const Size result = element.ArrangeOverride({slot.width, slot.height});
     element.Layout().SetFlag(LayoutFlags::Arranging, false);
     Size render = result;
     if (!IsValidLayoutSize(render)) {
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
         AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
         return;
     }
     element.Layout().layoutSlot = slot;
+    element.SetPreviousFinalRect(rawSlot);
     element.Layout().renderSize = render;
     if (element.rare_ != nullptr) {
         element.rare_->hasCustomLayoutClip = false;
     }
-    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
-    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    if (!element.GetIsMeasureValid()) {
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+    }
     ++element.Layout().layoutRevision;
     ++layout.arrangedCount_;
+    if (ElementTree::RenderTreeOf(element) != nullptr) {
+        if (!SameSize(oldRenderSize, element.GetRenderSize())) {
+            element.InvalidateRenderDrawing();
+        } else if (oldLayoutSlot != element.GetLayoutSlot()) {
+            element.InvalidateRenderState();
+        }
+    }
 }
 
 void FrameworkElement::MeasureCore(
@@ -533,6 +574,9 @@ void FrameworkElement::MeasureCore(
         return;
     }
 
+    const bool hadPreviousMeasure = !element.GetNeverMeasured();
+    const Size previousDesired = element.GetDesiredSize();
+
     VisualHandle pendingArrange{};
     bool queueArrange = !element.GetIsArrangeQueued();
     if (queueArrange) {
@@ -549,6 +593,8 @@ void FrameworkElement::MeasureCore(
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().previousMeasureConstraint = constraint;
         element.Layout().desiredSize = {};
+        element.Layout().neverMeasured = true;
+        element.Layout().neverArranged = true;
         if (element.rare_ != nullptr) {
             element.rare_->hasCustomUntransformedDesiredSize = false;
         }
@@ -560,6 +606,13 @@ void FrameworkElement::MeasureCore(
         if (queueArrange) {
             layout.arrangeQueue_.PushBack(pendingArrange);
             element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+        }
+        if (hadPreviousMeasure && !SameSize(previousDesired, Size{})) {
+            if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+                if (!parent->GetIsMeasuring()) {
+                    layout.InvalidateMeasure(*parent);
+                }
+            }
         }
         return;
     }
@@ -643,6 +696,7 @@ void FrameworkElement::MeasureCore(
     }
     element.Layout().previousMeasureConstraint = constraint;
     element.Layout().desiredSize = desired;
+    element.Layout().neverMeasured = false;
     element.Layout().SetFlag(LayoutFlags::MeasureValid, true);
     element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
     element.Layout().SetFlag(LayoutFlags::MeasureQueued, false);
@@ -651,6 +705,19 @@ void FrameworkElement::MeasureCore(
     if (queueArrange) {
         layout.arrangeQueue_.PushBack(pendingArrange);
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, true);
+    }
+    if (hadPreviousMeasure && !SameSize(previousDesired, desired)) {
+        if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+            if (!parent->GetIsMeasuring()) {
+                layout.InvalidateMeasure(*parent);
+            }
+        }
+    } else if (element.GetNeverArranged()) {
+        if (UIElement* parent = element.GetIsLayoutAttached() ? element.LayoutParent() : nullptr) {
+            if (!parent->GetIsMeasuring() && !parent->GetIsArranging()) {
+                layout.InvalidateArrange(*parent);
+            }
+        }
     }
 }
 
@@ -669,9 +736,21 @@ void FrameworkElement::ArrangeCore(
         AERO_ASSERT(false && "Recursive layout operation is not allowed");
         return;
     }
+    const Rect rawSlot = slot;
+    if (element.GetIsArrangeValid() &&
+        !element.GetNeverArranged() &&
+        element.GetPreviousFinalRect() == rawSlot) {
+        return;
+    }
+    const Rect oldLayoutSlot = element.GetLayoutSlot();
+    const Size oldRenderSize = element.GetRenderSize();
+    const bool oldHasLayoutClip = element.GetHasLayoutClip();
+    const Rect oldLayoutClip = element.GetLayoutClip();
     if (element.GetVisibility() == Visibility::Collapsed) {
         element.Layout().layoutSlot = {slot.x, slot.y, 0.0f, 0.0f};
+        element.SetPreviousFinalRect(rawSlot);
         element.SetActualSize(0.0f, 0.0f);
+        element.Layout().neverArranged = true;
         if (element.rare_ != nullptr) {
             element.rare_->hasCustomLayoutClip = false;
         }
@@ -679,6 +758,13 @@ void FrameworkElement::ArrangeCore(
         element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
         ++element.Layout().layoutRevision;
         ++layout.arrangedCount_;
+        if (ElementTree::RenderTreeOf(element) != nullptr) {
+            if (!SameSize(oldRenderSize, element.GetRenderSize())) {
+                element.InvalidateRenderDrawing();
+            } else if (oldLayoutSlot != element.GetLayoutSlot()) {
+                element.InvalidateRenderState();
+            }
+        }
         return;
     }
     if (element.GetUseLayoutRounding() || element.GetSnapsToDevicePixels()) {
@@ -789,11 +875,15 @@ void FrameworkElement::ArrangeCore(
         centerVertical,
         vertical == VerticalAlignment::Bottom);
 
+    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
+    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    element.Layout().neverArranged = false;
     element.Layout().SetFlag(LayoutFlags::Arranging, true);
     const Size result = element.ArrangeOverride(finalSize);
     element.Layout().SetFlag(LayoutFlags::Arranging, false);
     Size render = result;
     if (!IsValidLayoutSize(render)) {
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
         AERO_ASSERT(false && "ArrangeOverride returned an invalid size");
         return;
     }
@@ -805,6 +895,7 @@ void FrameworkElement::ArrangeCore(
         render.height = RoundLayoutValue(render.height, dpi);
     }
     element.Layout().layoutSlot = contentSlot;
+    element.SetPreviousFinalRect(rawSlot);
     element.SetActualSize(render.width, render.height);
 
     Size renderedFootprint = render;
@@ -878,10 +969,20 @@ void FrameworkElement::ArrangeCore(
     } else if (element.rare_ != nullptr) {
         element.rare_->hasCustomLayoutClip = false;
     }
-    element.Layout().SetFlag(LayoutFlags::ArrangeValid, true);
-    element.Layout().SetFlag(LayoutFlags::ArrangeQueued, false);
+    if (!element.GetIsMeasureValid()) {
+        element.Layout().SetFlag(LayoutFlags::ArrangeValid, false);
+    }
     ++element.Layout().layoutRevision;
     ++layout.arrangedCount_;
+    if (ElementTree::RenderTreeOf(element) != nullptr) {
+        if (!SameSize(oldRenderSize, element.GetRenderSize())) {
+            element.InvalidateRenderDrawing();
+        } else if (oldLayoutSlot != element.GetLayoutSlot() ||
+                   oldHasLayoutClip != element.GetHasLayoutClip() ||
+                   oldLayoutClip != element.GetLayoutClip()) {
+            element.InvalidateRenderState();
+        }
+    }
 }
 
 
@@ -907,30 +1008,40 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     measuredCount_ = 0U;
     arrangedCount_ = 0U;
 
-    const auto computeDepth = [](const UIElement& node) noexcept -> std::uint32_t {
-        return node.TreeDepth();
-    };
-
     const auto sortWorkQueueByDepth = [&](Base::Vector<VisualHandle>& work) noexcept {
-        if (work.Size() <= 1U) return;
+        const std::uint32_t count = work.Size();
+        if (count <= 1U) return;
+        constexpr std::uint32_t kMaxBucketDepth = 128U;
         struct DepthEntry {
             VisualHandle handle;
-            std::uint32_t depth = 0U;
+            std::uint16_t depth = 0U;
         };
-        Base::BasicVector<DepthEntry, 32U> entries;
-        entries.Reserve(work.Size());
+        Base::BasicVector<DepthEntry, 64U> entries;
+        entries.Reserve(count);
+        std::uint16_t minDepth = UINT16_MAX;
+        std::uint16_t maxDepth = 0U;
         for (const VisualHandle h : work) {
             const UIElement* el = ResolveQueued(h);
-            entries.PushBack({h, el != nullptr ? computeDepth(*el) : 256U});
+            const std::uint16_t d = el != nullptr
+                ? std::min<std::uint16_t>(el->TreeDepth(), kMaxBucketDepth - 1U)
+                : static_cast<std::uint16_t>(kMaxBucketDepth - 1U);
+            minDepth = std::min(minDepth, d);
+            maxDepth = std::max(maxDepth, d);
+            entries.PushBack({h, d});
         }
-        std::stable_sort(
-            entries.begin(),
-            entries.end(),
-            [](const DepthEntry& a, const DepthEntry& b) noexcept {
-                return a.depth < b.depth;
-            });
-        for (std::uint32_t i = 0U; i < entries.Size(); ++i) {
-            work[i] = entries[i].handle;
+        if (minDepth == maxDepth) return;
+        std::uint32_t buckets[kMaxBucketDepth]{};
+        for (std::uint32_t i = 0U; i < count; ++i) {
+            ++buckets[entries[i].depth];
+        }
+        std::uint32_t running = 0U;
+        for (std::uint16_t d = minDepth; d <= maxDepth; ++d) {
+            const std::uint32_t c = buckets[d];
+            buckets[d] = running;
+            running += c;
+        }
+        for (std::uint32_t i = 0U; i < count; ++i) {
+            work[buckets[entries[i].depth]++] = entries[i].handle;
         }
     };
 
@@ -942,10 +1053,10 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
                      rootAvailableSize_.width, rootAvailableSize_.height});
     }
 
-    // WPF/Noesis-style depth-ordered measure-before-arrange loop:
-    // always drain shallowest dirty Measure nodes first; if ArrangeOverride
-    // invalidates any subtree's Measure, loop back to drain measureQueue_
-    // incrementally without invalidating root_.
+    // WPF/Noesis-style depth-bucketed measure-before-arrange loop:
+    // always drain shallowest dirty Measure nodes first; if MeasureCore or
+    // ArrangeOverride invalidates any subtree, loop back to drain queues
+    // incrementally without walking clean subtrees.
     constexpr std::uint32_t MaxQueueWaves = 16U;
     for (std::uint32_t wave = 0U;
          wave < MaxQueueWaves && (!measureQueue_.Empty() || !arrangeQueue_.Empty());
@@ -968,8 +1079,9 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
                 }
                 UIElement* parent = element->GetIsLayoutAttached()
                     ? element->LayoutParent() : nullptr;
-                const Size constraint = parent != nullptr
-                    ? parent->GetRenderSize() : rootAvailableSize_;
+                const Size constraint = !element->GetNeverMeasured()
+                    ? element->GetPreviousAvailableSize()
+                    : (parent != nullptr ? parent->GetRenderSize() : rootAvailableSize_);
                 MeasureElement(*element, constraint);
             }
             measureWorkQueue_.Clear();
@@ -993,8 +1105,10 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
                         {0.0f, 0.0f, rootAvailableSize_.width, rootAvailableSize_.height});
                     continue;
                 }
-                Rect slot = element->GetLayoutSlot();
-                if (slot.width == 0.0f && slot.height == 0.0f) {
+                Rect slot = !element->GetNeverArranged()
+                    ? element->GetPreviousFinalRect()
+                    : element->GetLayoutSlot();
+                if (slot.width == 0.0f && slot.height == 0.0f && element->GetNeverArranged()) {
                     slot.width = element->GetDesiredSize().width;
                     slot.height = element->GetDesiredSize().height;
                 }
@@ -1004,67 +1118,6 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         }
     }
 
-    // Applying a template during ArrangeOverride can attach new visuals and
-    // invalidate the root after the root's first arrange has completed. Drive
-    // those re-entrant invalidations to a stable layout in the same frame so
-    // render commit never observes an invalid visible root.
-    constexpr std::uint32_t MaxConvergencePasses = 8U;
-    std::uint32_t convergencePass = 0U;
-    while (root_ != nullptr &&
-           HasInvalidVisibleLayout(*root_) &&
-           convergencePass < MaxConvergencePasses) {
-        ++convergencePass;
-        root_->Layout().InvalidateMeasureFlags();
-        MeasureElement(*root_, rootAvailableSize_);
-        ArrangeElement(
-            *root_, {0.0f, 0.0f,
-                     rootAvailableSize_.width,
-                     rootAvailableSize_.height});
-    }
-    if (root_ != nullptr && HasInvalidVisibleLayout(*root_)) {
-        flushing_ = false;
-        UIElement* invalid = FindInvalidVisibleLayout(*root_);
-        const TypeInfo* type = invalid != nullptr
-            ? DependencyObjectAccess::PropertyRegistry(invalid).Types().FindType(
-                  invalid->RuntimeType())
-            : nullptr;
-        const Base::StringView typeName = type != nullptr
-            ? type->Name()
-            : Base::StringView("<unknown>");
-        UIElement* layoutParent = invalid != nullptr
-            ? invalid->LayoutParent()
-            : nullptr;
-        const TypeInfo* parentType = layoutParent != nullptr
-            ? DependencyObjectAccess::PropertyRegistry(layoutParent).Types().FindType(
-                  layoutParent->RuntimeType())
-            : nullptr;
-        const Base::StringView parentName = parentType != nullptr
-            ? parentType->Name()
-            : Base::StringView("<none>");
-        thread_local char message[512];
-        std::snprintf(
-            message,
-            sizeof(message),
-            "Layout did not converge for visible '%.*s' %p (measure=%u arrange=%u parent='%.*s' %p, isVisible=%d, vis=%u, layoutAttached=%d, layoutParent=%p, visualParent=%p) after template application",
-            static_cast<int>(typeName.SizeBytes()),
-            typeName.Data(),
-            static_cast<void*>(invalid),
-            invalid != nullptr && invalid->GetIsMeasureValid() ? 1U : 0U,
-            invalid != nullptr && invalid->GetIsArrangeValid() ? 1U : 0U,
-            static_cast<int>(parentName.SizeBytes()),
-            parentName.Data(),
-            static_cast<void*>(layoutParent),
-            invalid != nullptr ? (int)invalid->GetIsVisible() : -1,
-            invalid != nullptr ? static_cast<unsigned>(invalid->GetVisibility()) : 99U,
-            invalid != nullptr ? (int)invalid->GetIsLayoutAttached() : -1,
-            invalid != nullptr ? static_cast<void*>(invalid->LayoutParent()) : nullptr,
-            invalid != nullptr ? static_cast<void*>(invalid->GetVisualParent()) : nullptr);
-        return InvalidState(message);
-    }
-
-    // A converged root has recursively measured and arranged every attached
-    // descendant. Remove stale queue handles created during template
-    // application so the next frame starts from a clean layout state.
     ClearQueuedFlags(measureQueue_, UIElement::LayoutFlags::MeasureQueued);
     ClearQueuedFlags(arrangeQueue_, UIElement::LayoutFlags::ArrangeQueued);
     measureQueue_.Clear();

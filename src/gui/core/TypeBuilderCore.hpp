@@ -311,7 +311,8 @@ private:
         DependencyPropertyFlags propertyFlags,
         ValidateValueCallback validate,
         PropertyChangedCallback changed,
-        UpdateSourceTrigger updateSourceTrigger) noexcept;
+        UpdateSourceTrigger updateSourceTrigger,
+        ComputedPropertyReadCallback computedReader = nullptr) noexcept;
     MetadataAuthoringSession& Override(
         DependencyPropertyHandle property,
         TypeId ownerType,

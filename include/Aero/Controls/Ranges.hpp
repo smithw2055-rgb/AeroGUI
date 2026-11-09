@@ -203,8 +203,6 @@ private:
     Point dragOrigin_{};
     double dragStartValue_ = 0.0;
 
-    Base::Vector<Input::CommandBindingHandle> commandHandles_;
-
     static void OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     static void OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     static void OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
@@ -219,9 +217,6 @@ private:
     static void OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     static void OnScrollToHorizontalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     static void OnScrollToVerticalOffsetCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-
-    void EnsureCommands() noexcept;
-    void UnregisterCommands() noexcept;
 
     void SynchronizeTrack() noexcept;
 };
@@ -276,6 +271,9 @@ public:
     TickPlacement GetTickPlacement() const noexcept;
     double GetTickFrequency() const noexcept;
     StringView GetTicks() const noexcept;
+    Base::Span<const double> GetTickValues() const noexcept {
+        return {parsedTicks_.Data(), parsedTicks_.Size()};
+    }
     bool GetIsSnapToTickEnabled() const noexcept;
     bool GetIsDirectionReversed() const noexcept;
     bool GetIsMoveToPointEnabled() const noexcept;
@@ -310,9 +308,7 @@ protected:
     void OnApplyTemplate() noexcept override;
     void OnTemplateDetached() noexcept override;
     void OnVisualParentChanged(Visual* oldParent) noexcept override;
-    Size MeasureOverride(Size availableSize) noexcept override;
     Size ArrangeOverride(Size finalSize) noexcept override;
-    void OnRender(::Aero::Media::DrawingContext& context) noexcept override;
 
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
     void OnMouseLeftButtonUp(MouseButtonEventArgs& args);
@@ -325,22 +321,16 @@ private:
     Primitives::Track* track_ = nullptr;
     std::uint32_t pointerId_ = 0U;
     bool dragging_ = false;
+    Base::Vector<double> parsedTicks_;
 
-    Input::CommandBindingHandle decreaseSmallCommand_;
-    Input::CommandBindingHandle increaseSmallCommand_;
-    Input::CommandBindingHandle decreaseLargeCommand_;
-    Input::CommandBindingHandle increaseLargeCommand_;
-
-    void OnDecreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnIncreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnDecreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
-    void OnIncreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnDecreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnIncreaseSmallCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnDecreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
+    static void OnIncreaseLargeCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept;
     void SetFromPoint() noexcept;
-    void EnsureCommands() noexcept;
-    void UnregisterCommands() noexcept;
+    void UpdateParsedTicks(StringView text) noexcept;
 
     void SynchronizeTrack() noexcept;
-    double GetNormalizedValueForLayout() const noexcept;
     double GetSnapValue(double value) const noexcept;
 };
 

@@ -67,6 +67,18 @@ public:
     }
     bool IsValid() const noexcept { return command_.Get() != nullptr; }
 
+    struct ClassBindingEntry {
+        Meta::TypeId ownerType = Meta::InvalidTypeId;
+        Ref<RoutedCommand> command;
+        CanExecuteRoutedEventHandler canExecute;
+        ExecutedRoutedEventHandler executed;
+    };
+
+    static void RegisterClassBinding(
+        Meta::TypeId ownerType,
+        const CommandBinding& binding) noexcept;
+    static Base::Span<const ClassBindingEntry> ClassBindings() noexcept;
+
 private:
     struct RareData {
         CanExecuteRoutedEventHandler canExecute;

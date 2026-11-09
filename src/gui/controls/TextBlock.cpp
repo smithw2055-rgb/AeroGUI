@@ -765,10 +765,19 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
         GetValue(PaddingProperty);
     const bool needsAlignment = GetTextAlignment() != TextAlignment::Left ||
         GetFlowDirection() == FlowDirection::RightToLeft;
-    if (needsAlignment && finalSize.width > 0.0) {
-        arrangingText_ = true;
-        static_cast<void>(MeasureOverride(finalSize));
-        arrangingText_ = false;
+    if (needsAlignment && finalSize.width != GetRenderSize().width) {
+        InvalidateVisual();
+    }
+    const float contentWidth = std::max(
+        0.0f, finalSize.width - padding.left - padding.right);
+    const float extraWidth = std::max(0.0f, contentWidth - glyphRunSize_.width);
+    float alignOffsetX = 0.0f;
+    if (GetTextAlignment() == TextAlignment::Center) {
+        alignOffsetX = extraWidth * 0.5f;
+    } else if (GetTextAlignment() == TextAlignment::Right ||
+               (GetTextAlignment() == TextAlignment::Left &&
+                GetFlowDirection() == FlowDirection::RightToLeft)) {
+        alignOffsetX = extraWidth;
     }
     const std::uint32_t uiCount = GetVisualChildrenCount();
     const Span<const TextHitRegion> hitRegions = uiCount > 0U ? HitRegionsSpan() : Span<const TextHitRegion>{};
@@ -776,14 +785,14 @@ Size TextBlock::ArrangeOverride(Size finalSize) noexcept {
     for (std::uint32_t index = 0U; index < uiCount; ++index) {
         auto* child = static_cast<UIElement*>(GetVisualChild(index));
         if (child == nullptr) continue;
-        Rect slot{padding.left, padding.top, child->GetDesiredSize().width,
+        Rect slot{padding.left + alignOffsetX, padding.top, child->GetDesiredSize().width,
             child->GetDesiredSize().height};
         while (placeholder < hitRegions.Size()) {
             const TextHitRegion& region = hitRegions[placeholder];
             ++placeholder;
             if (region.textLength == 3U) {
                 slot = Rect{
-                    static_cast<float>(region.x) + padding.left,
+                    static_cast<float>(region.x) + padding.left + alignOffsetX,
                     static_cast<float>(region.y) + padding.top,
                     std::max(static_cast<float>(region.width),
                         child->GetDesiredSize().width),
@@ -811,12 +820,25 @@ void TextBlock::OnRender(
     }
     const Thickness padding =
         GetValue(PaddingProperty);
+    const float contentWidth = std::max(
+        0.0f, renderSize.width - padding.left - padding.right);
+    const float extraWidth = std::max(0.0f, contentWidth - glyphRunSize_.width);
+    float alignOffsetX = 0.0f;
+    if (GetTextAlignment() == TextAlignment::Center) {
+        alignOffsetX = extraWidth * 0.5f;
+    } else if (GetTextAlignment() == TextAlignment::Right ||
+               (GetTextAlignment() == TextAlignment::Left &&
+                GetFlowDirection() == FlowDirection::RightToLeft)) {
+        alignOffsetX = extraWidth;
+    }
+    const float originX = padding.left + alignOffsetX;
+    const float originY = padding.top;
     const bool shiftGlyphs =
-        padding.left != 0.0 || padding.top != 0.0;
+        originX != 0.0f || originY != 0.0f;
     if (shiftGlyphs) {
         Base::Transform2D origin;
-        origin.dx = padding.left;
-        origin.dy = padding.top;
+        origin.dx = originX;
+        origin.dy = originY;
         builder.PushTransform(origin);
     }
     struct RichTextLineClip {
@@ -1057,7 +1079,7 @@ AERO_DESCRIBE(TextBlock) {
         .Property(TextBlock::StrokeThicknessProperty, 0.0, AffectsMeasure | AffectsRender, &Base::Validate::NonNegative<double>)
         .Property(TextBlock::TextWrappingProperty, TextWrapping::NoWrap, AffectsMeasure)
         .Property(TextBlock::TextTrimmingProperty, TextTrimming::None, AffectsMeasure)
-        .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure)
+        .Property(TextBlock::TextAlignmentProperty, TextAlignment::Left, AffectsMeasure | AffectsArrange | AffectsRender)
         .Property(TextBlock::LineHeightProperty, 0.0, AffectsMeasure, &Base::Validate::NonNegative<double>)
         .Property(TextBlock::PaddingProperty, Aero::Thickness{}, AffectsMeasure | AffectsArrange, &ValidateThicknessValue)
         .Property<&TextBlock::GetMetadataInlines, &TextBlock::SetInlineValue>("Inlines", PropertyFlags::Collection | PropertyFlags::Structural)

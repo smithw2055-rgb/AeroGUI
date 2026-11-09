@@ -299,11 +299,75 @@ public:
         instructions_.PushBack(inst);
     }
 
+    void PrecompileExtensionBindingPath(
+        Meta::TypeId extensionTypeId,
+        Base::StringView arguments) noexcept {
+        if (extensionTypeId != Data::Binding::StaticTypeId()) {
+            return;
+        }
+        Base::StringView trimmed = TrimAscii(arguments);
+        if (trimmed.Empty()) return;
+        Base::StringView candidatePath;
+        std::uint32_t cursor = 0U;
+        while (cursor < trimmed.SizeBytes()) {
+            std::uint32_t nextComma = cursor;
+            std::uint32_t braceDepth = 0U;
+            while (nextComma < trimmed.SizeBytes()) {
+                if (trimmed[nextComma] == '{') ++braceDepth;
+                else if (trimmed[nextComma] == '}' && braceDepth > 0U) --braceDepth;
+                else if (trimmed[nextComma] == ',' && braceDepth == 0U) break;
+                ++nextComma;
+            }
+            Base::StringView clause = TrimAscii(trimmed.Substr(cursor, nextComma - cursor));
+            std::uint32_t eqPos = UINT32_MAX;
+            for (std::uint32_t i = 0U; i < clause.SizeBytes(); ++i) {
+                if (clause[i] == '=') {
+                    eqPos = i;
+                    break;
+                }
+            }
+            if (eqPos == UINT32_MAX) {
+                if (cursor == 0U) {
+                    candidatePath = clause;
+                }
+            } else {
+                Base::StringView key = TrimAscii(clause.Substr(0U, eqPos));
+                Base::StringView val = TrimAscii(clause.Substr(eqPos + 1U, clause.SizeBytes() - eqPos - 1U));
+                if (key == "Path") {
+                    candidatePath = val;
+                    break;
+                }
+            }
+            cursor = nextComma + 1U;
+        }
+        candidatePath = TrimAscii(candidatePath);
+        if (candidatePath.Empty() || candidatePath == "." || candidatePath[0] == '{') {
+            return;
+        }
+        for (const Base::String& existing : bindingPathStrings_) {
+            if (existing.View() == candidatePath) {
+                return;
+            }
+        }
+        Data::CompiledBindingPath compiledPath;
+        if (!compiledPath.PrecompileTokens(candidatePath)) {
+            return;
+        }
+        Base::String storedPath;
+        if (!storedPath.Assign(candidatePath)) {
+            return;
+        }
+        Data::CompiledBindingPath::RegisterPrecompiled(candidatePath, compiledPath);
+        bindingPathStrings_.PushBack(std::move(storedPath));
+        bindingPaths_.PushBack(std::move(compiledPath));
+    }
+
     void EmitApplyMarkupExtension(
         std::uint16_t slot,
         Meta::DependencyPropertyHandle property,
         Meta::TypeId extensionTypeId,
         Base::StringView arguments) noexcept {
+        PrecompileExtensionBindingPath(extensionTypeId, arguments);
         XamlInstruction inst;
         inst.op = XamlOpCode::ApplyMarkupExtension;
         inst.slot = slot;
@@ -402,6 +466,8 @@ public:
         outProgram.gradientStops = std::move(gradientStops_);
         outProgram.objectRefs = std::move(objectRefs_);
         outProgram.subPrograms = std::move(subPrograms_);
+        outProgram.bindingPathStrings = std::move(bindingPathStrings_);
+        outProgram.bindingPaths = std::move(bindingPaths_);
     }
 
 private:
@@ -415,6 +481,8 @@ private:
     Base::Vector<TemplatePrototypeGradientStop> gradientStops_;
     Base::Vector<Base::Ref<Base::Object>> objectRefs_;
     Base::Vector<Base::Ref<Base::Object>> subPrograms_;
+    Base::Vector<Base::String> bindingPathStrings_;
+    Base::Vector<Data::CompiledBindingPath> bindingPaths_;
     Base::HashMap<Base::HashCode, std::uint32_t> stringHashIndex_;
 };
 
@@ -489,6 +557,13 @@ const Meta::TypeInfo* ResolveBytecodeTypeByName(
     return nullptr;
 }
 
+struct ParentTemplateVsmTarget {
+    XamlBytecodeBuilder* builder = nullptr;
+    XamlBytecodeProgram* program = nullptr;
+    std::uint16_t* nextSlot = nullptr;
+    std::uint16_t templateSlot = 0U;
+};
+
 Base::Result<void> CompileNodesToBytecode(
     Base::Span<const Node> nodes,
     std::size_t& nodeIndex,
@@ -497,13 +572,20 @@ Base::Result<void> CompileNodesToBytecode(
     Meta::TypeId ambientTargetType,
     bool isSubProgram,
     XamlBytecodeProgram& outProgram,
-    bool stopOnRootEnd = false) noexcept {
-    outProgram.ambientTargetType = ambientTargetType;
-    outProgram.schema = &schema;
-    if (baseUri != nullptr) {
-        outProgram.baseUri = *baseUri;
+    bool stopOnRootEnd = false,
+    ParentTemplateVsmTarget* parentVsm = nullptr,
+    XamlBytecodeBuilder* existingBuilder = nullptr,
+    std::uint16_t* existingNextSlot = nullptr) noexcept {
+    if (existingBuilder == nullptr) {
+        outProgram.ambientTargetType = ambientTargetType;
+        outProgram.schema = &schema;
+        if (baseUri != nullptr) {
+            outProgram.baseUri = *baseUri;
+        }
     }
-    XamlBytecodeBuilder builder;
+    XamlBytecodeBuilder localBuilder;
+    XamlBytecodeBuilder& builder =
+        existingBuilder != nullptr ? *existingBuilder : localBuilder;
 
     struct ObjectFrame {
         std::uint16_t slot = 0U;
@@ -539,7 +621,9 @@ Base::Result<void> CompileNodesToBytecode(
     Base::Vector<NsDecl> namespaces;
     Base::Vector<ObjectFrame> objectStack;
     Base::Vector<MemberFrame> memberStack;
-    std::uint16_t nextSlot = 0U;
+    std::uint16_t localNextSlot = 0U;
+    std::uint16_t& nextSlot =
+        existingNextSlot != nullptr ? *existingNextSlot : localNextSlot;
 
     struct SubProgramSlotInfo {
         bool valid = false;
@@ -619,16 +703,34 @@ Base::Result<void> CompileNodesToBytecode(
 
             if (isSubProgram && !objectStack.Empty() && !memberStack.Empty() &&
                 memberStack.Back().parentSlot == objectStack.Back().slot &&
-                memberStack.Back().memberId == VisualStateManager::VisualStateGroupsProperty.Handle().value) {
-                auto vsmContainer = Base::MakeRef<XamlBytecodeContainer>();
-                if (!vsmContainer) {
-                    return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM creating VSM bytecode container");
-                }
-                vsmContainer->program.CopyNamespacesFrom(outProgram);
+                memberStack.Back().memberId == VisualStateManager::VisualStateGroupsProperty.Handle().value &&
+                parentVsm != nullptr && parentVsm->builder != nullptr &&
+                parentVsm->program != nullptr && parentVsm->nextSlot != nullptr) {
+                parentVsm->program->CopyNamespacesFrom(outProgram);
+                const std::uint16_t vsmRootSlot = *parentVsm->nextSlot;
                 Base::Result<void> vsmRes = CompileNodesToBytecode(
-                    nodes, nodeIndex, schema, baseUri, ambientTargetType, false, vsmContainer->program, true);
+                    nodes,
+                    nodeIndex,
+                    schema,
+                    baseUri,
+                    ambientTargetType,
+                    false,
+                    *parentVsm->program,
+                    true,
+                    nullptr,
+                    parentVsm->builder,
+                    parentVsm->nextSlot);
                 if (!vsmRes) return vsmRes.GetStatus();
-                outProgram.vsmPrograms.PushBack(std::move(vsmContainer));
+                const Meta::TypeId vsmRootTypeId =
+                    parentVsm->program->GetSlotType(vsmRootSlot);
+                parentVsm->builder->EmitSetPropertyContent(
+                    parentVsm->templateSlot,
+                    VisualStateManager::VisualStateGroupsProperty.Handle().value,
+                    vsmRootSlot,
+                    vsmRootTypeId != Meta::InvalidTypeId
+                        ? vsmRootTypeId
+                        : VisualStateGroup::StaticTypeId(),
+                    /*isPropertyEdge=*/true);
                 break;
             }
 
@@ -637,8 +739,23 @@ Base::Result<void> CompileNodesToBytecode(
                  (!memberStack.Back().isTriggers && !memberStack.Back().isResources))) {
                 auto subContainer = Base::MakeRef<XamlBytecodeContainer>();
                 subContainer->program.CopyNamespacesFrom(outProgram);
+                ParentTemplateVsmTarget vsmTarget{
+                    &builder,
+                    &outProgram,
+                    &nextSlot,
+                    objectStack.Back().slot};
                 Base::Result<void> subRes = CompileNodesToBytecode(
-                    nodes, nodeIndex, schema, baseUri, objectStack.Back().templateTargetType, true, subContainer->program);
+                    nodes,
+                    nodeIndex,
+                    schema,
+                    baseUri,
+                    objectStack.Back().templateTargetType,
+                    true,
+                    subContainer->program,
+                    false,
+                    objectStack.Back().typeId == Controls::ControlTemplate::StaticTypeId()
+                        ? &vsmTarget
+                        : nullptr);
                 if (!subRes) return subRes.GetStatus();
 
                 const std::uint32_t subProgIdx = builder.AddSubProgram(subContainer);
@@ -1112,6 +1229,14 @@ Base::Result<void> CompileNodesToBytecode(
                     mf.parentSlot,
                     Meta::DependencyPropertyHandle{mf.memberId},
                     converted.Value());
+            } else if (!Meta::HasObjectFactory()) {
+                if (Base::Result<Meta::Value> deferredStr =
+                        Meta::Value::TryFromString(targetType, strVal)) {
+                    builder.EmitSetPropertyValue(
+                        mf.parentSlot,
+                        Meta::DependencyPropertyHandle{mf.memberId},
+                        deferredStr.Value());
+                }
             }
             break;
         }
@@ -1245,18 +1370,22 @@ Base::Result<void> CompileNodesToBytecode(
                     }
                 }
 
-                builder.SetSlotCount(nextSlot);
-                builder.EmitEnd();
-                builder.Finish(outProgram);
+                if (existingBuilder == nullptr) {
+                    builder.SetSlotCount(nextSlot);
+                    builder.EmitEnd();
+                    builder.Finish(outProgram);
+                }
                 return {};
             }
             break;
         }
 
         case NodeKind::EndOfDocument:
-            builder.SetSlotCount(nextSlot);
-            builder.EmitEnd();
-            builder.Finish(outProgram);
+            if (existingBuilder == nullptr) {
+                builder.SetSlotCount(nextSlot);
+                builder.EmitEnd();
+                builder.Finish(outProgram);
+            }
             return {};
 
         default:
@@ -1264,7 +1393,7 @@ Base::Result<void> CompileNodesToBytecode(
         }
     }
 
-    if (nextSlot > 0U && outProgram.slotCount == 0U) {
+    if (existingBuilder == nullptr && nextSlot > 0U && outProgram.slotCount == 0U) {
         builder.SetSlotCount(nextSlot);
         builder.EmitEnd();
         builder.Finish(outProgram);
@@ -2036,6 +2165,13 @@ Base::Result<CompiledTriggerPlan> CompileTriggerPlan(
             compiledCondition.usesDataContext =
                 binding->GetElementName().Empty() &&
                 !binding->GetRelativeSource();
+            if (!binding->GetPathText().Empty()) {
+                Data::CompiledBindingPath precompiled;
+                if (precompiled.PrecompileTokens(binding->GetPathText())) {
+                    Data::CompiledBindingPath::RegisterPrecompiled(
+                        binding->GetPathText(), precompiled);
+                }
+            }
             compiledCondition.binding = binding;
             compiledCondition.value = authoredValue;
             plan.conditions.PushBack(std::move(compiledCondition));
@@ -2259,6 +2395,1076 @@ BuildCompiledDeferredTemplate(
         ExecuteCompiledTemplateBytecode(*program, nullptr, payload, bindings, objects);
     if (!executed) return executed.GetStatus();
     return objects[0U];
+}
+
+namespace {
+
+enum class BytecodeValueTag : std::uint8_t {
+    Unset = 0U,
+    Boolean = 1U,
+    SignedInteger = 2U,
+    UnsignedInteger = 3U,
+    Double = 4U,
+    String = 5U,
+    DynamicResource = 6U,
+    NullObject = 7U,
+    Length = 8U,
+    Thickness = 9U,
+    CornerRadius = 10U,
+    Color = 11U,
+    Point = 12U,
+    Transform2D = 13U,
+    GridLength = 14U,
+    TypeReference = 15U,
+    BoxedString = 16U,
+    SolidColorBrush = 17U,
+    ResourceUri = 18U,
+    NullableBoolean = 19U,
+    Rect = 20U,
+    Size = 21U,
+    Transform3 = 22U
+};
+
+template<class TTo, class TFrom>
+TTo BitCastValue(const TFrom& source) noexcept {
+    static_assert(sizeof(TTo) == sizeof(TFrom), "BitCastValue requires equal sizes");
+    TTo dest{};
+    std::memcpy(&dest, &source, sizeof(TTo));
+    return dest;
+}
+
+Base::Result<void> AppendFloat32(
+    Base::Vector<std::uint8_t>& output,
+    float value) noexcept {
+    return AppendU32(output, BitCastValue<std::uint32_t>(value));
+}
+
+Base::Result<float> ReadFloat32(Decoder& decoder) noexcept {
+    Base::Result<std::uint32_t> bits = decoder.ReadU32();
+    if (!bits) return bits.GetStatus();
+    return BitCastValue<float>(bits.Value());
+}
+
+Base::Result<void> AppendFloat64(
+    Base::Vector<std::uint8_t>& output,
+    double value) noexcept {
+    return AppendU64(output, BitCastValue<std::uint64_t>(value));
+}
+
+Base::Result<double> ReadFloat64(Decoder& decoder) noexcept {
+    Base::Result<std::uint64_t> bits = decoder.ReadU64();
+    if (!bits) return bits.GetStatus();
+    return BitCastValue<double>(bits.Value());
+}
+
+template<class T>
+Base::Result<Meta::Value> EncodeCustomBytecodeValue(
+    Meta::TypeId type,
+    const T& value) noexcept {
+    static const Meta::ValueTypeRegistration s_reg =
+        Meta::MakeValueTypeRegistration<T>();
+    return Meta::Value::TryFromCustom(type, &value, &s_reg);
+}
+
+Base::Result<void> SerializeBytecodeValue(
+    const Meta::Value& value,
+    Base::Vector<std::uint8_t>& output) noexcept {
+    if (value.IsUnset()) {
+        return AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Unset));
+    }
+    if (value.IsDynamicResource()) {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::DynamicResource));
+        if (!r) return r;
+        return AppendString(output, value.AsDynamicResourceKey());
+    }
+    switch (value.Kind()) {
+    case Meta::ValueKind::Boolean: {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Boolean));
+        if (!r) return r;
+        r = AppendU64(output, value.Type());
+        if (!r) return r;
+        return AppendU8(output, value.AsBoolean() ? 1U : 0U);
+    }
+    case Meta::ValueKind::SignedInteger: {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::SignedInteger));
+        if (!r) return r;
+        r = AppendU64(output, value.Type());
+        if (!r) return r;
+        return AppendU64(output, BitCastValue<std::uint64_t>(value.AsSignedInteger()));
+    }
+    case Meta::ValueKind::UnsignedInteger: {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::UnsignedInteger));
+        if (!r) return r;
+        r = AppendU64(output, value.Type());
+        if (!r) return r;
+        return AppendU64(output, value.AsUnsignedInteger());
+    }
+    case Meta::ValueKind::Double: {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Double));
+        if (!r) return r;
+        r = AppendU64(output, value.Type());
+        if (!r) return r;
+        return AppendFloat64(output, value.AsDouble());
+    }
+    case Meta::ValueKind::String: {
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::String));
+        if (!r) return r;
+        r = AppendU64(output, value.Type());
+        if (!r) return r;
+        return AppendString(output, value.AsString());
+    }
+    case Meta::ValueKind::Custom: {
+        if (value.Type() == Meta::TypeOf<::Aero::Length>()) {
+            auto decoded = Meta::ValueCodec<::Aero::Length>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Length));
+            if (!r) return r;
+            r = AppendFloat64(output, decoded.Value().value);
+            if (!r) return r;
+            return AppendU8(output, decoded.Value().isAuto ? 1U : 0U);
+        }
+        if (value.Type() == Meta::TypeOf<Base::Thickness>()) {
+            auto decoded = Meta::ValueCodec<Base::Thickness>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Thickness));
+            if (!r) return r;
+            r = AppendFloat32(output, decoded.Value().left);
+            if (r) r = AppendFloat32(output, decoded.Value().top);
+            if (r) r = AppendFloat32(output, decoded.Value().right);
+            if (r) r = AppendFloat32(output, decoded.Value().bottom);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::CornerRadius>()) {
+            auto decoded = Meta::ValueCodec<Base::CornerRadius>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::CornerRadius));
+            if (!r) return r;
+            r = AppendFloat32(output, decoded.Value().topLeft);
+            if (r) r = AppendFloat32(output, decoded.Value().topRight);
+            if (r) r = AppendFloat32(output, decoded.Value().bottomRight);
+            if (r) r = AppendFloat32(output, decoded.Value().bottomLeft);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::Color>()) {
+            auto decoded = Meta::ValueCodec<Base::Color>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Color));
+            if (!r) return r;
+            r = AppendFloat32(output, decoded.Value().red);
+            if (r) r = AppendFloat32(output, decoded.Value().green);
+            if (r) r = AppendFloat32(output, decoded.Value().blue);
+            if (r) r = AppendFloat32(output, decoded.Value().alpha);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::Point>()) {
+            auto decoded = Meta::ValueCodec<Base::Point>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Point));
+            if (!r) return r;
+            r = AppendFloat32(output, decoded.Value().x);
+            if (r) r = AppendFloat32(output, decoded.Value().y);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::Transform2D>()) {
+            auto decoded = Meta::ValueCodec<Base::Transform2D>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Transform2D));
+            if (!r) return r;
+            r = AppendFloat32(output, decoded.Value().m11);
+            if (r) r = AppendFloat32(output, decoded.Value().m12);
+            if (r) r = AppendFloat32(output, decoded.Value().m21);
+            if (r) r = AppendFloat32(output, decoded.Value().m22);
+            if (r) r = AppendFloat32(output, decoded.Value().dx);
+            if (r) r = AppendFloat32(output, decoded.Value().dy);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<::Aero::GridLength>()) {
+            auto decoded = Meta::ValueCodec<::Aero::GridLength>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::GridLength));
+            if (!r) return r;
+            r = AppendFloat64(output, decoded.Value().value);
+            if (r) r = AppendU8(output, static_cast<std::uint8_t>(decoded.Value().unit));
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Meta::TypeReference>()) {
+            auto decoded = Meta::ValueCodec<Meta::TypeReference>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::TypeReference));
+            if (!r) return r;
+            return AppendU64(output, decoded.Value().type);
+        }
+        if (value.Type() == Meta::TypeOf<Base::ResourceUri>()) {
+            auto decoded = Meta::ValueCodec<Base::ResourceUri>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::ResourceUri));
+            if (!r) return r;
+            return AppendString(output, decoded.Value().Canonical());
+        }
+        if (value.Type() == Meta::TypeOf<::Aero::Nullable<bool>>()) {
+            auto decoded = Meta::ValueCodec<::Aero::Nullable<bool>>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::NullableBoolean));
+            if (!r) return r;
+            const std::uint8_t encoded = !decoded.Value().GetHasValue()
+                ? 0U
+                : (decoded.Value().GetValue() ? 2U : 1U);
+            return AppendU8(output, encoded);
+        }
+        if (value.Type() == Meta::TypeOf<Base::Rect>()) {
+            auto decoded = Meta::ValueCodec<Base::Rect>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Rect));
+            if (!r) return r;
+            r = AppendFloat64(output, decoded.Value().x);
+            if (r) r = AppendFloat64(output, decoded.Value().y);
+            if (r) r = AppendFloat64(output, decoded.Value().width);
+            if (r) r = AppendFloat64(output, decoded.Value().height);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::Size>()) {
+            auto decoded = Meta::ValueCodec<Base::Size>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Size));
+            if (!r) return r;
+            r = AppendFloat64(output, decoded.Value().width);
+            if (r) r = AppendFloat64(output, decoded.Value().height);
+            return r;
+        }
+        if (value.Type() == Meta::TypeOf<Base::Transform3>()) {
+            auto decoded = Meta::ValueCodec<Base::Transform3>::Decode(value);
+            if (!decoded) return decoded.GetStatus();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Transform3));
+            if (!r) return r;
+            const Base::Transform3& m = decoded.Value();
+            r = AppendFloat64(output, m.m11);
+            if (r) r = AppendFloat64(output, m.m12);
+            if (r) r = AppendFloat64(output, m.m13);
+            if (r) r = AppendFloat64(output, m.m21);
+            if (r) r = AppendFloat64(output, m.m22);
+            if (r) r = AppendFloat64(output, m.m23);
+            if (r) r = AppendFloat64(output, m.m31);
+            if (r) r = AppendFloat64(output, m.m32);
+            if (r) r = AppendFloat64(output, m.m33);
+            if (r) r = AppendFloat64(output, m.dx);
+            if (r) r = AppendFloat64(output, m.dy);
+            if (r) r = AppendFloat64(output, m.dz);
+            return r;
+        }
+
+        return AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Unset));
+    }
+    case Meta::ValueKind::Object: {
+        if (value.IsNullObject() || !value.AsObject()) {
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::NullObject));
+            if (!r) return r;
+            return AppendU64(output, value.Type());
+        }
+        Base::Object* obj = value.AsObject().Get();
+        if (obj->RuntimeType() == Controls::BoxedItemValue::StaticTypeId()) {
+            const auto& boxed = static_cast<const Controls::BoxedItemValue&>(*obj);
+            if (boxed.Value().Kind() == Meta::ValueKind::String) {
+                Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::BoxedString));
+                if (!r) return r;
+                return AppendString(output, boxed.Value().AsString());
+            }
+        }
+        if (auto* ff = ::Aero::TryCast<Media::FontFamily>(obj)) {
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::String));
+            if (!r) return r;
+            r = AppendU64(output, value.Type());
+            if (!r) return r;
+            return AppendString(output, ff->GetSource());
+        }
+        if (auto* brush = ::Aero::TryCast<Media::SolidColorBrush>(obj)) {
+            const Base::Color c = brush->GetColor();
+            Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::SolidColorBrush));
+            if (!r) return r;
+            r = AppendFloat32(output, c.red);
+            if (r) r = AppendFloat32(output, c.green);
+            if (r) r = AppendFloat32(output, c.blue);
+            if (r) r = AppendFloat32(output, c.alpha);
+            return r;
+        }
+        Base::Result<void> r = AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::NullObject));
+        if (!r) return r;
+        return AppendU64(output, value.Type());
+    }
+    default:
+        return AppendU8(output, static_cast<std::uint8_t>(BytecodeValueTag::Unset));
+    }
+}
+
+Base::Result<Meta::Value> DeserializeBytecodeValue(
+    Decoder& decoder,
+    const ::Aero::Meta::Registry& domain,
+    std::uint32_t& totalStringBytes,
+    std::uint32_t maxStringBytes) noexcept {
+    Base::Result<std::uint8_t> rawTag = decoder.ReadU8();
+    if (!rawTag) return rawTag.GetStatus();
+    const auto tag = static_cast<BytecodeValueTag>(rawTag.Value());
+    switch (tag) {
+    case BytecodeValueTag::Unset:
+        return Meta::Value::Unset();
+    case BytecodeValueTag::Boolean: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        Base::Result<std::uint8_t> flag = decoder.ReadU8();
+        if (!flag) return flag.GetStatus();
+        if (flag.Value() > 1U || domain.Types().FindType(typeId.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Boolean value is invalid");
+        }
+        return Meta::Value::FromBoolean(typeId.Value(), flag.Value() != 0U);
+    }
+    case BytecodeValueTag::SignedInteger: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        Base::Result<std::uint64_t> bits = decoder.ReadU64();
+        if (!bits) return bits.GetStatus();
+        if (domain.Types().FindType(typeId.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 SignedInteger type is invalid");
+        }
+        return Meta::Value::FromSignedInteger(typeId.Value(), BitCastValue<std::int64_t>(bits.Value()));
+    }
+    case BytecodeValueTag::UnsignedInteger: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        Base::Result<std::uint64_t> val = decoder.ReadU64();
+        if (!val) return val.GetStatus();
+        if (domain.Types().FindType(typeId.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 UnsignedInteger type is invalid");
+        }
+        return Meta::Value::FromUnsignedInteger(typeId.Value(), val.Value());
+    }
+    case BytecodeValueTag::Double: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        Base::Result<double> val = ReadFloat64(decoder);
+        if (!val) return val.GetStatus();
+        if (domain.Types().FindType(typeId.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Double type is invalid");
+        }
+        return Meta::Value::FromDouble(typeId.Value(), val.Value());
+    }
+    case BytecodeValueTag::String: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        Base::Result<Base::String> str = decoder.ReadString(totalStringBytes, maxStringBytes);
+        if (!str) return str.GetStatus();
+        if (typeId.Value() != Meta::InvalidTypeId &&
+            domain.Types().FindType(typeId.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 String type is invalid");
+        }
+        return Meta::Value::TryFromString(
+            typeId.Value() != Meta::InvalidTypeId ? typeId.Value() : Meta::TypeOf<Base::String>(),
+            str.Value().View());
+    }
+    case BytecodeValueTag::DynamicResource: {
+        Base::Result<Base::String> key = decoder.ReadString(totalStringBytes, maxStringBytes);
+        if (!key) return key.GetStatus();
+        return Meta::Value::FromDynamicResourceKey(key.Value().View());
+    }
+    case BytecodeValueTag::NullObject: {
+        Base::Result<std::uint64_t> typeId = decoder.ReadU64();
+        if (!typeId) return typeId.GetStatus();
+        return Meta::Value::NullObject(typeId.Value());
+    }
+    case BytecodeValueTag::Length: {
+        Base::Result<double> val = ReadFloat64(decoder);
+        if (!val) return val.GetStatus();
+        Base::Result<std::uint8_t> isAuto = decoder.ReadU8();
+        if (!isAuto) return isAuto.GetStatus();
+        const ::Aero::Length len = isAuto.Value() != 0U
+            ? ::Aero::Length::Auto()
+            : ::Aero::Length::Pixels(val.Value());
+        return EncodeCustomBytecodeValue(Meta::TypeOf<::Aero::Length>(), len);
+    }
+    case BytecodeValueTag::Thickness: {
+        auto l = ReadFloat32(decoder);
+        auto t = ReadFloat32(decoder);
+        auto r = ReadFloat32(decoder);
+        auto b = ReadFloat32(decoder);
+        if (!l || !t || !r || !b) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Thickness truncated");
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Thickness>(),
+            Base::Thickness{l.Value(), t.Value(), r.Value(), b.Value()});
+    }
+    case BytecodeValueTag::CornerRadius: {
+        auto tl = ReadFloat32(decoder);
+        auto tr = ReadFloat32(decoder);
+        auto br = ReadFloat32(decoder);
+        auto bl = ReadFloat32(decoder);
+        if (!tl || !tr || !br || !bl) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 CornerRadius truncated");
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::CornerRadius>(),
+            Base::CornerRadius{tl.Value(), tr.Value(), br.Value(), bl.Value()});
+    }
+    case BytecodeValueTag::Color: {
+        auto r = ReadFloat32(decoder);
+        auto g = ReadFloat32(decoder);
+        auto b = ReadFloat32(decoder);
+        auto a = ReadFloat32(decoder);
+        if (!r || !g || !b || !a) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Color truncated");
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Color>(),
+            Base::Color{r.Value(), g.Value(), b.Value(), a.Value()});
+    }
+    case BytecodeValueTag::Point: {
+        auto x = ReadFloat32(decoder);
+        auto y = ReadFloat32(decoder);
+        if (!x || !y) return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Point truncated");
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Point>(),
+            Base::Point{x.Value(), y.Value()});
+    }
+    case BytecodeValueTag::Transform2D: {
+        auto m11 = ReadFloat32(decoder);
+        auto m12 = ReadFloat32(decoder);
+        auto m21 = ReadFloat32(decoder);
+        auto m22 = ReadFloat32(decoder);
+        auto dx = ReadFloat32(decoder);
+        auto dy = ReadFloat32(decoder);
+        if (!m11 || !m12 || !m21 || !m22 || !dx || !dy) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Transform2D truncated");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Transform2D>(),
+            Base::Transform2D{m11.Value(), m12.Value(), m21.Value(), m22.Value(), dx.Value(), dy.Value()});
+    }
+    case BytecodeValueTag::GridLength: {
+        auto val = ReadFloat64(decoder);
+        auto unit = decoder.ReadU8();
+        if (!val || !unit || unit.Value() > static_cast<std::uint8_t>(::Aero::GridUnitType::Star)) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 GridLength invalid");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<::Aero::GridLength>(),
+            ::Aero::GridLength{val.Value(), static_cast<::Aero::GridUnitType>(unit.Value())});
+    }
+    case BytecodeValueTag::TypeReference: {
+        Base::Result<std::uint64_t> refType = decoder.ReadU64();
+        if (!refType) return refType.GetStatus();
+        if (domain.Types().FindType(refType.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 TypeReference invalid");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Meta::TypeReference>(),
+            Meta::TypeReference{refType.Value()});
+    }
+    case BytecodeValueTag::BoxedString: {
+        Base::Result<Base::String> str = decoder.ReadString(totalStringBytes, maxStringBytes);
+        if (!str) return str.GetStatus();
+        if (Meta::HasObjectFactory()) {
+            return BoxXamlStringAsObject(str.Value().View());
+        }
+        return Meta::Value::TryFromString(Meta::TypeOf<Base::Object>(), str.Value().View());
+    }
+    case BytecodeValueTag::SolidColorBrush: {
+        auto r = ReadFloat32(decoder);
+        auto g = ReadFloat32(decoder);
+        auto b = ReadFloat32(decoder);
+        auto a = ReadFloat32(decoder);
+        if (!r || !g || !b || !a) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 SolidColorBrush truncated");
+        }
+        const auto toByte = [](float c) noexcept -> unsigned int {
+            const float clamped = c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
+            return static_cast<unsigned int>(clamped * 255.0f + 0.5f);
+        };
+        char hex[16];
+        const int len = std::snprintf(
+            hex, sizeof(hex), "#%02X%02X%02X%02X",
+            toByte(a.Value()), toByte(r.Value()), toByte(g.Value()), toByte(b.Value()));
+        Base::StringView hexView(hex, len > 0 ? static_cast<std::uint32_t>(len) : 0U);
+        if (Meta::HasObjectFactory() && domain.IsReady()) {
+            if (auto conv = domain.TryConvertText(Meta::TypeOf<Media::Brush>(), hexView)) {
+                return conv.Value();
+            }
+        }
+        return Meta::Value::TryFromString(Meta::TypeOf<Media::Brush>(), hexView);
+    }
+    case BytecodeValueTag::ResourceUri: {
+        Base::Result<Base::String> str = decoder.ReadString(totalStringBytes, maxStringBytes);
+        if (!str) return str.GetStatus();
+        Base::Result<Base::ResourceUri> parsed =
+            Base::ResourceUri::Parse(str.Value().View());
+        if (!parsed) return parsed.GetStatus();
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::ResourceUri>(),
+            parsed.Value());
+    }
+    case BytecodeValueTag::NullableBoolean: {
+        Base::Result<std::uint8_t> encoded = decoder.ReadU8();
+        if (!encoded || encoded.Value() > 2U) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 NullableBoolean invalid");
+        }
+        ::Aero::Nullable<bool> val(nullptr);
+        if (encoded.Value() == 1U) val = false;
+        else if (encoded.Value() == 2U) val = true;
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<::Aero::Nullable<bool>>(),
+            val);
+    }
+    case BytecodeValueTag::Rect: {
+        auto x = ReadFloat64(decoder);
+        auto y = ReadFloat64(decoder);
+        auto w = ReadFloat64(decoder);
+        auto h = ReadFloat64(decoder);
+        if (!x || !y || !w || !h) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Rect truncated");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Rect>(),
+            Base::Rect{x.Value(), y.Value(), w.Value(), h.Value()});
+    }
+    case BytecodeValueTag::Size: {
+        auto w = ReadFloat64(decoder);
+        auto h = ReadFloat64(decoder);
+        if (!w || !h) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Size truncated");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Size>(),
+            Base::Size{w.Value(), h.Value()});
+    }
+    case BytecodeValueTag::Transform3: {
+        auto m11 = ReadFloat64(decoder);
+        auto m12 = ReadFloat64(decoder);
+        auto m13 = ReadFloat64(decoder);
+        auto m21 = ReadFloat64(decoder);
+        auto m22 = ReadFloat64(decoder);
+        auto m23 = ReadFloat64(decoder);
+        auto m31 = ReadFloat64(decoder);
+        auto m32 = ReadFloat64(decoder);
+        auto m33 = ReadFloat64(decoder);
+        auto dx = ReadFloat64(decoder);
+        auto dy = ReadFloat64(decoder);
+        auto dz = ReadFloat64(decoder);
+        if (!m11 || !m12 || !m13 || !m21 || !m22 || !m23 ||
+            !m31 || !m32 || !m33 || !dx || !dy || !dz) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 Transform3 truncated");
+        }
+        return EncodeCustomBytecodeValue(
+            Meta::TypeOf<Base::Transform3>(),
+            Base::Transform3{
+                m11.Value(), m12.Value(), m13.Value(),
+                m21.Value(), m22.Value(), m23.Value(),
+                m31.Value(), m32.Value(), m33.Value(),
+                dx.Value(), dy.Value(), dz.Value()});
+    }
+    default:
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 value tag is invalid");
+    }
+}
+
+} // namespace
+
+Base::Result<void> SerializeBytecodeProgram(
+    const XamlBytecodeProgram& program,
+    Base::Vector<std::uint8_t>& output) noexcept {
+    Base::Result<void> r = AppendU32(output, program.slotCount);
+    if (!r) return r;
+    r = AppendU32(output, program.contentPresenterSlot);
+    if (!r) return r;
+    r = AppendU64(output, program.ambientTargetType);
+    if (!r) return r;
+    r = AppendString(output, program.baseUri.Canonical());
+    if (!r) return r;
+
+    r = AppendU32(output, program.namespaces.Size());
+    if (!r) return r;
+    for (const auto& ns : program.namespaces) {
+        r = AppendString(output, ns.prefix.View());
+        if (!r) return r;
+        r = AppendString(output, ns.uri.View());
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.slotNames.Size());
+    if (!r) return r;
+    for (const auto& name : program.slotNames) {
+        r = AppendString(output, name.View());
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.slotTypes.Size());
+    if (!r) return r;
+    for (Meta::TypeId t : program.slotTypes) {
+        r = AppendU64(output, t);
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.typePool.Size());
+    if (!r) return r;
+    for (Meta::TypeId t : program.typePool) {
+        r = AppendU64(output, t);
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.propertyPool.Size());
+    if (!r) return r;
+    for (std::uint64_t p : program.propertyPool) {
+        r = AppendU64(output, p);
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.stringPool.Size());
+    if (!r) return r;
+    for (const auto& s : program.stringPool) {
+        r = AppendString(output, s.View());
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.valuePool.Size());
+    if (!r) return r;
+    for (const auto& v : program.valuePool) {
+        r = SerializeBytecodeValue(v, output);
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.gridLengths.Size());
+    if (!r) return r;
+    for (const auto& gl : program.gridLengths) {
+        r = AppendFloat64(output, gl.value);
+        if (!r) return r;
+        r = AppendU8(output, static_cast<std::uint8_t>(gl.unit));
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.gradientStops.Size());
+    if (!r) return r;
+    for (const auto& gs : program.gradientStops) {
+        r = AppendFloat64(output, gs.offset);
+        if (r) r = AppendFloat32(output, gs.color.red);
+        if (r) r = AppendFloat32(output, gs.color.green);
+        if (r) r = AppendFloat32(output, gs.color.blue);
+        if (r) r = AppendFloat32(output, gs.color.alpha);
+        if (r) r = AppendString(output, gs.name.View());
+        if (!r) return r;
+    }
+
+    const std::uint32_t bpCount = program.bindingPaths.Size() < program.bindingPathStrings.Size()
+        ? program.bindingPaths.Size()
+        : program.bindingPathStrings.Size();
+    r = AppendU32(output, bpCount);
+    if (!r) return r;
+    for (std::uint32_t i = 0U; i < bpCount; ++i) {
+        r = AppendString(output, program.bindingPathStrings[i].View());
+        if (!r) return r;
+        const auto steps = program.bindingPaths[i].Steps();
+        r = AppendU32(output, steps.Size());
+        if (!r) return r;
+        for (const Data::CompiledPathStep& step : steps) {
+            r = AppendU8(output, static_cast<std::uint8_t>(step.kind));
+            if (r) r = AppendU32(output, step.collectionIndex);
+            if (r) r = AppendString(output, step.propertyName.View());
+            if (r) r = AppendString(output, step.attachedOwnerName.View());
+            if (r) r = AppendString(output, step.rawToken.View());
+            if (r) r = AppendU8(output, step.attached ? 1U : 0U);
+            if (r) r = AppendU8(output, step.hasCollectionIndexAfter ? 1U : 0U);
+            if (!r) return r;
+        }
+    }
+
+    r = AppendU32(output, program.visualStateGroups.Size());
+    if (!r) return r;
+    for (const Controls::VisualStateGroupPlan& group : program.visualStateGroups) {
+        r = AppendString(output, group.name.View());
+        if (!r) return r;
+        r = AppendU32(output, group.states.Size());
+        if (!r) return r;
+        for (const Controls::VisualStatePlan& state : group.states) {
+            r = AppendString(output, state.name.View());
+            if (!r) return r;
+            r = AppendU32(output, state.setters.Size());
+            if (!r) return r;
+            for (const Controls::VisualStateSetterPlan& setter : state.setters) {
+                r = AppendString(output, setter.targetName.View());
+                if (r) r = AppendU32(output, static_cast<std::uint32_t>(setter.targetPartIndex));
+                if (r) r = AppendU64(output, setter.property.value);
+                if (r) r = SerializeBytecodeValue(setter.value, output);
+                if (!r) return r;
+            }
+        }
+        r = AppendU32(output, group.transitions.Size());
+        if (!r) return r;
+        for (const Controls::VisualTransitionPlan& trans : group.transitions) {
+            r = AppendString(output, trans.from.View());
+            if (r) r = AppendString(output, trans.to.View());
+            if (r) r = AppendU64(output, trans.generatedDurationMicroseconds);
+            if (!r) return r;
+        }
+    }
+
+    r = AppendU32(output, program.instructions.Size());
+    if (!r) return r;
+    for (const XamlInstruction& inst : program.instructions) {
+        r = AppendU8(output, static_cast<std::uint8_t>(inst.op));
+        if (r) r = AppendU8(output, inst.flags);
+        if (r) r = AppendU16(output, inst.slot);
+        if (r) r = AppendU16(output, inst.auxSlot);
+        if (r) r = AppendU16(output, inst.typeOrPropIdx);
+        if (r) r = AppendU32(output, inst.operandIdx);
+        if (r) r = AppendU32(output, inst.extraIdx);
+        if (!r) return r;
+    }
+
+    r = AppendU32(output, program.subPrograms.Size());
+    if (!r) return r;
+    for (const auto& subObj : program.subPrograms) {
+        const auto* subContainer = ::Aero::TryCast<const XamlBytecodeContainer>(subObj.Get());
+        if (subContainer == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidState,
+                "AXB3 subProgram is not a XamlBytecodeContainer");
+        }
+        r = SerializeBytecodeProgram(subContainer->program, output);
+        if (!r) return r;
+    }
+
+    return {};
+}
+
+Base::Result<void> DeserializeBytecodeProgram(
+    Decoder& decoder,
+    const ::Aero::Meta::Registry& domain,
+    const CompiledDocumentLimits& limits,
+    std::uint32_t& totalStringBytes,
+    XamlBytecodeProgram& outProgram) noexcept {
+    outProgram.Clear();
+    auto slotCount = decoder.ReadU32();
+    auto presenterSlot = decoder.ReadU32();
+    auto ambientType = decoder.ReadU64();
+    if (!slotCount || !presenterSlot || !ambientType) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 program header truncated");
+    }
+    if (slotCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 slotCount exceeds limits");
+    }
+    outProgram.slotCount = slotCount.Value();
+    outProgram.contentPresenterSlot = presenterSlot.Value();
+    outProgram.ambientTargetType = ambientType.Value();
+    if (outProgram.ambientTargetType != Meta::InvalidTypeId &&
+        domain.Types().FindType(outProgram.ambientTargetType) == nullptr) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 ambientTargetType is invalid");
+    }
+
+    Base::Result<Base::String> baseUriStr = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+    if (!baseUriStr) return baseUriStr.GetStatus();
+    if (!baseUriStr.Value().Empty()) {
+        Base::Result<Base::ResourceUri> parsedUri =
+            Base::ResourceUri::Parse(baseUriStr.Value().View());
+        if (!parsedUri) return parsedUri.GetStatus();
+        outProgram.baseUri = std::move(parsedUri).Value();
+    }
+
+    Base::Result<std::uint32_t> nsCount = decoder.ReadU32();
+    if (!nsCount) return nsCount.GetStatus();
+    if (nsCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 namespace count exceeds limits");
+    }
+    outProgram.namespaces.Reserve(nsCount.Value());
+    for (std::uint32_t i = 0U; i < nsCount.Value(); ++i) {
+        auto prefix = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!prefix) return prefix.GetStatus();
+        auto uri = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!uri) return uri.GetStatus();
+        XamlBytecodeProgram::NamespaceEntry entry;
+        entry.prefix = std::move(prefix).Value();
+        entry.uri = std::move(uri).Value();
+        outProgram.namespaces.PushBack(std::move(entry));
+    }
+
+    Base::Result<std::uint32_t> slotNameCount = decoder.ReadU32();
+    if (!slotNameCount) return slotNameCount.GetStatus();
+    if (slotNameCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 slotNames count exceeds limits");
+    }
+    outProgram.slotNames.Reserve(slotNameCount.Value());
+    for (std::uint32_t i = 0U; i < slotNameCount.Value(); ++i) {
+        auto s = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!s) return s.GetStatus();
+        outProgram.slotNames.PushBack(std::move(s).Value());
+    }
+
+    Base::Result<std::uint32_t> slotTypeCount = decoder.ReadU32();
+    if (!slotTypeCount) return slotTypeCount.GetStatus();
+    if (slotTypeCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 slotTypes count exceeds limits");
+    }
+    outProgram.slotTypes.Reserve(slotTypeCount.Value());
+    for (std::uint32_t i = 0U; i < slotTypeCount.Value(); ++i) {
+        auto t = decoder.ReadU64();
+        if (!t) return t.GetStatus();
+        if (t.Value() != Meta::InvalidTypeId && domain.Types().FindType(t.Value()) == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 slotType is unknown");
+        }
+        outProgram.slotTypes.PushBack(t.Value());
+    }
+
+    Base::Result<std::uint32_t> typeCount = decoder.ReadU32();
+    if (!typeCount) return typeCount.GetStatus();
+    if (typeCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 typePool count exceeds limits");
+    }
+    outProgram.typePool.Reserve(typeCount.Value());
+    for (std::uint32_t i = 0U; i < typeCount.Value(); ++i) {
+        auto t = decoder.ReadU64();
+        if (!t) return t.GetStatus();
+        if (t.Value() == Meta::InvalidTypeId || domain.Types().FindType(t.Value()) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB3 type table references an unknown frozen type id");
+        }
+        outProgram.typePool.PushBack(t.Value());
+    }
+
+    Base::Result<std::uint32_t> propCount = decoder.ReadU32();
+    if (!propCount) return propCount.GetStatus();
+    if (propCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 propertyPool count exceeds limits");
+    }
+    outProgram.propertyPool.Reserve(propCount.Value());
+    for (std::uint32_t i = 0U; i < propCount.Value(); ++i) {
+        auto p = decoder.ReadU64();
+        if (!p) return p.GetStatus();
+        if (p.Value() != Meta::InvalidMemberId &&
+            domain.Types().FindProperty(p.Value()) == nullptr &&
+            domain.Types().FindEvent(p.Value()) == nullptr &&
+            domain.DependencyProperties().Find(Meta::DependencyPropertyHandle{p.Value()}) == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::ValidationFailed,
+                "AXB3 member table references an unknown frozen member id");
+        }
+        outProgram.propertyPool.PushBack(p.Value());
+    }
+
+    Base::Result<std::uint32_t> strCount = decoder.ReadU32();
+    if (!strCount) return strCount.GetStatus();
+    if (strCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 stringPool count exceeds limits");
+    }
+    outProgram.stringPool.Reserve(strCount.Value());
+    for (std::uint32_t i = 0U; i < strCount.Value(); ++i) {
+        auto s = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!s) return s.GetStatus();
+        outProgram.stringPool.PushBack(std::move(s).Value());
+    }
+
+    Base::Result<std::uint32_t> valCount = decoder.ReadU32();
+    if (!valCount) return valCount.GetStatus();
+    if (valCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 valuePool count exceeds limits");
+    }
+    outProgram.valuePool.Reserve(valCount.Value());
+    for (std::uint32_t i = 0U; i < valCount.Value(); ++i) {
+        auto v = DeserializeBytecodeValue(decoder, domain, totalStringBytes, limits.maxStringBytes);
+        if (!v) return v.GetStatus();
+        outProgram.valuePool.PushBack(std::move(v).Value());
+    }
+
+    Base::Result<std::uint32_t> glCount = decoder.ReadU32();
+    if (!glCount) return glCount.GetStatus();
+    if (glCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 gridLengths count exceeds limits");
+    }
+    outProgram.gridLengths.Reserve(glCount.Value());
+    for (std::uint32_t i = 0U; i < glCount.Value(); ++i) {
+        auto v = ReadFloat64(decoder);
+        auto u = decoder.ReadU8();
+        if (!v || !u || u.Value() > static_cast<std::uint8_t>(::Aero::GridUnitType::Star)) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 gridLength invalid");
+        }
+        outProgram.gridLengths.PushBack({v.Value(), static_cast<::Aero::GridUnitType>(u.Value())});
+    }
+
+    Base::Result<std::uint32_t> gsCount = decoder.ReadU32();
+    if (!gsCount) return gsCount.GetStatus();
+    if (gsCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 gradientStops count exceeds limits");
+    }
+    outProgram.gradientStops.Reserve(gsCount.Value());
+    for (std::uint32_t i = 0U; i < gsCount.Value(); ++i) {
+        auto off = ReadFloat64(decoder);
+        auto r = ReadFloat32(decoder);
+        auto g = ReadFloat32(decoder);
+        auto b = ReadFloat32(decoder);
+        auto a = ReadFloat32(decoder);
+        auto name = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!off || !r || !g || !b || !a || !name) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 gradientStop invalid");
+        }
+        TemplatePrototypeGradientStop stop;
+        stop.offset = off.Value();
+        stop.color = Base::Color{r.Value(), g.Value(), b.Value(), a.Value()};
+        stop.name = std::move(name).Value();
+        outProgram.gradientStops.PushBack(std::move(stop));
+    }
+
+    Base::Result<std::uint32_t> bpCount = decoder.ReadU32();
+    if (!bpCount) return bpCount.GetStatus();
+    if (bpCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 bindingPaths count exceeds limits");
+    }
+    outProgram.bindingPathStrings.Reserve(bpCount.Value());
+    outProgram.bindingPaths.Reserve(bpCount.Value());
+    for (std::uint32_t i = 0U; i < bpCount.Value(); ++i) {
+        auto pathStr = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        if (!pathStr) return pathStr.GetStatus();
+        auto stepCount = decoder.ReadU32();
+        if (!stepCount || stepCount.Value() > limits.maxNodes) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 bindingPath steps invalid");
+        }
+        Base::Vector<Data::CompiledPathStep> steps;
+        steps.Reserve(stepCount.Value());
+        for (std::uint32_t s = 0U; s < stepCount.Value(); ++s) {
+            auto kind = decoder.ReadU8();
+            auto collIdx = decoder.ReadU32();
+            auto propName = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto ownerName = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto rawTok = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto attached = decoder.ReadU8();
+            auto hasIdx = decoder.ReadU8();
+            if (!kind || !collIdx || !propName || !ownerName || !rawTok || !attached || !hasIdx) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 bindingPath step truncated");
+            }
+            Data::CompiledPathStep step;
+            step.kind = static_cast<Meta::BindingPathSegmentKind>(kind.Value());
+            step.collectionIndex = collIdx.Value();
+            step.propertyName = std::move(propName).Value();
+            step.attachedOwnerName = std::move(ownerName).Value();
+            step.rawToken = std::move(rawTok).Value();
+            step.attached = attached.Value() != 0U;
+            step.hasCollectionIndexAfter = hasIdx.Value() != 0U;
+            if (step.kind == Meta::BindingPathSegmentKind::CollectionIndex) {
+                step.outputType = Meta::TypeOf<Base::Object>();
+                step.readable = true;
+                step.writable = true;
+                step.accessorReadable = true;
+                step.accessorWritable = true;
+                step.cachedReadable = true;
+                step.cachedWritable = true;
+            }
+            steps.PushBack(std::move(step));
+        }
+        Data::CompiledBindingPath compiledPath;
+        compiledPath.SetPrecompiledSteps(std::move(steps));
+        Data::CompiledBindingPath::RegisterPrecompiled(pathStr.Value().View(), compiledPath);
+        outProgram.bindingPathStrings.PushBack(std::move(pathStr).Value());
+        outProgram.bindingPaths.PushBack(std::move(compiledPath));
+    }
+
+    Base::Result<std::uint32_t> vsgCount = decoder.ReadU32();
+    if (!vsgCount) return vsgCount.GetStatus();
+    if (vsgCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 visualStateGroups count exceeds limits");
+    }
+    outProgram.visualStateGroups.Reserve(vsgCount.Value());
+    for (std::uint32_t g = 0U; g < vsgCount.Value(); ++g) {
+        Controls::VisualStateGroupPlan group;
+        auto gName = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+        auto stateCount = decoder.ReadU32();
+        if (!gName || !stateCount || stateCount.Value() > limits.maxNodes) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 VisualStateGroup invalid");
+        }
+        group.name = std::move(gName).Value();
+        group.states.Reserve(stateCount.Value());
+        for (std::uint32_t s = 0U; s < stateCount.Value(); ++s) {
+            Controls::VisualStatePlan state;
+            auto sName = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto setterCount = decoder.ReadU32();
+            if (!sName || !setterCount || setterCount.Value() > limits.maxNodes) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 VisualState invalid");
+            }
+            state.name = std::move(sName).Value();
+            state.setters.Reserve(setterCount.Value());
+            for (std::uint32_t st = 0U; st < setterCount.Value(); ++st) {
+                Controls::VisualStateSetterPlan setter;
+                auto tName = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+                auto partIdx = decoder.ReadU32();
+                auto prop = decoder.ReadU64();
+                auto val = DeserializeBytecodeValue(decoder, domain, totalStringBytes, limits.maxStringBytes);
+                if (!tName || !partIdx || !prop || !val) {
+                    return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 VisualStateSetter invalid");
+                }
+                setter.targetName = std::move(tName).Value();
+                setter.targetPartIndex = static_cast<std::int32_t>(partIdx.Value());
+                setter.property = Meta::DependencyPropertyHandle{prop.Value()};
+                setter.value = std::move(val).Value();
+                state.setters.PushBack(std::move(setter));
+            }
+            group.states.PushBack(std::move(state));
+        }
+        auto transCount = decoder.ReadU32();
+        if (!transCount || transCount.Value() > limits.maxNodes) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 VisualTransitions invalid");
+        }
+        group.transitions.Reserve(transCount.Value());
+        for (std::uint32_t tr = 0U; tr < transCount.Value(); ++tr) {
+            Controls::VisualTransitionPlan trans;
+            auto from = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto to = decoder.ReadString(totalStringBytes, limits.maxStringBytes);
+            auto dur = decoder.ReadU64();
+            if (!from || !to || !dur) {
+                return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 VisualTransition invalid");
+            }
+            trans.from = std::move(from).Value();
+            trans.to = std::move(to).Value();
+            trans.generatedDurationMicroseconds = dur.Value();
+            group.transitions.PushBack(std::move(trans));
+        }
+        outProgram.visualStateGroups.PushBack(std::move(group));
+    }
+
+    Base::Result<std::uint32_t> instCount = decoder.ReadU32();
+    if (!instCount) return instCount.GetStatus();
+    if (instCount.Value() == 0U || instCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 instructions count exceeds limits");
+    }
+    outProgram.instructions.Reserve(instCount.Value());
+    for (std::uint32_t i = 0U; i < instCount.Value(); ++i) {
+        auto op = decoder.ReadU8();
+        auto flags = decoder.ReadU8();
+        auto slot = decoder.ReadU16();
+        auto auxSlot = decoder.ReadU16();
+        auto typeOrProp = decoder.ReadU16();
+        auto operand = decoder.ReadU32();
+        auto extra = decoder.ReadU32();
+        if (!op || !flags || !slot || !auxSlot || !typeOrProp || !operand || !extra) {
+            return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 instruction truncated");
+        }
+        XamlInstruction inst;
+        inst.op = static_cast<XamlOpCode>(op.Value());
+        inst.flags = flags.Value();
+        inst.slot = slot.Value();
+        inst.auxSlot = auxSlot.Value();
+        inst.typeOrPropIdx = typeOrProp.Value();
+        inst.operandIdx = operand.Value();
+        inst.extraIdx = extra.Value();
+        outProgram.instructions.PushBack(inst);
+    }
+
+    Base::Result<std::uint32_t> subCount = decoder.ReadU32();
+    if (!subCount) return subCount.GetStatus();
+    if (subCount.Value() > limits.maxNodes) {
+        return Base::Status::Failure(Base::ErrorCode::OutOfRange, "AXB3 subPrograms count exceeds limits");
+    }
+    outProgram.subPrograms.Reserve(subCount.Value());
+    for (std::uint32_t i = 0U; i < subCount.Value(); ++i) {
+        auto subContainer = Base::MakeRef<XamlBytecodeContainer>();
+        if (!subContainer) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "AXB3 subProgram allocation failed");
+        }
+        Base::Result<void> subRes = DeserializeBytecodeProgram(
+            decoder, domain, limits, totalStringBytes, subContainer->program);
+        if (!subRes) return subRes.GetStatus();
+        outProgram.subPrograms.PushBack(std::move(subContainer));
+    }
+
+    if (!outProgram.IsValid()) {
+        return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "AXB3 deserialized bytecode program is invalid");
+    }
+    return {};
 }
 
 } // namespace Aero::Markup

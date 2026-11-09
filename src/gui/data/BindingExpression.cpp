@@ -427,7 +427,6 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     bindings_.PushBack(std::move(record));
     BindingRecord& stored = bindings_.Back();
     EnqueueDirtyRecord(stored);
-    UpdatePollingRegistration(stored);
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     AddTargetBinding(descriptor.target, stored.handle);
     AddSourceBinding(descriptor.source, stored.handle);
@@ -635,7 +634,6 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     bindings_.PushBack(std::move(record));
     BindingRecord& stored = bindings_.Back();
     EnqueueDirtyRecord(stored);
-    UpdatePollingRegistration(stored);
     static_cast<void>(handleIndexMap_.Insert(stored.handle.value, newIndex));
     AddTargetBinding(stored.descriptor.target, stored.handle);
     if (stored.sourceKind == BindingSourceKind::DataContext) {
@@ -675,7 +673,6 @@ bool BindingEngine::Detach(BindingHandle handle) noexcept {
     }
     const std::uint32_t* found = handleIndexMap_.Find(handle.value);
     if (found != nullptr && *found < bindings_.Size() && bindings_[*found].handle.value == handle.value) {
-        RemovePollingHandle(handle);
         if (flushing_) {
             const std::uint32_t index = *found;
             handleIndexMap_.Erase(handle.value);
@@ -720,6 +717,47 @@ bool BindingEngine::UpdateTarget(BindingHandle handle) noexcept {
         Base::Result<std::uint32_t> flushed = Flush();
         if (!flushed) return false;
     }
+    return true;
+}
+
+bool BindingEngine::EvaluateNow(BindingHandle handle) noexcept {
+    if (!dispatcher_->CheckAccess() || !initialized_ || flushing_) {
+        return false;
+    }
+    BindingRecord* rec = FindRecord(handle);
+    if (rec == nullptr || rec->handle.value == 0U) {
+        return false;
+    }
+    Base::Result<PropertyValue> source = ReadSource(*rec);
+    bool usedFallback = false;
+    if (!source) {
+        if (rec->descriptor.fallbackValue.IsUnset()) {
+            return false;
+        }
+        source = rec->descriptor.fallbackValue;
+        usedFallback = true;
+    }
+    Base::Result<PropertyValue> target =
+        rec->descriptor.target->GetValue(rec->descriptor.targetProperty);
+    if (!target) {
+        return false;
+    }
+    Base::Result<void> applied = ApplySourceToTarget(
+        *rec,
+        source.Value(),
+        usedFallback,
+        target.Value());
+    rec = FindRecord(handle);
+    if (rec == nullptr || rec->handle.value == 0U || !applied) {
+        return false;
+    }
+    rec->lastSourceValue = source.Value();
+    rec->lastTargetValue = target.Value();
+    rec->applied = true;
+    rec->lastStatus = {};
+    rec->sourceDirty = false;
+    rec->targetDirty = false;
+    rec->forceSourceUpdate = false;
     return true;
 }
 

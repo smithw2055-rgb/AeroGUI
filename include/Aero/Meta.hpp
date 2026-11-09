@@ -328,12 +328,17 @@ public:
         changed_ = &PropertyChangedMemberTraits<TValue, Callback>::Invoke;
         return *this;
     }
+    FrameworkPropertyMetadata& ComputedReader(ComputedPropertyReadCallback reader) noexcept {
+        computedReader_ = reader;
+        return *this;
+    }
 
     const TValue& DefaultValue() const noexcept { return defaultValue_; }
     FrameworkPropertyMetadataOptions Flags() const noexcept { return flags_; }
     UpdateSourceTrigger DefaultUpdateSourceTrigger() const noexcept { return updateSourceTrigger_; }
     ValidateValueCallback Validator() const noexcept { return validate_; }
     PropertyChangedCallback ChangeCallback() const noexcept { return changed_; }
+    ComputedPropertyReadCallback GetComputedReader() const noexcept { return computedReader_; }
     bool IsStructural() const noexcept { return structural_; }
 
 private:
@@ -342,6 +347,7 @@ private:
     UpdateSourceTrigger updateSourceTrigger_ = UpdateSourceTrigger::Default;
     ValidateValueCallback validate_ = nullptr;
     PropertyChangedCallback changed_ = nullptr;
+    ComputedPropertyReadCallback computedReader_ = nullptr;
     bool structural_ = false;
 };
 
@@ -994,7 +1000,8 @@ private:
             propertyFlags,
             options.Validator(),
             options.ChangeCallback(),
-            options.DefaultUpdateSourceTrigger());
+            options.DefaultUpdateSourceTrigger(),
+            options.GetComputedReader());
         return *this;
     }
 

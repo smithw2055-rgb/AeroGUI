@@ -18,7 +18,6 @@
 #include "gui/core/Describe.hpp"
 #include <Aero/ClassHandler.hpp>
 #include <Aero/VisualStateManager.hpp>
-#include "gui/controls/ContentHosting.hpp"
 #include "gui/media/BrushRendering.hpp"
 #include <Aero/Events.hpp>
 
@@ -434,14 +433,12 @@ using namespace Primitives;
 using namespace ::Aero::Render;
 
 ScrollViewer::ScrollViewer() noexcept
-    : ContentControl(StaticTypeId()),
-      commandHandles_(&Base::GetDefaultAllocator()) {
+    : ContentControl(StaticTypeId()) {
     UpdateComputedScrollBarVisibility(lastData_);
 }
 
 ScrollViewer::~ScrollViewer() {
     ClearFallbackPresenter();
-    UnregisterCommands();
     DetachScrollBars();
 }
 
@@ -643,7 +640,6 @@ void ScrollViewer::SyncContentToPresenter() noexcept {
             if (content->GetVisualParent() != contentPresenter_) {
                 static_cast<void>(tree->AttachVisualChild(*contentPresenter_, *content));
             }
-            AttachOwnedContentSubtree(*tree, *content);
         } else if (content->GetVisualParent() != contentPresenter_) {
             ElementTree::EnsureVisualChildStorage(*contentPresenter_, *content);
         }
@@ -727,22 +723,12 @@ void ScrollViewer::OnApplyTemplate()
         SyncContentToPresenter();
     }
     AttachScrollBars();
-    EnsureCommands();
     return;
 }
 
 void ScrollViewer::OnContentChanged(const Value& oldContent, const Value& newContent) {
     ContentControl::OnContentChanged(oldContent, newContent);
     SyncContentToPresenter();
-}
-
-void ScrollViewer::OnVisualParentChanged(::Aero::Media::Visual* oldParent) noexcept {
-    ContentControl::OnVisualParentChanged(oldParent);
-    if (GetVisualParent() != nullptr) {
-        EnsureCommands();
-    } else {
-        UnregisterCommands();
-    }
 }
 
 void ScrollViewer::AttachScrollBars() noexcept {
@@ -814,7 +800,6 @@ std::uint32_t ScrollViewer::GetVisualChildrenCount() const noexcept {
 }
 
 void ScrollViewer::OnTemplateDetached() noexcept {
-    UnregisterCommands();
     DetachScrollBars();
     contentPresenter_ = nullptr;
     Control::OnTemplateDetached();
@@ -968,112 +953,88 @@ void ScrollViewer::UpdateComputedScrollBarVisibility(
             data.viewportHeight)));
 }
 
-void ScrollViewer::EnsureCommands() noexcept {
-    if (!commandHandles_.Empty()) return;
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input == nullptr) return;
-    using CommandMethod = void (ScrollViewer::*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
-    struct CommandEntry {
-        Base::StringView primary;
-        Base::StringView alias;
-        CommandMethod method;
-    };
-    static constexpr CommandEntry kCommands[] = {
-        {"LineUpCommand", "LineUp", &ScrollViewer::OnLineUpCommand},
-        {"LineDownCommand", "LineDown", &ScrollViewer::OnLineDownCommand},
-        {"LineLeftCommand", "LineLeft", &ScrollViewer::OnLineLeftCommand},
-        {"LineRightCommand", "LineRight", &ScrollViewer::OnLineRightCommand},
-        {"PageUpCommand", "PageUp", &ScrollViewer::OnPageUpCommand},
-        {"PageDownCommand", "PageDown", &ScrollViewer::OnPageDownCommand},
-        {"PageLeftCommand", "PageLeft", &ScrollViewer::OnPageLeftCommand},
-        {"PageRightCommand", "PageRight", &ScrollViewer::OnPageRightCommand},
-        {"ScrollToTopCommand", "ScrollToTop", &ScrollViewer::OnScrollToTopCommand},
-        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollViewer::OnScrollToBottomCommand},
-        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollViewer::OnScrollToLeftEndCommand},
-        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollViewer::OnScrollToRightEndCommand},
-    };
-    auto addCmd = [this, input](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
-        auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name);
-        if (cmd) {
-            auto added = input->AddCommandBinding(*this, Input::CommandBinding(std::move(cmd).Value(), handler));
-            if (added) commandHandles_.PushBack(added.Value());
-        }
-    };
-    for (const CommandEntry& entry : kCommands) {
-        const ExecutedRoutedEventHandler handler(this, entry.method);
-        addCmd(entry.primary, handler);
-        addCmd(entry.alias, handler);
+void ScrollViewer::OnLineUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->LineVertical(-1.0));
+        args.SetHandled(true);
     }
 }
 
-void ScrollViewer::UnregisterCommands() noexcept {
-    Aero::InputRouter* input = ElementTree::InputOf(*this);
-    if (input != nullptr) {
-        for (Input::CommandBindingHandle handle : commandHandles_) {
-            input->RemoveCommandBinding(handle);
-        }
+void ScrollViewer::OnLineDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->LineVertical(1.0));
+        args.SetHandled(true);
     }
-    commandHandles_.Clear();
 }
 
-void ScrollViewer::OnLineUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(LineVertical(-1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnLineLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->LineHorizontal(-1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnLineDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(LineVertical(1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnLineRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->LineHorizontal(1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnLineLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(LineHorizontal(-1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnPageUpCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->PageVertical(-1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnLineRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(LineHorizontal(1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnPageDownCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->PageVertical(1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnPageUpCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(PageVertical(-1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnPageLeftCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->PageHorizontal(-1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnPageDownCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(PageVertical(1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnPageRightCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        static_cast<void>(viewer->PageHorizontal(1.0));
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnPageLeftCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(PageHorizontal(-1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnScrollToTopCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        viewer->SetVerticalOffset(0.0);
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnPageRightCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    static_cast<void>(PageHorizontal(1.0));
-    args.SetHandled(true);
+void ScrollViewer::OnScrollToBottomCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        viewer->SetVerticalOffset(viewer->GetScrollableHeight());
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnScrollToTopCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    SetVerticalOffset(0.0);
-    args.SetHandled(true);
+void ScrollViewer::OnScrollToLeftEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        viewer->SetHorizontalOffset(0.0);
+        args.SetHandled(true);
+    }
 }
 
-void ScrollViewer::OnScrollToBottomCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    SetVerticalOffset(GetScrollableHeight());
-    args.SetHandled(true);
-}
-
-void ScrollViewer::OnScrollToLeftEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    SetHorizontalOffset(0.0);
-    args.SetHandled(true);
-}
-
-void ScrollViewer::OnScrollToRightEndCommand(Base::Object*, ExecutedRoutedEventArgs& args) noexcept {
-    SetHorizontalOffset(GetScrollableWidth());
-    args.SetHandled(true);
+void ScrollViewer::OnScrollToRightEndCommand(Base::Object* sender, ExecutedRoutedEventArgs& args) noexcept {
+    if (auto* viewer = static_cast<ScrollViewer*>(sender)) {
+        viewer->SetHorizontalOffset(viewer->GetScrollableWidth());
+        args.SetHandled(true);
+    }
 }
 
 Thumb::Thumb(TypeId runtimeType) noexcept
@@ -1183,6 +1144,40 @@ AERO_DESCRIBE(ScrollViewer) {
         .TemplatePart("PART_HorizontalScrollBar", TypeOf<ScrollBar>())
         .Factory();
     AERO_ON(ScrollViewer, &ScrollViewer::OnMouseWheel, UIElement::MouseWheelEvent);
+
+    using StaticCommandFn = void (*)(Base::Object*, ExecutedRoutedEventArgs&) noexcept;
+    struct CommandEntry {
+        Base::StringView primary;
+        Base::StringView alias;
+        StaticCommandFn fn;
+    };
+    static constexpr CommandEntry kCommands[] = {
+        {"LineUpCommand", "LineUp", &ScrollViewer::OnLineUpCommand},
+        {"LineDownCommand", "LineDown", &ScrollViewer::OnLineDownCommand},
+        {"LineLeftCommand", "LineLeft", &ScrollViewer::OnLineLeftCommand},
+        {"LineRightCommand", "LineRight", &ScrollViewer::OnLineRightCommand},
+        {"PageUpCommand", "PageUp", &ScrollViewer::OnPageUpCommand},
+        {"PageDownCommand", "PageDown", &ScrollViewer::OnPageDownCommand},
+        {"PageLeftCommand", "PageLeft", &ScrollViewer::OnPageLeftCommand},
+        {"PageRightCommand", "PageRight", &ScrollViewer::OnPageRightCommand},
+        {"ScrollToTopCommand", "ScrollToTop", &ScrollViewer::OnScrollToTopCommand},
+        {"ScrollToBottomCommand", "ScrollToBottom", &ScrollViewer::OnScrollToBottomCommand},
+        {"ScrollToLeftEndCommand", "ScrollToLeftEnd", &ScrollViewer::OnScrollToLeftEndCommand},
+        {"ScrollToRightEndCommand", "ScrollToRightEnd", &ScrollViewer::OnScrollToRightEndCommand},
+    };
+    auto addClassCmd = [](Base::StringView name, const ExecutedRoutedEventHandler& handler) noexcept {
+        Input::RoutedCommand::RegisterStatic(ScrollBar::StaticTypeId(), name);
+        if (auto cmd = Input::RoutedCommand::ResolveStatic(ScrollBar::StaticTypeId(), name)) {
+            Input::CommandBinding::RegisterClassBinding(
+                ScrollViewer::StaticTypeId(),
+                Input::CommandBinding(std::move(cmd), handler));
+        }
+    };
+    for (const CommandEntry& entry : kCommands) {
+        const ExecutedRoutedEventHandler handler(entry.fn);
+        addClassCmd(entry.primary, handler);
+        addClassCmd(entry.alias, handler);
+    }
 }
 
 

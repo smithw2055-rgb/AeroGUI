@@ -220,7 +220,7 @@ private:
         return LogicalTreeHelper::GetParent(object);
     }
 
-    Base::Vector<EventRouteNode> nodes_;
+    Base::BasicVector<EventRouteNode, 32U> nodes_;
 };
 
 } // namespace Aero

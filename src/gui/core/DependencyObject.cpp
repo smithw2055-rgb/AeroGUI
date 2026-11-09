@@ -1077,25 +1077,18 @@ const PropertyValue* DependencyObject::FindEffectiveValuePtr(
             return &aliasHit->effectiveValue;
         }
     }
+    if (const Meta::ComputedPropertyReadCallback computedReader = property->ComputedReader()) {
+        thread_local PropertyValue t_computedScratch[4];
+        thread_local std::uint32_t t_computedSlot = 0U;
+        PropertyValue& slot = t_computedScratch[t_computedSlot++ & 3U];
+        slot = computedReader(*this);
+        return slot.IsUnset() ? nullptr : &slot;
+    }
     return &metadata->defaultValue;
 }
 
 PropertyValue DependencyObject::GetValue(
     DependencyPropertyHandle propertyHandle) const noexcept {
-    if (propertyHandle.value == FrameworkElement::ActualWidthProperty.Id() ||
-        propertyHandle.value == FrameworkElement::ActualHeightProperty.Id()) {
-        const bool ready = typeVerified_ ? CheckAccess() : static_cast<bool>(VerifyReady());
-        if (ready) {
-            if (const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(this)) {
-                const Size renderSize = fe->GetRenderSize();
-                const double scalar = (propertyHandle.value == FrameworkElement::ActualWidthProperty.Id())
-                    ? static_cast<double>(renderSize.width)
-                    : static_cast<double>(renderSize.height);
-                return PropertyValue::FromDouble(Meta::TypeOf<double>(), scalar);
-            }
-        }
-        return PropertyValue::Unset();
-    }
     const PropertyValue* val = FindEffectiveValuePtr(propertyHandle);
     return val != nullptr ? *val : PropertyValue::Unset();
 }
@@ -1237,6 +1230,20 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
 }
 
 
+DependencyObjectRare* DependencyObject::EnsureRare() noexcept {
+    if (rare_ == nullptr) {
+        rare_ = new (std::nothrow) DependencyObjectRare();
+    }
+    return rare_;
+}
+
+void DependencyObject::CleanupRareIfEmpty() noexcept {
+    if (rare_ != nullptr && rare_->IsEmpty()) {
+        delete rare_;
+        rare_ = nullptr;
+    }
+}
+
 DependencyObject* DependencyObject::ExplicitInheritanceParent() const noexcept {
     return (hasExplicitInheritanceParent_ && rare_ != nullptr)
         ? rare_->inheritanceParent
@@ -1248,18 +1255,12 @@ void DependencyObject::SetExplicitInheritanceParent(DependencyObject* parent) no
         hasExplicitInheritanceParent_ = 0U;
         if (rare_ != nullptr) {
             rare_->inheritanceParent = nullptr;
-            if (rare_->IsEmpty()) {
-                delete rare_;
-                rare_ = nullptr;
-            }
+            CleanupRareIfEmpty();
         }
         return;
     }
-    if (rare_ == nullptr) {
-        rare_ = new (std::nothrow) DependencyObjectRare();
-        if (rare_ == nullptr) {
-            return;
-        }
+    if (EnsureRare() == nullptr) {
+        return;
     }
     rare_->inheritanceParent = parent;
     hasExplicitInheritanceParent_ = 1U;

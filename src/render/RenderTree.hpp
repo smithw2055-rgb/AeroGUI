@@ -144,7 +144,7 @@ struct RenderNodeSnapshot {
     bool descendantHasEffectOrMask = false;
     bool isIdentityTransform = true;
     std::uint64_t elementRevision = 0U;
-    const DisplayList* drawing = nullptr;
+    std::uint32_t drawingIndex = UINT32_MAX;
 };
 
 } // namespace Aero::Render
@@ -418,7 +418,7 @@ private:
         ::Aero::Render::RenderFrame& plan) noexcept;
     static std::uint32_t AppendGradientRamp(
         ::Aero::Render::RenderFrame& plan,
-        const ::Aero::Media::GradientBrush& brush) noexcept;
+        const ::Aero::Media::Brush& brush) noexcept;
 };
 
 } // namespace Aero::Render

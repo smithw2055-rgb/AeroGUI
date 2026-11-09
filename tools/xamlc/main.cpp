@@ -173,8 +173,18 @@ CompileWithManifest(
             schemaBytes.data(),
             static_cast<std::uint32_t>(schemaBytes.size())});
     if (!manifest) return manifest.GetStatus();
-    return Aero::Markup::CompiledDocument::Compile(
-        reader, manifest.Value(), origin);
+    Aero::Base::Result<Aero::Markup::CompiledDocument> compiled =
+        Aero::Markup::CompiledDocument::Compile(
+            reader, manifest.Value(), origin);
+    if (!compiled) return compiled.GetStatus();
+    Aero::ModuleSet modules;
+    if (modules.Add(Aero::App::AppMetadataModule())) {
+        Aero::GuiSchema bundle;
+        if (bundle.Prepare(modules) && bundle.Finalize({})) {
+            static_cast<void>(compiled.Value().ValidateSchema(bundle.Schema()));
+        }
+    }
+    return std::move(compiled).Value();
 }
 
 } // namespace
@@ -192,7 +202,7 @@ int main(int argc, char** argv) {
     }
     if (options.showVersion) {
         std::printf(
-            "aero-xamlc %u.%u.%u (schema ABI %u, AXB2 cache %u, encoding %u)\n",
+            "aero-xamlc %u.%u.%u (schema ABI %u, AXB3 cache %u, encoding %u)\n",
             Aero::VersionMajor,
             Aero::VersionMinor,
             Aero::VersionPatch,

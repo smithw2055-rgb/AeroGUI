@@ -388,7 +388,7 @@ Base::Result<void> ActivateMountedSubtree(
         return {};
     };
 
-    const auto attachEdges = [&](bool deferred) noexcept -> Base::Result<void> {
+    const auto attachEdges = [&]() noexcept -> Base::Result<void> {
         std::uint32_t attached = 0U;
         for (const Markup::VisualEdge& edge : doc.visualContent.mountEdges) {
             if (edge.state.layoutAttached || edge.state.logicalAttached) {
@@ -418,10 +418,6 @@ Base::Result<void> ActivateMountedSubtree(
                     continue;
                 }
                 if (VisualTree(edge.parent) != &context) {
-                    continue;
-                }
-                if (deferred && VisualTree(edge.child) == &context &&
-                    (edge.state.layoutAttached || edge.state.logicalAttached)) {
                     continue;
                 }
                 if (UIElement* childEl = ::Aero::TryCast<UIElement>(edge.child);
@@ -484,18 +480,9 @@ Base::Result<void> ActivateMountedSubtree(
     } deferGuard{state.deferGeneratedActivation, previousDefer};
     state.deferGeneratedActivation = true;
 
-    // Round 1
     Base::Result<void> hosted = hostLoadedContent();
     if (!hosted) return hosted.GetStatus();
-    Base::Result<void> attached = attachEdges(false);
-    if (!attached) return attached.GetStatus();
-    hosted = hostLoadedContent();
-    if (!hosted) return hosted.GetStatus();
-    attached = MountOwnedLayoutChildren(context, subtreeRoot);
-    if (!attached) return attached.GetStatus();
-
-    // Round 2 (deferred)
-    attached = attachEdges(true);
+    Base::Result<void> attached = attachEdges();
     if (!attached) return attached.GetStatus();
     hosted = hostLoadedContent();
     if (!hosted) return hosted.GetStatus();

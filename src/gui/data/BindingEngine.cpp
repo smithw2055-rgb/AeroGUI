@@ -54,6 +54,12 @@ using namespace Aero::Data;
         }
     }
     if (parent == nullptr) {
+        if (::Aero::FrameworkElement* fe =
+                ::Aero::TryCast<::Aero::FrameworkElement>(&node)) {
+            parent = fe->GetTemplatedParent();
+        }
+    }
+    if (parent == nullptr) {
         if (::Aero::Freezable* freezable =
                 ::Aero::TryCast<::Aero::Freezable>(&node)) {
             parent = (*freezable).Parent();
@@ -126,11 +132,9 @@ void BindingEngine::Shutdown() noexcept {
     targetToBindings_.Clear();
     dataContextBindings_.Clear();
     dirtyQueue_.Clear();
-    pollingQueue_.Clear();
     workQueue_.Clear();
     flushing_ = false;
     hasDirtyBindings_ = true;
-    pollingBindingCount_ = 0U;
     writesDataContextCount_ = 0U;
     initialized_ = false;
 }
@@ -140,57 +144,6 @@ void BindingEngine::EnqueueDirtyRecord(BindingRecord& record) noexcept {
     if (!record.inDirtyQueue && record.handle.value != 0U) {
         record.inDirtyQueue = true;
         dirtyQueue_.PushBack(record.handle);
-    }
-}
-
-void BindingEngine::UpdatePollingRegistration(BindingRecord& record) noexcept {
-    if (record.handle.value == 0U ||
-        (record.descriptor.mode == BindingMode::OneTime && record.applied)) {
-        RemovePollingHandle(record.handle);
-        return;
-    }
-    const bool metadataPath =
-        record.sourceKind != BindingSourceKind::DependencyProperty;
-    const bool hasNotify =
-        record.notificationSubscription != 0U ||
-        record.sourceDependencyProperty.IsValid();
-    const bool unresolvedDataContext =
-        record.sourceKind == BindingSourceKind::DataContext &&
-        (!record.applied || record.metadataSource == nullptr ||
-         (!record.bindsToSource &&
-          (record.pathPlan == nullptr || !record.pathPlan->IsValid())));
-    const bool pollMetadata =
-        (metadataPath && !hasNotify) || unresolvedDataContext;
-
-    if (pollMetadata) {
-        if (!record.inPollingQueue) {
-            record.inPollingQueue = true;
-            pollingQueue_.PushBack(record.handle);
-            ++pollingBindingCount_;
-        }
-    } else {
-        if (record.inPollingQueue) {
-            RemovePollingHandle(record.handle);
-        }
-    }
-}
-
-void BindingEngine::RemovePollingHandle(BindingHandle handle) noexcept {
-    for (std::uint32_t i = 0U; i < pollingQueue_.Size(); ++i) {
-        if (pollingQueue_[i].value == handle.value) {
-            BindingRecord* rec = FindRecord(handle);
-            if (rec != nullptr) {
-                rec->inPollingQueue = false;
-            }
-            if (pollingBindingCount_ > 0U) {
-                --pollingBindingCount_;
-            }
-            if (i + 1U < pollingQueue_.Size()) {
-                pollingQueue_[i] = pollingQueue_.Back();
-            }
-            pollingQueue_.PopBack();
-            return;
-        }
     }
 }
 
@@ -1344,7 +1297,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     if (flushing_) {
         return std::uint32_t{0U};
     }
-    if (!hasDirtyBindings_ && dirtyQueue_.Empty() && pollingQueue_.Empty()) {
+    if (!hasDirtyBindings_ && dirtyQueue_.Empty()) {
         return std::uint32_t{0U};
     }
 
@@ -1353,14 +1306,6 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
     std::uint32_t updated = 0U;
 
     for (std::uint32_t iteration = 0U; iteration < 4U; ++iteration) {
-
-        for (std::uint32_t i = 0U; i < pollingQueue_.Size(); ++i) {
-            BindingRecord* rec = FindRecord(pollingQueue_[i]);
-            if (rec != nullptr && rec->handle.value != 0U) {
-                EnqueueDirtyRecord(*rec);
-            }
-        }
-
         if (dirtyQueue_.Empty()) {
             break;
         }
@@ -1396,31 +1341,8 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                     rec->targetDirty = false;
                     continue;
                 }
-                const bool metadataPath =
-                    rec->sourceKind != BindingSourceKind::DependencyProperty;
-                const bool hasNotify =
-                    rec->notificationSubscription != 0U ||
-                    rec->sourceDependencyProperty.IsValid();
-                const bool unresolvedDataContext =
-                    rec->sourceKind == BindingSourceKind::DataContext &&
-                    (!rec->applied || rec->metadataSource == nullptr ||
-                     (!rec->bindsToSource &&
-                      (rec->pathPlan == nullptr || !rec->pathPlan->IsValid())));
-                const bool pollMetadata =
-                    (metadataPath && !hasNotify) || unresolvedDataContext;
-                if (rec->applied && !rec->sourceDirty &&
-                    !rec->targetDirty && !pollMetadata) {
+                if (rec->applied && !rec->sourceDirty && !rec->targetDirty) {
                     continue;
-                }
-                if (pollMetadata && !rec->pollHintEmitted) {
-                    rec->pollHintEmitted = true;
-                    ReportDiagnostic(
-                        *rec,
-                        BindingDiagnosticStage::ResolveSource,
-                        Base::Status::Failure(
-                            Base::ErrorCode::Unsupported,
-                            "Binding source does not implement NotifyPropertyChanged; "
-                            "polling metadata path every frame"));
                 }
 
                 Base::Result<PropertyValue> source = ReadSource(*rec);
@@ -1433,6 +1355,13 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                             : BindingDiagnosticStage::ReadSource;
                     ReportDiagnostic(*rec, stage, source.GetStatus());
                     if (rec->descriptor.fallbackValue.IsUnset()) {
+                        if (rec->applied &&
+                            rec->descriptor.target != nullptr &&
+                            rec->descriptor.target->RuntimeType() == Data::MultiBindingProxy::StaticTypeId()) {
+                            rec->descriptor.target->SetValue(
+                                rec->descriptor.targetProperty,
+                                PropertyValue::FromUnsignedInteger(Data::MultiBindingProxy::StaticTypeId(), 0U));
+                        }
                         rec->applied = false;
                         rec->sourceDirty = true;
                         continue;
@@ -1455,9 +1384,7 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                 const bool canWriteSource = (mode != BindingMode::OneWay && mode != BindingMode::OneTime);
                 const bool sourceChanged = canReadSource && (!rec->applied ||
                     rec->sourceDirty ||
-                    usedFallback ||
-                    (pollMetadata &&
-                     source.Value() != rec->lastSourceValue));
+                    usedFallback);
                 const bool targetChanged = canWriteSource &&
                     ((rec->descriptor.updateSourceTrigger ==
                             UpdateSourceTrigger::Explicit ||
@@ -1561,7 +1488,6 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
                 rec->sourceDirty = false;
                 rec->targetDirty = false;
                 rec->forceSourceUpdate = false;
-                UpdatePollingRegistration(*rec);
             }
         }
         updated += iterationUpdated;
@@ -1586,7 +1512,6 @@ Base::Result<std::uint32_t> BindingEngine::Flush() noexcept {
         bindings_.Resize(writeIndex);
     }
     hasDirtyBindings_ = !dirtyQueue_.Empty();
-    pollingBindingCount_ = pollingQueue_.Size();
     return updated;
 }
 
@@ -1744,7 +1669,6 @@ void BindingEngine::OnPropertyChanged(
                 record->sourceDirty = true;
                 record->applied = false;
                 EnqueueDirtyRecord(*record);
-                UpdatePollingRegistration(*record);
             }
         }
     }
@@ -1763,7 +1687,6 @@ void BindingEngine::OnPropertyChanged(
                 record->sourceDirty = true;
                 record->applied = false;
                 EnqueueDirtyRecord(*record);
-                UpdatePollingRegistration(*record);
             }
         }
     }
@@ -1895,14 +1818,21 @@ Base::Result<void> BindingEngine::VerifyDescriptor(
     Base::Result<PropertyValue> target =
         descriptor.target->GetValue(descriptor.targetProperty);
     if (!target) return target.GetStatus();
+    const DependencyProperty* targetProperty =
+        DependencyObjectAccess::PropertyRegistry(descriptor.target).Find(
+            descriptor.targetProperty);
+    const TypeId targetType =
+        (targetProperty != nullptr && targetProperty->AcceptsAnyValue())
+            ? TypeOf<Meta::Value>()
+            : target.Value().Type();
     const TypeRegistry& metaTypes = descriptor.metadata->Types();
     if (!descriptor.fallbackValue.IsUnset() &&
-        !FallbackValueMatchesTarget(metaTypes, descriptor.fallbackValue.Type(), target.Value().Type())) {
+        !FallbackValueMatchesTarget(metaTypes, descriptor.fallbackValue.Type(), targetType)) {
         return InvalidArgument(
             "Binding fallback value type differs from the target property");
     }
     if (!descriptor.targetNullValue.IsUnset() &&
-        !FallbackValueMatchesTarget(metaTypes, descriptor.targetNullValue.Type(), target.Value().Type())) {
+        !FallbackValueMatchesTarget(metaTypes, descriptor.targetNullValue.Type(), targetType)) {
         return InvalidArgument(
             "Binding target-null value type differs from the target property");
     }
@@ -2153,10 +2083,17 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 sourceObject->AddValueChangedHandler(
                     handle, propertyChangedHandler_);
                 record.sourceDependencyProperty = handle;
-            } else if (!first.dynamic && first.member != InvalidMemberId) {
-                DependencyPropertyHandle handle{first.member};
-                if (const Meta::DependencyProperty* dp =
-                        DependencyObjectAccess::PropertyRegistry(sourceObject).Find(handle)) {
+            } else if (!first.dynamic) {
+                const Meta::DependencyProperty* dp = nullptr;
+                if (first.member != InvalidMemberId) {
+                    dp = DependencyObjectAccess::PropertyRegistry(sourceObject).Find(
+                        DependencyPropertyHandle{first.member});
+                }
+                if (dp == nullptr && !first.propertyName.Empty()) {
+                    dp = DependencyObjectAccess::PropertyRegistry(sourceObject).Find(
+                        sourceObject->RuntimeType(), first.propertyName.View());
+                }
+                if (dp != nullptr) {
                     const DependencyPropertyHandle canonicalHandle = dp->Handle();
                     sourceObject->AddValueChangedHandler(
                         canonicalHandle, propertyChangedHandler_);
@@ -2230,7 +2167,6 @@ void BindingEngine::CleanupRecord(BindingRecord& record) noexcept {
 
 void BindingEngine::RemoveAt(std::uint32_t index) noexcept {
     if (index >= bindings_.Size()) return;
-    RemovePollingHandle(bindings_[index].handle);
     if (bindings_[index].dataContextProperty.IsValid() &&
         bindings_[index].descriptor.targetProperty == bindings_[index].dataContextProperty &&
         writesDataContextCount_ > 0U) {

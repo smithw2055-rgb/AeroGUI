@@ -122,6 +122,14 @@ public:
     bool GetIsLayoutAttached() const noexcept { return layout_.HasFlag(LayoutFlags::LayoutAttached); }
     Size GetUntransformedDesiredSize() const noexcept;
     Size GetPreviousMeasureConstraint() const noexcept { return layout_.previousMeasureConstraint; }
+    Size GetPreviousAvailableSize() const noexcept { return layout_.previousMeasureConstraint; }
+    Rect GetPreviousFinalRect() const noexcept {
+        return (rare_ != nullptr && rare_->hasCustomPreviousFinalRect)
+            ? rare_->previousFinalRect
+            : layout_.layoutSlot;
+    }
+    bool GetNeverMeasured() const noexcept { return layout_.neverMeasured; }
+    bool GetNeverArranged() const noexcept { return layout_.neverArranged; }
     bool GetClipToBounds() const noexcept { return layout_.clipToBounds; }
     // Property operations
     void SetClipToBounds(bool value) noexcept { SetValue(ClipToBoundsProperty, value); }
@@ -371,6 +379,8 @@ class EventRouter;
         bool measuring : 1;
         bool arranging : 1;
         bool hasLayoutClip : 1;
+        bool neverMeasured : 1;
+        bool neverArranged : 1;
 
         LayoutHot() noexcept
             : layoutAttached(false)
@@ -380,7 +390,9 @@ class EventRouter;
             , arrangeQueued(false)
             , measuring(false)
             , arranging(false)
-            , hasLayoutClip(false) {}
+            , hasLayoutClip(false)
+            , neverMeasured(true)
+            , neverArranged(true) {}
 
         bool HasFlag(LayoutFlags flag) const noexcept {
             switch (flag) {
@@ -419,6 +431,8 @@ class EventRouter;
             layoutAttached = false;
             measureQueued = false;
             arrangeQueued = false;
+            neverMeasured = true;
+            neverArranged = true;
         }
         bool HasRenderRare(std::uint8_t mask) const noexcept {
             return (renderRareMask & mask) != 0U;
@@ -437,10 +451,24 @@ class EventRouter;
         void* inputBindings = nullptr;
         void* commandBindings = nullptr;
         Rect layoutClip{};
+        Rect previousFinalRect{};
         Size untransformedDesiredSize{};
         bool hasCustomLayoutClip = false;
+        bool hasCustomPreviousFinalRect = false;
         bool hasCustomUntransformedDesiredSize = false;
     };
+
+    void SetPreviousFinalRect(const Rect& rect) noexcept {
+        if (rect == layout_.layoutSlot) {
+            if (rare_ != nullptr) {
+                rare_->hasCustomPreviousFinalRect = false;
+                rare_->previousFinalRect = {};
+            }
+            return;
+        }
+        EnsureRare().previousFinalRect = rect;
+        rare_->hasCustomPreviousFinalRect = true;
+    }
 
     LayoutHot& Layout() noexcept { return layout_; }
     const LayoutHot& Layout() const noexcept { return layout_; }

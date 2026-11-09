@@ -13,6 +13,7 @@
 #include <utility>
 #include "gui/triggers/TriggerPlan.hpp"
 #include "gui/core/Describe.hpp"
+#include "gui/core/ElementTree.hpp"
 #include "gui/core/TypeRegistryCore.hpp"
 #include "gui/core/RenderStateCallbacks.hpp"
 #include "gui/core/ValueConversion.hpp"
@@ -66,16 +67,28 @@
 #include <cstdlib>
 #include <string_view>
 
-namespace Aero {
+namespace Aero::Media::Animation {
 
-using namespace Media::Animation;
+namespace {
 
-static bool TargetsScaleTransform(
+StoryboardHost* ResolveAnimationStoryboardHost(FrameworkElement& owner) noexcept {
+    ElementTree* tree = ElementTree::Of(owner);
+    ViewFrame* view = tree != nullptr ? tree->GetViewState() : nullptr;
+    return view != nullptr ? view->Storyboards() : nullptr;
+}
+
+void RecordAnimationActionFailure(StoryboardHost* host, const Base::Status& status) noexcept {
+    if (host != nullptr) {
+        host->activeActionStatus = status;
+    }
+}
+
+bool TargetsScaleTransform(
     StoryboardHost& host,
-    const Media::Animation::Timeline& timeline) noexcept {
+    const Timeline& timeline) noexcept {
     if (host.Metadata()->Types().IsDerivedFrom(
-            timeline.RuntimeType(), Media::Animation::TimelineGroup::StaticTypeId())) {
-        const auto& group = static_cast<const Media::Animation::TimelineGroup&>(timeline);
+            timeline.RuntimeType(), TimelineGroup::StaticTypeId())) {
+        const auto& group = static_cast<const TimelineGroup&>(timeline);
         for (const auto& child : group.GetTimelines()) {
             if (child && TargetsScaleTransform(host, *child)) {
                 return true;
@@ -84,8 +97,8 @@ static bool TargetsScaleTransform(
         return false;
     }
     Base::Result<Base::StringView> targetProp = host.AnimationAttachedString(
-        const_cast<Media::Animation::Timeline&>(timeline),
-        Media::Animation::Storyboard::TargetPropertyProperty);
+        const_cast<Timeline&>(timeline),
+        Storyboard::TargetPropertyProperty);
     if (targetProp) {
         std::string_view prop(targetProp.Value().Data(), targetProp.Value().SizeBytes());
         if (prop.find("ScaleX") != std::string_view::npos ||
@@ -96,503 +109,348 @@ static bool TargetsScaleTransform(
     return false;
 }
 
+enum class MediaElementOperation : std::uint8_t {
+    Play = 0U,
+    Pause,
+    Stop,
+};
 
-
-static Base::Result<void> ExecuteChangePropertyAction(
-    StoryboardHost& host,
-    Interactivity::ChangePropertyAction& change,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    Base::Result<Base::Object*> resolvedTarget =
-        host.ResolveTargetObject(
-            change.GetTargetObject(),
-            change.GetTargetName(),
-            owner,
-            dataTemplateContext,
-            names,
-            &change);
-    if (!resolvedTarget) return resolvedTarget.GetStatus();
-    Base::Object* targetObject = resolvedTarget.Value();
-    if (targetObject == nullptr ||
-        !host.Metadata()->Types().IsDerivedFrom(
-            targetObject->RuntimeType(),
-            DependencyObject::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "ChangePropertyAction TargetName did not resolve to a DependencyObject");
-    }
-    auto& target = static_cast<DependencyObject&>(*targetObject);
-    Base::Result<StoryboardHost::ResolvedAnimationProperty> resolved =
-        host.ResolveAnimationProperty(target, change.GetPropertyName());
-    if (!resolved) return resolved.GetStatus();
-
-    DependencyObject& propertyTarget = *resolved.Value().target;
-    const Meta::DependencyPropertyHandle propertyHandle = resolved.Value().property;
-    const Meta::DependencyProperty* property =
-        (*host.Metadata()).DependencyProperties().Find(propertyHandle);
-    if (property == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "ChangePropertyAction property metadata was not found");
-    }
-
-    Meta::PropertyValue value = change.GetValue();
-    Base::Ref<Data::Binding> valueBinding = change.GetValueBinding();
-    if (valueBinding) {
-        Base::Result<Meta::PropertyValue> evaluated =
-            host.Interactivity()->EvaluateAuthoredBinding(
-                *valueBinding,
-                owner,
-                dataTemplateContext,
-                names,
-                &change);
-        if (!evaluated) return evaluated.GetStatus();
-        value = std::move(evaluated).Value();
-    }
-    Base::Result<Meta::PropertyValue> coerced =
-        NormalizeValueForProperty(
-            host.Metadata(),
-            *property,
-            std::move(value));
-    if (!coerced) return coerced.GetStatus();
-    propertyTarget.SetCurrentValue(
-        propertyHandle,
-        std::move(coerced).Value());
-    return {};
-}
-
-static Base::Result<void> ExecuteInvokeCommandAction(
-    StoryboardHost& host,
-    Interactivity::InvokeCommandAction& invoke,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    Base::Ref<Input::ICommand> command = invoke.GetCommand();
-    if (!command && invoke.GetCommandBinding()) {
-        Base::Result<Meta::PropertyValue> evaluated =
-            host.Interactivity()->EvaluateAuthoredBinding(
-                *invoke.GetCommandBinding(),
-                owner,
-                dataTemplateContext,
-                names,
-                &invoke);
-        if (!evaluated) return evaluated.GetStatus();
-        if (evaluated.Value().Kind() != Meta::ValueKind::Object ||
-            evaluated.Value().IsNullObject() ||
-            !evaluated.Value().AsObject() ||
-            !host.Metadata()->Types().IsDerivedFrom(
-                evaluated.Value().AsObject()->RuntimeType(),
-                Input::ICommand::StaticTypeId())) {
-            return Base::Status::Failure(
-                Base::ErrorCode::InvalidArgument,
-                "InvokeCommandAction Binding did not return ICommand");
-        }
-        command = Base::Ref<Input::ICommand>::FromBorrowed(
-            *static_cast<Input::ICommand*>(
-                evaluated.Value().AsObject().Get()));
-    }
-    if (!command) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "InvokeCommandAction Command is unavailable");
-    }
-
-    Meta::PropertyValue parameter = invoke.GetCommandParameter();
-    if (invoke.GetCommandParameterBinding()) {
-        Base::Result<Meta::PropertyValue> evaluated =
-            host.Interactivity()->EvaluateAuthoredBinding(
-                *invoke.GetCommandParameterBinding(),
-                owner,
-                dataTemplateContext,
-                names,
-                &invoke);
-        if (!evaluated) return evaluated.GetStatus();
-        parameter = std::move(evaluated).Value();
-    }
-    if (parameter.IsUnset()) {
-        parameter = Meta::PropertyValue::NullObject(
-            Meta::TypeOf<Base::Object>());
-    }
-    UIElement* target = TryCast<UIElement>(&owner);
-    if (target == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidState,
-            "InvokeCommandAction owner is not a UIElement");
-    }
-    const bool canExecute = host.Input() != nullptr
-        ? host.Input()->CanExecute(*command, parameter, *target)
-        : command->CanExecute(parameter, target);
-    if (!canExecute) return {};
-    if (host.Input() != nullptr) {
-        Base::Result<bool> executed =
-            host.Input()->Execute(*command, parameter, *target);
-        return executed
-            ? Base::Result<void>()
-            : Base::Result<void>(executed.GetStatus());
-    }
-    command->Execute(parameter, target);
-    return {};
-}
-
-static Base::Result<void> ExecuteSetFocusAction(
-    StoryboardHost& host,
-    Interactivity::SetFocusAction& setFocus,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    if (!setFocus.GetEngage() || host.Input() == nullptr) return {};
-    Base::Result<Base::Object*> resolvedTarget =
-        host.ResolveTargetObject(
-            setFocus.GetTargetObject(),
-            setFocus.GetTargetName(),
-            owner,
-            dataTemplateContext,
-            names,
-            &setFocus);
-    if (!resolvedTarget) return resolvedTarget.GetStatus();
-    Base::Object* targetObject = resolvedTarget.Value();
-    UIElement* target =
-        targetObject != nullptr && host.Metadata()->Types().IsDerivedFrom(
-            targetObject->RuntimeType(), UIElement::StaticTypeId())
-        ? static_cast<UIElement*>(targetObject)
-        : nullptr;
-    if (target == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "SetFocusAction target is unavailable");
-    }
-    if (!target->GetIsLoaded()) {
-        if (host.view->Focus() == nullptr) {
-            return Base::Status::Failure(
-                Base::ErrorCode::NotInitialized,
-                "View focus host is unavailable");
-        }
-        host.view->Focus()->QueueFocus(*target);
-        return {};
-    }
-    if (!target->GetIsEnabled()) return {};
-    // Focus is best-effort. A failed SetFocus must not fail the
-    // EventTrigger (QuestLog MouseEnter -> SelectAction).
-    static_cast<void>(host.Input()->SetFocus(target));
-    return {};
-}
-
-static Base::Result<void> ExecuteSelectAction(
-    StoryboardHost& host,
-    FrameworkElement& owner) noexcept {
-    if (host.Metadata()->Types().IsDerivedFrom(
-            owner.RuntimeType(),
-            Controls::ListBoxItem::StaticTypeId())) {
-        static_cast<Controls::ListBoxItem&>(owner).SetIsSelected(true);
-        return {};
-    }
-    if (host.Metadata()->Types().IsDerivedFrom(
-            owner.RuntimeType(),
-            Controls::TabItem::StaticTypeId())) {
-        static_cast<Controls::TabItem&>(owner).SetIsSelected(true);
-        return {};
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "SelectAction owner is not a selectable item container");
-}
-
-static Base::Result<void> ExecuteSelectAllAction(
-    StoryboardHost& host,
-    FrameworkElement& owner) noexcept {
-    if (host.Metadata()->Types().IsDerivedFrom(
-            owner.RuntimeType(),
-            Controls::Primitives::TextBoxBase::StaticTypeId())) {
-        static_cast<Controls::Primitives::TextBoxBase&>(owner).SelectAll();
-        return {};
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::Unsupported,
-        "SelectAllAction owner is not a text editor");
-}
-
-static Base::Result<void> ExecutePlaySoundAction(
-    StoryboardHost& host,
-    Interactivity::PlaySoundAction& playSound) noexcept {
-    if (!playSound.GetIsEnabled() || playSound.GetSource().Empty()) {
-        return {};
-    }
-    const double volume = playSound.GetVolume();
-    if (!std::isfinite(volume) || volume < 0.0 || volume > 1.0) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "PlaySoundAction Volume must be between zero and one");
-    }
-    if (!host.view->audio.Initialize()) {
-        // Audio is optional for headless and provider-free hosts.
-        return {};
-    }
-    host.view->audio.SetEffectsVolume(static_cast<float>(volume));
-    host.view->audio.PlayEffect(playSound.GetSource());
-    return {};
-}
-
-static Base::Result<void> ExecuteRemoveElementAction(
-    StoryboardHost& host,
-    Interactivity::RemoveElementAction& remove,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    Base::Result<Base::Object*> resolvedTarget =
-        host.ResolveTargetObject(
-            remove.GetTargetObject(),
-            {},
-            owner,
-            dataTemplateContext,
-            names,
-            &remove);
-    if (!resolvedTarget) return resolvedTarget.GetStatus();
-    Base::Object* targetObject = resolvedTarget.Value();
-    if (targetObject == nullptr ||
-        !host.Metadata()->Types().IsDerivedFrom(
-            targetObject->RuntimeType(),
-            UIElement::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::InvalidArgument,
-            "RemoveElementAction target is not a UIElement");
-    }
-    auto& target = static_cast<UIElement&>(*targetObject);
-    Media::Visual* current = TryCast<Media::Visual>(target.GetLogicalParent());
-    if (current == nullptr) current = target.GetVisualParent();
-    while (current != nullptr) {
-        if (host.Metadata()->Types().IsDerivedFrom(
-                current->RuntimeType(),
-                Controls::ItemsControl::StaticTypeId())) {
-            auto& items = static_cast<Controls::ItemsControl&>(*current);
-            std::uint32_t index = UINT32_MAX;
-            for (std::uint32_t candidate = 0U; candidate < items.GetCount(); ++candidate) {
-                Base::Ref<Base::Object> item = items.GetItem(candidate);
-                if (item.Get() == &target) {
-                    index = candidate;
-                    break;
-                }
-            }
-            if (index != UINT32_MAX) {
-                Base::Ref<Base::Object> removed = items.GetItems().RemoveAt(index);
-                return removed
-                    ? Base::Result<void>()
-                    : Base::Result<void>(Base::Status::Failure(
-                          Base::ErrorCode::NotFound,
-                          "Failed to remove item from ItemCollection"));
-            }
-        }
-        current = TryCast<Media::Visual>(current->GetLogicalParent()) != nullptr
-            ? TryCast<Media::Visual>(current->GetLogicalParent())
-            : current->GetVisualParent();
-    }
-    return Base::Status::Failure(
-        Base::ErrorCode::NotFound,
-        "RemoveElementAction target is not owned by an ItemsControl");
-}
-
-static Base::Result<void> ExecuteBeginStoryboardAction(
-    StoryboardHost& host,
-    BeginStoryboard& begin,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    if (!begin.GetStoryboard()) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "BeginStoryboard Storyboard was not resolved");
-    }
-    const bool isRepeatButton = host.Metadata()->Types().IsDerivedFrom(
-        owner.RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()) ||
-        (owner.GetTemplatedParent() != nullptr &&
-         host.Metadata()->Types().IsDerivedFrom(
-             owner.GetTemplatedParent()->RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()));
-    if (isRepeatButton && TargetsScaleTransform(host, *begin.GetStoryboard())) {
-        return {};
-    }
-    if (!begin.GetName().Empty()) {
-        for (std::uint32_t index = 0U; index < host.storyboardSessions.Size(); ++index) {
-            StoryboardHost::StoryboardSession& existing = host.storyboardSessions[index];
-            if (existing.name.View() != begin.GetName()) {
-                continue;
-            }
-            host.CancelStoryboardCompletionSessions(existing.handles.AsSpan());
-            host.Animations()->RemoveBatch(existing.handles.AsSpan());
-            for (std::uint32_t next = index + 1U; next < host.storyboardSessions.Size(); ++next) {
-                host.storyboardSessions[next - 1U] = std::move(host.storyboardSessions[next]);
-            }
-            host.storyboardSessions.PopBack();
-            break;
-        }
-    }
-    StoryboardHost::StoryboardCompletionSession completion(host.Allocator());
-    completion.storyboard = begin.GetStoryboard();
-    completion.owner = &owner;
-    Base::Result<std::uint32_t> started =
-        host.BeginTimeline(
-            *begin.GetStoryboard(),
-            owner,
-            names,
-            nullptr,
-            &completion.handles,
-            dataTemplateContext);
-    if (!started) {
-        host.Animations()->RemoveBatch(completion.handles.AsSpan());
-        return started.GetStatus();
-    }
-    if (completion.handles.Empty()) {
-        return {};
-    }
-    StoryboardHost::StoryboardSession namedSession(host.Allocator());
-    if (!begin.GetName().Empty()) {
-        namedSession.owner = &owner;
-        Base::Result<void> named = namedSession.name.Assign(begin.GetName());
-        if (!named) {
-            host.Animations()->RemoveBatch(completion.handles.AsSpan());
-            return named.GetStatus();
-        }
-        namedSession.handles.Append(completion.handles.AsSpan());
-    }
-    host.storyboardCompletionSessions.PushBack(std::move(completion));
-    if (!begin.GetName().Empty()) {
-        host.storyboardSessions.PushBack(std::move(namedSession));
-    }
-    return {};
-}
-
-static Base::Result<void> ExecuteControlStoryboardAction(
-    StoryboardHost& host,
-    ControlStoryboardAction& control,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    if (!control.GetStoryboard()) return {};
-    if (control.GetControlOption() == ControlStoryboardAction::Option::Play) {
-        BeginStoryboard begin;
-        begin.SetStoryboard(control.GetStoryboard());
-        return ExecuteBeginStoryboardAction(host, begin, owner, dataTemplateContext, names);
-    }
-    bool found = false;
-    Base::Vector<Model::AnimationHandle> stopped(host.Allocator());
-    for (StoryboardHost::StoryboardCompletionSession& session : host.storyboardCompletionSessions) {
-        // Shared resource storyboards (DataBinding ShowPopup) are started
-        // from one ListBoxItem and stopped from another. Match the
-        // storyboard instance, not the element that began it.
-        if (session.storyboard.Get() != control.GetStoryboard().Get()) continue;
-        found = true;
-        for (Model::AnimationHandle handle : session.handles) {
-            if (control.GetControlOption() == ControlStoryboardAction::Option::Stop) {
-                if (host.Animations()->Stop(handle)) {
-                    stopped.PushBack(handle);
-                }
-            } else if (control.GetControlOption() == ControlStoryboardAction::Option::Pause) {
-                host.Animations()->Pause(handle);
-            } else if (control.GetControlOption() == ControlStoryboardAction::Option::Resume) {
-                host.Animations()->Resume(handle);
-            } else {
-                return Base::Status::Failure(
-                    Base::ErrorCode::Unsupported,
-                    "ControlStoryboardAction option is not implemented");
-            }
-        }
-    }
-    if (control.GetControlOption() == ControlStoryboardAction::Option::Stop) {
-        if (!stopped.Empty()) {
-            // WPF ClockController.Stop does not raise Completed. Drop the
-            // session so StoryboardCompletedTrigger cannot steal focus.
-            host.CancelStoryboardCompletionSessions(stopped.AsSpan());
-        }
-        return {};
-    }
-    return found
-        ? Base::Result<void>{}
-        : Base::Status::Failure(
-              Base::ErrorCode::NotFound,
-              "ControlStoryboardAction storyboard was not started");
-}
-
-static Base::Result<void> ExecuteMediaElementAction(
-    StoryboardHost& host,
+void InvokeMediaElementOperation(
     Interactivity::TriggerAction& action,
-    Meta::TypeId type,
-    FrameworkElement& owner,
-    Controls::DataTemplateTriggerInstance* dataTemplateContext,
-    const NameScope* names) noexcept {
-    Base::StringView targetName = type == PlayMediaAction::StaticTypeId()
-        ? static_cast<PlayMediaAction&>(action).GetTargetName()
-        : type == PauseMediaAction::StaticTypeId()
-            ? static_cast<PauseMediaAction&>(action).GetTargetName()
-            : static_cast<StopMediaAction&>(action).GetTargetName();
+    StringView targetName,
+    MediaElementOperation operation,
+    FrameworkElement& owner) noexcept {
+    StoryboardHost* host = ResolveAnimationStoryboardHost(owner);
+    if (host == nullptr) return;
+    if (host->Animations() == nullptr) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Storyboard action requires the animation manager"));
+        return;
+    }
     Base::Result<Base::Object*> resolvedMediaTarget =
-        host.ResolveTargetObject({}, targetName, owner, dataTemplateContext, names, &action);
+        host->ResolveTargetObject(
+            {},
+            targetName,
+            owner,
+            host->activeActionDataTemplateContext,
+            host->activeActionNames,
+            &action);
     Base::Object* targetObject = resolvedMediaTarget ? resolvedMediaTarget.Value() : nullptr;
     if (targetObject == nullptr ||
-        !host.Metadata()->Types().IsDerivedFrom(
+        !host->Metadata()->Types().IsDerivedFrom(
             targetObject->RuntimeType(),
             Media::MediaElement::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "MediaAction TargetName did not resolve to a MediaElement");
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "MediaAction TargetName did not resolve to a MediaElement"));
+        return;
     }
     auto& media = static_cast<Media::MediaElement&>(*targetObject);
-    if (type == PlayMediaAction::StaticTypeId()) {
+    switch (operation) {
+    case MediaElementOperation::Play:
         media.Play();
-    } else if (type == PauseMediaAction::StaticTypeId()) {
+        break;
+    case MediaElementOperation::Pause:
         media.Pause();
-    } else {
+        break;
+    case MediaElementOperation::Stop:
         media.Stop();
+        break;
     }
-    return {};
 }
 
-static Base::Result<void> ExecuteControllableStoryboardAction(
-    StoryboardHost& host,
+enum class ControllableStoryboardOperation : std::uint8_t {
+    Pause = 0U,
+    Resume,
+    Stop,
+    Remove,
+    Seek,
+};
+
+void InvokeControllableStoryboardOperation(
     ControllableStoryboardAction& control,
-    Meta::TypeId type) noexcept {
+    ControllableStoryboardOperation operation,
+    AnimationTime seekOffsetMicroseconds,
+    FrameworkElement& owner) noexcept {
+    StoryboardHost* host = ResolveAnimationStoryboardHost(owner);
+    if (host == nullptr) return;
+    if (host->Animations() == nullptr) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Storyboard action requires the animation manager"));
+        return;
+    }
     std::uint32_t sessionIndex = UINT32_MAX;
-    for (std::uint32_t index = 0U; index < host.storyboardSessions.Size(); ++index) {
-        if (host.storyboardSessions[index].name.View() == control.GetBeginStoryboardName()) {
+    for (std::uint32_t index = 0U; index < host->storyboardSessions.Size(); ++index) {
+        if (host->storyboardSessions[index].name.View() == control.GetBeginStoryboardName()) {
             sessionIndex = index;
             break;
         }
     }
     if (sessionIndex == UINT32_MAX) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotFound,
-            "Controllable Storyboard was not started");
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "Controllable Storyboard was not started"));
+        return;
     }
-    StoryboardHost::StoryboardSession& session = host.storyboardSessions[sessionIndex];
+    StoryboardHost::StoryboardSession& session = host->storyboardSessions[sessionIndex];
     for (Model::AnimationHandle handle : session.handles) {
-        if (type == PauseStoryboard::StaticTypeId()) {
-            host.Animations()->Pause(handle);
-        } else if (type == ResumeStoryboard::StaticTypeId()) {
-            host.Animations()->Resume(handle);
-        } else if (type == StopStoryboard::StaticTypeId()) {
-            host.Animations()->Stop(handle);
-        } else if (type == RemoveStoryboard::StaticTypeId()) {
-            host.Animations()->Remove(handle);
-        } else if (type == SeekStoryboard::StaticTypeId()) {
-            host.Animations()->Seek(
-                handle,
-                static_cast<SeekStoryboard&>(control).GetOffsetMicroseconds());
-        } else {
-            return Base::Status::Failure(
-                Base::ErrorCode::Unsupported,
-                "Controllable Storyboard action is unsupported");
+        switch (operation) {
+        case ControllableStoryboardOperation::Pause:
+            host->Animations()->Pause(handle);
+            break;
+        case ControllableStoryboardOperation::Resume:
+            host->Animations()->Resume(handle);
+            break;
+        case ControllableStoryboardOperation::Stop:
+            host->Animations()->Stop(handle);
+            break;
+        case ControllableStoryboardOperation::Remove:
+            host->Animations()->Remove(handle);
+            break;
+        case ControllableStoryboardOperation::Seek:
+            host->Animations()->Seek(handle, seekOffsetMicroseconds);
+            break;
         }
     }
-    if (type == StopStoryboard::StaticTypeId() ||
-        type == RemoveStoryboard::StaticTypeId()) {
-        host.CancelStoryboardCompletionSessions(session.handles.AsSpan());
+    if (operation == ControllableStoryboardOperation::Stop ||
+        operation == ControllableStoryboardOperation::Remove) {
+        host->CancelStoryboardCompletionSessions(session.handles.AsSpan());
     }
-    if (type == RemoveStoryboard::StaticTypeId()) {
-        for (std::uint32_t next = sessionIndex + 1U; next < host.storyboardSessions.Size(); ++next) {
-            host.storyboardSessions[next - 1U] = std::move(host.storyboardSessions[next]);
+    if (operation == ControllableStoryboardOperation::Remove) {
+        for (std::uint32_t next = sessionIndex + 1U; next < host->storyboardSessions.Size(); ++next) {
+            host->storyboardSessions[next - 1U] = std::move(host->storyboardSessions[next]);
         }
-        host.storyboardSessions.PopBack();
+        host->storyboardSessions.PopBack();
     }
-    return {};
 }
+
+} // namespace
+
+void BeginStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    StoryboardHost* host = ResolveAnimationStoryboardHost(associatedObject);
+    if (host == nullptr) return;
+    if (host->Animations() == nullptr) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Storyboard action requires the animation manager"));
+        return;
+    }
+    if (!GetStoryboard()) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "BeginStoryboard Storyboard was not resolved"));
+        return;
+    }
+    const bool isRepeatButton = host->Metadata()->Types().IsDerivedFrom(
+        associatedObject.RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()) ||
+        (associatedObject.GetTemplatedParent() != nullptr &&
+         host->Metadata()->Types().IsDerivedFrom(
+             associatedObject.GetTemplatedParent()->RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()));
+    if (isRepeatButton && TargetsScaleTransform(*host, *GetStoryboard())) {
+        return;
+    }
+    if (!GetName().Empty()) {
+        for (std::uint32_t index = 0U; index < host->storyboardSessions.Size(); ++index) {
+            StoryboardHost::StoryboardSession& existing = host->storyboardSessions[index];
+            if (existing.name.View() != GetName()) {
+                continue;
+            }
+            host->CancelStoryboardCompletionSessions(existing.handles.AsSpan());
+            host->Animations()->RemoveBatch(existing.handles.AsSpan());
+            for (std::uint32_t next = index + 1U; next < host->storyboardSessions.Size(); ++next) {
+                host->storyboardSessions[next - 1U] = std::move(host->storyboardSessions[next]);
+            }
+            host->storyboardSessions.PopBack();
+            break;
+        }
+    }
+    StoryboardHost::StoryboardCompletionSession completion(host->Allocator());
+    completion.storyboard = GetStoryboard();
+    completion.owner = &associatedObject;
+    Base::Result<std::uint32_t> started =
+        host->BeginTimeline(
+            *GetStoryboard(),
+            associatedObject,
+            host->activeActionNames,
+            nullptr,
+            &completion.handles,
+            host->activeActionDataTemplateContext);
+    if (!started) {
+        host->Animations()->RemoveBatch(completion.handles.AsSpan());
+        RecordAnimationActionFailure(host, started.GetStatus());
+        return;
+    }
+    if (completion.handles.Empty()) {
+        return;
+    }
+    StoryboardHost::StoryboardSession namedSession(host->Allocator());
+    if (!GetName().Empty()) {
+        namedSession.owner = &associatedObject;
+        Base::Result<void> named = namedSession.name.Assign(GetName());
+        if (!named) {
+            host->Animations()->RemoveBatch(completion.handles.AsSpan());
+            RecordAnimationActionFailure(host, named.GetStatus());
+            return;
+        }
+        namedSession.handles.Append(completion.handles.AsSpan());
+    }
+    host->storyboardCompletionSessions.PushBack(std::move(completion));
+    if (!GetName().Empty()) {
+        host->storyboardSessions.PushBack(std::move(namedSession));
+    }
+}
+
+void ControlStoryboardAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    StoryboardHost* host = ResolveAnimationStoryboardHost(associatedObject);
+    if (host == nullptr) return;
+    if (host->Animations() == nullptr) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotInitialized,
+                "Storyboard action requires the animation manager"));
+        return;
+    }
+    if (!GetStoryboard()) return;
+    if (GetControlOption() == Option::Play) {
+        BeginStoryboard begin;
+        begin.SetStoryboard(GetStoryboard());
+        begin.Invoke(associatedObject, parameter);
+        return;
+    }
+    bool found = false;
+    Base::Vector<Model::AnimationHandle> stopped(host->Allocator());
+    for (StoryboardHost::StoryboardCompletionSession& session : host->storyboardCompletionSessions) {
+        // Shared resource storyboards (DataBinding ShowPopup) are started
+        // from one ListBoxItem and stopped from another. Match the
+        // storyboard instance, not the element that began it.
+        if (session.storyboard.Get() != GetStoryboard().Get()) continue;
+        found = true;
+        for (Model::AnimationHandle handle : session.handles) {
+            if (GetControlOption() == Option::Stop) {
+                if (host->Animations()->Stop(handle)) {
+                    stopped.PushBack(handle);
+                }
+            } else if (GetControlOption() == Option::Pause) {
+                host->Animations()->Pause(handle);
+            } else if (GetControlOption() == Option::Resume) {
+                host->Animations()->Resume(handle);
+            } else {
+                RecordAnimationActionFailure(
+                    host,
+                    Base::Status::Failure(
+                        Base::ErrorCode::Unsupported,
+                        "ControlStoryboardAction option is not implemented"));
+                return;
+            }
+        }
+    }
+    if (GetControlOption() == Option::Stop) {
+        if (!stopped.Empty()) {
+            // WPF ClockController.Stop does not raise Completed. Drop the
+            // session so StoryboardCompletedTrigger cannot steal focus.
+            host->CancelStoryboardCompletionSessions(stopped.AsSpan());
+        }
+        return;
+    }
+    if (!found) {
+        RecordAnimationActionFailure(
+            host,
+            Base::Status::Failure(
+                Base::ErrorCode::NotFound,
+                "ControlStoryboardAction storyboard was not started"));
+    }
+}
+
+void PauseStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeControllableStoryboardOperation(
+        *this, ControllableStoryboardOperation::Pause, 0U, associatedObject);
+}
+
+void ResumeStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeControllableStoryboardOperation(
+        *this, ControllableStoryboardOperation::Resume, 0U, associatedObject);
+}
+
+void StopStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeControllableStoryboardOperation(
+        *this, ControllableStoryboardOperation::Stop, 0U, associatedObject);
+}
+
+void RemoveStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeControllableStoryboardOperation(
+        *this, ControllableStoryboardOperation::Remove, 0U, associatedObject);
+}
+
+void SeekStoryboard::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeControllableStoryboardOperation(
+        *this,
+        ControllableStoryboardOperation::Seek,
+        GetOffsetMicroseconds(),
+        associatedObject);
+}
+
+void PlayMediaAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeMediaElementOperation(
+        *this, GetTargetName(), MediaElementOperation::Play, associatedObject);
+}
+
+void PauseMediaAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeMediaElementOperation(
+        *this, GetTargetName(), MediaElementOperation::Pause, associatedObject);
+}
+
+void StopMediaAction::Invoke(
+    ::Aero::FrameworkElement& associatedObject,
+    const Meta::PropertyValue& parameter) noexcept {
+    static_cast<void>(parameter);
+    InvokeMediaElementOperation(
+        *this, GetTargetName(), MediaElementOperation::Stop, associatedObject);
+}
+
+} // namespace Aero::Media::Animation
+
+namespace Aero {
 
 Base::Result<void>
 StoryboardHost::ExecuteAnimationAction(
@@ -602,72 +460,24 @@ StoryboardHost::ExecuteAnimationAction(
         dataTemplateContext,
     const NameScope* names) noexcept
 {
-    const Meta::TypeId type = action.RuntimeType();
-    if (type == Interactivity::ChangePropertyAction::StaticTypeId()) {
-        return ExecuteChangePropertyAction(
-            *this, static_cast<Interactivity::ChangePropertyAction&>(action),
-            owner, dataTemplateContext, names);
-    }
-    if (type == Interactivity::InvokeCommandAction::StaticTypeId()) {
-        return ExecuteInvokeCommandAction(
-            *this, static_cast<Interactivity::InvokeCommandAction&>(action),
-            owner, dataTemplateContext, names);
-    }
-    if (type == Interactivity::SetFocusAction::StaticTypeId()) {
-        return ExecuteSetFocusAction(
-            *this, static_cast<Interactivity::SetFocusAction&>(action),
-            owner, dataTemplateContext, names);
-    }
-    if (type == Interactivity::SelectAction::StaticTypeId()) {
-        return ExecuteSelectAction(*this, owner);
-    }
-    if (type == Interactivity::SelectAllAction::StaticTypeId()) {
-        return ExecuteSelectAllAction(*this, owner);
-    }
-    if (type == Interactivity::PlaySoundAction::StaticTypeId()) {
-        return ExecutePlaySoundAction(
-            *this, static_cast<Interactivity::PlaySoundAction&>(action));
-    }
-    if (type == Interactivity::RemoveElementAction::StaticTypeId()) {
-        return ExecuteRemoveElementAction(
-            *this, static_cast<Interactivity::RemoveElementAction&>(action),
-            owner, dataTemplateContext, names);
-    }
+    Controls::DataTemplateTriggerInstance* const previousTemplateContext =
+        activeActionDataTemplateContext;
+    const NameScope* const previousNames = activeActionNames;
+    const Base::Status previousStatus = activeActionStatus;
 
-    if (Animations() == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::NotInitialized,
-            "Storyboard action requires the animation manager");
-    }
-    if (type == BeginStoryboard::StaticTypeId()) {
-        return ExecuteBeginStoryboardAction(
-            *this, static_cast<BeginStoryboard&>(action),
-            owner, dataTemplateContext, names);
-    }
-    if (type == ControlStoryboardAction::StaticTypeId()) {
-        return ExecuteControlStoryboardAction(
-            *this, static_cast<ControlStoryboardAction&>(action),
-            owner, dataTemplateContext, names);
-    }
-    if (type == PlayMediaAction::StaticTypeId() ||
-        type == PauseMediaAction::StaticTypeId() ||
-        type == StopMediaAction::StaticTypeId()) {
-        return ExecuteMediaElementAction(
-            *this, action, type, owner, dataTemplateContext, names);
-    }
-    if (!Metadata()->Types().IsDerivedFrom(
-            type, ControllableStoryboardAction::StaticTypeId())) {
-        return Base::Status::Failure(
-            Base::ErrorCode::Unsupported,
-            "EventTrigger contains an unsupported action");
-    }
-    return ExecuteControllableStoryboardAction(
-        *this, static_cast<ControllableStoryboardAction&>(action), type);
+    activeActionDataTemplateContext = dataTemplateContext;
+    activeActionNames = names;
+    activeActionStatus = Base::Status::Ok();
+
+    const Meta::PropertyValue unset;
+    action.Invoke(owner, unset);
+
+    const Base::Status status = activeActionStatus;
+    activeActionDataTemplateContext = previousTemplateContext;
+    activeActionNames = previousNames;
+    activeActionStatus = previousStatus;
+    return status.IsOk() ? Base::Result<void>{} : Base::Result<void>(status);
 }
-
-} // namespace Aero
-
-namespace Aero {
 
 using namespace Media::Animation;
 
@@ -1142,4 +952,3 @@ AERO_DESCRIBE(StopMediaAction) {
 }
 
 } // namespace Aero::Media::Animation
-

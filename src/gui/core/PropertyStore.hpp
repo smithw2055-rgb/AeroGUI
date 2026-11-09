@@ -800,6 +800,9 @@ struct ChangeHandlerRecord {
 struct DependencyObjectRare {
     Base::Vector<ChangeHandlerRecord> changeHandlers;
     DependencyObject* inheritanceParent = nullptr;
+    DependencyObject* firstInheritanceChild = nullptr;
+    DependencyObject* nextInheritanceSibling = nullptr;
+    DependencyObject* nextExplicitParent = nullptr;
     DependencyObject* distinctLogicalParent = nullptr;
     std::uint32_t changeHandlerNotificationDepth = 0U;
 
@@ -807,6 +810,9 @@ struct DependencyObjectRare {
         return changeHandlers.Empty() &&
             changeHandlerNotificationDepth == 0U &&
             inheritanceParent == nullptr &&
+            firstInheritanceChild == nullptr &&
+            nextInheritanceSibling == nullptr &&
+            nextExplicitParent == nullptr &&
             distinctLogicalParent == nullptr;
     }
 };

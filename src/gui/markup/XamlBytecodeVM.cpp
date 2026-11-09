@@ -346,7 +346,9 @@ void XamlBytecodeProgram::Clear() noexcept {
     dataTemplateTriggers.Clear();
     controlTemplateDataTriggers.Clear();
     controlTemplateEventTriggers.Clear();
-    vsmPrograms.Clear();
+    bindingPathStrings.Clear();
+    bindingPaths.Clear();
+    visualStateGroups.Clear();
     contentPresenterSlot = UINT32_MAX;
     slotNames.Clear();
     slotTypes.Clear();
@@ -412,12 +414,6 @@ Base::Result<void> BindCompiledSubProgramToTemplate(
     Meta::Registry* runtime,
     const Schema* schema) noexcept;
 
-Base::Result<void> MaterializeCompiledVsmPrograms(
-    Controls::ControlTemplate& controlTemplate,
-    XamlBytecodeProgram& subProg,
-    Meta::Registry& runtime,
-    const Schema* schema,
-    bool ignoreUnresolvedResources) noexcept;
 
 Base::Result<void> ApplyPropertyToObject(
     Base::Object& target,
@@ -473,6 +469,22 @@ Base::Result<void> ApplyPropertyToObject(
                     return {};
                 }
                 Meta::Value effectiveValue = value;
+                if (effectiveValue.Kind() == Meta::ValueKind::String &&
+                    !effectiveValue.IsDynamicResource() &&
+                    dp->ValueType() != Meta::InvalidTypeId &&
+                    dp->ValueType() != Meta::TypeOf<Base::String>() &&
+                    dp->ValueType() != Meta::TypeOf<Meta::Value>()) {
+                    if (dp->ValueType() == Meta::TypeOf<Base::Object>()) {
+                        if (auto boxed = BoxXamlStringAsObject(effectiveValue.AsString())) {
+                            effectiveValue = std::move(boxed).Value();
+                        }
+                    } else if (runtime != nullptr) {
+                        if (auto converted = runtime->TryConvertText(
+                                dp->ValueType(), effectiveValue.AsString())) {
+                            effectiveValue = std::move(converted).Value();
+                        }
+                    }
+                }
                 if (!effectiveValue.IsDynamicResource() && effectiveValue.Type() != dp->ValueType()) {
                     Base::Result<Meta::PropertyValue> normalized =
                         ::Aero::NormalizeValueForProperty(runtime, *dp, effectiveValue);
@@ -493,6 +505,28 @@ Base::Result<void> ApplyPropertyToObject(
         }
     }
     if (runtime != nullptr) {
+        if (value.Kind() == Meta::ValueKind::String && !value.IsDynamicResource()) {
+            if (const Meta::PropertyInfo* propInfo = runtime->Types().FindProperty(propHandle)) {
+                const Meta::TypeId propExpectedType = propInfo->ValueType();
+                const Meta::TypeId expectedType =
+                    (propExpectedType != Meta::InvalidTypeId &&
+                     propExpectedType != Meta::TypeOf<Meta::Value>())
+                        ? propExpectedType
+                        : value.Type();
+                if (expectedType != Meta::InvalidTypeId &&
+                    expectedType != Meta::TypeOf<Base::String>() &&
+                    expectedType != Meta::TypeOf<Meta::Value>()) {
+                    if (expectedType == Meta::TypeOf<Base::Object>()) {
+                        if (auto boxed = BoxXamlStringAsObject(value.AsString())) {
+                            return runtime->SetProperty(target, propHandle, boxed.Value());
+                        }
+                    } else if (Base::Result<Meta::Value> converted =
+                                   runtime->TryConvertText(expectedType, value.AsString())) {
+                        return runtime->SetProperty(target, propHandle, converted.Value());
+                    }
+                }
+            }
+        }
         return runtime->SetProperty(target, propHandle, value);
     }
     return Base::Status::Failure(
@@ -1012,19 +1046,20 @@ Base::Result<void> XamlVM::Execute(
                             }
                         }
                         if (::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*ct).Empty() &&
-                            ::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(*ct).Empty() &&
-                            !subProg->vsmPrograms.Empty()) {
-                            if (!MaterializeCompiledVsmPrograms(
-                                    *ct, *subProg, *runtime, context.schema, /*ignoreUnresolvedResources=*/false)) {
-                                static_cast<void>(MaterializeCompiledVsmPrograms(
-                                    *ct, *subProg, *runtime, context.schema, /*ignoreUnresolvedResources=*/true));
+                            !subProg->visualStateGroups.Empty()) {
+                            for (const auto& group : subProg->visualStateGroups) {
+                                Base::Result<void> configured = ::Aero::Controls::FrameworkTemplateState::AddVisualStateGroup(
+                                    *ct, group);
+                                if (!configured) return configured.GetStatus();
                             }
-                        }
-                        if (::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*ct).Empty() &&
+                            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualTree(*ct);
+                            ::Aero::Controls::FrameworkTemplateState::ClearAuthoredVisualStateGroups(*ct);
+                        } else if (::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*ct).Empty() &&
                             (!::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(*ct).Empty() ||
                              ::Aero::Controls::FrameworkTemplateState::AuthoredVisualTree(*ct))) {
                             auto vsRes = CompileVisualStates(*ct, *subProg, *runtime, *propRegistry);
                             if (!vsRes) return vsRes.GetStatus();
+                            subProg->visualStateGroups = vsRes.Value();
                             for (auto& group : vsRes.Value()) {
                                 Base::Result<void> configured = ::Aero::Controls::FrameworkTemplateState::AddVisualStateGroup(
                                     *ct, std::move(group));
@@ -1227,6 +1262,13 @@ Base::Result<void> XamlVM::Execute(
         }
         return {};
     };
+
+    for (std::uint32_t i = 0U;
+         i < program.bindingPaths.Size() && i < program.bindingPathStrings.Size();
+         ++i) {
+        Data::CompiledBindingPath::RegisterPrecompiled(
+            program.bindingPathStrings[i].View(), program.bindingPaths[i]);
+    }
 
     const XamlInstruction* ip = program.instructions.Data();
     const XamlInstruction* const end = ip + program.instructions.Size();
@@ -1848,6 +1890,21 @@ Base::Result<void> XamlVM::Execute(
                 return Base::Status::Failure(Base::ErrorCode::ValidationFailed, "Invalid valueIndex in SetSlotValue");
             }
             outValues[slot] = program.valuePool[ip->operandIdx];
+            if (outValues[slot].Kind() == Meta::ValueKind::String &&
+                !outValues[slot].IsDynamicResource() &&
+                outValues[slot].Type() != Meta::InvalidTypeId &&
+                outValues[slot].Type() != Meta::TypeOf<Base::String>() &&
+                outValues[slot].Type() != Meta::TypeOf<Meta::Value>() &&
+                runtime != nullptr) {
+                if (outValues[slot].Type() == Meta::TypeOf<Base::Object>()) {
+                    if (auto boxed = BoxXamlStringAsObject(outValues[slot].AsString())) {
+                        outValues[slot] = std::move(boxed).Value();
+                    }
+                } else if (auto converted = runtime->TryConvertText(
+                               outValues[slot].Type(), outValues[slot].AsString())) {
+                    outValues[slot] = std::move(converted).Value();
+                }
+            }
             if (slot < outObjects.Size()) {
                 if (outValues[slot].Kind() == Meta::ValueKind::Object && !outValues[slot].IsNullObject()) {
                     outObjects[slot] = outValues[slot].AsObject();
@@ -1969,17 +2026,7 @@ Base::Result<void> XamlVM::Execute(
                             hasPendingWrites = true;
                         }
                     }
-                    if (!hasPendingWrites &&
-                        ::Aero::Controls::FrameworkTemplateState::Factory(*ct) == &BuildCompiledTemplate) {
-                        auto* subProg = static_cast<XamlBytecodeProgram*>(
-                            ::Aero::Controls::FrameworkTemplateState::FactoryContext(*ct));
-                        if (subProg != nullptr &&
-                            !subProg->vsmPrograms.Empty() &&
-                            ::Aero::Controls::FrameworkTemplateState::AuthoredVisualStateGroups(*ct).Empty() &&
-                            ::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*ct).Empty()) {
-                            hasPendingWrites = true;
-                        }
-                    }
+
                 }
             }
             if (hasPendingWrites) {
@@ -2263,52 +2310,6 @@ Base::Result<void> XamlVM::ExecuteDocument(
     return {};
 }
 
-Base::Result<void> MaterializeCompiledVsmPrograms(
-    Controls::ControlTemplate& controlTemplate,
-    XamlBytecodeProgram& subProg,
-    Meta::Registry& runtime,
-    const Schema* schema,
-    bool ignoreUnresolvedResources) noexcept {
-    Base::Vector<Base::Ref<Base::Object>> materializedGroups;
-    for (const auto& vsmProgObj : subProg.vsmPrograms) {
-        auto* vsmContainer = ::Aero::TryCast<XamlBytecodeContainer>(vsmProgObj.Get());
-        if (vsmContainer == nullptr) continue;
-        vsmContainer->program.runtime = &runtime;
-        if (schema != nullptr) {
-            vsmContainer->program.schema = schema;
-        }
-        if (subProg.properties != nullptr) {
-            vsmContainer->program.properties = subProg.properties;
-        }
-        vsmContainer->program.PropagateAmbientResourcesFrom(subProg);
-        Base::Vector<Base::Ref<Base::Object>> vsmObjects;
-        XamlVMContext vmCtx;
-        vmCtx.runtime = &runtime;
-        vmCtx.schema = schema;
-        vmCtx.documentResources = &controlTemplate.GetResources();
-        vmCtx.ignoreUnresolvedResources = ignoreUnresolvedResources;
-        Base::Result<void> executed = XamlVM::Execute(vsmContainer->program, vmCtx, vsmObjects, nullptr);
-        if (!executed) {
-            return executed.GetStatus();
-        }
-        if (!vsmObjects.Empty() && vsmObjects[0]) {
-            if (::Aero::TryCast<VisualStateGroup>(vsmObjects[0].Get()) != nullptr) {
-                materializedGroups.PushBack(vsmObjects[0]);
-            } else if (auto* vsgColl = ::Aero::TryCast<VisualStateGroupCollection>(vsmObjects[0].Get())) {
-                for (const auto& item : vsgColl->GetItems()) {
-                    if (item) {
-                        materializedGroups.PushBack(Base::Ref<Base::Object>(item));
-                    }
-                }
-            }
-        }
-    }
-    for (const auto& group : materializedGroups) {
-        ::Aero::Controls::FrameworkTemplateState::AddAuthoredVisualStateGroup(
-            controlTemplate, group);
-    }
-    return {};
-}
 
 Base::Result<void> BindCompiledSubProgramToTemplate(
     Base::Object& target,
@@ -2355,10 +2356,12 @@ Base::Result<void> BindCompiledSubProgramToTemplate(
             static_cast<void>(::Aero::Controls::FrameworkTemplateState::SetTargetType(*controlTemplate, tt));
         }
 
-        if (!subProg.vsmPrograms.Empty() && runtime != nullptr &&
+        if (!subProg.visualStateGroups.Empty() &&
             ::Aero::Controls::FrameworkTemplateState::VisualStateGroups(*controlTemplate).Empty()) {
-            static_cast<void>(MaterializeCompiledVsmPrograms(
-                *controlTemplate, subProg, *runtime, schema, /*ignoreUnresolvedResources=*/false));
+            for (const auto& group : subProg.visualStateGroups) {
+                static_cast<void>(::Aero::Controls::FrameworkTemplateState::AddVisualStateGroup(
+                    *controlTemplate, group));
+            }
         }
 
         bool hasOwnTree = false;

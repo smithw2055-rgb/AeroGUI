@@ -856,18 +856,288 @@
     </Setter>
   </Style>
 
-  <Style TargetType="Slider">
-    <Setter Property="Foreground"
-            Value="#FF1098DF"/>
+  <Style TargetType="Thumb">
+    <Setter Property="Background" Value="{StaticResource ControlBackground}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Template">
       <Setter.Value>
-        <ControlTemplate TargetType="Slider">
+        <ControlTemplate TargetType="Thumb">
           <ControlTemplate.VisualTree>
-            <Grid/>
+            <Border x:Name="Chrome"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"/>
           </ControlTemplate.VisualTree>
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+  </Style>
+
+  <Style TargetType="Slider">
+    <Setter Property="Background" Value="{StaticResource DisabledBackground}"/>
+    <Setter Property="Foreground" Value="#FF1098DF"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <ControlTemplate.VisualTree>
+            <Grid RowDefinitionsText="Auto,*,Auto" MinHeight="18" MinWidth="32">
+              <TickBar x:Name="TopTicks"
+                       Grid.Row="0"
+                       Fill="{TemplateBinding Foreground}"
+                       Placement="Top"
+                       Height="4"
+                       Visibility="Collapsed"/>
+              <Border x:Name="TrackBackground"
+                      Grid.Row="1"
+                      Height="4"
+                      VerticalAlignment="Center"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{StaticResource ControlBorder}"
+                      BorderThickness="1"/>
+              <Track x:Name="PART_Track"
+                     Grid.Row="1"
+                     Orientation="Horizontal">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="Slider.DecreaseLarge"
+                                Focusable="False"
+                                IsTabStop="False">
+                    <RepeatButton.Template>
+                      <ControlTemplate TargetType="RepeatButton">
+                        <ControlTemplate.VisualTree>
+                          <Border Background="Transparent"/>
+                        </ControlTemplate.VisualTree>
+                      </ControlTemplate>
+                    </RepeatButton.Template>
+                  </RepeatButton>
+                </Track.DecreaseRepeatButton>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="Slider.IncreaseLarge"
+                                Focusable="False"
+                                IsTabStop="False">
+                    <RepeatButton.Template>
+                      <ControlTemplate TargetType="RepeatButton">
+                        <ControlTemplate.VisualTree>
+                          <Border Background="Transparent"/>
+                        </ControlTemplate.VisualTree>
+                      </ControlTemplate>
+                    </RepeatButton.Template>
+                  </RepeatButton>
+                </Track.IncreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb x:Name="Thumb"
+                         Width="11"
+                         Height="18"
+                         Background="{TemplateBinding Foreground}"/>
+                </Track.Thumb>
+              </Track>
+              <TickBar x:Name="BottomTicks"
+                       Grid.Row="2"
+                       Fill="{TemplateBinding Foreground}"
+                       Placement="Bottom"
+                       Height="4"
+                       Visibility="Collapsed"/>
+            </Grid>
+          </ControlTemplate.VisualTree>
+          <ControlTemplate.Triggers>
+            <Trigger Property="TickPlacement" Value="TopLeft">
+              <Setter TargetName="TopTicks" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="TickPlacement" Value="BottomRight">
+              <Setter TargetName="BottomTicks" Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="TickPlacement" Value="Both">
+              <Setter TargetName="TopTicks" Property="Visibility" Value="Visible"/>
+              <Setter TargetName="BottomTicks" Property="Visibility" Value="Visible"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="Orientation" Value="Vertical">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="Slider">
+              <ControlTemplate.VisualTree>
+                <Grid ColumnDefinitionsText="Auto,*,Auto" MinWidth="18" MinHeight="32">
+                  <TickBar x:Name="LeftTicks"
+                           Grid.Column="0"
+                           Fill="{TemplateBinding Foreground}"
+                           Placement="Left"
+                           Width="4"
+                           Visibility="Collapsed"/>
+                  <Border x:Name="TrackBackground"
+                          Grid.Column="1"
+                          Width="4"
+                          HorizontalAlignment="Center"
+                          Background="{TemplateBinding Background}"
+                          BorderBrush="{StaticResource ControlBorder}"
+                          BorderThickness="1"/>
+                  <Track x:Name="PART_Track"
+                         Grid.Column="1"
+                         Orientation="Vertical">
+                    <Track.DecreaseRepeatButton>
+                      <RepeatButton Command="Slider.DecreaseLarge"
+                                    Focusable="False"
+                                    IsTabStop="False">
+                        <RepeatButton.Template>
+                          <ControlTemplate TargetType="RepeatButton">
+                            <ControlTemplate.VisualTree>
+                              <Border Background="Transparent"/>
+                            </ControlTemplate.VisualTree>
+                          </ControlTemplate>
+                        </RepeatButton.Template>
+                      </RepeatButton>
+                    </Track.DecreaseRepeatButton>
+                    <Track.IncreaseRepeatButton>
+                      <RepeatButton Command="Slider.IncreaseLarge"
+                                    Focusable="False"
+                                    IsTabStop="False">
+                        <RepeatButton.Template>
+                          <ControlTemplate TargetType="RepeatButton">
+                            <ControlTemplate.VisualTree>
+                              <Border Background="Transparent"/>
+                            </ControlTemplate.VisualTree>
+                          </ControlTemplate>
+                        </RepeatButton.Template>
+                      </RepeatButton>
+                    </Track.IncreaseRepeatButton>
+                    <Track.Thumb>
+                      <Thumb x:Name="Thumb"
+                             Width="18"
+                             Height="11"
+                             Background="{TemplateBinding Foreground}"/>
+                    </Track.Thumb>
+                  </Track>
+                  <TickBar x:Name="RightTicks"
+                           Grid.Column="2"
+                           Fill="{TemplateBinding Foreground}"
+                           Placement="Right"
+                           Width="4"
+                           Visibility="Collapsed"/>
+                </Grid>
+              </ControlTemplate.VisualTree>
+              <ControlTemplate.Triggers>
+                <Trigger Property="TickPlacement" Value="TopLeft">
+                  <Setter TargetName="LeftTicks" Property="Visibility" Value="Visible"/>
+                </Trigger>
+                <Trigger Property="TickPlacement" Value="BottomRight">
+                  <Setter TargetName="RightTicks" Property="Visibility" Value="Visible"/>
+                </Trigger>
+                <Trigger Property="TickPlacement" Value="Both">
+                  <Setter TargetName="LeftTicks" Property="Visibility" Value="Visible"/>
+                  <Setter TargetName="RightTicks" Property="Visibility" Value="Visible"/>
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style TargetType="ScrollBar">
+    <Setter Property="Background" Value="{StaticResource DisabledBackground}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ScrollBar">
+          <ControlTemplate.VisualTree>
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    MinWidth="16">
+              <Track x:Name="PART_Track"
+                     Orientation="Vertical"
+                     IsDirectionReversed="True">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageUpCommand"
+                                Focusable="False"
+                                IsTabStop="False">
+                    <RepeatButton.Template>
+                      <ControlTemplate TargetType="RepeatButton">
+                        <ControlTemplate.VisualTree>
+                          <Border Background="Transparent"/>
+                        </ControlTemplate.VisualTree>
+                      </ControlTemplate>
+                    </RepeatButton.Template>
+                  </RepeatButton>
+                </Track.DecreaseRepeatButton>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="ScrollBar.PageDownCommand"
+                                Focusable="False"
+                                IsTabStop="False">
+                    <RepeatButton.Template>
+                      <ControlTemplate TargetType="RepeatButton">
+                        <ControlTemplate.VisualTree>
+                          <Border Background="Transparent"/>
+                        </ControlTemplate.VisualTree>
+                      </ControlTemplate>
+                    </RepeatButton.Template>
+                  </RepeatButton>
+                </Track.IncreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb x:Name="Thumb"
+                         Background="{StaticResource ControlBorder}"/>
+                </Track.Thumb>
+              </Track>
+            </Border>
+          </ControlTemplate.VisualTree>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+    <Style.Triggers>
+      <Trigger Property="Orientation" Value="Horizontal">
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ScrollBar">
+              <ControlTemplate.VisualTree>
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        MinHeight="16">
+                  <Track x:Name="PART_Track"
+                         Orientation="Horizontal">
+                    <Track.DecreaseRepeatButton>
+                      <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                    Focusable="False"
+                                    IsTabStop="False">
+                        <RepeatButton.Template>
+                          <ControlTemplate TargetType="RepeatButton">
+                            <ControlTemplate.VisualTree>
+                              <Border Background="Transparent"/>
+                            </ControlTemplate.VisualTree>
+                          </ControlTemplate>
+                        </RepeatButton.Template>
+                      </RepeatButton>
+                    </Track.DecreaseRepeatButton>
+                    <Track.IncreaseRepeatButton>
+                      <RepeatButton Command="ScrollBar.PageRightCommand"
+                                    Focusable="False"
+                                    IsTabStop="False">
+                        <RepeatButton.Template>
+                          <ControlTemplate TargetType="RepeatButton">
+                            <ControlTemplate.VisualTree>
+                              <Border Background="Transparent"/>
+                            </ControlTemplate.VisualTree>
+                          </ControlTemplate>
+                        </RepeatButton.Template>
+                      </RepeatButton>
+                    </Track.IncreaseRepeatButton>
+                    <Track.Thumb>
+                      <Thumb x:Name="Thumb"
+                             Background="{StaticResource ControlBorder}"/>
+                    </Track.Thumb>
+                  </Track>
+                </Border>
+              </ControlTemplate.VisualTree>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Trigger>
+    </Style.Triggers>
   </Style>
 
   <Style TargetType="ProgressBar">
@@ -876,11 +1146,12 @@
         <ControlTemplate TargetType="ProgressBar">
           <ControlTemplate.VisualTree>
             <Grid>
-              <Border x:Name="TrackChrome"
+              <Border x:Name="PART_Track"
                       Background="{StaticResource DisabledBackground}"
                       BorderBrush="{StaticResource ControlBorder}"
                       BorderThickness="1"/>
-              <Border x:Name="Indicator"
+              <Border x:Name="PART_Indicator"
+                      HorizontalAlignment="Left"
                       Background="#FF1098DF"
                       BorderBrush="#00000000"
                       BorderThickness="0"/>

@@ -295,7 +295,42 @@ struct LiveRegistryLockGuard {
         g_liveRegistriesLock.clear(std::memory_order_release);
     }
 };
+
+constexpr std::uint32_t kFastPropertyCacheSlots = 4096U;
+struct FastPropertyCacheSlot {
+    MemberId requestedId = InvalidMemberId;
+    DependencyPropertyHandle resolvedHandle{};
+};
+FastPropertyCacheSlot g_fastPropertyCache[kFastPropertyCacheSlots]{};
+
+void CacheFastPropertyHandle(
+    MemberId requestedId,
+    DependencyPropertyHandle resolvedHandle) noexcept {
+    if (requestedId == InvalidMemberId || !resolvedHandle.HasGlobalIndex()) {
+        return;
+    }
+    const std::uint32_t slot =
+        static_cast<std::uint32_t>(requestedId ^ (requestedId >> 32U)) &
+        (kFastPropertyCacheSlots - 1U);
+    g_fastPropertyCache[slot].requestedId = requestedId;
+    g_fastPropertyCache[slot].resolvedHandle = resolvedHandle;
+}
 } // namespace
+
+DependencyPropertyHandle ResolveDependencyPropertyHandle(
+    DependencyPropertyHandle handle) noexcept {
+    if (handle.HasGlobalIndex() || handle.value == InvalidMemberId) {
+        return handle;
+    }
+    const std::uint32_t slot =
+        static_cast<std::uint32_t>(handle.value ^ (handle.value >> 32U)) &
+        (kFastPropertyCacheSlots - 1U);
+    const FastPropertyCacheSlot& cached = g_fastPropertyCache[slot];
+    if (cached.requestedId == handle.value) {
+        return cached.resolvedHandle;
+    }
+    return handle;
+}
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
     TypeRegistry& typeRegistry,
@@ -431,9 +466,11 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
     }
 
     const Base::Object* objVal = (objectValue && !value.IsNullObject()) ? value.AsObject().Get() : nullptr;
-    const Meta::TypeId effectiveValueType = objVal != nullptr
-        ? objVal->RuntimeType()
-        : actualTypeId;
+    const Meta::TypeId objRuntimeType = objVal != nullptr ? objVal->RuntimeType() : InvalidTypeId;
+    const Meta::TypeId effectiveValueType =
+        (objRuntimeType != InvalidTypeId && typeRegistry_->FindType(objRuntimeType) != nullptr)
+            ? objRuntimeType
+            : actualTypeId;
     if (effectiveValueType != expectedTypeId &&
         !typeRegistry_->IsDerivedFrom(effectiveValueType, expectedTypeId)) {
         thread_local char message[384]{};
@@ -621,6 +658,7 @@ DependencyPropertyRegistry::Register(
     property.valueType_ = registration.valueType;
     property.registeredOwnerType_ = registration.ownerType;
     property.flags_ = registration.flags;
+    property.computedReader_ = registration.metadata.computedReader;
 
     DependencyProperty::MetadataEntry ownerMetadata;
     ownerMetadata.forType = registration.ownerType;
@@ -693,6 +731,7 @@ DependencyPropertyRegistry::Register(
     DependencyPropertyRegistrationResult result;
     const DependencyProperty& stored = properties_[propertyIndex];
     result.property = stored.Handle();
+    CacheFastPropertyHandle(member, result.property);
     if (stored.GetIsReadOnly()) {
         result.readOnlyKey.registry_ = this;
         result.readOnlyKey.property_ = result.property;
@@ -790,6 +829,7 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
         return alias.GetStatus();
     }
     AERO_ASSERT(alias.Value() == aliasMember);
+    CacheFastPropertyHandle(aliasMember, property.Handle());
     return {};
 }
 
@@ -850,6 +890,12 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     if (entry.metadata.changed.Empty() && !baseMetadata->changed.Empty()) {
         entry.metadata.changed = baseMetadata->changed;
     }
+    if (entry.metadata.computedReader == nullptr && baseMetadata->computedReader != nullptr) {
+        entry.metadata.computedReader = baseMetadata->computedReader;
+    }
+    if (property.computedReader_ == nullptr && entry.metadata.computedReader != nullptr) {
+        property.computedReader_ = entry.metadata.computedReader;
+    }
     property.metadata_.PushBack(std::move(entry));
     property.ClearMetadataCache();
     return {};
@@ -891,12 +937,20 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
     std::uint32_t inheritableIndex = 0U;
     for (DependencyProperty& property : properties_) {
         bool inherits = false;
-        for (const DependencyProperty::MetadataEntry& entry : property.metadata_) {
+        bool hasDefaultOverride = false;
+        const PropertyValue* ownerDefault = !property.metadata_.Empty()
+            ? &property.metadata_[0].metadata.defaultValue
+            : nullptr;
+        for (std::uint32_t i = 0U; i < property.metadata_.Size(); ++i) {
+            const DependencyProperty::MetadataEntry& entry = property.metadata_[i];
             if (HasFlag(entry.metadata.flags, FrameworkPropertyMetadataOptions::Inherits)) {
                 inherits = true;
-                break;
+            }
+            if (i > 0U && ownerDefault != nullptr && entry.metadata.defaultValue != *ownerDefault) {
+                hasDefaultOverride = true;
             }
         }
+        property.hasDerivedDefaultOverride_ = hasDefaultOverride;
         if (inherits) {
             property.inheritanceIndex_ = inheritableIndex < 30U
                 ? static_cast<std::uint8_t>(inheritableIndex)
@@ -916,6 +970,12 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
             }
         }
         property.ClearMetadataCache();
+    }
+
+    for (const auto& kv : memberIndex_) {
+        if (kv.Value() < properties_.Size()) {
+            CacheFastPropertyHandle(kv.Key(), properties_[kv.Value()].Handle());
+        }
     }
 
     RebuildFlatIndex();
@@ -1190,17 +1250,31 @@ void EffectiveValueEngine::Shutdown() noexcept {
         registry_->SetInheritanceChangeSink(nullptr);
     }
     ClearQueueLinks();
-    for (auto& kv : childrenByParent_) {
-        if (kv.Key() != nullptr) {
-            kv.Key()->hasExplicitInheritanceChildren_ = false;
-        }
-        for (DependencyObject* child : kv.Value()) {
-            if (child != nullptr) {
+    DependencyObject* parent = firstExplicitParent_;
+    firstExplicitParent_ = nullptr;
+    while (parent != nullptr) {
+        DependencyObject* nextParent = parent->rare_ != nullptr
+            ? parent->rare_->nextExplicitParent
+            : nullptr;
+        if (parent->rare_ != nullptr) {
+            DependencyObject* child = parent->rare_->firstInheritanceChild;
+            parent->rare_->firstInheritanceChild = nullptr;
+            parent->rare_->nextExplicitParent = nullptr;
+            while (child != nullptr) {
+                DependencyObject* nextChild = child->rare_ != nullptr
+                    ? child->rare_->nextInheritanceSibling
+                    : nullptr;
+                if (child->rare_ != nullptr) {
+                    child->rare_->nextInheritanceSibling = nullptr;
+                }
                 child->SetExplicitInheritanceParent(nullptr);
+                child = nextChild;
             }
+            parent->CleanupRareIfEmpty();
         }
+        parent->hasExplicitInheritanceChildren_ = false;
+        parent = nextParent;
     }
-    childrenByParent_.Clear();
 }
 
 EffectiveValueEngine::~EffectiveValueEngine() noexcept {
@@ -1456,20 +1530,51 @@ void EffectiveValueEngine::ClearQueueLinks() noexcept {
 void EffectiveValueEngine::UnregisterExplicitInheritanceChild(
     DependencyObject* parent,
     DependencyObject& child) noexcept {
-    if (parent == nullptr || childrenByParent_.Empty()) {
+    if (parent == nullptr || !parent->hasExplicitInheritanceChildren_ ||
+        parent->rare_ == nullptr) {
         return;
     }
-    if (auto* list = childrenByParent_.Find(parent)) {
-        for (std::uint32_t i = 0U; i < list->Size(); ++i) {
-            if ((*list)[i] == &child) {
-                list->Erase(i);
+    DependencyObject* prev = nullptr;
+    DependencyObject* cur = parent->rare_->firstInheritanceChild;
+    while (cur != nullptr) {
+        if (cur == &child) {
+            if (prev != nullptr) {
+                prev->rare_->nextInheritanceSibling =
+                    child.rare_ != nullptr ? child.rare_->nextInheritanceSibling : nullptr;
+            } else {
+                parent->rare_->firstInheritanceChild =
+                    child.rare_ != nullptr ? child.rare_->nextInheritanceSibling : nullptr;
+            }
+            if (child.rare_ != nullptr) {
+                child.rare_->nextInheritanceSibling = nullptr;
+                child.CleanupRareIfEmpty();
+            }
+            break;
+        }
+        prev = cur;
+        cur = cur->rare_ != nullptr ? cur->rare_->nextInheritanceSibling : nullptr;
+    }
+    if (parent->rare_->firstInheritanceChild == nullptr) {
+        DependencyObject* prevParent = nullptr;
+        DependencyObject* curParent = firstExplicitParent_;
+        while (curParent != nullptr) {
+            if (curParent == parent) {
+                if (prevParent != nullptr) {
+                    prevParent->rare_->nextExplicitParent =
+                        parent->rare_->nextExplicitParent;
+                } else {
+                    firstExplicitParent_ = parent->rare_->nextExplicitParent;
+                }
+                parent->rare_->nextExplicitParent = nullptr;
                 break;
             }
+            prevParent = curParent;
+            curParent = curParent->rare_ != nullptr
+                ? curParent->rare_->nextExplicitParent
+                : nullptr;
         }
-        if (list->Empty()) {
-            childrenByParent_.Erase(parent);
-            parent->hasExplicitInheritanceChildren_ = false;
-        }
+        parent->hasExplicitInheritanceChildren_ = false;
+        parent->CleanupRareIfEmpty();
     }
 }
 
@@ -1530,20 +1635,22 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         UnregisterExplicitInheritanceChild(explicitPrevious, child);
         child.SetExplicitInheritanceParent(explicitTarget);
         if (explicitTarget != nullptr) {
-            if (child.ExplicitInheritanceParent() != explicitTarget) {
+            if (child.ExplicitInheritanceParent() != explicitTarget ||
+                explicitTarget->EnsureRare() == nullptr ||
+                child.EnsureRare() == nullptr) {
+                child.SetExplicitInheritanceParent(nullptr);
                 return Base::Status::Failure(
                     Base::ErrorCode::OutOfMemory,
                     "Failed to allocate explicit inheritance parent state");
             }
-            auto* list = childrenByParent_.Find(explicitTarget);
-            if (list == nullptr) {
-                Base::Vector<DependencyObject*> emptyList;
-                list = childrenByParent_.Set(explicitTarget, std::move(emptyList));
-            }
-            if (list != nullptr) {
-                list->PushBack(&child);
+            if (!explicitTarget->hasExplicitInheritanceChildren_) {
+                explicitTarget->rare_->nextExplicitParent = firstExplicitParent_;
+                firstExplicitParent_ = explicitTarget;
                 explicitTarget->hasExplicitInheritanceChildren_ = true;
             }
+            child.rare_->nextInheritanceSibling =
+                explicitTarget->rare_->firstInheritanceChild;
+            explicitTarget->rare_->firstInheritanceChild = &child;
         }
     }
 
@@ -1565,17 +1672,27 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         TypeId runtimeType = InvalidTypeId;
     };
     Base::BasicVector<AncestorNode, 16U> parentChain;
+    std::uint64_t parentChainBloom = 0ULL;
     for (DependencyObject* anc = parent;
          anc != nullptr && parentChain.Size() < 100U;
          anc = InheritanceParent(*anc)) {
-        parentChain.PushBack(AncestorNode{anc->Store(), anc->RuntimeType()});
+        const PropertyStore* ancStore = anc->Store();
+        if (ancStore != nullptr) {
+            parentChainBloom |= ancStore->entries.bloomMask_;
+        }
+        parentChain.PushBack(AncestorNode{ancStore, anc->RuntimeType()});
     }
     Base::BasicVector<AncestorNode, 16U> previousParentChain;
+    std::uint64_t prevChainBloom = 0ULL;
     if (previousParent != parent) {
         for (DependencyObject* anc = previousParent;
              anc != nullptr && previousParentChain.Size() < 100U;
              anc = InheritanceParent(*anc)) {
-            previousParentChain.PushBack(AncestorNode{anc->Store(), anc->RuntimeType()});
+            const PropertyStore* ancStore = anc->Store();
+            if (ancStore != nullptr) {
+                prevChainBloom |= ancStore->entries.bloomMask_;
+            }
+            previousParentChain.PushBack(AncestorNode{ancStore, anc->RuntimeType()});
         }
     }
 
@@ -1602,34 +1719,52 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             }
         }
 
+        const std::uint64_t keyBloom =
+            PropertyStore::Entries::KeyBloomBits(inheritableHandle.value);
+        const bool hasDerivedDefaultOverride = prop->HasDerivedDefaultOverride();
+        const bool childHasInherited =
+            childEntry != nullptr && childEntry->HasInherited();
+
+        if (!childHasInherited && !hasDerivedDefaultOverride &&
+            (parentChainBloom & keyBloom) != keyBloom &&
+            (previousParent == parent || (prevChainBloom & keyBloom) != keyBloom)) {
+            continue;
+        }
+
         const PropertyMetadata* childMeta = prop->MetadataFor(child.RuntimeType());
-        const PropertyMetadata* ownerMeta = prop->MetadataFor(prop->RegisteredOwnerType());
+        const PropertyMetadata* ownerMeta = hasDerivedDefaultOverride
+            ? prop->MetadataFor(prop->RegisteredOwnerType())
+            : childMeta;
         const PropertyValue& baselineDefault = childMeta != nullptr
             ? childMeta->defaultValue
             : (ownerMeta != nullptr ? ownerMeta->defaultValue : PropertyValue{});
 
-        auto hasChainEntry = [&](const Base::BasicVector<AncestorNode, 16U>& chain) noexcept {
+        auto hasChainEntry = [&](const Base::BasicVector<AncestorNode, 16U>& chain,
+                                 std::uint64_t chainBloom) noexcept {
+            const bool mayHaveStored = (chainBloom & keyBloom) == keyBloom;
+            if (!mayHaveStored && !hasDerivedDefaultOverride) {
+                return false;
+            }
             for (const AncestorNode& anc : chain) {
-                if (anc.store != nullptr &&
+                if (mayHaveStored && anc.store != nullptr &&
                     anc.store->entries.Find(inheritableHandle.value) != nullptr) {
                     return true;
                 }
-                if (const PropertyMetadata* ancMeta = prop->MetadataFor(anc.runtimeType)) {
-                    if (ancMeta->defaultValue != baselineDefault ||
-                        (ownerMeta != nullptr && ancMeta->defaultValue != ownerMeta->defaultValue)) {
-                        return true;
+                if (hasDerivedDefaultOverride) {
+                    if (const PropertyMetadata* ancMeta = prop->MetadataFor(anc.runtimeType)) {
+                        if (ancMeta->defaultValue != baselineDefault ||
+                            (ownerMeta != nullptr && ancMeta->defaultValue != ownerMeta->defaultValue)) {
+                            return true;
+                        }
                     }
                 }
             }
             return false;
         };
 
-        const bool childHasInherited =
-            childEntry != nullptr && childEntry->HasInherited();
-
         if (!childHasInherited &&
-            !hasChainEntry(parentChain) &&
-            (previousParent == parent || !hasChainEntry(previousParentChain))) {
+            !hasChainEntry(parentChain, parentChainBloom) &&
+            (previousParent == parent || !hasChainEntry(previousParentChain, prevChainBloom))) {
             continue;
         }
 
@@ -1756,13 +1891,13 @@ Base::Result<void> EffectiveValueEngine::PropagateToDescendants(
 
     for (std::uint32_t cursor = 0U; cursor < frontier_.Size(); ++cursor) {
         DependencyObject* current = frontier_[cursor];
-        if (!childrenByParent_.Empty()) {
-            if (auto* explicitChildren = childrenByParent_.Find(current)) {
-                for (DependencyObject* child : *explicitChildren) {
-                    if (isDeferredToVisualDescendant(current, child)) continue;
-                    Base::Result<void> res = enqueue(current, child);
-                    if (!res) return res.GetStatus();
-                }
+        if (current->hasExplicitInheritanceChildren_ && current->rare_ != nullptr) {
+            for (DependencyObject* child = current->rare_->firstInheritanceChild;
+                 child != nullptr;
+                 child = child->rare_ != nullptr ? child->rare_->nextInheritanceSibling : nullptr) {
+                if (isDeferredToVisualDescendant(current, child)) continue;
+                Base::Result<void> res = enqueue(current, child);
+                if (!res) return res.GetStatus();
             }
         }
         if (auto* visual = ::Aero::TryCast<::Aero::Media::Visual>(current)) {
@@ -1820,20 +1955,27 @@ Base::Result<void> EffectiveValueEngine::Apply(
     PropertyValue inheritedValue;
     const PropertyValue* inherited = nullptr;
     if (HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits)) {
+        const std::uint64_t keyBloom =
+            PropertyStore::Entries::KeyBloomBits(property.value);
+        const bool checkDefaultOverride = registered->HasDerivedDefaultOverride();
         DependencyObject* inheritFrom = InheritanceParent(object);
         std::uint32_t loopCount = 0;
         while (inheritFrom != nullptr && ++loopCount <= 100U) {
-            if (const PropertyMetadata* ancMeta = registered->MetadataFor(inheritFrom->RuntimeType())) {
-                if (const StoredValueEntry* ancEntry =
-                        inheritFrom->FindStoredEntry(property)) {
-                    if (ancEntry->HasNonDefaultState(ancMeta->defaultValue)) {
+            const PropertyStore* ancStore = inheritFrom->Store();
+            const StoredValueEntry* ancEntry =
+                (ancStore != nullptr && (ancStore->entries.bloomMask_ & keyBloom) == keyBloom)
+                    ? ancStore->entries.Find(property.value)
+                    : nullptr;
+            if (ancEntry != nullptr || checkDefaultOverride) {
+                if (const PropertyMetadata* ancMeta = registered->MetadataFor(inheritFrom->RuntimeType())) {
+                    if (ancEntry != nullptr && ancEntry->HasNonDefaultState(ancMeta->defaultValue)) {
                         inherited = &ancEntry->effectiveValue;
                         break;
                     }
-                }
-                if (ancMeta->defaultValue != metadata->defaultValue) {
-                    inherited = &ancMeta->defaultValue;
-                    break;
+                    if (checkDefaultOverride && ancMeta->defaultValue != metadata->defaultValue) {
+                        inherited = &ancMeta->defaultValue;
+                        break;
+                    }
                 }
             }
             inheritFrom = InheritanceParent(*inheritFrom);
@@ -2308,16 +2450,39 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
         UnregisterExplicitInheritanceChild(previousParent, object);
         object.SetExplicitInheritanceParent(nullptr);
     }
-    if (object.hasExplicitInheritanceChildren_ && !childrenByParent_.Empty()) {
-        if (auto* list = childrenByParent_.Find(&object)) {
-            for (DependencyObject* child : *list) {
-                if (child != nullptr) {
-                    child->SetExplicitInheritanceParent(nullptr);
-                }
+    if (object.hasExplicitInheritanceChildren_ && object.rare_ != nullptr) {
+        DependencyObject* child = object.rare_->firstInheritanceChild;
+        object.rare_->firstInheritanceChild = nullptr;
+        while (child != nullptr) {
+            DependencyObject* nextChild = child->rare_ != nullptr
+                ? child->rare_->nextInheritanceSibling
+                : nullptr;
+            if (child->rare_ != nullptr) {
+                child->rare_->nextInheritanceSibling = nullptr;
             }
-            childrenByParent_.Erase(&object);
+            child->SetExplicitInheritanceParent(nullptr);
+            child = nextChild;
+        }
+        DependencyObject* prevParent = nullptr;
+        DependencyObject* curParent = firstExplicitParent_;
+        while (curParent != nullptr) {
+            if (curParent == &object) {
+                if (prevParent != nullptr) {
+                    prevParent->rare_->nextExplicitParent =
+                        object.rare_->nextExplicitParent;
+                } else {
+                    firstExplicitParent_ = object.rare_->nextExplicitParent;
+                }
+                object.rare_->nextExplicitParent = nullptr;
+                break;
+            }
+            prevParent = curParent;
+            curParent = curParent->rare_ != nullptr
+                ? curParent->rare_->nextExplicitParent
+                : nullptr;
         }
         object.hasExplicitInheritanceChildren_ = false;
+        object.CleanupRareIfEmpty();
     }
 }
 
@@ -2525,10 +2690,11 @@ void DependencyObject::DetachPropertyDependencyObjects(
         if (bindings != nullptr && bindings->HasActiveBindingsOutside(*candidate, visited)) {
             return true;
         }
-        const bool checkVisualProperties =
-            (freezable == nullptr) && (candidate->UseCount() > expectedRefs);
+        if (freezable == nullptr && candidate->UseCount() > expectedRefs) {
+            return true;
+        }
         if (ElementTree::HasActiveVisualOrBindingOnDispatcher(
-                object.GetDispatcher(), *candidate, checkVisualProperties, visited, bindings)) {
+                object.GetDispatcher(), *candidate, visited, bindings)) {
             return true;
         }
         return false;
