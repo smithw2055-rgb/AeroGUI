@@ -15,22 +15,30 @@ Meta::MemberId FindNotifyPropertyMember(
     if (propertyName.Empty()) {
         return Meta::InvalidMemberId;
     }
+    const Meta::TypeId runtimeType = object.RuntimeType();
+    if (runtimeType == Meta::InvalidTypeId) {
+        return Meta::InvalidMemberId;
+    }
+    const Meta::MemberId directId = Meta::MakePropertyId(runtimeType, propertyName);
     const Meta::TypeRegistry* types = nullptr;
     const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
     if (factory.dependencyProperties != nullptr) {
         types = &factory.dependencyProperties->Types();
     }
-    const Meta::TypeId runtimeType = object.RuntimeType();
-    if (types != nullptr && runtimeType != Meta::InvalidTypeId) {
+    if (types != nullptr) {
+        // Fast path: O(1) direct memberIndex_ probe on the concrete runtime type.
+        if (const Meta::PropertyInfo* directProp = types->FindProperty(directId)) {
+            if (directProp->OwnerType() == runtimeType && directProp->Name() == propertyName) {
+                return directId;
+            }
+        }
         const Meta::PropertyInfo* property = types->FindProperty(
             runtimeType, propertyName, true);
         if (property != nullptr) {
             return property->Id();
         }
     }
-    return runtimeType != Meta::InvalidTypeId
-        ? Meta::MakePropertyId(runtimeType, propertyName)
-        : Meta::InvalidMemberId;
+    return directId;
 }
 
 } // namespace Aero::Data
@@ -47,4 +55,3 @@ AERO_DESCRIBE(ViewModelBase) {
 }
 
 } // namespace Aero
-

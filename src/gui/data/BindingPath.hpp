@@ -58,10 +58,12 @@ struct CompiledPathStep {
     Meta::TypeId ownerType = Meta::InvalidTypeId;
     Meta::MemberId member = Meta::InvalidMemberId;
     const Meta::PropertyInfo* propertyInfo = nullptr;
+    const Base::TypeProperty* classProperty = nullptr;
     const Meta::DependencyProperty* dependencyProperty = nullptr;
     Meta::PropertyGetCallback propertyGetter = nullptr;
     Meta::PropertySetCallback propertySetter = nullptr;
     void* accessorContext = nullptr;
+    std::uint16_t dpGlobalIndex = 0xFFFFU;
     bool accessorReadable = false;
     bool accessorWritable = false;
     bool cachedReadable = false;

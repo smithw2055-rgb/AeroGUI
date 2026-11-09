@@ -249,6 +249,8 @@ void SetField(
 }
 
 template<class T>
+void EnsureTypeClassRegistered() noexcept;
+template<class T>
 MetadataAuthoringSession CreateDescriptionSession(
     Registration& context,
     TypeFlags flags) noexcept;
@@ -265,7 +267,9 @@ private:
     template<class>
     friend class ::Aero::Meta::TypeBuilder;
     template<class T>
-    friend MetadataAuthoringSession CreateDescriptionSession(
+    friend void EnsureTypeClassRegistered() noexcept;
+    template<class T> friend
+MetadataAuthoringSession CreateDescriptionSession(
         Registration& context,
         TypeFlags flags) noexcept;
     template<class T, bool Alias>
@@ -443,6 +447,8 @@ struct HasRuntimeTypeToken<T, std::void_t<decltype(
     TypeTraits<T>::Token())>> : std::true_type {};
 
 template<class T>
+void EnsureTypeClassRegistered() noexcept;
+template<class T>
 MetadataAuthoringSession CreateDescriptionSession(
     Registration& context,
     TypeFlags flags) noexcept {
@@ -471,7 +477,7 @@ MetadataAuthoringSession CreateDescriptionSession(
             metadataNamespace, metadataName, flags);
     } else if constexpr (
         std::is_base_of_v<Base::Object, T>) {
-        kind = MetadataTypeKind::Object;
+        EnsureTypeClassRegistered<T>(); kind = MetadataTypeKind::Object;
         baseType = TypeTraits<T>::BaseType();
         registration = TypeRegistration::Object(
             metadataNamespace, metadataName, baseType, flags);
@@ -547,7 +553,7 @@ MetadataAuthoringSession CreateNamedDescriptionSession(
             metadataNamespace, metadataName, flags);
     } else if constexpr (
         std::is_base_of_v<Base::Object, T>) {
-        kind = MetadataTypeKind::Object;
+        EnsureTypeClassRegistered<T>(); kind = MetadataTypeKind::Object;
         if constexpr (Alias) {
             baseType = TypeTraits<T>::Id();
         } else {
@@ -825,6 +831,90 @@ struct ReadOnlyOrdinaryPropertyAdapter {
         }
     }
 };
+
+template<class T>
+void EnsureTypeClassRegistered() noexcept {
+    if constexpr (Base::HasStaticClassType<T>::value) {
+        (void)T::StaticClassType();
+    }
+}
+
+template<class T, class TCreate>
+void BindTypeClassFactory() noexcept {
+    if constexpr (Base::HasStaticClassType<T>::value) {
+        if (const Base::TypeClass* cls = T::StaticClassType()) {
+            cls->SetFactory(&CreateDefaultObject<TCreate>);
+        }
+    }
+}
+
+template<class T, class TValue, auto Getter, auto Setter>
+void BindTypeClassProperty(Base::StringView name) noexcept {
+    if constexpr (Base::HasStaticClassType<T>::value && std::is_base_of_v<Base::Object, T>) {
+        static constexpr Base::TypeProperty::GetterFn kRawGet = [](const Base::Object* obj, void* out) noexcept {
+            using RawReturn = std::invoke_result_t<decltype(Getter), const T&>;
+            if constexpr (std::is_same_v<TValue, Base::String> &&
+                          std::is_same_v<std::remove_cv_t<std::remove_reference_t<RawReturn>>, Base::StringView>) {
+                (void)static_cast<Base::String*>(out)->Assign(
+                    std::invoke(Getter, *static_cast<const T*>(obj)));
+            } else if constexpr (std::is_assignable_v<TValue&, RawReturn>) {
+                *static_cast<TValue*>(out) = std::invoke(Getter, *static_cast<const T*>(obj));
+            }
+        };
+        static constexpr Base::TypeProperty::SetterFn kRawSet = [](Base::Object* obj, const void* in) noexcept {
+            auto& owner = *static_cast<T*>(obj);
+            const auto& val = *static_cast<const TValue*>(in);
+            if constexpr (std::is_same_v<TValue, Base::String> &&
+                          std::is_invocable_v<decltype(Setter), T&, Base::StringView>) {
+                (void)std::invoke(Setter, owner, val.View());
+            } else if constexpr (std::is_invocable_v<decltype(Setter), T&, const TValue&>) {
+                (void)std::invoke(Setter, owner, val);
+            }
+        };
+        static const Base::TypeProperty s_prop{
+            name,
+            MakePropertyId(TypeOf<T>(), name),
+            ValueCodec<TValue>::Type(),
+            kRawGet,
+            kRawSet,
+            &GetOrdinaryProperty<T, TValue, Getter>,
+            &SetOrdinaryProperty<T, TValue, Setter>};
+        if (const Base::TypeClass* cls = T::StaticClassType()) {
+            if (cls->FindProperty(name, false) == nullptr) {
+                cls->AddProperty(&s_prop);
+            }
+        }
+    }
+}
+
+template<class T, class TValue, auto Getter>
+void BindTypeClassReadOnlyProperty(Base::StringView name) noexcept {
+    if constexpr (Base::HasStaticClassType<T>::value && std::is_base_of_v<Base::Object, T>) {
+        static constexpr Base::TypeProperty::GetterFn kRawGet = [](const Base::Object* obj, void* out) noexcept {
+            using RawReturn = std::invoke_result_t<decltype(Getter), const T&>;
+            if constexpr (std::is_same_v<TValue, Base::String> &&
+                          std::is_same_v<std::remove_cv_t<std::remove_reference_t<RawReturn>>, Base::StringView>) {
+                (void)static_cast<Base::String*>(out)->Assign(
+                    std::invoke(Getter, *static_cast<const T*>(obj)));
+            } else if constexpr (std::is_assignable_v<TValue&, RawReturn>) {
+                *static_cast<TValue*>(out) = std::invoke(Getter, *static_cast<const T*>(obj));
+            }
+        };
+        static const Base::TypeProperty s_prop{
+            name,
+            MakePropertyId(TypeOf<T>(), name),
+            ValueCodec<TValue>::Type(),
+            kRawGet,
+            nullptr,
+            &GetOrdinaryProperty<T, TValue, Getter>,
+            nullptr};
+        if (const Base::TypeClass* cls = T::StaticClassType()) {
+            if (cls->FindProperty(name, false) == nullptr) {
+                cls->AddProperty(&s_prop);
+            }
+        }
+    }
+}
 
 template<class T> struct IsRefType : std::false_type {};
 template<class T> struct IsRefType<Base::Ref<T>> : std::true_type {};

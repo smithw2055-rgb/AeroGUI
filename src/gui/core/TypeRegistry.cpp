@@ -29,6 +29,8 @@
 namespace Aero::Meta {
 namespace {
 
+// CompactTypeIdTable retired; Base::TypeClass owns dense index table.
+#if 0
 struct CompactTypeIdTable {
     static constexpr std::uint32_t kMaxTypes = 65536U;
     static constexpr std::uint32_t kHashCapacity = 131072U;
@@ -41,6 +43,7 @@ struct CompactTypeIdTable {
 };
 
 CompactTypeIdTable g_compactTypeIdTable{};
+#endif
 
 struct RuntimeTypeBinding {
     TypeId id = InvalidTypeId;
@@ -74,6 +77,8 @@ constexpr Base::Status EmptyTypeNameStatus() noexcept {
 } // namespace
 
 std::uint16_t InternCompactTypeId(TypeId type) noexcept {
+    return Base::TypeClass::InternDenseIndex(type);
+#if 0
     if (type == InvalidTypeId) {
         return 0U;
     }
@@ -114,10 +119,11 @@ std::uint16_t InternCompactTypeId(TypeId type) noexcept {
     }
     g_compactTypeIdTable.lock.clear(std::memory_order_release);
     return assigned;
+#endif
 }
 
 TypeId ResolveCompactTypeId(std::uint16_t index) noexcept {
-    return g_compactTypeIdTable.entries[index];
+    return Base::TypeClass::ResolveDenseIndex(index);
 }
 
 Base::Status BindRuntimeTypeInfo(
@@ -511,6 +517,11 @@ Base::Result<MemberId> TypeRegistry::RegisterProperty(
     property.ownerType_ = ownerType;
     property.valueType_ = registration.valueType;
     property.flags_ = registration.flags;
+    property.access_ = registration.access;
+    property.provider_ = registration.provider;
+    property.get_ = registration.get;
+    property.set_ = registration.set;
+    property.context_ = registration.context;
     Base::Result<void> result = property.name_.Assign(registration.name);
     if (!result) return result.GetStatus();
 

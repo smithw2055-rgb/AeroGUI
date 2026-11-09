@@ -43,7 +43,12 @@ public:
 
     // XAML names (SineEase, CubicEase, ...) are metadata aliases. Each factory
     // constructs this class with that name's TypeId and the matching Kind.
-    EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept : Freezable(runtimeType), kind_(kind) {}
+    EasingFunctionBase(Meta::TypeId runtimeType, Kind kind) noexcept
+        : Freezable(runtimeType), aliasTypeId_(runtimeType), kind_(kind) {}
+
+    Meta::TypeId RuntimeType() const noexcept override {
+        return aliasTypeId_ != InvalidTypeId ? aliasTypeId_ : StaticTypeId();
+    }
 
     double GetExponent() const noexcept { return GetValue(ExponentProperty); }
     double GetPower() const noexcept { return GetValue(PowerProperty); }
@@ -69,6 +74,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(double, Springiness);
 
 private:
+    Meta::TypeId aliasTypeId_ = InvalidTypeId;
     Kind kind_ = Kind::Linear;
 };
 

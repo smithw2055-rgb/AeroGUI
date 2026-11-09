@@ -44,6 +44,25 @@ template<class T> T* TryCast(Object* object) noexcept {
         return (object->CoreTypeMask() & CoreTypeBit<CleanT>::kValue) != 0U
             ? static_cast<T*>(object)
             : nullptr;
+    } else if constexpr (Base::HasStaticClassType<CleanT>::value) {
+        const Base::TypeClass* targetClass = CleanT::StaticClassType();
+        const Base::TypeClass* runtimeClass = object->GetClassType();
+        if (runtimeClass != nullptr && targetClass != nullptr) {
+            if (runtimeClass == targetClass || runtimeClass->IsDescendantOf(targetClass)) {
+                return static_cast<T*>(object);
+            }
+            const Base::MetaTypeId runtimeType = object->RuntimeType();
+            if (runtimeType != runtimeClass->Id()) {
+                if (runtimeType == T::StaticTypeId() || IsRuntimeTypeDerivedFrom(runtimeType, T::StaticTypeId())) {
+                    return static_cast<T*>(object);
+                }
+            }
+            return nullptr;
+        }
+        const Base::MetaTypeId runtimeType = object->RuntimeType();
+        if (runtimeType == T::StaticTypeId()) { return static_cast<T*>(object); }
+        if (!IsRuntimeTypeDerivedFrom(runtimeType, T::StaticTypeId())) { return nullptr; }
+        return static_cast<T*>(object);
     } else {
         const Base::MetaTypeId runtimeType = object->RuntimeType();
         if (runtimeType == T::StaticTypeId()) { return static_cast<T*>(object); }

@@ -14,7 +14,7 @@ std::atomic<Application*> currentApplication{nullptr};
 }
 
 Application::Application(Meta::TypeId runtimeType) noexcept
-    : runtimeType_(runtimeType) {}
+    { static_cast<void>(runtimeType); }
 
 Application::~Application() noexcept {
     Detach();

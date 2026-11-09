@@ -15,10 +15,10 @@
 //   slab (or nullptr for plain-heap fallback blocks). Release therefore
 //   needs no calling context and is safe from destructors on any thread.
 // - 16-byte header keeps the payload 16-aligned (Value storage requires it).
-// - Thread-safe via a short mutex; steady-state hit rate makes contention
-//   negligible, and all mutation fast paths already serialize on the
-//   dispatcher thread.
+// - Uses an inline atomic_flag spinlock for O(1) free-list pop/push while
+//   keeping all malloc/free calls outside the critical section.
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -33,12 +33,28 @@ private:
     };
 
     struct SlabState {
+        mutable std::atomic_flag lock = ATOMIC_FLAG_INIT;
         FreeNode* rareFree = nullptr;
         FreeNode* storeFree = nullptr;
         std::size_t rareCount = 0U;
         std::size_t storeCount = 0U;
         std::uint32_t outstanding = 0U;
         bool alive = true;
+    };
+
+    class SlabLockGuard {
+    public:
+        explicit SlabLockGuard(std::atomic_flag& flag) noexcept : flag_(&flag) {
+            while (flag_->test_and_set(std::memory_order_acquire)) {
+            }
+        }
+        ~SlabLockGuard() noexcept {
+            flag_->clear(std::memory_order_release);
+        }
+        SlabLockGuard(const SlabLockGuard&) = delete;
+        SlabLockGuard& operator=(const SlabLockGuard&) = delete;
+    private:
+        std::atomic_flag* flag_;
     };
 
 public:
@@ -55,12 +71,23 @@ public:
 
     ~PropertySlab() noexcept {
         if (state_ == nullptr) { return; }
-        DrainList(state_->rareFree);
-        state_->rareCount = 0U;
-        DrainList(state_->storeFree);
-        state_->storeCount = 0U;
-        state_->alive = false;
-        if (state_->outstanding == 0U) {
+        FreeNode* rareToFree = nullptr;
+        FreeNode* storeToFree = nullptr;
+        bool deleteNow = false;
+        {
+            SlabLockGuard guard(state_->lock);
+            rareToFree = state_->rareFree;
+            state_->rareFree = nullptr;
+            state_->rareCount = 0U;
+            storeToFree = state_->storeFree;
+            state_->storeFree = nullptr;
+            state_->storeCount = 0U;
+            state_->alive = false;
+            deleteNow = (state_->outstanding == 0U);
+        }
+        DrainList(rareToFree);
+        DrainList(storeToFree);
+        if (deleteNow) {
             delete state_;
         }
         state_ = nullptr;
@@ -88,7 +115,9 @@ public:
     // Live (not yet released) slab-owned blocks. Diagnostic only; no
     // enforcement, since leaked host objects may outlive teardown.
     std::uint32_t OutstandingBlocks() const noexcept {
-        return state_ != nullptr ? state_->outstanding : 0U;
+        if (state_ == nullptr) { return 0U; }
+        SlabLockGuard guard(state_->lock);
+        return state_->outstanding;
     }
 
     // Drops pooled (recycled) blocks. Live blocks are untouched; they belong
@@ -96,10 +125,19 @@ public:
     // Dispatcher is destroyed (DispatcherObject holds a Dispatcher&).
     void Clear() noexcept {
         if (state_ == nullptr) { return; }
-        DrainList(state_->rareFree);
-        state_->rareCount = 0U;
-        DrainList(state_->storeFree);
-        state_->storeCount = 0U;
+        FreeNode* rareToFree = nullptr;
+        FreeNode* storeToFree = nullptr;
+        {
+            SlabLockGuard guard(state_->lock);
+            rareToFree = state_->rareFree;
+            state_->rareFree = nullptr;
+            state_->rareCount = 0U;
+            storeToFree = state_->storeFree;
+            state_->storeFree = nullptr;
+            state_->storeCount = 0U;
+        }
+        DrainList(rareToFree);
+        DrainList(storeToFree);
     }
 
     // Plain-heap fallback: used by context-free copies (e.g. entry copy on
@@ -118,21 +156,28 @@ private:
     SlabState* state_ = nullptr;
 
     void* Allocate(std::size_t size, FreeNode*& freeList, std::size_t& pooled) noexcept {
-        if (freeList != nullptr) {
-            // Free-list nodes ARE payload pointers (their headers stay
-            // attached in front); return as-is, do not re-add the offset.
-            FreeNode* node = freeList;
-            freeList = node->next;
-            --pooled;
+        {
+            SlabLockGuard guard(state_->lock);
+            if (freeList != nullptr) {
+                // Free-list nodes ARE payload pointers (their headers stay
+                // attached in front); return as-is, do not re-add the offset.
+                FreeNode* node = freeList;
+                freeList = node->next;
+                --pooled;
+                ++state_->outstanding;
+                return node;
+            }
             ++state_->outstanding;
-            return node;
         }
         void* chunk = std::malloc(sizeof(BlockHeader) + size);
-        if (chunk == nullptr) { return nullptr; }
+        if (chunk == nullptr) {
+            SlabLockGuard guard(state_->lock);
+            if (state_->outstanding != 0U) { --state_->outstanding; }
+            return nullptr;
+        }
         auto* header = static_cast<BlockHeader*>(chunk);
         header->owner = state_;
         header->reserved = 0U;
-        ++state_->outstanding;
         return HeaderToPayload(header);
     }
 
@@ -150,32 +195,42 @@ private:
     }
 
     static void ReleaseRareToOwner(SlabState* owner, void* payload) noexcept {
-        if (owner->outstanding != 0U) { --owner->outstanding; }
-        if (owner->alive && owner->rareCount < kMaxPooledPerClass) {
-            auto* node = static_cast<FreeNode*>(payload);
-            node->next = owner->rareFree;
-            owner->rareFree = node;
-            ++owner->rareCount;
-        } else {
-            std::free(PayloadToHeader(payload));
-            if (!owner->alive && owner->outstanding == 0U) {
-                delete owner;
+        bool deleteOwner = false;
+        {
+            SlabLockGuard guard(owner->lock);
+            if (owner->outstanding != 0U) { --owner->outstanding; }
+            if (owner->alive && owner->rareCount < kMaxPooledPerClass) {
+                auto* node = static_cast<FreeNode*>(payload);
+                node->next = owner->rareFree;
+                owner->rareFree = node;
+                ++owner->rareCount;
+                return;
             }
+            deleteOwner = (!owner->alive && owner->outstanding == 0U);
+        }
+        std::free(PayloadToHeader(payload));
+        if (deleteOwner) {
+            delete owner;
         }
     }
 
     static void ReleaseStoreToOwner(SlabState* owner, void* payload) noexcept {
-        if (owner->outstanding != 0U) { --owner->outstanding; }
-        if (owner->alive && owner->storeCount < kMaxPooledPerClass) {
-            auto* node = static_cast<FreeNode*>(payload);
-            node->next = owner->storeFree;
-            owner->storeFree = node;
-            ++owner->storeCount;
-        } else {
-            std::free(PayloadToHeader(payload));
-            if (!owner->alive && owner->outstanding == 0U) {
-                delete owner;
+        bool deleteOwner = false;
+        {
+            SlabLockGuard guard(owner->lock);
+            if (owner->outstanding != 0U) { --owner->outstanding; }
+            if (owner->alive && owner->storeCount < kMaxPooledPerClass) {
+                auto* node = static_cast<FreeNode*>(payload);
+                node->next = owner->storeFree;
+                owner->storeFree = node;
+                ++owner->storeCount;
+                return;
             }
+            deleteOwner = (!owner->alive && owner->outstanding == 0U);
+        }
+        std::free(PayloadToHeader(payload));
+        if (deleteOwner) {
+            delete owner;
         }
     }
 

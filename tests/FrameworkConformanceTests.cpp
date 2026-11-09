@@ -1,4 +1,18 @@
 #include "ConformanceTestHarness.hpp"
+#include <Aero/Mvvm.hpp>
+
+namespace {
+class PlanAReflectedViewModel final : public Aero::ViewModelBase {
+    AERO_REFLECT_INLINE(PlanAReflectedViewModel, Aero::ViewModelBase) {
+        AERO_BIND_PROPERTY(Score, &Self::GetScore, &Self::SetScore);
+        AERO_BIND_PROPERTY(Title, &Self::GetTitle, &Self::SetTitle);
+    }
+
+public:
+    AERO_VM_PROPERTY(int, Score, 42)
+    AERO_VM_PROPERTY(Aero::String, Title, "Initial")
+};
+} // namespace
 
 bool TestGalleryXamlSurface() {
     static_assert(std::is_base_of<Aero::Base::Object, Aero::Input::CommandBinding>::value,
@@ -2063,6 +2077,119 @@ bool TestArchitectureRefactoringValidation() {
         CHECK(clonedGeom->GetFigures()[0].Get() != fig.Get());
         CHECK(!clonedGeom->GetFigures()[0]->IsFrozen());
         CHECK(clonedGeom->GetFigures()[0]->GetSegments().Size() == 1U);
+    }
+
+    // 23. Validate Plan A NoesisGUI / WPF parity refactoring:
+    //   (a) const TypeClass* static singleton pointer identity + O(1) Euler hierarchy
+    //   (b) AERO_REFLECT_INLINE + AERO_VM_PROPERTY cached const TypeProperty* notifications
+    //   (c) TypedDependencyProperty<T> const T& GetValue and short-circuit SetValue
+    //   (d) Intrusive single-allocation Boxed<T> without TLS ObjectFactoryScope
+    {
+        const Aero::TypeClass* btnClass = Aero::Controls::Button::StaticClassType();
+        const Aero::TypeClass* ctrlClass = Aero::Controls::Control::StaticClassType();
+        const Aero::TypeClass* doClass = Aero::DependencyObject::StaticClassType();
+        const Aero::TypeClass* objClass = Aero::Base::Object::StaticClassType();
+        CHECK(btnClass != nullptr && ctrlClass != nullptr && doClass != nullptr && objClass != nullptr);
+        CHECK(btnClass->Base() == Aero::Controls::Primitives::ButtonBase::StaticClassType());
+        CHECK(btnClass->IsDescendantOf(ctrlClass));
+        CHECK(btnClass->IsDescendantOf(doClass));
+        CHECK(btnClass->IsDescendantOf(objClass));
+        CHECK(!ctrlClass->IsDescendantOf(btnClass));
+        CHECK(Aero::TypeClass::FindById(Aero::Controls::Button::StaticTypeId()) == btnClass);
+
+        auto vm = MakeRef<PlanAReflectedViewModel>();
+        CHECK(vm != nullptr);
+        CHECK(vm->GetClassType() == PlanAReflectedViewModel::StaticClassType());
+        CHECK(vm->RuntimeType() == PlanAReflectedViewModel::StaticTypeId());
+        CHECK(Aero::TryCast<Aero::ViewModelBase>(vm.Get()) == vm.Get());
+        CHECK(Aero::TryCast<Aero::Controls::Button>(vm.Get()) == nullptr);
+
+        const Aero::TypeProperty* scoreProp = PlanAReflectedViewModel::ScoreProperty();
+        const Aero::TypeProperty* titleProp = PlanAReflectedViewModel::TitleProperty();
+        CHECK(scoreProp != nullptr && titleProp != nullptr);
+        CHECK(PlanAReflectedViewModel::StaticClassType()->FindProperty("Score") == scoreProp);
+        CHECK(PlanAReflectedViewModel::StaticClassType()->FindProperty("Title") == titleProp);
+
+        std::uint32_t notifyCount = 0U;
+        struct NotifyCapture {
+            std::uint32_t count = 0U;
+            Aero::MemberId lastMember = Aero::InvalidMemberId;
+        } notifyCapture{};
+        CHECK(PlanAReflectedViewModel::SubscribePropertyChanged(
+            *vm,
+            [](Aero::Base::Object&, Aero::MemberId prop, void* ctx) noexcept {
+                auto* cap = static_cast<NotifyCapture*>(ctx);
+                ++cap->count;
+                cap->lastMember = prop;
+            },
+            &notifyCapture,
+            nullptr).HasValue());
+        if (false) {
+            ++notifyCount;
+        }
+        CHECK(vm->GetTitle().View() == "Initial");
+        CHECK(vm->GetScore() == 42);
+        vm->SetScore(42);
+        CHECK(notifyCapture.count == 0U);
+        vm->SetScore(99);
+        CHECK(notifyCapture.count == 1U);
+        CHECK(notifyCapture.lastMember == scoreProp->Id());
+        CHECK(vm->GetScore() == 99);
+
+        const Aero::Thickness boxInput{10.0, 20.0, 30.0, 40.0};
+        Aero::Result<Aero::Value> boxedResult = Aero::Meta::ValueCodec<Aero::Thickness>::Encode(boxInput);
+        CHECK(boxedResult.HasValue());
+        CHECK(boxedResult.Value().Kind() == Aero::Base::ValueKind::Custom && boxedResult.Value().IsInlineCustom());
+        auto parsedUri = Aero::Base::ResourceUri::Parse("aero://TestAssembly/Themes/Generic.xaml");
+        CHECK(parsedUri.HasValue());
+        Aero::Result<Aero::Value> boxedUriResult = Aero::Meta::ValueCodec<Aero::Base::ResourceUri>::Encode(parsedUri.Value());
+        CHECK(boxedUriResult.HasValue());
+        CHECK(boxedUriResult.Value().Kind() == Aero::Base::ValueKind::Custom && !boxedUriResult.Value().IsInlineCustom());
+        const Aero::Base::ResourceUri& decodedUriRef = Aero::Meta::ValueCodec<Aero::Base::ResourceUri>::DecodeOrDefault(boxedUriResult.Value());
+        CHECK(&decodedUriRef == static_cast<const Aero::Base::ResourceUri*>(boxedUriResult.Value().AsCustom()));
+        CHECK(decodedUriRef == parsedUri.Value());
+        const Aero::Thickness& decodedRef = Aero::Meta::ValueCodec<Aero::Thickness>::DecodeOrDefault(boxedResult.Value());
+        CHECK(&decodedRef == static_cast<const Aero::Thickness*>(boxedResult.Value().AsCustom()));
+        CHECK(decodedRef == boxInput);
+
+        auto testBtn = MakeRef<Aero::Controls::Button>();
+        CHECK(testBtn != nullptr);
+        static_assert(std::is_same_v<
+            decltype(testBtn->GetValue(Aero::Controls::Control::PaddingProperty)),
+            const Aero::Thickness&>,
+            "GetValue(DependencyPropertyRef<TOwner, Thickness>) must return const Thickness&");
+        static_assert(std::is_same_v<
+            decltype(testBtn->GetValue(Aero::Controls::Control::PaddingProperty.Ptr())),
+            const Aero::Thickness&>,
+            "GetValue(const TypedDependencyProperty<Thickness>*) must return const Thickness&");
+        CHECK(Aero::Controls::Control::PaddingProperty.GlobalIndex() != 0xFFFFU);
+
+        std::uint32_t dpChangedCount = 0U;
+        testBtn->AddValueChangedHandler(
+            Aero::Controls::Control::PaddingProperty,
+            [&](Aero::DependencyObject&, const Aero::DependencyPropertyChangedEventArgs&) noexcept {
+                ++dpChangedCount;
+            });
+            CHECK(vm->GetTitle().View() == "Initial");
+        const Aero::Thickness padValue{5.0, 6.0, 7.0, 8.0};
+        testBtn->SetValue(Aero::Controls::Control::PaddingProperty.Ptr(), padValue);
+        CHECK(dpChangedCount == 1U);
+        const Aero::Thickness& padRef1 = testBtn->GetValue(Aero::Controls::Control::PaddingProperty.Ptr());
+        CHECK(padRef1 == padValue);
+        testBtn->SetValue(Aero::Controls::Control::PaddingProperty.Ptr(), padValue);
+        CHECK(dpChangedCount == 1U);
+        const Aero::Thickness& padRef2 = testBtn->GetValue(Aero::Controls::Control::PaddingProperty);
+        CHECK(&padRef1 == &padRef2);
+
+        static_assert(sizeof(Aero::FrameworkElement) == 232, "FrameworkElement must be 232 bytes");
+        static_assert(sizeof(Aero::Controls::Control) == 248, "Control must be slimmed to 248 bytes");
+        CHECK(!testBtn->IsTemplateApplied());
+        CHECK(testBtn->IsVisualCore() && testBtn->IsDependencyObjectCore());
+        CHECK(!vm->IsDependencyObjectCore() && !vm->IsVisualCore());
+        CHECK(testBtn->GetBackground() == nullptr && testBtn->GetBorderBrush() == nullptr);
+        testBtn->SetBorderThickness(2.0);
+        const Aero::Thickness expectedBorder{2.0, 2.0, 2.0, 2.0};
+        CHECK(testBtn->GetBorderThickness() == expectedBorder);
     }
 
     return true;

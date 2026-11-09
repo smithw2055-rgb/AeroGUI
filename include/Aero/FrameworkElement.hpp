@@ -320,8 +320,9 @@ private:
 
     LayoutScalars layoutScalars_{};
     const ResourceDictionary* LocalResources() const noexcept { return resources_; }
-    DependencyObject* templatedParent_ = nullptr;
     mutable ResourceDictionary* resources_ = nullptr;
+    DependencyObject* templatedParent_ = nullptr;
+
     FrameworkRare* frameworkRare_ = nullptr;
 };
 

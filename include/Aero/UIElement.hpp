@@ -67,6 +67,7 @@ class AERO_GUI_API UIElement : public ::Aero::Media::Visual {
 public:
     template<class TArgs> using Event = ::Aero::Event<UIElement, TArgs>;
 
+    UIElement() noexcept : UIElement(StaticTypeId()) {}
     explicit UIElement(TypeId runtimeType) noexcept;
     ~UIElement() override;
 

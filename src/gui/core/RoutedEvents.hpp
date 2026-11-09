@@ -28,6 +28,13 @@ namespace Aero {
 
 class RoutedHandlerStorage {
 public:
+    struct Operations {
+        void (*copy)(void*, const void*) noexcept = nullptr;
+        void (*destroy)(void*) noexcept = nullptr;
+        bool (*equals)(const void*, const void*) noexcept = nullptr;
+        void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
+    };
+
     RoutedHandlerStorage() noexcept = default;
 
     RoutedHandlerStorage(
@@ -39,38 +46,29 @@ public:
         void (*destroy)(void*) noexcept,
         bool (*equals)(const void*, const void*) noexcept,
         void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept) noexcept
-        : size_(size), alignment_(alignment), argsType_(argsType),
-          copy_(copy), destroy_(destroy), equals_(equals), invoke_(invoke) {
-        AERO_ASSERT(value != nullptr && size_ <= sizeof(storage_) && alignment_ <= alignof(void*));
-        copy_(storage_, value);
+        : ops_(InternOperations(copy, destroy, equals, invoke)),
+          argsType_(argsType) {
+        AERO_ASSERT(value != nullptr && size <= sizeof(storage_) && alignment <= alignof(void*));
+        ops_->copy(storage_, value);
     }
 
     template<class TArgs>
     explicit RoutedHandlerStorage(
-        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept
-        : RoutedHandlerStorage(
-              &handler,
-              sizeof(handler),
-              alignof(decltype(handler)),
-              TArgs::StaticTypeId(),
-              [](void* destination, const void* source) noexcept {
-                  using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-                  new (destination) Handler(*static_cast<const Handler*>(source));
-              },
-              [](void* value) noexcept {
-                  using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-                  static_cast<Handler*>(value)->~Handler();
-              },
-              [](const void* left, const void* right) noexcept {
-                  using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-                  return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
-              },
-              [](const void* value, Base::Object* sender, RoutedEventArgs& args) noexcept {
-                  using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
-                  static_cast<const Handler*>(value)->Invoke(sender, static_cast<TArgs&>(args));
-              }) {
+        const Base::Delegate<void(Base::Object*, TArgs&)>& handler) noexcept {
         static_assert(std::is_base_of<RoutedEventArgs, TArgs>::value,
             "Routed event arguments must derive from RoutedEventArgs");
+        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
+        static_assert(sizeof(Handler) <= sizeof(storage_) && alignof(Handler) <= alignof(void*),
+            "Handler must fit inline storage");
+        static constexpr Operations kOps{
+            &TypedOperations<TArgs>::Copy,
+            &TypedOperations<TArgs>::Destroy,
+            &TypedOperations<TArgs>::Equals,
+            &TypedOperations<TArgs>::Invoke
+        };
+        ops_ = &kOps;
+        argsType_ = TArgs::StaticTypeId();
+        kOps.copy(storage_, &handler);
     }
 
     RoutedHandlerStorage(const RoutedHandlerStorage& other) noexcept { CopyFrom(other); }
@@ -95,14 +93,21 @@ public:
 
     ~RoutedHandlerStorage() noexcept { Reset(); }
 
-    bool Empty() const noexcept { return copy_ == nullptr; }
+    bool Empty() const noexcept { return ops_ == nullptr; }
     Meta::TypeId ArgsType() const noexcept { return argsType_; }
 
     bool Equals(const RoutedHandlerStorage& other) const noexcept {
-        return copy_ == other.copy_ && destroy_ == other.destroy_ &&
-            equals_ == other.equals_ && invoke_ == other.invoke_ &&
-            argsType_ == other.argsType_ &&
-            (Empty() || equals_(storage_, other.storage_));
+        if (argsType_ != other.argsType_) return false;
+        if (ops_ != other.ops_) {
+            if (ops_ == nullptr || other.ops_ == nullptr) return false;
+            if (ops_->copy != other.ops_->copy ||
+                ops_->destroy != other.ops_->destroy ||
+                ops_->equals != other.ops_->equals ||
+                ops_->invoke != other.ops_->invoke) {
+                return false;
+            }
+        }
+        return Empty() || ops_->equals(storage_, other.storage_);
     }
 
     void Invoke(Base::Object* sender, RoutedEventArgs& args) const noexcept {
@@ -110,41 +115,67 @@ public:
             !Empty() &&
             (args.GetEventArgsType() == argsType_ ||
              argsType_ == RoutedEventArgs::StaticTypeId()));
-        invoke_(storage_, sender, args);
+        ops_->invoke(storage_, sender, args);
     }
 
 private:
+    template<class TArgs>
+    struct TypedOperations {
+        using Handler = Base::Delegate<void(Base::Object*, TArgs&)>;
+        static void Copy(void* destination, const void* source) noexcept {
+            new (destination) Handler(*static_cast<const Handler*>(source));
+        }
+        static void Destroy(void* value) noexcept {
+            static_cast<Handler*>(value)->~Handler();
+        }
+        static bool Equals(const void* left, const void* right) noexcept {
+            return *static_cast<const Handler*>(left) == *static_cast<const Handler*>(right);
+        }
+        static void Invoke(const void* value, Base::Object* sender, RoutedEventArgs& args) noexcept {
+            static_cast<const Handler*>(value)->Invoke(sender, static_cast<TArgs&>(args));
+        }
+    };
+
+    static const Operations* InternOperations(
+        void (*copy)(void*, const void*) noexcept,
+        void (*destroy)(void*) noexcept,
+        bool (*equals)(const void*, const void*) noexcept,
+        void (*invoke)(const void*, Base::Object*, RoutedEventArgs&) noexcept) noexcept {
+        static Operations slots[8]{};
+        for (Operations& slot : slots) {
+            if (slot.copy == copy && slot.destroy == destroy &&
+                slot.equals == equals && slot.invoke == invoke) {
+                return &slot;
+            }
+            if (slot.copy == nullptr) {
+                slot.copy = copy;
+                slot.destroy = destroy;
+                slot.equals = equals;
+                slot.invoke = invoke;
+                return &slot;
+            }
+        }
+        AERO_ASSERT(false);
+        return &slots[0];
+    }
+
     void CopyFrom(const RoutedHandlerStorage& other) noexcept {
-        size_ = other.size_;
-        alignment_ = other.alignment_;
+        ops_ = other.ops_;
         argsType_ = other.argsType_;
-        copy_ = other.copy_;
-        destroy_ = other.destroy_;
-        equals_ = other.equals_;
-        invoke_ = other.invoke_;
-        if (!other.Empty()) copy_(storage_, other.storage_);
+        if (!other.Empty()) ops_->copy(storage_, other.storage_);
     }
 
     void Reset() noexcept {
-        if (!Empty()) destroy_(storage_);
-        size_ = 0U;
-        alignment_ = 0U;
+        if (!Empty()) ops_->destroy(storage_);
+        ops_ = nullptr;
         argsType_ = Meta::InvalidTypeId;
-        copy_ = nullptr;
-        destroy_ = nullptr;
-        equals_ = nullptr;
-        invoke_ = nullptr;
     }
 
     alignas(void*) unsigned char storage_[4U * sizeof(void*)]{};
-    std::size_t size_ = 0U;
-    std::size_t alignment_ = 0U;
+    const Operations* ops_ = nullptr;
     Meta::TypeId argsType_ = Meta::InvalidTypeId;
-    void (*copy_)(void*, const void*) noexcept = nullptr;
-    void (*destroy_)(void*) noexcept = nullptr;
-    bool (*equals_)(const void*, const void*) noexcept = nullptr;
-    void (*invoke_)(const void*, Base::Object*, RoutedEventArgs&) noexcept = nullptr;
 };
+static_assert(sizeof(RoutedHandlerStorage) <= 48U, "RoutedHandlerStorage must remain compact");
 
 struct EventRouteNode {
     Base::Ref<DependencyObject> retained;
@@ -201,21 +232,16 @@ public:
 private:
     static DependencyObject* GetParent(
         DependencyObject& object) noexcept {
-        const Meta::TypeRegistry& types = DependencyObjectAccess::PropertyRegistry((object)).Types();
-        if (types.IsDerivedFrom(
-                object.RuntimeType(), ContentElement::StaticTypeId())) {
-            auto& content = static_cast<ContentElement&>(object);
-            DependencyObject* parent = content.GetParent();
-            return parent != nullptr
-                ? parent
-                : static_cast<DependencyObject*>(content.GetContentHost());
-        }
-        if (types.IsDerivedFrom(
-                object.RuntimeType(), ::Aero::Media::Visual::StaticTypeId())) {
+        if (object.IsVisualCore()) {
             auto& visual = static_cast<::Aero::Media::Visual&>(object);
             if (visual.GetVisualParent() != nullptr) {
                 return visual.GetVisualParent();
             }
+        } else if (auto* content = ::Aero::TryCast<ContentElement>(&object)) {
+            DependencyObject* parent = content->GetParent();
+            return parent != nullptr
+                ? parent
+                : static_cast<DependencyObject*>(content->GetContentHost());
         }
         return LogicalTreeHelper::GetParent(object);
     }

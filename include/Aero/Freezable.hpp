@@ -35,6 +35,7 @@ public:
     bool RemoveChangedHandler(const FreezableChangedHandler& handler) noexcept;
 
 protected:
+    Freezable() noexcept : Freezable(StaticTypeId()) {}
     explicit Freezable(Meta::TypeId runtimeType) noexcept;
     ~Freezable() override;
 

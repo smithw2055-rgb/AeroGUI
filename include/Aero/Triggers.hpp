@@ -26,13 +26,14 @@ class AERO_GUI_API SetterBase : public Base::Object {
     AERO_DECLARE_TYPE(SetterBase, Base::Object)
 
 public:
-    Meta::TypeId RuntimeType() const noexcept override {
-        return Meta::ResolveCompactTypeId(ContextSlot());
+    Meta::TypeId RuntimeType() const noexcept override { return GetClassType()->Id(); //
+    // Inherits Object::RuntimeType() via GetClassType()
     }
 
 protected:
+    SetterBase() noexcept = default;
     explicit SetterBase(Meta::TypeId runtimeType) noexcept {
-        SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+        static_cast<void>(runtimeType);
     }
     ~SetterBase() override = default;
 };
@@ -98,8 +99,8 @@ class AERO_GUI_API TriggerBase : public Base::Object {
     AERO_DECLARE_TYPE(TriggerBase, Base::Object)
 
 public:
-    TypeId RuntimeType() const noexcept override {
-        return Meta::ResolveCompactTypeId(ContextSlot());
+    TypeId RuntimeType() const noexcept override { return GetClassType()->Id(); //
+    // Inherits Object::RuntimeType() via GetClassType()
     }
     void AddEnterAction(Ref<Base::Object> action) noexcept;
     void AddExitAction(Ref<Base::Object> action) noexcept;
@@ -112,8 +113,9 @@ public:
     Span<const Ref<Base::Object>> GetBehaviors() const noexcept;
 
 protected:
+    TriggerBase() noexcept = default;
     explicit TriggerBase(TypeId runtimeType) noexcept {
-        SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+        static_cast<void>(runtimeType);
     }
     ~TriggerBase() override;
 
@@ -155,7 +157,7 @@ public:
     Condition() noexcept = default;
     ~Condition() override = default;
 
-    TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
+    TypeId RuntimeType() const noexcept override { return GetClassType()->Id(); }
     Ref<Data::Binding> GetBinding() const noexcept { return binding_; }
     void SetBinding(Ref<Data::Binding> value) noexcept { binding_ = std::move(value); }
     StringView GetPropertyName() const noexcept { return propertyName_.View(); }

@@ -9,6 +9,78 @@ namespace Aero::Base {
 namespace {
 
 constexpr std::uint32_t ExpiredLockBit = 0x80000000U;
+constexpr std::uint32_t kMaxTypeClasses = 1024U;
+constexpr std::uint32_t kTypeClassHashCapacity = 2048U;
+constexpr std::uint32_t kTypeClassHashMask = kTypeClassHashCapacity - 1U;
+
+std::atomic_flag g_typeClassLock = ATOMIC_FLAG_INIT;
+const TypeClass* g_typeClassesByIndex[kMaxTypeClasses]{};
+MetaTypeId g_denseIdByIndex[kMaxTypeClasses]{};
+MetaTypeId g_typeHashKeys[kTypeClassHashCapacity]{};
+std::uint16_t g_typeHashIndices[kTypeClassHashCapacity]{};
+std::uint16_t g_typeClassCount = 0U;
+const TypeClass* g_rootTypeClasses = nullptr;
+
+struct TypeClassSpinGuard {
+    TypeClassSpinGuard() noexcept {
+        while (g_typeClassLock.test_and_set(std::memory_order_acquire)) {
+        }
+    }
+    ~TypeClassSpinGuard() noexcept {
+        g_typeClassLock.clear(std::memory_order_release);
+    }
+};
+
+constexpr std::uint32_t HashTypeId(MetaTypeId typeId) noexcept {
+    std::uint64_t x = typeId;
+    x ^= x >> 33U;
+    x *= UINT64_C(0xff51afd7ed558ccd);
+    x ^= x >> 33U;
+    return static_cast<std::uint32_t>(x) & kTypeClassHashMask;
+}
+
+std::uint16_t FindOrCreateDenseIndexLocked(MetaTypeId typeId) noexcept {
+    if (typeId == InvalidMetaTypeId) {
+        return 0U;
+    }
+    std::uint32_t slot = HashTypeId(typeId);
+    for (std::uint32_t probe = 0U; probe < kTypeClassHashCapacity; ++probe) {
+        const MetaTypeId existing = g_typeHashKeys[slot];
+        if (existing == typeId) {
+            return g_typeHashIndices[slot];
+        }
+        if (existing == InvalidMetaTypeId) {
+            if (static_cast<std::uint32_t>(g_typeClassCount) + 1U >= kMaxTypeClasses) {
+                return 0U;
+            }
+            const std::uint16_t index = ++g_typeClassCount;
+            g_denseIdByIndex[index] = typeId;
+            g_typeHashKeys[slot] = typeId;
+            g_typeHashIndices[slot] = index;
+            return index;
+        }
+        slot = (slot + 1U) & kTypeClassHashMask;
+    }
+    return 0U;
+}
+
+std::uint16_t FindDenseIndexLocked(MetaTypeId typeId) noexcept {
+    if (typeId == InvalidMetaTypeId) {
+        return 0U;
+    }
+    std::uint32_t slot = HashTypeId(typeId);
+    for (std::uint32_t probe = 0U; probe < kTypeClassHashCapacity; ++probe) {
+        const MetaTypeId existing = g_typeHashKeys[slot];
+        if (existing == typeId) {
+            return g_typeHashIndices[slot];
+        }
+        if (existing == InvalidMetaTypeId) {
+            return 0U;
+        }
+        slot = (slot + 1U) & kTypeClassHashMask;
+    }
+    return 0U;
+}
 
 struct ObjectControlBlock {
     std::atomic<std::uint32_t> weak{1U};
@@ -106,6 +178,172 @@ void ExpireControlBlock(ObjectControlBlock* control) noexcept {
 }
 
 } // namespace
+
+void RecomputeTypeClassEulerTourLocked() noexcept {
+    struct DfsFrame {
+        const TypeClass* node = nullptr;
+        const TypeClass* nextChild = nullptr;
+    };
+    DfsFrame stack[256];
+    std::uint16_t timer = 0U;
+    for (const TypeClass* root = g_rootTypeClasses; root != nullptr; root = root->nextSibling_) {
+        std::uint32_t depth = 0U;
+        if (!root->manualInterval_) {
+            root->treeIn_ = ++timer;
+        }
+        stack[depth++] = {root, root->firstChild_};
+        while (depth > 0U) {
+            DfsFrame& top = stack[depth - 1U];
+            if (top.nextChild != nullptr) {
+                const TypeClass* child = top.nextChild;
+                top.nextChild = child->nextSibling_;
+                if (depth < 256U) {
+                    if (!child->manualInterval_) {
+                        child->treeIn_ = ++timer;
+                    }
+                    stack[depth++] = {child, child->firstChild_};
+                }
+            } else {
+                if (!top.node->manualInterval_) {
+                    top.node->treeOut_ = timer;
+                }
+                --depth;
+            }
+        }
+    }
+}
+
+TypeClass::TypeClass(
+    StringView ns,
+    StringView name,
+    const TypeClass* base,
+    FactoryFn factory) noexcept
+    : TypeClass(MakeMetaTypeId(ns, name), ns, name, base, factory) {}
+
+TypeClass::TypeClass(
+    MetaTypeId typeId,
+    StringView ns,
+    StringView name,
+    const TypeClass* base,
+    FactoryFn factory) noexcept
+    : typeId_(typeId),
+      namespace_(ns),
+      name_(name),
+      base_(base),
+      factory_(factory) {
+    TypeClassSpinGuard lock;
+    const std::uint16_t existingIndex = FindDenseIndexLocked(typeId_);
+    if (existingIndex != 0U && g_typeClassesByIndex[existingIndex] == nullptr) {
+        denseIndex_ = existingIndex;
+        g_typeClassesByIndex[existingIndex] = this;
+    } else if (existingIndex == 0U) {
+        denseIndex_ = FindOrCreateDenseIndexLocked(typeId_);
+        if (denseIndex_ != 0U) {
+            g_typeClassesByIndex[denseIndex_] = this;
+        }
+    } else {
+        if (static_cast<std::uint32_t>(g_typeClassCount) + 1U < kMaxTypeClasses) {
+            denseIndex_ = ++g_typeClassCount;
+            g_denseIdByIndex[denseIndex_] = typeId_;
+            g_typeClassesByIndex[denseIndex_] = this;
+        }
+    }
+
+    if (base_ != nullptr) {
+        nextSibling_ = base_->firstChild_;
+        base_->firstChild_ = this;
+    } else {
+        nextSibling_ = g_rootTypeClasses;
+        g_rootTypeClasses = this;
+    }
+    RecomputeTypeClassEulerTourLocked();
+}
+
+void TypeClass::AddProperty(const TypeProperty* prop) const noexcept {
+    if (prop == nullptr) {
+        return;
+    }
+    TypeClassSpinGuard lock;
+    for (std::uint16_t i = 0U; i < propCount_; ++i) {
+        if (props_[i] == prop || props_[i]->Name() == prop->Name()) {
+            props_[i] = prop;
+            return;
+        }
+    }
+    if (propCount_ < kMaxInlineProperties) {
+        props_[propCount_++] = prop;
+    }
+}
+
+const TypeProperty* TypeClass::FindProperty(StringView name, bool inherit) const noexcept {
+    for (const TypeClass* current = this; current != nullptr; current = inherit ? current->base_ : nullptr) {
+        for (std::uint16_t i = 0U; i < current->propCount_; ++i) {
+            const TypeProperty* prop = current->props_[i];
+            if (prop != nullptr && prop->Name() == name) {
+                return prop;
+            }
+        }
+    }
+    return nullptr;
+}
+
+const TypeProperty* TypeClass::FindPropertyById(MetaMemberId memberId, bool inherit) const noexcept {
+    if (memberId == InvalidMetaMemberId) {
+        return nullptr;
+    }
+    for (const TypeClass* current = this; current != nullptr; current = inherit ? current->base_ : nullptr) {
+        for (std::uint16_t i = 0U; i < current->propCount_; ++i) {
+            const TypeProperty* prop = current->props_[i];
+            if (prop != nullptr && prop->Id() == memberId) {
+                return prop;
+            }
+        }
+    }
+    return nullptr;
+}
+
+const TypeClass* TypeClass::FindById(MetaTypeId typeId) noexcept {
+    if (typeId == InvalidMetaTypeId) {
+        return nullptr;
+    }
+    TypeClassSpinGuard lock;
+    const std::uint16_t index = FindDenseIndexLocked(typeId);
+    return index < kMaxTypeClasses ? g_typeClassesByIndex[index] : nullptr;
+}
+
+const TypeClass* TypeClass::FindByDenseIndex(std::uint16_t denseIndex) noexcept {
+    if (denseIndex == 0U || denseIndex >= kMaxTypeClasses) {
+        return nullptr;
+    }
+    TypeClassSpinGuard lock;
+    return g_typeClassesByIndex[denseIndex];
+}
+
+std::uint16_t TypeClass::InternDenseIndex(MetaTypeId typeId) noexcept {
+    if (typeId == InvalidMetaTypeId) {
+        return 0U;
+    }
+    TypeClassSpinGuard lock;
+    return FindOrCreateDenseIndexLocked(typeId);
+}
+
+MetaTypeId TypeClass::ResolveDenseIndex(std::uint16_t denseIndex) noexcept {
+    if (denseIndex == 0U || denseIndex >= kMaxTypeClasses) {
+        return InvalidMetaTypeId;
+    }
+    TypeClassSpinGuard lock;
+    return g_denseIdByIndex[denseIndex];
+}
+
+const TypeClass* Object::StaticClassType() noexcept {
+    static const TypeClass s_root{
+        StaticTypeId(),
+        DefaultMetadataNamespaceUri(),
+        StringView("Object"),
+        nullptr,
+        nullptr};
+    return &s_root;
+}
 
 Object::~Object() {
     ExpireWeakReferences();

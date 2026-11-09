@@ -32,7 +32,12 @@ class AERO_GUI_API DependencyObject : public DispatcherObject {
     AERO_DECLARE_TYPE(DependencyObject, DispatcherObject)
 
 public:
-    TypeId RuntimeType() const noexcept override { return Meta::ResolveCompactTypeId(compactTypeIndex_); }
+    template<class TValue> PropertyAccess<TValue> GetValue(
+        const TypedDependencyProperty<TValue>& property) const noexcept;
+    StringView GetValue(const TypedDependencyProperty<String>& property) const noexcept;
+    template<class TValue> PropertyAccess<TValue> GetValue(
+        const TypedDependencyProperty<TValue>* property) const noexcept;
+    StringView GetValue(const TypedDependencyProperty<String>* property) const noexcept;
     PropertyValue GetValue(DependencyPropertyHandle property) const noexcept;
     StringView GetStringView(DependencyPropertyHandle property) const noexcept;
     template<class TOwner, class TValue> PropertyAccess<TValue> GetValue(
@@ -45,21 +50,43 @@ public:
     EffectiveValueSource GetValueSource(DependencyPropertyHandle property) const noexcept;
     PropertyValueSourceInfo GetValueSourceInfo(DependencyPropertyHandle property) const noexcept;
     void SetValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+    template<class TValue>
+    void SetValue(const TypedDependencyProperty<TValue>& property, PropertyAccess<TValue> value) noexcept;
+    void SetValue(const TypedDependencyProperty<String>& property, StringView value) noexcept;
+    template<class TValue>
+    void SetValue(const TypedDependencyProperty<TValue>* property, PropertyAccess<TValue> value) noexcept;
+    void SetValue(const TypedDependencyProperty<String>* property, StringView value) noexcept;
     template<class TOwner, class TValue>
     void SetValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     template<class TOwner>
     void SetValue(const DependencyPropertyRef<TOwner, String>& property, StringView value) noexcept;
     void SetValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
     void SetCurrentValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
+    template<class TValue>
+    void SetCurrentValue(const TypedDependencyProperty<TValue>& property, PropertyAccess<TValue> value) noexcept;
+    template<class TValue>
+    void SetCurrentValue(const TypedDependencyProperty<TValue>* property, PropertyAccess<TValue> value) noexcept;
     template<class TOwner, class TValue>
     void SetCurrentValue(const DependencyPropertyRef<TOwner, TValue>& property, PropertyAccess<TValue> value) noexcept;
     void SetCurrentValue(const DependencyPropertyKey& key, const PropertyValue& value) noexcept;
     void SetTemplateValue(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     void ClearValue(DependencyPropertyHandle property) noexcept;
+    template<class TValue> void ClearValue(
+        const TypedDependencyProperty<TValue>& property) noexcept { ClearValue(property.ResolvedHandle()); }
+    template<class TValue> void ClearValue(
+        const TypedDependencyProperty<TValue>* property) noexcept {
+        if (property != nullptr) ClearValue(property->ResolvedHandle());
+    }
     template<class TOwner, class TValue> void ClearValue(
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept { ClearValue(property.ResolvedHandle()); }
     void ClearValue(const DependencyPropertyKey& key) noexcept;
     void CoerceValue(DependencyPropertyHandle property) noexcept;
+    template<class TValue> void CoerceValue(
+        const TypedDependencyProperty<TValue>& property) noexcept { CoerceValue(property.ResolvedHandle()); }
+    template<class TValue> void CoerceValue(
+        const TypedDependencyProperty<TValue>* property) noexcept {
+        if (property != nullptr) CoerceValue(property->ResolvedHandle());
+    }
     template<class TOwner, class TValue> void CoerceValue(
         const DependencyPropertyRef<TOwner, TValue>& property) noexcept { CoerceValue(property.ResolvedHandle()); }
     PropertyInvalidationFlags PendingInvalidations() const noexcept { return invalidations_; }
@@ -90,6 +117,7 @@ public:
     }
 
 protected:
+    DependencyObject() noexcept : DependencyObject(StaticTypeId()) {}
     explicit DependencyObject(TypeId runtimeType) noexcept;
     ~DependencyObject() override;
 
@@ -148,6 +176,8 @@ private:
         void* context) noexcept;
     void CopyStoredKeys(Base::Vector<MemberId>& outKeys) const noexcept;
     const PropertyValue* FindEffectiveValuePtr(DependencyPropertyHandle property) const noexcept;
+    const PropertyValue* FindSimpleLocalValuePtr(DependencyPropertyHandle property) const noexcept;
+    void CommitSimpleLocalNoOp(DependencyPropertyHandle property) noexcept;
     std::uint32_t ClearAllProviderOrigin(std::uint32_t origin) noexcept;
     Result<void> DropAllEngineValueState() noexcept;
     bool HasUnfreezableValueState() const noexcept;
@@ -214,11 +244,16 @@ private:
         const PropertyValue& newValue) noexcept;
 
     void RemoveChangeHandler(std::uint32_t index) noexcept;
+    bool HasActiveBindingFlag() const noexcept { return hasActiveBinding_ != 0U; }
+    void SetActiveBindingFlag(bool v) noexcept { hasActiveBinding_ = v ? 1U : 0U; }
+    bool HasActiveAnimationFlag() const noexcept { return hasActiveAnimation_ != 0U; }
+    void SetActiveAnimationFlag(bool v) noexcept { hasActiveAnimation_ = v ? 1U : 0U; }
+
     std::uint32_t StyleApplicationIndex() const noexcept {
         return styleAppIndex_ == UINT16_MAX ? UINT32_MAX : static_cast<std::uint32_t>(styleAppIndex_);
     }
     void SetStyleApplicationIndex(std::uint32_t index) noexcept {
-        styleAppIndex_ = index >= UINT16_MAX ? UINT16_MAX : static_cast<std::uint16_t>(index);
+        styleAppIndex_ = index >= UINT16_MAX ? UINT16_MAX : static_cast<std::uint32_t>(index);
     }
 
     DependencyObject* ExplicitInheritanceParent() const noexcept;
@@ -228,7 +263,6 @@ private:
 
     void* valueStore_ = nullptr;
     DependencyObjectRare* rare_ = nullptr;
-    std::uint16_t compactTypeIndex_ = 0U;
     std::uint16_t unmaterializedQueueMask_ = 0U;
     std::uint16_t styleAppIndex_ = UINT16_MAX;
     PropertyInvalidationFlags invalidations_ = PropertyInvalidationFlags::None;
@@ -237,58 +271,131 @@ private:
     std::uint8_t hasExplicitInheritanceChildren_ : 1;
     std::uint8_t hasExplicitInheritanceParent_ : 1;
     std::uint8_t logicalParentMode_ : 2;
+    std::uint8_t hasActiveBinding_ : 1;
+    std::uint8_t hasActiveAnimation_ : 1;
 };
 
 static_assert(sizeof(DependencyObject) == 48, "DependencyObject must be 48 bytes");
 
-template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
-    const DependencyPropertyRef<TOwner, TValue>& property) const noexcept {
+template<class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
+    const TypedDependencyProperty<TValue>& property) const noexcept {
     const PropertyValue* stored = FindEffectiveValuePtr(property.ResolvedHandle());
-    if (stored == nullptr) return PropertyAccess<TValue>{};
-    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(*stored);
-    return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
+    if (stored == nullptr) return property.DefaultValue(GetClassType());
+    return Meta::ValueCodec<TValue>::DecodeOrDefault(*stored);
 }
 
-template<class TOwner> StringView DependencyObject::GetValue(
-    const DependencyPropertyRef<TOwner, String>& property) const noexcept {
-    return GetStringView(property.ResolvedHandle());
-}
-
-template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
-    const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
+inline StringView DependencyObject::GetValue(
+    const TypedDependencyProperty<String>& property) const noexcept {
     const PropertyValue* stored = FindEffectiveValuePtr(property.ResolvedHandle());
-    if (stored == nullptr) return PropertyAccess<TValue>{};
-    Result<PropertyAccess<TValue>> decoded = Meta::ValueCodec<TValue>::Decode(*stored);
-    return decoded ? std::move(decoded).Value() : PropertyAccess<TValue>{};
+    if (stored == nullptr) return property.DefaultValue(GetClassType()).View();
+    if (stored->Kind() == Base::ValueKind::String) return stored->AsString();
+    return {};
 }
 
-
-template<class TOwner> StringView DependencyObject::GetValue(
-    const ReadOnlyPropertyRef<TOwner, String>& property) const noexcept {
-    return GetStringView(property.ResolvedHandle());
+template<class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
+    const TypedDependencyProperty<TValue>* property) const noexcept {
+    if (property == nullptr) { static const TValue s_fallback{}; return s_fallback; }
+    return GetValue(*property);
 }
 
-template<class TOwner, class TValue> void DependencyObject::SetValue(
-    const DependencyPropertyRef<TOwner, TValue>& property,
+inline StringView DependencyObject::GetValue(
+    const TypedDependencyProperty<String>* property) const noexcept {
+    if (property == nullptr) return {};
+    return GetValue(*property);
+}
+
+template<class TValue> void DependencyObject::SetValue(
+    const TypedDependencyProperty<TValue>& property,
     PropertyAccess<TValue> value) noexcept {
+    const DependencyPropertyHandle resolved = property.ResolvedHandle();
+    if (const PropertyValue* local = FindSimpleLocalValuePtr(resolved)) {
+        if (Meta::ArePropertyValuesEqual<TValue>(
+                Meta::ValueCodec<TValue>::DecodeOrDefault(*local), value)) {
+            CommitSimpleLocalNoOp(resolved);
+            return;
+        }
+    }
     Result<PropertyValue> stored = Meta::ValueCodec<TValue>::Encode(value);
     if (!stored) return;
-    SetValue(property.ResolvedHandle(), stored.Value());
+    SetValue(resolved, stored.Value());
 }
 
-template<class TOwner, class TValue> void DependencyObject::SetCurrentValue(
-    const DependencyPropertyRef<TOwner, TValue>& property,
+inline void DependencyObject::SetValue(
+    const TypedDependencyProperty<String>& property,
+    StringView value) noexcept {
+    const DependencyPropertyHandle resolved = property.ResolvedHandle();
+    if (const PropertyValue* local = FindSimpleLocalValuePtr(resolved)) {
+        if (local->Kind() == Base::ValueKind::String && local->AsString() == value) {
+            CommitSimpleLocalNoOp(resolved);
+            return;
+        }
+    }
+    Result<PropertyValue> stored = Base::Value::TryFromString(Meta::TypeOf<String>(), value);
+    if (!stored) return;
+    SetValue(resolved, stored.Value());
+}
+
+template<class TValue> void DependencyObject::SetValue(
+    const TypedDependencyProperty<TValue>* property,
+    PropertyAccess<TValue> value) noexcept {
+    if (property != nullptr) SetValue(*property, value);
+}
+
+inline void DependencyObject::SetValue(
+    const TypedDependencyProperty<String>* property,
+    StringView value) noexcept {
+    if (property != nullptr) SetValue(*property, value);
+}
+
+template<class TValue> void DependencyObject::SetCurrentValue(
+    const TypedDependencyProperty<TValue>& property,
     PropertyAccess<TValue> value) noexcept {
     Result<PropertyValue> stored = Meta::ValueCodec<TValue>::Encode(value);
     if (!stored) return;
     SetCurrentValue(property.ResolvedHandle(), stored.Value());
 }
 
+template<class TValue> void DependencyObject::SetCurrentValue(
+    const TypedDependencyProperty<TValue>* property,
+    PropertyAccess<TValue> value) noexcept {
+    if (property != nullptr) SetCurrentValue(*property, value);
+}
+
+template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
+    const DependencyPropertyRef<TOwner, TValue>& property) const noexcept {
+    return GetValue(property.Typed());
+}
+
+template<class TOwner> StringView DependencyObject::GetValue(
+    const DependencyPropertyRef<TOwner, String>& property) const noexcept {
+    return GetValue(property.Typed());
+}
+
+template<class TOwner, class TValue> PropertyAccess<TValue> DependencyObject::GetValue(
+    const ReadOnlyPropertyRef<TOwner, TValue>& property) const noexcept {
+    return GetValue(property.Typed());
+}
+
+template<class TOwner> StringView DependencyObject::GetValue(
+    const ReadOnlyPropertyRef<TOwner, String>& property) const noexcept {
+    return GetValue(property.Typed());
+}
+
+template<class TOwner, class TValue> void DependencyObject::SetValue(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    SetValue(property.Typed(), value);
+}
+
+template<class TOwner, class TValue> void DependencyObject::SetCurrentValue(
+    const DependencyPropertyRef<TOwner, TValue>& property,
+    PropertyAccess<TValue> value) noexcept {
+    SetCurrentValue(property.Typed(), value);
+}
+
 template<class TOwner> void DependencyObject::SetValue(const DependencyPropertyRef<TOwner, String>& property,
     StringView value) noexcept {
-    Result<PropertyValue> stored = Base::Value::TryFromString(Meta::TypeOf<String>(), value);
-    if (!stored) return;
-    SetValue(property.ResolvedHandle(), stored.Value());
+    SetValue(property.Typed(), value);
 }
 
 template<class TOwner, class TValue> void DependencyObject::SetReadOnlyCurrentValue(

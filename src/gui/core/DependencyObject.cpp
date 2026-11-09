@@ -66,13 +66,28 @@ Base::Result<void> EvaluateStoredBaseValue(
     }
 
     const StoredValueEntry& stored = *storedEntry;
+    // Fast path: un-overridden inline local value (no rare block, no inline provider).
+    if (stored.rare == nullptr && stored.HasLocal() && !stored.HasInlineProvider()) {
+        outBaseValue = stored.effectiveValue;
+        source.rank = PropertyValueRank::Local;
+        source.token = {PropertyValueRank::Local, LocalValueProviderOrigin, 0U};
+        if (outSource != nullptr) {
+            *outSource = source;
+        }
+        return {};
+    }
+
     PropertyProviderToken providerToken;
     PropertyValue providerValue;
     const bool hasProvider =
         stored.TryGetWinnerProvider(providerToken, providerValue);
-    const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(&owner);
-    const bool isTemplateChild =
-        fe != nullptr && fe->GetTemplatedParent() != nullptr;
+    bool isTemplateChild = false;
+    if (hasProvider &&
+        providerToken.rank <= PropertyValueRank::Local &&
+        providerToken.rank >= PropertyValueRank::TemplatedParentTrigger) {
+        const FrameworkElement* fe = ::Aero::TryCast<FrameworkElement>(&owner);
+        isTemplateChild = fe != nullptr && fe->GetTemplatedParent() != nullptr;
+    }
 
     if (hasProvider &&
         (providerToken.rank > PropertyValueRank::Local ||
@@ -249,15 +264,27 @@ Base::Result<void> DependencyObject::ApplyChange(
     if (property == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property was not found");
     propertyHandle = property->Handle();
-    const PropertyMetadata* metadata = property->MetadataFor(DependencyObject::RuntimeType());
-    if (metadata == nullptr) return Base::Status::Failure(
-        Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     if (kind != ChangeKind::ReCoerce && property->GetIsReadOnly() &&
         !registry->ValidateKey(propertyHandle, key)) return ReadOnlyStatus();
     if ((kind == ChangeKind::SetLocal || kind == ChangeKind::SetCurrent) &&
         requestedValue == nullptr) return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Dependency property set operation requires a value");
+    if (kind == ChangeKind::SetLocal && !requestedValue->IsDynamicResource() &&
+        t_mutationDepth == 0U && VerifyMutationAllowed() && valueStore_ != nullptr) {
+        PropertyStore* fastStore = static_cast<PropertyStore*>(valueStore_);
+        if (StoredValueEntry* fastHit = fastStore->entries.Find(propertyHandle.value)) {
+            if (fastHit->IsSimpleLocal() && fastHit->effectiveValue == *requestedValue) {
+                if (t_nextValueRevision < UINT32_MAX) {
+                    fastHit->revision = static_cast<std::uint32_t>(t_nextValueRevision++);
+                }
+                return {};
+            }
+        }
+    }
+    const PropertyMetadata* metadata = property->MetadataFor(GetClassType());
+    if (metadata == nullptr) return Base::Status::Failure(
+        Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     Base::Result<DependencyMutationScope> mutationResult = BeginMutation(propertyHandle);
     if (!mutationResult) return mutationResult.GetStatus();
     DependencyMutationScope mutation = std::move(mutationResult).Value();
@@ -275,12 +302,12 @@ Base::Result<void> DependencyObject::ApplyChange(
     const PropertyValueSourceInfo oldSourceInfo = hadEntry
         ? entry.SourceInfo() : PropertyValueSourceInfo{};
     const std::uint64_t oldRevision = oldSourceInfo.revision;
-    const PropertyValue oldLocal = entry.LocalValueOrUnset();
-    const PropertyValue oldCurrent = entry.CurrentValueOrUnset();
-    const PropertyExpression oldExpression = entry.ExpressionOrEmpty();
     const bool oldHasLocal = entry.HasLocal();
     const bool oldHasCurrent = entry.HasCurrent();
     const bool oldHasExpression = entry.HasExpression();
+    const PropertyValue oldLocal = oldHasLocal ? entry.LocalValueOrUnset() : PropertyValue::Unset();
+    const PropertyValue oldCurrent = oldHasCurrent ? entry.CurrentValueOrUnset() : PropertyValue::Unset();
+    const PropertyExpression oldExpression = oldHasExpression ? entry.ExpressionOrEmpty() : PropertyExpression{};
     const bool removesExpression = oldHasExpression &&
         (kind == ChangeKind::SetLocal || kind == ChangeKind::Clear);
     switch (kind) {
@@ -410,7 +437,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueInternal(
     const Meta::DependencyProperty* property =
         registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
+        ? property->MetadataFor(GetClassType()) : nullptr;
     if (property == nullptr || metadata == nullptr) return Base::Status::Failure(
         Base::ErrorCode::NotFound, "Dependency property does not apply to this object type");
     propertyHandle = property->Handle();
@@ -435,7 +462,7 @@ DependencyObject::GetAnimationBaseValueInternal(
     const Meta::DependencyProperty* property =
         registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
+        ? property->MetadataFor(GetClassType()) : nullptr;
     if (property == nullptr || metadata == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
@@ -469,12 +496,12 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
     const StoredValueEntry& stored = *storedEntry;
     const bool hasExpression = stored.HasExpression();
     const bool hasLocal = stored.HasLocal();
-    const PropertyValue localValue = stored.LocalValueOrUnset();
+    const PropertyValue localValue = hasLocal ? stored.LocalValueOrUnset() : PropertyValue::Unset();
     const bool hasCurrent = stored.HasCurrent();
     const bool hasInherited = stored.HasInherited();
-    const PropertyValue inheritedValue = stored.InheritedValueOrUnset();
+    const PropertyValue inheritedValue = hasInherited ? stored.InheritedValueOrUnset() : PropertyValue::Unset();
     const bool hasAnimation = stored.HasAnimation();
-    const PropertyValue animationValue = stored.AnimationValueOrUnset();
+    const PropertyValue animationValue = hasAnimation ? stored.AnimationValueOrUnset() : PropertyValue::Unset();
     const bool hasProvider = stored.HasProviders();
 
     PropertyValue baseValue;
@@ -483,7 +510,7 @@ Base::Result<void> DependencyObject::RecomputeEffectiveValueCore(
         *this, &stored, metadata, propertyHandle, baseValue, &source);
     if (!resolvedBase) return resolvedBase.GetStatus();
 
-    PropertyValue candidate = hasAnimation ? animationValue : baseValue;
+    const PropertyValue& candidate = hasAnimation ? animationValue : baseValue;
     if (hasAnimation) {
         source.rank = PropertyValueRank::Animation;
         source.token = {PropertyValueRank::Animation, AnimationValueProviderOrigin, 0U};
@@ -634,6 +661,7 @@ Base::Result<void> DependencyObject::ApplyAnimationValueInternal(
     if (!block) return block.GetStatus();
     block->animationValue = value;
     ensured->SetHasAnimation(true);
+    hasActiveAnimation_ = 1U;
     return {};
 }
 
@@ -678,6 +706,7 @@ Base::Result<void> DependencyObject::ApplyLocalExpressionInternal(
     if (!block) return block.GetStatus();
     block->localExpression = expression;
     entry.SetHasExpression(true);
+    hasActiveBinding_ = 1U;
     entry.ClearLocal();
     entry.ClearCurrent();
     if (hadOld && old.cleanup != nullptr) old.cleanup(old.context);
@@ -726,7 +755,7 @@ Base::Result<void> DependencyObject::ApplyProviderContributionInternal(
             "Dependency property was not found");
     }
     property = registered->Handle();
-    const PropertyMetadata* metadata = registered->MetadataFor(DependencyObject::RuntimeType());
+    const PropertyMetadata* metadata = registered->MetadataFor(GetClassType());
     if (metadata == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::ValidationFailed,
@@ -936,7 +965,7 @@ void DependencyObject::SetTemplateValue(
     const Meta::DependencyProperty* registered = registry->Find(property);
     if (registered == nullptr) return;
     property = registered->Handle();
-    const TypeId runtimeType = DependencyObject::RuntimeType();
+    const TypeId runtimeType = RuntimeType();
     const PropertyMetadata* metadata = registered->MetadataFor(runtimeType);
     if (metadata == nullptr) return;
     if (!registry->ValidateValueFor(property, runtimeType, value)) return;
@@ -1005,7 +1034,7 @@ PropertyValueSourceInfo DependencyObject::GetValueSourceInfo(
     Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
         registry->Find(propertyHandle);
-    if (property == nullptr || property->MetadataFor(DependencyObject::RuntimeType()) == nullptr) {
+    if (property == nullptr || property->MetadataFor(GetClassType()) == nullptr) {
         return {};
     }
     auto* storedEntry = FindStoredEntry(propertyHandle);
@@ -1031,10 +1060,47 @@ PropertyValue DependencyObject::ReadLocalValue(
     Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property =
         registry->Find(propertyHandle);
-    if (property == nullptr || property->MetadataFor(DependencyObject::RuntimeType()) == nullptr) {
+    if (property == nullptr || property->MetadataFor(GetClassType()) == nullptr) {
         return PropertyValue::Unset();
     }
     return storedEntry->LocalValueOrUnset();
+}
+
+const PropertyValue* DependencyObject::FindSimpleLocalValuePtr(
+    DependencyPropertyHandle propertyHandle) const noexcept {
+    if (t_mutationDepth != 0U || valueStore_ == nullptr) {
+        return nullptr;
+    }
+    if (typeVerified_) {
+        if (!CheckAccess()) {
+            return nullptr;
+        }
+    } else if (!VerifyReady()) {
+        return nullptr;
+    }
+    if (!VerifyMutationAllowed()) {
+        return nullptr;
+    }
+    const PropertyStore* fastStore = static_cast<const PropertyStore*>(valueStore_);
+    if (const StoredValueEntry* fastHit = fastStore->entries.Find(propertyHandle.value)) {
+        if (fastHit->IsSimpleLocal()) {
+            return &fastHit->effectiveValue;
+        }
+    }
+    return nullptr;
+}
+
+void DependencyObject::CommitSimpleLocalNoOp(
+    DependencyPropertyHandle propertyHandle) noexcept {
+    if (valueStore_ == nullptr) {
+        return;
+    }
+    PropertyStore* fastStore = static_cast<PropertyStore*>(valueStore_);
+    if (StoredValueEntry* fastHit = fastStore->entries.Find(propertyHandle.value)) {
+        if (t_nextValueRevision < UINT32_MAX) {
+            fastHit->revision = static_cast<std::uint32_t>(t_nextValueRevision++);
+        }
+    }
 }
 
 const PropertyValue* DependencyObject::FindEffectiveValuePtr(
@@ -1066,7 +1132,7 @@ const PropertyValue* DependencyObject::FindEffectiveValuePtr(
     if (property == nullptr) {
         return nullptr;
     }
-    const PropertyMetadata* metadata = property->MetadataFor(DependencyObject::RuntimeType());
+    const PropertyMetadata* metadata = property->MetadataFor(GetClassType());
     if (metadata == nullptr) {
         return nullptr;
     }
@@ -1148,7 +1214,7 @@ Base::Result<StoredValueEntry*> DependencyObject::EnsureStoredEntry(
     Meta::DependencyPropertyRegistry* const registry = PropertyRegistryPtr();
     const Meta::DependencyProperty* property = registry->Find(propertyHandle);
     const PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(DependencyObject::RuntimeType()) : nullptr;
+        ? property->MetadataFor(GetClassType()) : nullptr;
     if (property == nullptr || metadata == nullptr) {
         return Base::Status::Failure(Base::ErrorCode::NotFound,
             "Dependency property does not apply to this object type");
@@ -1218,7 +1284,7 @@ Base::Result<void> DependencyObject::VerifyReady() const noexcept {
             Base::ErrorCode::InvalidState,
             "Dependency property registry is not frozen");
     }
-    const TypeId runtimeType = DependencyObject::RuntimeType();
+    const TypeId runtimeType = RuntimeType();
     if (runtimeType == InvalidTypeId ||
         registry->Types().FindType(runtimeType) == nullptr) {
         return Base::Status::Failure(

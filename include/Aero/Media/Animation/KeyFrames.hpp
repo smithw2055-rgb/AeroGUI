@@ -51,11 +51,16 @@ public:
 
     static void OnKeySplineChanged(DependencyObject& object, const DependencyPropertyChangedEventArgs& args) noexcept;
 
+    Meta::TypeId RuntimeType() const noexcept override {
+        return aliasTypeId_ != InvalidTypeId ? aliasTypeId_ : StaticTypeId();
+    }
+
 protected:
     KeyFrameBase(Meta::TypeId runtimeType, Interpolation interpolation) noexcept
-        : Freezable(runtimeType), interpolation_(interpolation) {}
+        : Freezable(runtimeType), aliasTypeId_(runtimeType), interpolation_(interpolation) {}
 
 private:
+    Meta::TypeId aliasTypeId_ = InvalidTypeId;
     Interpolation interpolation_ = Interpolation::Linear;
     double controlPoint1X_ = 0.0;
     double controlPoint1Y_ = 0.0;

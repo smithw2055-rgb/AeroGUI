@@ -1543,12 +1543,12 @@ DependencyObject* Control::GetTemplateChild(
     auto* templateRuntime = static_cast<TemplateEngine*>(
         ElementTree::TemplatesOf(*this));
     if (templateRuntime == nullptr ||
-        templateHandleValue_ == 0U ||
+        !templateApplied_ ||
         name.Empty()) {
         return nullptr;
     }
     return templateRuntime->FindName(
-        TemplateHandle{templateHandleValue_}, name);
+        templateRuntime->AppliedHandle(*this), name);
 }
 
 DependencyObject* Control::GetTemplateChild(
@@ -1556,12 +1556,12 @@ DependencyObject* Control::GetTemplateChild(
     auto* templateRuntime = static_cast<TemplateEngine*>(
         ElementTree::TemplatesOf(*this));
     if (templateRuntime == nullptr ||
-        templateHandleValue_ == 0U ||
+        !templateApplied_ ||
         type == InvalidTypeId) {
         return nullptr;
     }
     return templateRuntime->FindPart(
-        TemplateHandle{templateHandleValue_}, type);
+        templateRuntime->AppliedHandle(*this), type);
 }
 
 } // namespace Aero::Controls

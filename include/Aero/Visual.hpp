@@ -96,6 +96,7 @@ public:
         std::uint32_t count_ = 0U;
     };
 
+    Visual() noexcept : Visual(StaticTypeId()) {}
     explicit Visual(::Aero::Meta::TypeId runtimeType) noexcept;
     ~Visual() override;
 

@@ -1676,6 +1676,8 @@ struct Registry::Storage {
     Base::Vector<MetadataPropertyProviderRegistration> providers;
     bool sealed = false;
     bool ready = false;
+    mutable bool schemaHashCached = false;
+    mutable Base::HashCode cachedSchemaHash = 0U;
 
     Storage() noexcept
         : types(),
@@ -1737,6 +1739,7 @@ Base::Result<void> Registry::ValidateRegistration(
 Base::Result<void> Registry::RegisterModule(
     const MetadataModuleRegistration& registration) noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
+
     if (storage_->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1780,6 +1783,7 @@ Base::Result<void> Registry::RegisterModule(
 
 Base::Result<void> Registry::Seal() noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
+
     if (storage_->sealed) return {};
     Base::Result<void> frozen = storage_->types.Freeze();
     if (!frozen) return frozen.GetStatus();
@@ -1832,12 +1836,14 @@ const ::Aero::MetaTable& Registry::RuntimeData() const noexcept {
 
 Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
+
     if (!storage_->sealed) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
             "Registry schema hash requires a sealed domain");
     }
 
+    if (storage_->schemaHashCached) return storage_->cachedSchemaHash;
     Base::Result<Base::HashCode> descriptorHash =
         storage_->types.ComputeHash();
     if (!descriptorHash) return descriptorHash.GetStatus();
@@ -1855,6 +1861,8 @@ Base::Result<Base::HashCode> Registry::ComputeSchemaHash() const noexcept {
         hash = Base::MixHash64(hash ^ module.id);
         hash = Base::MixHash64(
             hash ^ static_cast<Base::HashCode>(module.schemaVersion));
+    storage_->cachedSchemaHash = hash;
+    storage_->schemaHashCached = true;
     }
     return hash;
 }
@@ -1868,6 +1876,7 @@ namespace Aero::Meta {
 Base::Result<void> Registry::RegisterPropertyProvider(
     const MetadataPropertyProviderRegistration& registration) noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
+
     if (storage_->ready) {
         return Base::Status::Failure(
             Base::ErrorCode::InvalidState,
@@ -1893,6 +1902,7 @@ Base::Result<void> Registry::RegisterPropertyProvider(
 
 Base::Result<void> Registry::Complete() noexcept {
     if (storage_ == nullptr) return OutOfMemoryStatus();
+
     if (storage_->ready) return {};
     if (!IsSealed() ||
         !Types().IsFrozen() ||
@@ -1914,8 +1924,13 @@ bool Registry::IsReady() const noexcept {
 bool Registry::CanReadProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
+
+    const PropertyInfo* prop = Types().FindProperty(member);
+    const ::Aero::PropertyAccessorFacet inlineAccessor = prop != nullptr
+        ? ::Aero::PropertyAccessorFacet{prop->Id(), prop->Access(), prop->Getter(), prop->Setter(), prop->Provider(), prop->Context()}
+        : ::Aero::PropertyAccessorFacet{};
     const ::Aero::PropertyAccessorFacet* accessor =
-        RuntimeData().FindPropertyAccessor(member);
+        (prop != nullptr && prop->Access() != PropertyAccessKind::External) ? &inlineAccessor : nullptr;
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
          (accessor->access == PropertyAccessKind::Ordinary &&
@@ -1925,8 +1940,13 @@ bool Registry::CanReadProperty(
 bool Registry::CanWriteProperty(
     MemberId member) const noexcept {
     if (!IsReady()) return false;
+
+    const PropertyInfo* prop = Types().FindProperty(member);
+    const ::Aero::PropertyAccessorFacet inlineAccessor = prop != nullptr
+        ? ::Aero::PropertyAccessorFacet{prop->Id(), prop->Access(), prop->Getter(), prop->Setter(), prop->Provider(), prop->Context()}
+        : ::Aero::PropertyAccessorFacet{};
     const ::Aero::PropertyAccessorFacet* accessor =
-        RuntimeData().FindPropertyAccessor(member);
+        (prop != nullptr && prop->Access() != PropertyAccessKind::External) ? &inlineAccessor : nullptr;
     return accessor != nullptr &&
         (accessor->access == PropertyAccessKind::Provider ||
          (accessor->access == PropertyAccessKind::Ordinary &&
@@ -2213,8 +2233,13 @@ Base::Result<Value> Registry::GetProperty(
             Base::ErrorCode::Unsupported,
             "Write-only metadata property cannot be read");
     }
+
+    const PropertyInfo* prop = Types().FindProperty(member);
+    const ::Aero::PropertyAccessorFacet inlineAccessor = prop != nullptr
+        ? ::Aero::PropertyAccessorFacet{prop->Id(), prop->Access(), prop->Getter(), prop->Setter(), prop->Provider(), prop->Context()}
+        : ::Aero::PropertyAccessorFacet{};
     const ::Aero::PropertyAccessorFacet* accessor =
-        RuntimeData().FindPropertyAccessor(member);
+        (prop != nullptr && prop->Access() != PropertyAccessKind::External) ? &inlineAccessor : nullptr;
     if (accessor == nullptr) return UnsupportedProperty();
 
     Base::Result<Value> value = UnsupportedProperty();
@@ -2294,8 +2319,13 @@ Base::Result<void> Registry::SetProperty(
             Base::ErrorCode::ReadOnly,
             "Read-only metadata property cannot be written");
     }
+
+    const PropertyInfo* prop = Types().FindProperty(member);
+    const ::Aero::PropertyAccessorFacet inlineAccessor = prop != nullptr
+        ? ::Aero::PropertyAccessorFacet{prop->Id(), prop->Access(), prop->Getter(), prop->Setter(), prop->Provider(), prop->Context()}
+        : ::Aero::PropertyAccessorFacet{};
     const ::Aero::PropertyAccessorFacet* accessor =
-        RuntimeData().FindPropertyAccessor(member);
+        (prop != nullptr && prop->Access() != PropertyAccessKind::External) ? &inlineAccessor : nullptr;
     if (accessor == nullptr) return UnsupportedProperty();
 
     const bool acceptsAnyValue =

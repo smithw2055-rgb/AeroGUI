@@ -48,7 +48,7 @@ public:
     Application() noexcept : Application(StaticTypeId()) {}
     ~Application() noexcept override;
 
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    // Inherits Object::RuntimeType() via GetClassType()
     static Application* Current() noexcept;
     // Runs this application through the optional default desktop host. Set an
     // explicit main Window with SetMainWindow(); otherwise StartupUri is used.
@@ -91,7 +91,7 @@ private:
     Ref<Window> MainWindowOwner() noexcept;
     void AdoptResources(ResourceDictionary&& resources) noexcept;
 
-    Meta::TypeId runtimeType_ = StaticTypeId();
+    // runtimeType_ removed; identity via StaticClassType()
     String startupUri_;
     ResourceDictionary resources_;
     Ref<Object> mainWindowOwner_;

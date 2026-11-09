@@ -378,7 +378,7 @@ public:
     TypeBuilder& operator=(TypeBuilder&&) noexcept = default;
 
     template<class TCreate = T> TypeBuilder& Factory() noexcept {
-        builder_.Factory(&CreateDefaultObject<TCreate>);
+        BindTypeClassFactory<T, TCreate>(); builder_.Factory(&CreateDefaultObject<TCreate>);
         return *this;
     }
     template<class TInterface> TypeBuilder& Implements() noexcept {
@@ -423,6 +423,11 @@ public:
         return Property(property, FrameworkPropertyMetadataOptions::None);
     }
 
+    TypeBuilder& Property(const PropertyRegistration& registration) noexcept {
+        builder_.Property(registration);
+        return *this;
+    }
+
     template< class TValue, auto Getter, auto Setter>
     TypeBuilder& Property(StringView name, PropertyFlags flags = PropertyFlags::None) noexcept {
         static_assert(std::is_invocable_v< decltype(Getter), const T&>,
@@ -435,7 +440,7 @@ public:
         registration.valueType = ValueCodec<TValue>::Type();
         registration.flags = flags;
         registration.access = PropertyAccessKind::Ordinary;
-        registration.get = &GetOrdinaryProperty< T, TValue, Getter>;
+        registration.get = &GetOrdinaryProperty< T, TValue, Getter>; BindTypeClassProperty<T, TValue, Getter, Setter>(name);
         registration.set = &SetOrdinaryProperty< T, TValue, Setter>;
         builder_.Property(registration);
         return *this;
@@ -484,7 +489,7 @@ public:
         registration.valueType = ValueCodec<TValue>::Type();
         registration.flags = flags | PropertyFlags::ReadOnly;
         registration.access = PropertyAccessKind::Ordinary;
-        registration.get = &GetOrdinaryProperty<T, TValue, Getter>;
+        registration.get = &GetOrdinaryProperty<T, TValue, Getter>; BindTypeClassReadOnlyProperty<T, TValue, Getter>(name);
         builder_.Property(registration);
         return *this;
     }
@@ -1054,7 +1059,7 @@ template<class T> struct HasComponentDescription<T, std::void_t<decltype(
     T::DescribeComponent(std::declval<TypeBuilder<T>&>()))>> : std::true_type {};
 
 template<class T> Result<void> RegisterComponentType(Registration& registration) noexcept {
-    auto type = Register<T>(registration);
+    EnsureTypeClassRegistered<T>(); if (registration.ContainsType(TypeTraits<T>::Id())) { return {}; } if constexpr (!std::is_same_v<typename T::BaseType, NoMetadataBase> && !std::is_same_v<typename T::BaseType, Object>) { if constexpr (HasComponentDescription<typename T::BaseType>::value) { if (!registration.ContainsType(TypeTraits<typename T::BaseType>::Id())) { Result<void> baseRes = RegisterComponentType<typename T::BaseType>(registration); if (!baseRes) return baseRes; } } } auto type = Register<T>(registration);
     type.Factory();
     if constexpr (HasComponentDescription<T>::value) { T::DescribeComponent(type); }
     return type.Result();

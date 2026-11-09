@@ -49,38 +49,38 @@ public:
         templateChild_ = child;
     }
     void NotifyTemplateApplied(std::uint64_t handleValue) noexcept {
-        templateHandleValue_ = handleValue;
+        templateApplied_ = (handleValue != 0U);
         ++templateGeneration_;
     }
     void NotifyTemplateDetached() noexcept {
-        if (templateHandleValue_ != 0U) {
+        if (templateApplied_) {
             OnTemplateDetached();
-            templateHandleValue_ = 0U;
+            templateApplied_ = false;
             ++templateGeneration_;
         }
     }
 
-    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Media::Brush>, Background);
-    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Media::Brush>, BorderBrush);
-    AERO_DEPENDENCY_PROPERTY2(Aero::Base::Thickness, BorderThickness);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Ref<Aero::Media::Brush>, Background);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Ref<Aero::Media::Brush>, BorderBrush);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Aero::Base::Thickness, BorderThickness);
     void SetBorderThickness(double value) noexcept { SetBorderThickness({value, value, value, value}); }
-    AERO_DEPENDENCY_PROPERTY2(Aero::Base::Thickness, Padding);
-    AERO_DEPENDENCY_PROPERTY2(Aero::HorizontalAlignment, HorizontalContentAlignment);
-    AERO_DEPENDENCY_PROPERTY2(Aero::VerticalAlignment, VerticalContentAlignment);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Aero::Base::Thickness, Padding);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Aero::HorizontalAlignment, HorizontalContentAlignment);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Aero::VerticalAlignment, VerticalContentAlignment);
     inline static constexpr auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
     Ref<Aero::Media::Brush> GetForeground() const noexcept { return GetValue(ForegroundProperty); }
     void SetForeground(Ref<Aero::Media::Brush> value) noexcept { SetValue(ForegroundProperty, std::move(value)); }
-    AERO_DEPENDENCY_PROPERTY2(double, FontSize);
-    AERO_DEPENDENCY_PROPERTY2(FontWeight, FontWeight);
-    AERO_DEPENDENCY_PROPERTY2(Ref<Aero::Style>, FocusVisualStyle);
-    AERO_DEPENDENCY_PROPERTY2(bool, OverridesDefaultStyle);
+    AERO_DEPENDENCY_PROPERTY_INLINE(double, FontSize);
+    AERO_DEPENDENCY_PROPERTY_INLINE(FontWeight, FontWeight);
+    AERO_DEPENDENCY_PROPERTY_INLINE(Ref<Aero::Style>, FocusVisualStyle);
+    AERO_DEPENDENCY_PROPERTY_INLINE(bool, OverridesDefaultStyle);
     AERO_DEPENDENCY_PROPERTY(Ref<ControlTemplate>, Template);
 
     bool HitTestCore() const noexcept override {
         return (GetBackground() != nullptr || GetBorderBrush() != nullptr);
     }
     UIElement* GetTemplateRoot() const noexcept { return templateChild_; }
-    bool IsTemplateApplied() const noexcept { return templateHandleValue_ != 0U; }
+    bool IsTemplateApplied() const noexcept { return templateApplied_; }
 
     inline static constexpr RoutedEvent<MouseButtonEventArgs> PreviewMouseDoubleClickEvent{"PreviewMouseDoubleClick"};
     Event<MouseButtonEventArgs> PreviewMouseDoubleClick() noexcept { return GetEvent(PreviewMouseDoubleClickEvent); }
@@ -118,9 +118,10 @@ private:
     void SetTemplateInstanceIndex(std::uint32_t index) noexcept { templateInstanceIndex_ = index; }
 
     UIElement* templateChild_ = nullptr;
-    std::uint64_t templateHandleValue_ = 0U;
+
     std::uint32_t templateGeneration_ = 0U;
     std::uint32_t templateInstanceIndex_ = UINT32_MAX;
+    bool templateApplied_ = false;
 };
 
 // ---------------- ControlTemplate ----------------

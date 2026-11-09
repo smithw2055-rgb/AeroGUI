@@ -43,14 +43,12 @@ namespace Aero {
 void Element::OnBlendingModeChanged(
     DependencyObject& object,
     const DependencyPropertyChangedEventArgs& args) noexcept {
-    if (!DependencyObjectAccess::PropertyRegistry((object)).Types().IsDerivedFrom(
-            object.RuntimeType(), UIElement::StaticTypeId())) {
-        return;
-    }
+    UIElement* element = ::Aero::TryCast<UIElement>(&object);
+    if (element == nullptr) return;
     Base::Result<BlendMode> value =
         Meta::ValueCodec<BlendMode>::Decode(args.GetNewValue());
     if (!value) return;
-    static_cast<UIElement&>(object).SetBlendMode(value.Value());
+    element->SetBlendMode(value.Value());
 }
 
 void Element::OnTransform3DChanged(
@@ -173,8 +171,19 @@ bool IsTargetCompatible(
     const DependencyPropertyRegistry*,
     TypeId derived,
     TypeId expectedBase) noexcept {
-    if (derived == expectedBase ||
-        types.IsDerivedFrom(derived, expectedBase)) {
+    if (derived == expectedBase) {
+        return true;
+    }
+    if (const Base::TypeClass* derivedClass = Base::TypeClass::FindById(derived)) {
+        if (const Base::TypeClass* baseClass = Base::TypeClass::FindById(expectedBase)) {
+            if (derivedClass->TreeIn() != 0U && baseClass->TreeIn() != 0U) {
+                if (derivedClass->IsDescendantOf(baseClass)) {
+                    return true;
+                }
+            }
+        }
+    }
+    if (types.IsDerivedFrom(derived, expectedBase)) {
         return true;
     }
     if (expectedBase == Controls::ContentControl::StaticTypeId() &&
@@ -395,7 +404,7 @@ Style::Style(
     TypeId runtimeType) noexcept
     : targetType_(targetType),
       basedOn_(basedOn) {
-    SetContextSlot(Meta::InternCompactTypeId(runtimeType));
+    static_cast<void>(runtimeType);
 }
 
 Style::~Style() {

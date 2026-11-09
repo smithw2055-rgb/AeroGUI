@@ -66,7 +66,7 @@ class AERO_GUI_API MarkupExtension : public Base::Object {
     AERO_DECLARE_TYPE(MarkupExtension, Base::Object)
 
 public:
-    TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    // Inherits Object::RuntimeType() via GetClassType()
     virtual Result<Value> ProvideValue(const MarkupExtensionContext& context) noexcept {
         (void)context;
         return ProvideValue();
@@ -78,10 +78,11 @@ public:
     }
 
 protected:
-    explicit MarkupExtension(TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    MarkupExtension() noexcept = default;
+    explicit MarkupExtension(TypeId runtimeType) noexcept { static_cast<void>(runtimeType); }
 
 private:
-    TypeId runtimeType_ = StaticTypeId();
+    // runtimeType_ removed; identity via StaticClassType()
 };
 
 } // namespace Aero::Markup

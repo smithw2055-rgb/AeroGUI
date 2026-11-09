@@ -78,6 +78,12 @@ public:
         return Ref(&value, AdoptRef);
     }
 
+    // Adopts an object whose initial strong reference count (1) was just
+    // initialized by AttachManagedLifetime / AttachSystemManagedLifetime.
+    static Ref AdoptConstructed(T* value) noexcept {
+        return Ref(value, AdoptRef);
+    }
+
     // Returns an empty reference for stack/embedded Objects that do not have an
     // intrusive control block. This lets snapshot code strongly retain managed
     // objects while remaining source-compatible with stack-based test hosts.

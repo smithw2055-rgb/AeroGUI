@@ -21,7 +21,7 @@ class AERO_GUI_API BindingBase : public Base::Object {
 public:
     ~BindingBase() override { delete rare_; }
 
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    // Inherits Object::RuntimeType() via GetClassType()
     // WPF-style factory: Binding/MultiBinding/PriorityBinding override to
     // create their expression without exposing BindingEngine in headers.
     virtual Ref<BindingExpression> CreateExpression(DependencyObject* target,
@@ -60,7 +60,8 @@ public:
     }
 
 protected:
-    explicit BindingBase(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    BindingBase() noexcept = default;
+    explicit BindingBase(Meta::TypeId runtimeType) noexcept { static_cast<void>(runtimeType); }
 
     struct RareOptions {
         String stringFormat{&Base::GetDefaultAllocator()};
@@ -81,7 +82,7 @@ protected:
         return kEmpty;
     }
 
-    Meta::TypeId runtimeType_ = StaticTypeId();
+    // runtimeType_ removed; identity via StaticClassType()
     RareOptions* rare_ = nullptr;
 };
 } // namespace Aero::Data

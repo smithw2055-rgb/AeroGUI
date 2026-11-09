@@ -296,6 +296,15 @@ public:
     static constexpr Meta::TypeId StaticTypeId() noexcept {
         return Meta::MakeTypeId(StaticMetadataNamespace(), StaticMetadataName());
     }
+    static const ::Aero::Base::TypeClass* StaticClassType() noexcept {
+        static const ::Aero::Base::TypeClass s_type{
+            StaticMetadataNamespace(),
+            StaticMetadataName(),
+            AnimationTimeline::StaticClassType(),
+            nullptr};
+        return &s_type;
+    }
+    const ::Aero::Base::TypeClass* GetClassType() const noexcept override { return StaticClassType(); }
 
     T GetFrom() const noexcept { return from_; }
     T GetTo() const noexcept { return to_; }
@@ -370,6 +379,15 @@ public:
     static constexpr Meta::TypeId StaticTypeId() noexcept {
         return Meta::MakeTypeId(StaticMetadataNamespace(), StaticMetadataName());
     }
+    static const ::Aero::Base::TypeClass* StaticClassType() noexcept {
+        static const ::Aero::Base::TypeClass s_type{
+            StaticMetadataNamespace(),
+            StaticMetadataName(),
+            AnimationBase<T>::StaticClassType(),
+            nullptr};
+        return &s_type;
+    }
+    const ::Aero::Base::TypeClass* GetClassType() const noexcept override { return StaticClassType(); }
 
     Animation() noexcept : AnimationBase<T>(StaticTypeId()) {}
     Ref<EasingFunctionBase> GetEasingFunction() const noexcept { return easing_; }
@@ -455,6 +473,15 @@ public:
     static constexpr Meta::TypeId StaticTypeId() noexcept {
         return Meta::MakeTypeId(StaticMetadataNamespace(), StaticMetadataName());
     }
+    static const ::Aero::Base::TypeClass* StaticClassType() noexcept {
+        static const ::Aero::Base::TypeClass s_type{
+            StaticMetadataNamespace(),
+            StaticMetadataName(),
+            AnimationTimeline::StaticClassType(),
+            nullptr};
+        return &s_type;
+    }
+    const ::Aero::Base::TypeClass* GetClassType() const noexcept override { return StaticClassType(); }
 
     AnimationUsingKeyFrames() noexcept : AnimationTimeline(StaticTypeId()) {}
 

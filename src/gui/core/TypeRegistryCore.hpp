@@ -23,6 +23,11 @@ public:
     TypeId OwnerType() const noexcept { return ownerType_; }
     TypeId ValueType() const noexcept { return valueType_; }
     PropertyFlags Flags() const noexcept { return flags_; }
+    PropertyAccessKind Access() const noexcept { return access_; }
+    PropertyProviderId Provider() const noexcept { return provider_; }
+    PropertyGetCallback Getter() const noexcept { return get_; }
+    PropertySetCallback Setter() const noexcept { return set_; }
+    void* Context() const noexcept { return context_; }
     Base::StringView Name() const noexcept { return name_.View(); }
 private:
     friend class TypeRegistry;
@@ -31,6 +36,11 @@ private:
     TypeId ownerType_ = InvalidTypeId;
     TypeId valueType_ = InvalidTypeId;
     PropertyFlags flags_ = PropertyFlags::None;
+    PropertyAccessKind access_ = PropertyAccessKind::External;
+    PropertyProviderId provider_ = InvalidPropertyProviderId;
+    PropertyGetCallback get_ = nullptr;
+    PropertySetCallback set_ = nullptr;
+    void* context_ = nullptr;
     Base::String name_;
 };
 

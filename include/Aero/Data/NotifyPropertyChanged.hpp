@@ -28,11 +28,43 @@ public:
         return true;
     }
 
+    template<class TValue>
+    bool SetProperty(TValue& field, const TValue& newValue, Meta::MemberId property) noexcept {
+        if (field == newValue) { return false; }
+        field = newValue;
+        RaisePropertyChanged(property);
+        return true;
+    }
+
+    template<class TValue>
+    bool SetProperty(TValue& field, const TValue& newValue, const Base::TypeProperty* property) noexcept {
+        if (field == newValue) { return false; }
+        field = newValue;
+        RaisePropertyChanged(property);
+        return true;
+    }
+
     void RaisePropertyChanged(Base::StringView propertyName) noexcept {
+        if (handlers_.Empty()) { return; }
         Base::Object& self = static_cast<TDerived&>(*this);
+        if (const Base::TypeClass* cls = self.GetClassType()) {
+            if (const Base::TypeProperty* prop = cls->FindProperty(propertyName)) {
+                if (prop->Id() != Meta::InvalidMemberId) {
+                    Notify(self, prop->Id());
+                    return;
+                }
+            }
+        }
         Notify(self, FindNotifyPropertyMember(self, propertyName));
     }
-    void RaisePropertyChanged(Meta::MemberId property) noexcept { Notify(static_cast<TDerived&>(*this), property); }
+    void RaisePropertyChanged(Meta::MemberId property) noexcept {
+        if (handlers_.Empty()) { return; }
+        Notify(static_cast<TDerived&>(*this), property);
+    }
+    void RaisePropertyChanged(const Base::TypeProperty* property) noexcept {
+        if (handlers_.Empty() || property == nullptr) { return; }
+        Notify(static_cast<TDerived&>(*this), property->Id());
+    }
 
     static Base::Result<std::uint64_t> SubscribePropertyChanged(Base::Object& object, PropertyChangedCallback callback,
         void* callbackContext,

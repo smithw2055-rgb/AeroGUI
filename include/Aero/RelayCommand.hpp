@@ -82,6 +82,8 @@ public:
     using CanExecuteCallback = Base::Delegate<bool(T)>;
 
     static constexpr Aero::Base::TypeId StaticTypeId() noexcept { return ICommand::StaticTypeId(); }
+    static const ::Aero::Base::TypeClass* StaticClassType() noexcept { return ICommand::StaticClassType(); }
+    const ::Aero::Base::TypeClass* GetClassType() const noexcept override { return StaticClassType(); }
     Aero::Base::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
 
     RelayCommandT() noexcept = default;

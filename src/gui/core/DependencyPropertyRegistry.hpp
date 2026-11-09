@@ -124,12 +124,17 @@ private:
         std::uint32_t index = UINT32_MAX;
     };
 
+    static constexpr std::uint64_t AliasBloomBits(MemberId key) noexcept {
+        return (1ULL << (key & 63ULL)) | (1ULL << ((key >> 6U) & 63ULL));
+    }
+
     TypeRegistry* typeRegistry_ = nullptr;
     BehaviorTable* behaviorRegistrations_ = nullptr;
     Base::Vector<DependencyProperty> properties_;
     Base::HashMap<MemberId, std::uint32_t> memberIndex_;
     Base::Vector<FlatIndexSlot> flatIndex_;
     Base::Vector<DependencyPropertyHandle> inheritableProperties_;
+    std::uint64_t aliasBloomMask_ = 0ULL;
     void RebuildFlatIndex() noexcept;
     IInheritanceChangeSink* inheritanceSink_ = nullptr;
     std::uint64_t nextReadOnlySecret_ = 1U;

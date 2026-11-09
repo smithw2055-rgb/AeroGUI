@@ -191,6 +191,44 @@ DependencyProperty::FindMetadataExact(TypeId forType) const noexcept {
 }
 
 const PropertyMetadata* DependencyProperty::MetadataFor(
+    const Base::TypeClass* forClass) const noexcept {
+    if (forClass == nullptr || metadata_.Empty()) {
+        return nullptr;
+    }
+    if (forClass == ownerClass_ || forClass->Id() == registeredOwnerType_) {
+        return &metadata_[0].metadata;
+    }
+    if (metadata_.Size() == 1U) {
+        if (IsAttached()) {
+            return &metadata_[0].metadata;
+        }
+        if (ownerClass_ != nullptr) {
+            return forClass->IsDescendantOf(ownerClass_) ? &metadata_[0].metadata : nullptr;
+        }
+    }
+    const TypeId forType = forClass->Id();
+    const std::uint32_t cacheSlot =
+        static_cast<std::uint32_t>(forType ^ (forType >> 17U)) & (kMetadataCacheSlots - 1U);
+    if (metadataCache_[cacheSlot].forType == forType) {
+        return metadataCache_[cacheSlot].metadata;
+    }
+    if (ownerClass_ != nullptr) {
+        if (forClass->IsDescendantOf(ownerClass_)) {
+            for (const Base::TypeClass* cls = forClass; cls != nullptr; cls = cls->Base()) {
+                if (const MetadataEntry* exact = FindMetadataExact(cls->Id())) {
+                    metadataCache_[cacheSlot].forType = forType;
+                    metadataCache_[cacheSlot].metadata = &exact->metadata;
+                    return &exact->metadata;
+                }
+            }
+        } else if (!IsAttached()) {
+            return nullptr;
+        }
+    }
+    return MetadataFor(forType);
+}
+
+const PropertyMetadata* DependencyProperty::MetadataFor(
     TypeId forType) const noexcept {
     if (typeRegistry_ == nullptr || forType == InvalidTypeId || metadata_.Empty()) {
         return nullptr;
@@ -298,8 +336,9 @@ struct LiveRegistryLockGuard {
 
 constexpr std::uint32_t kFastPropertyCacheSlots = 4096U;
 struct FastPropertyCacheSlot {
-    MemberId requestedId = InvalidMemberId;
-    DependencyPropertyHandle resolvedHandle{};
+    std::atomic<MemberId> requestedId{InvalidMemberId};
+    std::atomic<MemberId> resolvedId{InvalidMemberId};
+    std::atomic<std::uint16_t> globalIndex{0xFFFFU};
 };
 FastPropertyCacheSlot g_fastPropertyCache[kFastPropertyCacheSlots]{};
 
@@ -312,8 +351,11 @@ void CacheFastPropertyHandle(
     const std::uint32_t slot =
         static_cast<std::uint32_t>(requestedId ^ (requestedId >> 32U)) &
         (kFastPropertyCacheSlots - 1U);
-    g_fastPropertyCache[slot].requestedId = requestedId;
-    g_fastPropertyCache[slot].resolvedHandle = resolvedHandle;
+    FastPropertyCacheSlot& entry = g_fastPropertyCache[slot];
+    entry.requestedId.store(InvalidMemberId, std::memory_order_relaxed);
+    entry.resolvedId.store(resolvedHandle.value, std::memory_order_relaxed);
+    entry.globalIndex.store(resolvedHandle.globalIndex, std::memory_order_relaxed);
+    entry.requestedId.store(requestedId, std::memory_order_release);
 }
 } // namespace
 
@@ -326,10 +368,19 @@ DependencyPropertyHandle ResolveDependencyPropertyHandle(
         static_cast<std::uint32_t>(handle.value ^ (handle.value >> 32U)) &
         (kFastPropertyCacheSlots - 1U);
     const FastPropertyCacheSlot& cached = g_fastPropertyCache[slot];
-    if (cached.requestedId == handle.value) {
-        return cached.resolvedHandle;
+    if (cached.requestedId.load(std::memory_order_acquire) == handle.value) {
+        const MemberId resolvedId = cached.resolvedId.load(std::memory_order_relaxed);
+        const std::uint16_t globalIndex = cached.globalIndex.load(std::memory_order_relaxed);
+        if (cached.requestedId.load(std::memory_order_relaxed) == handle.value &&
+            resolvedId != InvalidMemberId && globalIndex != 0xFFFFU) {
+            return DependencyPropertyHandle{resolvedId, globalIndex};
+        }
     }
     return handle;
+}
+
+std::uint16_t ResolveRegisteredPropertyGlobalIndex(MemberId member) noexcept {
+    return ResolveDependencyPropertyHandle(DependencyPropertyHandle{member}).globalIndex;
 }
 
 DependencyPropertyRegistry::DependencyPropertyRegistry(
@@ -434,6 +485,25 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
 
     const TypeId expectedTypeId = property.ValueType();
     const TypeId actualTypeId = value.Type();
+    const bool objectValue = value.Kind() == PropertyValueKind::Object;
+    if (actualTypeId == expectedTypeId &&
+        (property.valueTypeTraits_ & DependencyProperty::kValueTypeTraitCached) != 0U) {
+        const bool isValueType =
+            (property.valueTypeTraits_ & DependencyProperty::kValueTypeTraitIsValue) != 0U;
+        if (isValueType && !objectValue &&
+            (property.valueTypeTraits_ & DependencyProperty::kValueTypeTraitIsEnum) == 0U) {
+            if (!metadata.validate.Empty() && !metadata.validate(value)) {
+                return ValidationFailedStatus();
+            }
+            return {};
+        }
+        if (!isValueType && objectValue && value.IsNullObject()) {
+            if (!metadata.validate.Empty() && !metadata.validate(value)) {
+                return ValidationFailedStatus();
+            }
+            return {};
+        }
+    }
     const TypeInfo* expected = typeRegistry_->FindType(expectedTypeId);
     const TypeInfo* actual = (actualTypeId == expectedTypeId)
         ? expected
@@ -445,7 +515,6 @@ Base::Result<void> DependencyPropertyRegistry::ValidateValue(
     }
 
     const bool expectedValueType = IsValueType(*expected);
-    const bool objectValue = value.Kind() == PropertyValueKind::Object;
     if (expectedValueType == objectValue) {
         thread_local char message[384]{};
         std::snprintf(
@@ -622,8 +691,9 @@ DependencyPropertyRegistry::Register(
             Base::ErrorCode::InvalidArgument,
             "Dependency property registration is incomplete");
     }
-    if (typeRegistry_->FindType(registration.ownerType) == nullptr ||
-        typeRegistry_->FindType(registration.valueType) == nullptr) {
+    const TypeInfo* ownerTypeInfo = typeRegistry_->FindType(registration.ownerType);
+    const TypeInfo* valueTypeInfo = typeRegistry_->FindType(registration.valueType);
+    if (ownerTypeInfo == nullptr || valueTypeInfo == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotFound,
             "Dependency property owner or value type is not registered");
@@ -657,8 +727,20 @@ DependencyPropertyRegistry::Register(
     property.typeRegistry_ = typeRegistry_;
     property.valueType_ = registration.valueType;
     property.registeredOwnerType_ = registration.ownerType;
+    property.ownerClass_ = Base::TypeClass::FindById(registration.ownerType);
     property.flags_ = registration.flags;
     property.computedReader_ = registration.metadata.computedReader;
+    std::uint8_t valueTraits = DependencyProperty::kValueTypeTraitCached;
+    if (IsValueType(*valueTypeInfo)) {
+        valueTraits |= DependencyProperty::kValueTypeTraitIsValue;
+    }
+    if (valueTypeInfo->Kind() == MetadataTypeKind::Enum) {
+        valueTraits |= DependencyProperty::kValueTypeTraitIsEnum;
+        if (HasTypeFlag(valueTypeInfo->Flags(), TypeFlags::SignedEnum)) {
+            valueTraits |= DependencyProperty::kValueTypeTraitSignedEnum;
+        }
+    }
+    property.valueTypeTraits_ = valueTraits;
 
     DependencyProperty::MetadataEntry ownerMetadata;
     ownerMetadata.forType = registration.ownerType;
@@ -829,6 +911,9 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
         return alias.GetStatus();
     }
     AERO_ASSERT(alias.Value() == aliasMember);
+    if (aliasMember != property.Handle().value) {
+        aliasBloomMask_ |= AliasBloomBits(aliasMember);
+    }
     CacheFastPropertyHandle(aliasMember, property.Handle());
     return {};
 }
@@ -963,13 +1048,40 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
     }
 
     for (DependencyProperty& property : properties_) {
+        if (property.ownerClass_ == nullptr) {
+            property.ownerClass_ = Base::TypeClass::FindById(property.registeredOwnerType_);
+        }
         if (typeRegistry_ != nullptr) {
             if (const TypeInfo* ownerInfo = typeRegistry_->FindType(property.registeredOwnerType_)) {
                 property.ownerTreeIn_ = ownerInfo->TreeIn();
                 property.ownerTreeOut_ = ownerInfo->TreeOut();
             }
+            if (const TypeInfo* valInfo = typeRegistry_->FindType(property.valueType_)) {
+                std::uint8_t valueTraits = DependencyProperty::kValueTypeTraitCached;
+                if (IsValueType(*valInfo)) {
+                    valueTraits |= DependencyProperty::kValueTypeTraitIsValue;
+                }
+                if (valInfo->Kind() == MetadataTypeKind::Enum) {
+                    valueTraits |= DependencyProperty::kValueTypeTraitIsEnum;
+                    if (HasTypeFlag(valInfo->Flags(), TypeFlags::SignedEnum)) {
+                        valueTraits |= DependencyProperty::kValueTypeTraitSignedEnum;
+                    }
+                }
+                property.valueTypeTraits_ = valueTraits;
+            }
         }
         property.ClearMetadataCache();
+        if (property.metadata_.Size() > 1U) {
+            for (const DependencyProperty::MetadataEntry& entry : property.metadata_) {
+                if (entry.forType != property.registeredOwnerType_) {
+                    const std::uint32_t slot =
+                        static_cast<std::uint32_t>(entry.forType ^ (entry.forType >> 17U)) &
+                        (DependencyProperty::kMetadataCacheSlots - 1U);
+                    property.metadataCache_[slot].forType = entry.forType;
+                    property.metadataCache_[slot].metadata = &entry.metadata;
+                }
+            }
+        }
     }
 
     for (const auto& kv : memberIndex_) {
@@ -1037,8 +1149,12 @@ std::uint32_t DependencyPropertyRegistry::FindIndex(MemberId member) const noexc
 
 const DependencyProperty* DependencyPropertyRegistry::Find(
     DependencyPropertyHandle property) const noexcept {
-    if (property.globalIndex < properties_.Size()) {
-        const DependencyProperty& direct = properties_[property.globalIndex];
+    std::uint16_t idx = property.globalIndex;
+    if (idx == 0xFFFFU) {
+        idx = ResolveRegisteredPropertyGlobalIndex(property.value);
+    }
+    if (idx < properties_.Size()) {
+        const DependencyProperty& direct = properties_[idx];
         if (direct.handle_.value == property.value) {
             return &direct;
         }
@@ -1065,6 +1181,12 @@ MemberId DependencyPropertyRegistry::CanonicalHandle(
         const DependencyProperty& direct = properties_[property.globalIndex];
         if (direct.handle_.value == property.value) {
             return direct.handle_.value;
+        }
+    }
+    if (frozen_) {
+        const std::uint64_t bits = AliasBloomBits(property.value);
+        if ((aliasBloomMask_ & bits) != bits) {
+            return property.value;
         }
     }
     const std::uint32_t index = FindIndex(property.value);
@@ -1152,12 +1274,14 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
     : DispatcherObject(*CurrentObjectFactory().dispatcher),
       valueStore_(nullptr),
       rare_(nullptr),
-      compactTypeIndex_(Meta::InternCompactTypeId(runtimeType)),
+
       objectServicesAvailable_(HasObjectFactory() ? 1U : 0U),
       typeVerified_(0U),
       hasExplicitInheritanceChildren_(0U),
       hasExplicitInheritanceParent_(0U),
-      logicalParentMode_(0U) {
+      logicalParentMode_(0U),
+      hasActiveBinding_(0U),
+      hasActiveAnimation_(0U) {
     const Meta::ObjectFactoryState factory = CurrentObjectFactory();
     SetContextSlot(Threading::AcquireObjectContextSlot(
         factory.dispatcher,
@@ -1165,6 +1289,7 @@ DependencyObject::DependencyObject(TypeId runtimeType) noexcept
         factory.dependencyProperties != nullptr
             ? factory.dependencyProperties->Epoch()
             : 0U));
+    static_cast<void>(runtimeType);
     AddCoreTypeFlag(Base::kCoreTypeDependencyObject);
 }
 
@@ -2582,8 +2707,11 @@ void DependencyObject::DetachPropertyDependencyObjects(
     AnimationEngine* animations,
     Base::HashSet<DependencyObject*>& visited) noexcept {
     DependencyObject& object = *this;
-    const auto* selfVisual = ::Aero::TryCast<Aero::Media::Visual>(&object);
-    const bool isVisual = selfVisual != nullptr;
+    const bool isVisual = object.IsVisualCore();
+    if (isVisual && object.Store() == nullptr) {
+        return;
+    }
+
     const bool alreadyVisited = !visited.Insert(&object).inserted;
     if (alreadyVisited && !isVisual) {
         return;

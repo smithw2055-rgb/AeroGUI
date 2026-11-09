@@ -16,6 +16,7 @@ template<class T> class FreezableCollection : public Freezable,
 
 public:
     using Freezable::StaticTypeId;
+    using Freezable::StaticClassType;
     FreezableCollection() noexcept : Freezable(Freezable::StaticTypeId()) {}
     explicit FreezableCollection(Meta::TypeId runtimeType) noexcept : Freezable(runtimeType) {}
     ~FreezableCollection() override { DetachHandlers(); }

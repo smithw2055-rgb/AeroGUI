@@ -296,6 +296,8 @@ void CompiledBindingPath::ClearStepCache(CompiledPathStep& step) noexcept {
     step.ownerType = Meta::InvalidTypeId;
     step.member = Meta::InvalidMemberId;
     step.propertyInfo = nullptr;
+    step.classProperty = nullptr;
+    step.dpGlobalIndex = 0xFFFFU;
     step.dependencyProperty = nullptr;
     step.propertyGetter = nullptr;
     step.propertySetter = nullptr;
@@ -315,6 +317,8 @@ void CompiledBindingPath::PopulateStepCache(
     CompiledPathStep& step) noexcept {
     step.ownerType = stepOwnerType;
     step.propertyInfo = property;
+    step.classProperty = nullptr;
+    step.dpGlobalIndex = 0xFFFFU;
     step.member = property->Id();
     step.attached = step.attached ||
         HasCompiledPropertyFlag(
@@ -344,15 +348,40 @@ void CompiledBindingPath::PopulateStepCache(
         step.accessorWritable);
     step.dependencyProperty = runtime.DependencyProperties().Find(
         Meta::DependencyPropertyHandle{property->Id()});
-    const bool ownerIsDo = runtime.Types().IsAssignableFrom(
-        Meta::TypeOf<DependencyObject>(),
-        stepOwnerType);
+    const Base::TypeClass* ownerClass =
+        Base::TypeClass::FindById(stepOwnerType);
+    const bool ownerIsDo = ownerClass != nullptr
+        ? ownerClass->IsDescendantOf(DependencyObject::StaticClassType())
+        : runtime.Types().IsDerivedFrom(
+              stepOwnerType, Meta::BuiltinTypes::DependencyObject);
+
+
     if (step.dependencyProperty == nullptr && ownerIsDo) {
         step.dependencyProperty = runtime.DependencyProperties().Find(
             stepOwnerType, property->Name());
     }
     step.ownerIsDependencyObject =
         step.dependencyProperty != nullptr && ownerIsDo;
+    if (step.dependencyProperty != nullptr) {
+        step.dpGlobalIndex = step.dependencyProperty->GlobalIndex();
+    } else if (ownerClass != nullptr) {
+        step.classProperty =
+            ownerClass->FindProperty(property->Name(), true);
+        if (step.propertyGetter == nullptr &&
+            step.classProperty != nullptr &&
+            step.classProperty->MetaGetter() != nullptr) {
+            step.propertyGetter = step.classProperty->MetaGetter();
+            step.propertySetter = step.classProperty->MetaSetter();
+            step.accessorReadable = (step.propertyGetter != nullptr);
+            step.accessorWritable = (step.propertySetter != nullptr);
+            step.cachedReadable = IsCompiledPropertyReadable(
+                *property,
+                step.accessorReadable);
+            step.cachedWritable = IsCompiledPropertyWritable(
+                *property,
+                step.accessorWritable);
+        }
+    }
     const Meta::TypeInfo* outInfo =
         runtime.Types().FindType(property->ValueType());
     step.outputIsEnum =
@@ -369,6 +398,8 @@ void CompiledBindingPath::WarmCache(
             } else {
                 steps_[i].ownerType = Meta::InvalidTypeId;
                 steps_[i].propertyInfo = nullptr;
+                steps_[i].classProperty = nullptr;
+                steps_[i].dpGlobalIndex = 0xFFFFU;
                 steps_[i].dependencyProperty = nullptr;
                 steps_[i].propertyGetter = nullptr;
                 steps_[i].propertySetter = nullptr;
@@ -863,11 +894,22 @@ Base::Result<Meta::PropertyValue> CompiledBindingPath::ReadSinglePropertyStep(
     }
     if (step.dependencyProperty != nullptr &&
         step.ownerIsDependencyObject) {
-        const auto& dependencyObject =
-            static_cast<const DependencyObject&>(object);
-        const Meta::PropertyValue value =
-            dependencyObject.GetValue(step.dependencyProperty->Handle());
-        return ValidateAndCoerceStepReadValue(runtime, step, value);
+        const DependencyObject* dependencyObject =
+            (object.CoreTypeMask() & Base::kCoreTypeDependencyObject) != 0U
+                ? &static_cast<const DependencyObject&>(object)
+                : TryCast<DependencyObject>(&object);
+        if (dependencyObject != nullptr) {
+            const Meta::PropertyValue value =
+                dependencyObject->GetValue(
+                    Meta::DependencyPropertyHandle{
+                        step.dependencyProperty->Handle().value,
+                        step.dpGlobalIndex});
+            return ValidateAndCoerceStepReadValue(runtime, step, value);
+        }
+
+
+
+
     }
     if (step.propertyGetter != nullptr) {
         Base::Result<Meta::PropertyValue> value =
@@ -933,8 +975,19 @@ Base::Result<void> CompiledBindingPath::WriteSinglePropertyStep(
         }
         if (step.dependencyProperty != nullptr &&
             step.ownerIsDependencyObject) {
-            auto& dependencyObject = static_cast<DependencyObject&>(object);
-            dependencyObject.SetValue(step.dependencyProperty->Handle(), value);
+            DependencyObject* dependencyObject =
+                (object.CoreTypeMask() & Base::kCoreTypeDependencyObject) != 0U
+                    ? &static_cast<DependencyObject&>(object)
+                    : TryCast<DependencyObject>(&object);
+            if (dependencyObject != nullptr) {
+                dependencyObject->SetValue(
+                    Meta::DependencyPropertyHandle{
+                        step.dependencyProperty->Handle().value,
+                        step.dpGlobalIndex},
+                    value);
+                return {};
+            }
+
             return {};
         }
         step.propertySetter(object, value, step.accessorContext);
@@ -980,6 +1033,11 @@ Base::Result<Meta::PropertyValue> CompiledBindingPath::Get(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path root object type is incompatible");
+    }
+    if (steps_.Size() == 1U &&
+        steps_[0].kind == Meta::BindingPathSegmentKind::ObjectProperty &&
+        !steps_[0].hasCollectionIndexAfter) {
+        return ReadSinglePropertyStep(runtime, root, steps_[0]);
     }
     return GetObject(runtime, root, 0U);
 }
@@ -1092,6 +1150,11 @@ Base::Result<void> CompiledBindingPath::Set(
         return Base::Status::Failure(
             Base::ErrorCode::InvalidArgument,
             "Binding path root or assigned value is incompatible");
+    }
+    if (steps_.Size() == 1U &&
+        steps_[0].kind == Meta::BindingPathSegmentKind::ObjectProperty &&
+        !steps_[0].hasCollectionIndexAfter) {
+        return WriteSinglePropertyStep(runtime, root, steps_[0], value);
     }
     return SetObject(runtime, root, 0U, value);
 }

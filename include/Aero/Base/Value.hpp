@@ -74,6 +74,68 @@ private:
     ValueTypeRegistration registration_;
 };
 
+template<class T, class = void>
+struct HasEqualityOperator : std::false_type {};
+
+template<class T>
+struct HasEqualityOperator<
+    T,
+    std::void_t<decltype(static_cast<bool>(std::declval<const T&>() == std::declval<const T&>()))>>
+    : std::true_type {};
+
+class AERO_BASE_API BoxedValue : public Base::Object {
+public:
+    ~BoxedValue() override = default;
+
+    virtual const void* Data() const noexcept = 0;
+    virtual void* MutableData() noexcept = 0;
+    virtual bool RawEquals(const void* otherData) const noexcept = 0;
+};
+
+// Noesis-style intrusive single-allocation boxed value wrapper.
+// Co-locates the reference-counted Object header and the strongly-typed payload T
+// in a single heap allocation block without secondary pointer indirection.
+template<class T>
+class Boxed final : public BoxedValue {
+public:
+    template<class... Args, class = std::enable_if_t<std::is_constructible_v<T, Args...>>>
+    explicit Boxed(Args&&... args) noexcept
+        : value_(std::forward<Args>(args)...) {}
+
+    ~Boxed() override = default;
+
+    template<class... Args>
+    static Ref<Boxed<T>> Create(Args&&... args) noexcept {
+        return MakeRef<Boxed<T>>(std::forward<Args>(args)...);
+    }
+
+    template<class... Args>
+    static Ref<Boxed<T>> CreateWithAllocator(IAllocator& allocator, Args&&... args) noexcept {
+        return MakeRefWithAllocator<Boxed<T>>(allocator, std::forward<Args>(args)...);
+    }
+
+    const T& Get() const noexcept { return value_; }
+    T& Mutable() noexcept { return value_; }
+    const void* Data() const noexcept override { return &value_; }
+    void* MutableData() noexcept override { return &value_; }
+    bool RawEquals(const void* otherData) const noexcept override {
+        if (otherData == nullptr) {
+            return false;
+        }
+        const T& other = *static_cast<const T*>(otherData);
+        if constexpr (HasEqualityOperator<T>::value) {
+            return static_cast<bool>(value_ == other);
+        } else if constexpr (std::is_trivially_copyable_v<T>) {
+            return std::memcmp(&value_, &other, sizeof(T)) == 0;
+        } else {
+            return &value_ == &other;
+        }
+    }
+
+private:
+    T value_;
+};
+
 class AERO_BASE_API Value {
 public:
     static constexpr std::uint32_t InlineCapacity = 16U;
@@ -124,6 +186,18 @@ public:
         const Ref<ValueTypeSemantics>& semantics) noexcept;
 
     template<class T>
+    static Result<Value> TryFromBoxed(TypeId type, const T& value) noexcept {
+        if (type == InvalidTypeId) {
+            return Status::Failure(ErrorCode::InvalidArgument, "Boxed custom Value type is invalid");
+        }
+        Ref<Boxed<T>> boxed = Boxed<T>::Create(value);
+        if (!boxed) {
+            return Status::Failure(ErrorCode::OutOfMemory, "Unable to allocate Boxed<T> value");
+        }
+        return FromBoxedObject(type, Ref<Base::Object>(std::move(boxed)));
+    }
+
+    template<class T>
     static Value FromInlineCustom(TypeId type, const T& value) noexcept {
         static_assert(std::is_trivially_copyable_v<T>, "Inline custom value must be trivially copyable");
         static_assert(sizeof(T) <= InlineCapacity, "Inline custom value exceeds InlineCapacity");
@@ -158,6 +232,7 @@ public:
     StringView AsString() const noexcept;
     StringView AsDynamicResourceKey() const noexcept;
     const Ref<Base::Object>& AsObject() const noexcept;
+    const void* RawInlineData() const noexcept { return static_cast<const void*>(storage_.inlineData); }
     const void* AsCustom() const noexcept {
         if (kind_ == ValueKind::Custom && inlineCustom_) {
             return static_cast<const void*>(storage_.inlineData);
@@ -174,6 +249,7 @@ public:
     void Reset() noexcept;
 
 private:
+    static Value FromBoxedObject(TypeId type, Ref<Base::Object> boxed) noexcept;
     const void* AsBoxedCustom() const noexcept;
     void* MutableBoxedCustom() noexcept;
     TypeId type_ = InvalidTypeId;
@@ -330,6 +406,8 @@ inline Value::Value(Ref<Base::Object> value) noexcept {
 
 namespace Aero {
 
+using Base::Boxed;
+using Base::BoxedValue;
 using Base::Value;
 using Base::ValueKind;
 

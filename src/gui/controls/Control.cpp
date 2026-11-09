@@ -499,8 +499,8 @@ void ContentPresenter::ApplyContent() noexcept {
             ClearHostedContent();
             return;
         }
-        if (DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                obj->RuntimeType(), UIElement::StaticTypeId())) {
+        if (::Aero::TryCast<UIElement>(obj) != nullptr) {
+
             appliedTemplate_.Reset();
             auto* element = static_cast<UIElement*>(obj);
             HostUiElement(value.AsObject(), *element);
@@ -559,8 +559,8 @@ void ContentPresenter::ApplyContent() noexcept {
 
     appliedTemplate_.Reset();
     if (content_ == nullptr ||
-        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            content_->RuntimeType(), TextBlock::StaticTypeId())) {
+        ::Aero::TryCast<TextBlock>(content_) == nullptr) {
+
         Base::Ref<TextBlock> made = Base::MakeRef<TextBlock>();
         if (made) {
             Base::Ref<Base::Object> owned = made;
@@ -593,15 +593,15 @@ void ContentPresenter::UpdatePresentedText() noexcept {
         return;
     }
     if (content_ == nullptr ||
-        !DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-            content_->RuntimeType(), TextBlock::StaticTypeId())) {
+        ::Aero::TryCast<TextBlock>(content_) == nullptr) {
+
         return;
     }
     if (contentValue_.Kind() == Meta::ValueKind::Object && !contentValue_.IsNullObject()) {
         auto* obj = contentValue_.AsObject().Get();
         if (obj == content_ ||
-            DependencyObjectAccess::PropertyRegistry((*this)).Types().IsDerivedFrom(
-                obj->RuntimeType(), UIElement::StaticTypeId())) {
+            ::Aero::TryCast<UIElement>(obj) != nullptr) {
+
             return;
         }
     }

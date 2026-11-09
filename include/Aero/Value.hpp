@@ -294,7 +294,29 @@ AERO_GUI_API TypeId ResolveCompactTypeId(std::uint16_t index) noexcept;
 
 } // namespace Aero::Meta
 
-#define AERO_DECLARE_TYPE_NAMED(\
+namespace Aero::Base {
+
+template<class T>
+Ref<Object> CreateDefaultTypeClassObject() noexcept {
+    return Ref<Object>(MakeRef<T>());
+}
+
+template<class T>
+constexpr TypeClass::FactoryFn DefaultTypeClassFactoryOrNull() noexcept {
+    if constexpr (
+        std::is_base_of_v<Object, T> &&
+        std::is_nothrow_default_constructible_v<T> &&
+        std::is_destructible_v<T> &&
+        !std::is_abstract_v<T>) {
+        return &CreateDefaultTypeClassObject<T>;
+    } else {
+        return nullptr;
+    }
+}
+
+} // namespace Aero::Base
+
+#define AERO_DECLARE_TYPE_NAMED_BASE(\
     typeName, metadataBaseType, metadataNamespace, metadataName) \
 public: \
     using Self = typeName; \
@@ -326,6 +348,23 @@ private: \
     friend struct ::Aero::Meta::DescribeHook<typeName>; \
     static void DescribeMetadata(::Aero::Meta::Registration&) noexcept; \
 public:
+
+#define AERO_DECLARE_TYPE_NAMED(\
+    typeName, metadataBaseType, metadataNamespace, metadataName) \
+    AERO_DECLARE_TYPE_NAMED_BASE(\
+        typeName, metadataBaseType, metadataNamespace, metadataName) \
+    static const ::Aero::Base::TypeClass* StaticClassType() noexcept { \
+        static ::Aero::Base::TypeClass s_typeClass( \
+            StaticTypeId(), \
+            StaticMetadataNamespace(), \
+            StaticMetadataName(), \
+            ::Aero::Base::ResolveBaseStaticClassType<BaseType>(), \
+            ::Aero::Base::DefaultTypeClassFactoryOrNull<typeName>()); \
+        return &s_typeClass; \
+    } \
+    const ::Aero::Base::TypeClass* GetClassType() const noexcept { \
+        return StaticClassType(); \
+    }
 
 #define AERO_DECLARE_TYPE(typeName, metadataBaseType) \
     AERO_DECLARE_TYPE_NAMED(\
@@ -401,8 +440,17 @@ template<class T, class Enable = void> struct ValueCodec {
     static Result<Value> Encode(const T& value) noexcept {
         if constexpr (IsBuiltinInlineValueType<T>::value) {
             return Value::FromInlineCustom(Type(), CanonicalizeInlineValue(value));
+        } else if constexpr (sizeof(T) > Value::InlineCapacity && std::is_copy_constructible_v<T>) {
+            return Value::TryFromBoxed<T>(Type(), value);
         } else {
-            return TryEncodeValue(Type(), &value);
+            Result<Value> encoded = TryEncodeValue(Type(), &value);
+            if (encoded) {
+                return encoded;
+            }
+            if constexpr (std::is_copy_constructible_v<T>) {
+                return Value::TryFromBoxed<T>(Type(), value);
+            }
+            return encoded;
         }
     }
 
@@ -413,6 +461,16 @@ template<class T, class Enable = void> struct ValueCodec {
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Custom metadata value is incompatible");
         }
         return *static_cast<const T*>(value.AsCustom());
+    }
+
+    static const T& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::Custom && value.Type() == Type()) {
+            if (const void* raw = value.AsCustom()) {
+                return *static_cast<const T*>(raw);
+            }
+        }
+        static const T kDefault{};
+        return kDefault;
     }
 };
 
@@ -426,6 +484,7 @@ template<> struct ValueCodec<Value, void> {
         return Decode(value);
     }
     static Result<Value> Decode(const Value& value) noexcept { return value; }
+    static const Value& DecodeOrDefault(const Value& value) noexcept { return value; }
 };
 
 template<> struct ValueCodec<TypeReference, void> {
@@ -453,6 +512,20 @@ template<> struct ValueCodec<TypeReference, void> {
         }
         return result;
     }
+    static const TypeReference& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
+            return *static_cast<const TypeReference*>(value.RawInlineData());
+        }
+        static constexpr TypeReference kDefault{};
+        return kDefault;
+    }
+#if 0
+        if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
+            return TypeReference{static_cast<TypeId>(value.AsUnsignedInteger())};
+        }
+        return TypeReference{};
+    }
+#endif
 };
 
 template<> struct ValueCodec<bool, void> {
@@ -466,6 +539,13 @@ template<> struct ValueCodec<bool, void> {
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Boolean metadata value is incompatible");
         }
         return value.AsBoolean();
+    }
+    static const bool& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::Boolean && value.Type() == Type()) {
+            return *static_cast<const bool*>(value.RawInlineData());
+        }
+        static constexpr bool kDefault = false;
+        return kDefault;
     }
 };
 
@@ -491,6 +571,27 @@ template<> struct ValueCodec<::Aero::Nullable<bool>, void> {
         if (value.AsSignedInteger() < 0) return NullableBoolean{};
         return NullableBoolean{value.AsSignedInteger() != 0};
     }
+    static const NullableBoolean& DecodeOrDefault(const Value& value) noexcept {
+        static constexpr NullableBoolean kNull{};
+        static constexpr NullableBoolean kFalse{false};
+        static constexpr NullableBoolean kTrue{true};
+        if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
+            const std::int64_t raw = value.AsSignedInteger();
+            if (raw == 0) return kFalse;
+            if (raw == 1) return kTrue;
+        }
+        return kNull;
+    }
+#if 0
+        if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
+            const std::int64_t raw = value.AsSignedInteger();
+            if (raw == 0 || raw == 1) {
+                return NullableBoolean{raw != 0};
+            }
+        }
+        return NullableBoolean{};
+    }
+#endif
 };
 
 template<class T> struct ValueCodec<T, std::enable_if_t<
@@ -509,6 +610,17 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
         }
         return static_cast<T>(value.AsSignedInteger());
     }
+    static const T& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
+            const std::int64_t raw = value.AsSignedInteger();
+            if (raw >= static_cast<std::int64_t>(std::numeric_limits<T>::min()) &&
+                raw <= static_cast<std::int64_t>(std::numeric_limits<T>::max())) {
+                return *static_cast<const T*>(value.RawInlineData());
+            }
+        }
+        static const T kDefault{};
+        return kDefault;
+    }
 };
 
 template<class T> struct ValueCodec<T, std::enable_if_t<
@@ -526,6 +638,16 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
         }
         return static_cast<T>(value.AsUnsignedInteger());
     }
+    static const T& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
+            const std::uint64_t raw = value.AsUnsignedInteger();
+            if (raw <= static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
+                return *static_cast<const T*>(value.RawInlineData());
+            }
+        }
+        static const T kDefault{};
+        return kDefault;
+    }
 };
 
 template<> struct ValueCodec<double, void> {
@@ -540,6 +662,13 @@ template<> struct ValueCodec<double, void> {
         }
         return value.AsDouble();
     }
+    static const double& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::Double && value.Type() == Type()) {
+            return *static_cast<const double*>(value.RawInlineData());
+        }
+        static constexpr double kDefault = 0.0;
+        return kDefault;
+    }
 };
 
 template<> struct ValueCodec<float, void> {
@@ -553,6 +682,11 @@ template<> struct ValueCodec<float, void> {
             return Base::Status::Failure(Base::ErrorCode::InvalidArgument, "Float metadata value is incompatible");
         }
         return static_cast<float>(value.AsDouble());
+    }
+    static float DecodeOrDefault(const Value& value) noexcept {
+        return (value.Kind() == ValueKind::Double && value.Type() == Type())
+            ? static_cast<float>(value.AsDouble())
+            : 0.0f;
     }
 };
 
@@ -570,6 +704,13 @@ template<> struct ValueCodec<String, void> {
         String decoded;
         Result<void> assigned = decoded.Assign(value.AsString());
         if (!assigned) return assigned.GetStatus();
+        return decoded;
+    }
+    static String DecodeOrDefault(const Value& value) noexcept {
+        String decoded;
+        if (value.Kind() == ValueKind::String && value.Type() == Type()) {
+            (void)decoded.Assign(value.AsString());
+        }
         return decoded;
     }
 };
@@ -604,6 +745,19 @@ template<class T> struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
             return static_cast<T>(static_cast<Underlying>(value.AsUnsignedInteger()));
         }
     }
+    static const T& DecodeOrDefault(const Value& value) noexcept {
+        if constexpr (std::is_signed_v<Underlying>) {
+            if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
+                return *static_cast<const T*>(value.RawInlineData());
+            }
+        } else {
+            if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
+                return *static_cast<const T*>(value.RawInlineData());
+            }
+        }
+        static const T kDefault{};
+        return kDefault;
+    }
 };
 
 template<class T> struct ValueCodec<Ref<T>, void> {
@@ -624,6 +778,22 @@ template<class T> struct ValueCodec<Ref<T>, void> {
         return Ref<T>::FromBorrowed(
             *static_cast<T*>(value.AsObject().Get()));
     }
+    static const Ref<T>& DecodeOrDefault(const Value& value) noexcept {
+        if (value.Kind() == ValueKind::Object && !value.IsNullObject()) {
+            return reinterpret_cast<const Ref<T>&>(value.AsObject());
+        }
+        static const Ref<T> kDefault{};
+        return kDefault;
+    }
+#if 0
+        if (value.Kind() == ValueKind::Object && !value.IsNullObject()) {
+            if (Base::Object* raw = value.AsObject().Get()) {
+                return Ref<T>::FromBorrowed(*static_cast<T*>(raw));
+            }
+        }
+        return Ref<T>{};
+    }
+#endif
 };
 
 } // namespace Aero::Meta

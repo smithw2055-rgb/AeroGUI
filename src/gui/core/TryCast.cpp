@@ -21,6 +21,13 @@ bool IsRuntimeTypeDerivedFrom(
     if (runtimeType == baseType || baseType == Object::StaticTypeId()) {
         return true;
     }
+    const Base::TypeClass* runtimeClass = Base::TypeClass::FindById(runtimeType);
+    const Base::TypeClass* baseClass = Base::TypeClass::FindById(baseType);
+    if (runtimeClass != nullptr && baseClass != nullptr) {
+        if (runtimeClass->IsDescendantOf(baseClass)) {
+            return true;
+        }
+    }
     const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
     if (factory.dependencyProperties == nullptr) {
         return false;
@@ -34,6 +41,13 @@ bool IsRuntimeTypeDerivedFrom(
     Base::MetaTypeId baseType) noexcept {
     if (object == nullptr || baseType == Base::InvalidMetaTypeId) {
         return false;
+    }
+    if (const Base::TypeClass* runtimeClass = object->GetClassType()) {
+        if (const Base::TypeClass* baseClass = Base::TypeClass::FindById(baseType)) {
+            if (runtimeClass == baseClass || runtimeClass->IsDescendantOf(baseClass)) {
+                return true;
+            }
+        }
     }
     const Base::MetaTypeId runtimeType = object->RuntimeType();
     if (runtimeType == Base::InvalidMetaTypeId) {

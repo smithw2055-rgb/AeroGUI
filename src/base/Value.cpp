@@ -8,32 +8,180 @@
 namespace Aero::Base {
 namespace {
 
-class StringValueStorage : public Base::Object {
+// Intrusive single-allocation boxed string storage:
+// [CustomAllocationHeader][StringValueStorage][char payload[length + 1]]
+// Eliminates the double heap allocation (Base::String buffer + StringValueStorage object)
+// when boxing strings longer than Value::InlineCapacity - 1 (15 bytes).
+class StringValueStorage final : public Base::Object {
 public:
-    explicit StringValueStorage(Base::String&& value) noexcept : value_(std::move(value)) {}
-    Base::StringView View() const noexcept { return value_.View(); }
+    static Base::Result<Base::Ref<StringValueStorage>> Create(
+        Base::IAllocator& allocator,
+        Base::StringView value) noexcept {
+        constexpr std::size_t kHeaderOffset =
+            (sizeof(CustomAllocationHeader) + alignof(StringValueStorage) - 1U) &
+            ~(alignof(StringValueStorage) - 1U);
+        constexpr std::size_t kPayloadOffset = kHeaderOffset + sizeof(StringValueStorage);
+        const std::size_t length = value.SizeBytes();
+        const std::size_t totalSize = kPayloadOffset + length + 1U;
+        constexpr std::size_t kAllocAlign =
+            alignof(StringValueStorage) > alignof(CustomAllocationHeader)
+                ? alignof(StringValueStorage)
+                : alignof(CustomAllocationHeader);
+
+        void* rawMemory = allocator.Allocate({
+            totalSize,
+            kAllocAlign,
+            Base::MemoryTag::String});
+        if (rawMemory == nullptr) {
+            return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+        }
+
+        char* payload = static_cast<char*>(rawMemory) + kPayloadOffset;
+        if (length > 0U && value.Data() != nullptr) {
+            std::memcpy(payload, value.Data(), length);
+        }
+        payload[length] = '\0';
+
+        void* objectMemory = static_cast<char*>(rawMemory) + kHeaderOffset;
+        auto* storage = new (objectMemory) StringValueStorage(
+            static_cast<std::uint32_t>(length));
+
+        auto destroy = [](Base::Object* base, Base::IAllocator* objectAllocator) noexcept {
+            auto* typed = static_cast<StringValueStorage*>(base);
+            void* block = reinterpret_cast<char*>(typed) - kHeaderOffset;
+            const std::size_t blockSize = kPayloadOffset + typed->length_ + 1U;
+            typed->~StringValueStorage();
+            objectAllocator->Deallocate(
+                block,
+                blockSize,
+                kAllocAlign,
+                Base::MemoryTag::String);
+        };
+
+        storage->AttachManagedLifetime(allocator, destroy);
+        return Base::Ref<StringValueStorage>::AdoptConstructed(storage);
+    }
+
+    Base::StringView View() const noexcept {
+        return Base::StringView(reinterpret_cast<const char*>(this + 1), length_);
+    }
+
 private:
-    Base::String value_;
+    explicit StringValueStorage(std::uint32_t length) noexcept
+        : length_(length) {}
+
+    std::uint32_t length_ = 0U;
 };
 
-class CustomValueStorage : public Base::Object {
+// Intrusive single-allocation boxed custom value storage:
+// [CustomAllocationHeader][CustomValueStorage][aligned custom payload]
+// Eliminates the double heap allocation (payload buffer + CustomValueStorage wrapper)
+// and keeps the custom value payload in the same cache line as the Object header.
+class CustomValueStorage final : public BoxedValue {
 public:
-    CustomValueStorage(void* value, Base::IAllocator& allocator, const ValueTypeRegistration* semantics) noexcept
-        : value_(value), allocator_(&allocator), semantics_(semantics) {}
+    static Base::Result<Base::Ref<CustomValueStorage>> Create(
+        Base::IAllocator& allocator,
+        const void* source,
+        const ValueTypeRegistration* semantics) noexcept {
+        const ValueTypeRegistration& registration = *semantics;
+        const std::size_t regAlign = registration.alignment > 0U
+            ? static_cast<std::size_t>(registration.alignment)
+            : alignof(std::max_align_t);
+        const std::size_t baseAlign =
+            alignof(CustomValueStorage) > alignof(CustomAllocationHeader)
+                ? alignof(CustomValueStorage)
+                : alignof(CustomAllocationHeader);
+        const std::size_t allocAlign = regAlign > baseAlign ? regAlign : baseAlign;
+
+        constexpr std::size_t kHeaderOffset =
+            (sizeof(CustomAllocationHeader) + alignof(CustomValueStorage) - 1U) &
+            ~(alignof(CustomValueStorage) - 1U);
+        const std::size_t payloadOffset =
+            (kHeaderOffset + sizeof(CustomValueStorage) + regAlign - 1U) &
+            ~(regAlign - 1U);
+        const std::size_t totalSize = payloadOffset + registration.size;
+
+        void* rawMemory = allocator.Allocate({
+            totalSize,
+            allocAlign,
+            Base::MemoryTag::Ui});
+        if (rawMemory == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfMemory,
+                "Unable to allocate custom Value storage");
+        }
+
+        void* payloadMemory = static_cast<char*>(rawMemory) + payloadOffset;
+        Base::Result<void> copied = registration.copy(
+            payloadMemory,
+            source,
+            registration.context);
+        if (!copied) {
+            allocator.Deallocate(rawMemory, totalSize, allocAlign, Base::MemoryTag::Ui);
+            return copied.GetStatus();
+        }
+
+        void* objectMemory = static_cast<char*>(rawMemory) + kHeaderOffset;
+        auto* storage = new (objectMemory) CustomValueStorage(
+            payloadMemory,
+            semantics,
+            totalSize,
+            allocAlign);
+
+        auto destroy = [](Base::Object* base, Base::IAllocator* objectAllocator) noexcept {
+            auto* typed = static_cast<CustomValueStorage*>(base);
+            void* block = reinterpret_cast<char*>(typed) - kHeaderOffset;
+            const std::size_t blockSize = typed->totalSize_;
+            const std::size_t blockAlign = typed->allocAlign_;
+            typed->~CustomValueStorage();
+            objectAllocator->Deallocate(
+                block,
+                blockSize,
+                blockAlign,
+                Base::MemoryTag::Ui);
+        };
+
+        storage->AttachManagedLifetime(allocator, destroy);
+        return Base::Ref<CustomValueStorage>::AdoptConstructed(storage);
+    }
+
     ~CustomValueStorage() override {
-        if (semantics_ != nullptr) {
-            const ValueTypeRegistration& registration = *semantics_;
-            if (registration.destroy != nullptr) registration.destroy(value_, registration.context);
-            allocator_->Deallocate(value_, registration.size, registration.alignment, Base::MemoryTag::Ui);
+        if (semantics_ != nullptr && semantics_->destroy != nullptr) {
+            semantics_->destroy(value_, semantics_->context);
         }
     }
-    const void* Data() const noexcept { return value_; }
-    void* MutableData() noexcept { return value_; }
+
+    const void* Data() const noexcept override { return value_; }
+    void* MutableData() noexcept override { return value_; }
+    bool RawEquals(const void* otherData) const noexcept override {
+        if (otherData == nullptr || value_ == nullptr) {
+            return false;
+        }
+        if (semantics_ != nullptr && semantics_->equals != nullptr) {
+            return semantics_->equals(value_, otherData, semantics_->context);
+        }
+        if (semantics_ != nullptr) {
+            return std::memcmp(value_, otherData, semantics_->size) == 0;
+        }
+        return false;
+    }
     const ValueTypeRegistration* Semantics() const noexcept { return semantics_; }
+
 private:
+    CustomValueStorage(
+        void* value,
+        const ValueTypeRegistration* semantics,
+        std::size_t totalSize,
+        std::size_t allocAlign) noexcept
+        : value_(value),
+          semantics_(semantics),
+          totalSize_(totalSize),
+          allocAlign_(allocAlign) {}
+
     void* value_ = nullptr;
-    Base::IAllocator* allocator_ = nullptr;
     const ValueTypeRegistration* semantics_ = nullptr;
+    std::size_t totalSize_ = 0U;
+    std::size_t allocAlign_ = alignof(CustomValueStorage);
 };
 
 template<class T> void StoreScalar(unsigned char* destination, T value) noexcept {
@@ -81,15 +229,12 @@ Base::Result<Value> Value::TryFromString(TypeId type, Base::StringView value) no
     }
 
     Base::IAllocator& selected = Base::GetDefaultAllocator();
-    Base::String text(&selected);
-    Base::Result<void> assigned = text.Assign(value);
-    if (!assigned) return assigned.GetStatus();
-    Base::Ref<StringValueStorage> storage =
-        Base::MakeRefWithAllocator<StringValueStorage>(selected, std::move(text));
-    if (!storage) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    Base::Result<Base::Ref<StringValueStorage>> storage =
+        StringValueStorage::Create(selected, value);
+    if (!storage) return storage.GetStatus();
 
     result.isShortString_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
     return result;
 }
 
@@ -110,15 +255,12 @@ Base::Result<Value> Value::FromDynamicResourceKey(Base::StringView key) noexcept
     }
 
     Base::IAllocator& selected = Base::GetDefaultAllocator();
-    Base::String text(&selected);
-    Base::Result<void> assigned = text.Assign(key);
-    if (!assigned) return assigned.GetStatus();
-    Base::Ref<StringValueStorage> storage =
-        Base::MakeRefWithAllocator<StringValueStorage>(selected, std::move(text));
-    if (!storage) return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+    Base::Result<Base::Ref<StringValueStorage>> storage =
+        StringValueStorage::Create(selected, key);
+    if (!storage) return storage.GetStatus();
 
     result.isShortString_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
     return result;
 }
 
@@ -132,6 +274,15 @@ Value Value::FromObject(TypeId type, Base::Ref<Base::Object> value) noexcept {
 
 Value Value::NullObject(TypeId type) noexcept {
     return FromObject(type, {});
+}
+
+Value Value::FromBoxedObject(TypeId type, Base::Ref<Base::Object> boxed) noexcept {
+    Value result;
+    result.type_ = type;
+    result.kind_ = ValueKind::Custom;
+    result.inlineCustom_ = false;
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(boxed));
+    return result;
 }
 
 Base::Result<Value> Value::TryFromCustom(
@@ -164,34 +315,13 @@ Base::Result<Value> Value::TryFromCustom(
             Base::ErrorCode::InvalidArgument, "Boxed custom Value requires a copy callback");
     }
     Base::IAllocator& selected = Base::GetDefaultAllocator();
-    void* memory = selected.Allocate({
-        registration.size,
-        registration.alignment,
-        Base::MemoryTag::Ui});
-    if (memory == nullptr) {
-        return Base::Status::Failure(
-            Base::ErrorCode::OutOfMemory, "Unable to allocate custom Value storage");
-    }
-    Base::Result<void> copied = registration.copy(
-        memory, source, registration.context);
-    if (!copied) {
-        selected.Deallocate(
-            memory, registration.size, registration.alignment, Base::MemoryTag::Ui);
-        return copied.GetStatus();
-    }
-    Base::Ref<CustomValueStorage> storage =
-        Base::MakeRefWithAllocator<CustomValueStorage>(
-            selected, memory, selected, semantics);
+    Base::Result<Base::Ref<CustomValueStorage>> storage =
+        CustomValueStorage::Create(selected, source, semantics);
     if (!storage) {
-        if (registration.destroy != nullptr) {
-            registration.destroy(memory, registration.context);
-        }
-        selected.Deallocate(
-            memory, registration.size, registration.alignment, Base::MemoryTag::Ui);
-        return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "OOM");
+        return storage.GetStatus();
     }
     result.inlineCustom_ = false;
-    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage));
+    new (&result.storage_.storage) Base::Ref<Base::Object>(std::move(storage).Value());
     return result;
 }
 
@@ -327,13 +457,13 @@ const void* Value::AsBoxedCustom() const noexcept {
     AERO_ASSERT(kind_ == ValueKind::Custom);
     return inlineCustom_
         ? static_cast<const void*>(storage_.inlineData)
-        : static_cast<const CustomValueStorage*>(storage_.storage.Get())->Data();
+        : static_cast<const BoxedValue*>(storage_.storage.Get())->Data();
 }
 void* Value::MutableBoxedCustom() noexcept {
     AERO_ASSERT(kind_ == ValueKind::Custom);
     return inlineCustom_
         ? static_cast<void*>(storage_.inlineData)
-        : static_cast<CustomValueStorage*>(storage_.storage.Get())->MutableData();
+        : static_cast<BoxedValue*>(storage_.storage.Get())->MutableData();
 }
 
 bool Value::Equals(const Value& other) const noexcept {
@@ -366,22 +496,20 @@ bool Value::Equals(const Value& other) const noexcept {
     case ValueKind::DynamicResource: return AsDynamicResourceKey() == other.AsDynamicResourceKey();
     case ValueKind::Object: return storage_.storage.Get() == other.storage_.storage.Get();
     case ValueKind::Custom: {
-        if (inlineCustom_ != other.inlineCustom_) return false;
-        if (inlineCustom_) {
+        if (inlineCustom_ && other.inlineCustom_) {
             return std::memcmp(storage_.inlineData, other.storage_.inlineData, InlineCapacity) == 0;
         }
-        const auto* leftStorage = static_cast<const CustomValueStorage*>(storage_.storage.Get());
-        const auto* rightStorage = static_cast<const CustomValueStorage*>(other.storage_.storage.Get());
-        if (leftStorage == rightStorage) return true;
-        if (leftStorage == nullptr || rightStorage == nullptr) return false;
-        const ValueTypeRegistration* semantics = leftStorage->Semantics();
-        if (semantics != nullptr && semantics->equals != nullptr) {
-            return semantics->equals(leftStorage->Data(), rightStorage->Data(), semantics->context);
+        if (!inlineCustom_ && !other.inlineCustom_) {
+            const auto* leftStorage = static_cast<const BoxedValue*>(storage_.storage.Get());
+            const auto* rightStorage = static_cast<const BoxedValue*>(other.storage_.storage.Get());
+            if (leftStorage == rightStorage) return true;
+            if (leftStorage == nullptr || rightStorage == nullptr) return false;
+            return leftStorage->RawEquals(rightStorage->Data());
         }
-        if (semantics != nullptr) {
-            return std::memcmp(leftStorage->Data(), rightStorage->Data(), semantics->size) == 0;
-        }
-        return false;
+        const auto* boxedStorage = static_cast<const BoxedValue*>(
+            inlineCustom_ ? other.storage_.storage.Get() : storage_.storage.Get());
+        const void* inlineData = inlineCustom_ ? storage_.inlineData : other.storage_.inlineData;
+        return boxedStorage != nullptr && boxedStorage->RawEquals(inlineData);
     }
     }
     return false;

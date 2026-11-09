@@ -73,7 +73,7 @@ public:
     Style& operator=(const Style&) = delete;
 
     TypeId RuntimeType() const noexcept override {
-        return Meta::ResolveCompactTypeId(ContextSlot());
+        return GetClassType()->Id();
     }
     void AddSetter(DependencyPropertyHandle property, const PropertyValue& value) noexcept;
     void AddSetter(const Setter& setter) noexcept;

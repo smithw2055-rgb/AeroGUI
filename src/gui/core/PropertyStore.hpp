@@ -175,8 +175,20 @@ struct StoredValueEntry {
     bool HasInherited() const noexcept { return Flag(HasInheritedBit); }
     bool HasAnimation() const noexcept { return Flag(HasAnimationBit); }
     bool Queued() const noexcept { return Flag(QueuedBit); }
+    bool IsCoerced() const noexcept { return Flag(IsCoercedBit); }
     bool DescendantsQueued() const noexcept { return Flag(DescendantsQueuedBit); }
     bool HasInlineProvider() const noexcept { return Flag(HasInlineProviderBit); }
+
+    // True when the entry holds an un-overridden, un-coerced inline local value
+    // with no active expressions, animations, inheritance, or provider state.
+    bool IsSimpleLocal() const noexcept {
+        constexpr std::uint32_t kNonSimpleLocalMask =
+            EngineStateMask | IsCoercedBit | IsCurrentValueBit | DescendantsQueuedBit;
+        return rare == nullptr &&
+            HasLocal() &&
+            (packedFlags & kNonSimpleLocalMask) == 0U &&
+            PackedRank() == Meta::PropertyValueRank::Local;
+    }
 
     bool HasProviders() const noexcept {
         return HasInlineProvider() ||
@@ -581,7 +593,7 @@ struct PropertyStoreEntry {
 
 struct PropertyStore {
     struct Entries {
-        static constexpr std::uint32_t InlineCapacity = 4U;
+        static constexpr std::uint32_t InlineCapacity = 2U;
 
         std::uint64_t bloomMask_ = 0ULL;
         std::uint32_t size_ = 0U;
@@ -594,7 +606,12 @@ struct PropertyStore {
         }
 
         Entries() noexcept = default;
-        ~Entries() noexcept { Clear(); }
+        ~Entries() noexcept {
+            if (data_ != inlineEntries_) {
+                delete[] data_;
+                data_ = inlineEntries_;
+            }
+        }
 
         Entries(const Entries&) = delete;
         Entries& operator=(const Entries&) = delete;
@@ -672,16 +689,17 @@ struct PropertyStore {
         }
 
         void Clear() noexcept {
-            for (std::uint32_t i = 0; i < size_; ++i) {
-                data_[i] = PropertyStoreEntry{};
-            }
-            bloomMask_ = 0ULL;
-            size_ = 0U;
             if (data_ != inlineEntries_) {
                 delete[] data_;
                 data_ = inlineEntries_;
                 capacity_ = InlineCapacity;
+            } else {
+                for (std::uint32_t i = 0; i < size_; ++i) {
+                    data_[i] = PropertyStoreEntry{};
+                }
             }
+            bloomMask_ = 0ULL;
+            size_ = 0U;
         }
 
     private:

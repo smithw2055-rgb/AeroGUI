@@ -9,18 +9,19 @@ class AERO_GUI_API InputBinding : public Base::Object {
     AERO_DECLARE_TYPE(InputBinding, Base::Object)
 
 public:
-    Meta::TypeId RuntimeType() const noexcept override { return runtimeType_; }
+    // Inherits Object::RuntimeType() via GetClassType()
     Ref<RoutedCommand> GetCommand() const noexcept { return command_; }
     void SetCommand(Ref<RoutedCommand> value) noexcept { command_ = std::move(value); }
     virtual bool Finalize() noexcept { return true; }
 
 protected:
-    explicit InputBinding(Meta::TypeId runtimeType) noexcept : runtimeType_(runtimeType) {}
+    InputBinding() noexcept = default;
+    explicit InputBinding(Meta::TypeId runtimeType) noexcept { static_cast<void>(runtimeType); }
 
     Ref<RoutedCommand> command_;
 
 private:
-    Meta::TypeId runtimeType_ = StaticTypeId();
+    // runtimeType_ removed; identity via StaticClassType()
 };
 
 class AERO_GUI_API KeyBinding : public InputBinding {

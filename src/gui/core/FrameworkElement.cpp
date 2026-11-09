@@ -59,6 +59,7 @@ struct FrameworkElement::FrameworkRare {
     float minHeight = 0.0f;
     float maxHeight = 1.0e12f;
     bool hasViewboxTransform = false;
+
 };
 
 Size FrameworkElement::GetMinSizeSlow() const noexcept {
@@ -153,6 +154,8 @@ void FrameworkElement::RegisterName(
 }
 
 FrameworkElement::~FrameworkElement() {
+
+
     delete resources_;
     resources_ = nullptr;
     delete frameworkRare_;
@@ -640,7 +643,7 @@ const ResourceDictionary& FrameworkElement::GetResources() const noexcept {
 void FrameworkElement::SetResources(
     Base::Ref<ResourceDictionary> value) noexcept {
     (void)Aero::AssignResourceDictionary(
-        EnsureOwnedResources(resources_),
+        GetResources(),
         std::move(value),
         "FrameworkElement Resources is already assigned");
 }

@@ -14,6 +14,7 @@ public:
     bool HasAnimatedProperties() const noexcept;
 
 protected:
+    Animatable() noexcept : Animatable(StaticTypeId()) {}
     explicit Animatable(Meta::TypeId runtimeType) noexcept;
     ~Animatable() override;
 
