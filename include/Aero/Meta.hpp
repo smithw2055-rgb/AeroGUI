@@ -390,6 +390,7 @@ public:
     template<class TPropertyRef>
     TypeBuilder& Property(const TPropertyRef& property,
         const FrameworkPropertyMetadata<typename TPropertyRef::ValueType>& options) noexcept {
+        property.SetDefaultValue(options.DefaultValue());
         return RegisterProperty(property.Handle(), property.Name(), PropertyRefFlags<TPropertyRef>(), options);
     }
 

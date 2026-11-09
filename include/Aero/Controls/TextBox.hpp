@@ -201,13 +201,13 @@ public:
     AERO_DEPENDENCY_PROPERTY(TextWrapping, TextWrapping);
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, PlaceholderForeground);
     AERO_DEPENDENCY_PROPERTY(double, FontSize);
-    inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
+    inline static const auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
     AERO_DEPENDENCY_PROPERTY(FontWeight, FontWeight);
     AERO_DEPENDENCY_PROPERTY(FontStyle, FontStyle);
     AERO_DEPENDENCY_PROPERTY(TextAlignment, TextAlignment);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, MaxLines);
     AERO_DEPENDENCY_PROPERTY(std::uint32_t, MinLines);
-    inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
+    inline static const auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
     void OnPropertyChanged(const DependencyPropertyChangedEventArgs& args) noexcept override;
@@ -253,7 +253,7 @@ public:
     AERO_DEPENDENCY_PROPERTY(String, Placeholder);
     StringView GetPlaceholder() const noexcept { return GetValue(PlaceholderProperty); }
     void SetPlaceholder(StringView value) noexcept { SetValue(PlaceholderProperty, value); }
-    inline static constexpr auto ForegroundProperty = Control::ForegroundProperty;
+    inline static const auto ForegroundProperty = Control::ForegroundProperty;
 
 protected:
     bool ValidateValueCore(Meta::DependencyPropertyHandle property, const PropertyValue& value) const noexcept override;

@@ -383,6 +383,32 @@ std::uint16_t ResolveRegisteredPropertyGlobalIndex(MemberId member) noexcept {
     return ResolveDependencyPropertyHandle(DependencyPropertyHandle{member}).globalIndex;
 }
 
+const Value* ResolveRegisteredPropertyDefaultValue(
+    DependencyPropertyHandle handle,
+    const Base::TypeClass* ownerType,
+    bool onlyIfOverridden) noexcept {
+    if (!handle.IsValid()) {
+        return nullptr;
+    }
+    LiveRegistryLockGuard lock;
+    if (g_liveRegistriesHead == nullptr) {
+        return nullptr;
+    }
+    const DependencyProperty* prop = g_liveRegistriesHead->Find(handle);
+    if (prop == nullptr) {
+        return nullptr;
+    }
+    if (onlyIfOverridden) {
+        if (!prop->HasOverrides() || ownerType == nullptr || ownerType == prop->OwnerClass()) {
+            return nullptr;
+        }
+    }
+    const PropertyMetadata* meta = ownerType != nullptr
+        ? prop->MetadataFor(ownerType)
+        : prop->MetadataFor(prop->RegisteredOwnerType());
+    return (meta != nullptr && !meta->defaultValue.IsUnset()) ? &meta->defaultValue : nullptr;
+}
+
 DependencyPropertyRegistry::DependencyPropertyRegistry(
     TypeRegistry& typeRegistry,
     BehaviorTable& behaviors) noexcept

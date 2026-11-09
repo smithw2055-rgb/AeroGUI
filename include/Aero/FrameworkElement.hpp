@@ -332,5 +332,5 @@ static_assert(sizeof(FrameworkElement) == 232, "FrameworkElement must be 232 byt
 } // namespace Aero
 
 namespace Aero::Media {
-inline constexpr auto FrameworkElementForegroundProperty = ::Aero::FrameworkElement::ForegroundProperty;
+inline const auto& FrameworkElementForegroundProperty = ::Aero::FrameworkElement::ForegroundProperty;
 }

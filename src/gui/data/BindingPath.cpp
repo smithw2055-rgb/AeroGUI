@@ -170,9 +170,38 @@ struct CompiledPathKeyHash {
     }
 };
 
+struct PathArenaChunk {
+    static constexpr std::uint32_t ChunkCapacity = 64U;
+    CompiledBindingPath items[ChunkCapacity];
+    std::uint32_t count = 0U;
+    PathArenaChunk* next = nullptr;
+};
+
 struct CompiledPathCache {
+    PathArenaChunk* headChunk = nullptr;
+    ~CompiledPathCache() noexcept {
+        PathArenaChunk* chunk = headChunk;
+        while (chunk != nullptr) {
+            PathArenaChunk* next = chunk->next;
+            delete chunk;
+            chunk = next;
+        }
+    }
+    const CompiledBindingPath* AllocatePlan(CompiledBindingPath&& plan) noexcept {
+        if (headChunk == nullptr || headChunk->count >= PathArenaChunk::ChunkCapacity) {
+            auto* nextChunk = new (std::nothrow) PathArenaChunk();
+            if (nextChunk == nullptr) {
+                return nullptr;
+            }
+            nextChunk->next = headChunk;
+            headChunk = nextChunk;
+        }
+        CompiledBindingPath& slot = headChunk->items[headChunk->count++];
+        slot = std::move(plan);
+        return &slot;
+    }
     static constexpr std::uint32_t Capacity = 1024U;
-    Base::HashMap<CompiledPathKey, CompiledBindingPath, CompiledPathKeyHash>
+    Base::HashMap<CompiledPathKey, const CompiledBindingPath*, CompiledPathKeyHash>
         plans;
     Base::HashMap<Base::String, CompiledBindingPath> precompiledTokens;
 };
@@ -249,7 +278,11 @@ Base::Result<const CompiledBindingPath*> CompiledBindingPath::FindOrCompile(
             "Failed to allocate binding path cache key");
     }
     CompiledPathCache& cache = PathPlanCache();
-    if (const CompiledBindingPath* hit = cache.plans.Find(cacheKey)) {
+    if (const CompiledBindingPath* const* hit = cache.plans.Find(cacheKey)) {
+        return *hit;
+    }
+    if (false) {
+        const CompiledBindingPath* hit = nullptr;
         return hit;
     }
 
@@ -270,13 +303,19 @@ Base::Result<const CompiledBindingPath*> CompiledBindingPath::FindOrCompile(
     if (cache.plans.Size() >= CompiledPathCache::Capacity) {
         cache.plans.Clear();
     }
-    auto inserted = cache.plans.Insert(std::move(cacheKey), std::move(plan));
+    const CompiledBindingPath* storedPlan = cache.AllocatePlan(std::move(plan));
+    if (storedPlan == nullptr) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfMemory,
+            "Failed to allocate compiled binding path in arena");
+    }
+    auto inserted = cache.plans.Insert(std::move(cacheKey), storedPlan);
     if (inserted.entry == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::OutOfMemory,
             "Failed to cache compiled binding path");
     }
-    return &inserted.entry->Value();
+    return inserted.entry->Value();
 }
 
 Base::Result<CompiledBindingPath> CompiledBindingPath::Compile(
@@ -1066,6 +1105,41 @@ Base::Result<Meta::PropertyValue> CompiledBindingPath::Get(
             "Binding path root value type is incompatible");
     }
     return GetValue(runtime, root, 0U);
+}
+
+Base::Result<Meta::PropertyValue> CompiledBindingPath::ReadSingleStep(
+    const Meta::Registry& runtime,
+    const Base::Object& object,
+    std::uint32_t stepIndex) const noexcept {
+    if (stepIndex >= steps_.Size()) {
+        return Base::Status::Failure(
+            Base::ErrorCode::OutOfRange,
+            "Binding path step index is out of range");
+    }
+    CompiledPathStep& step = steps_[stepIndex];
+    if (step.kind == Meta::BindingPathSegmentKind::CollectionIndex) {
+        const Collections::IItemsSource* items =
+            ResolveObjectItemsSource(object);
+        if (items == nullptr) {
+            return Base::Status::Failure(
+                Base::ErrorCode::InvalidArgument,
+                "Binding collection index source does not implement IItemsSource");
+        }
+        Base::Ref<Base::Object> item =
+            items->GetItem(step.collectionIndex);
+        if (!item) {
+            return Base::Status::Failure(
+                Base::ErrorCode::OutOfRange,
+                "Binding collection index is outside the collection");
+        }
+        return Meta::PropertyValue::FromObject(item->RuntimeType(), item);
+    }
+    if (step.kind != Meta::BindingPathSegmentKind::ObjectProperty) {
+        return Base::Status::Failure(
+            Base::ErrorCode::InvalidState,
+            "Binding path plan expected an object property on an object");
+    }
+    return ReadSinglePropertyStep(runtime, object, step);
 }
 
 Base::Result<Meta::PropertyValue> CompiledBindingPath::GetObject(

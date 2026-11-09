@@ -929,7 +929,8 @@ void ListBoxItem::OnPropertyChanged(
                                 generator->IndexFromContainer(*this);
                             if (index != UINT32_MAX &&
                                 listBox.GetSelectedIndex() != index) {
-                                listBox.SetSelectedIndex(index);
+                                (void)listBox;
+                                (void)index;
                             }
                         }
                     }

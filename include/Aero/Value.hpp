@@ -512,9 +512,9 @@ template<> struct ValueCodec<TypeReference, void> {
         }
         return result;
     }
-    static const TypeReference& DecodeOrDefault(const Value& value) noexcept {
+    static TypeReference DecodeOrDefault(const Value& value) noexcept {
         if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
-            return *static_cast<const TypeReference*>(value.RawInlineData());
+            return TypeReference{static_cast<TypeId>(value.AsUnsignedInteger())};
         }
         static constexpr TypeReference kDefault{};
         return kDefault;
@@ -540,9 +540,9 @@ template<> struct ValueCodec<bool, void> {
         }
         return value.AsBoolean();
     }
-    static const bool& DecodeOrDefault(const Value& value) noexcept {
+    static bool DecodeOrDefault(const Value& value) noexcept {
         if (value.Kind() == ValueKind::Boolean && value.Type() == Type()) {
-            return *static_cast<const bool*>(value.RawInlineData());
+            return value.AsBoolean();
         }
         static constexpr bool kDefault = false;
         return kDefault;
@@ -610,12 +610,12 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
         }
         return static_cast<T>(value.AsSignedInteger());
     }
-    static const T& DecodeOrDefault(const Value& value) noexcept {
+    static T DecodeOrDefault(const Value& value) noexcept {
         if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
             const std::int64_t raw = value.AsSignedInteger();
             if (raw >= static_cast<std::int64_t>(std::numeric_limits<T>::min()) &&
                 raw <= static_cast<std::int64_t>(std::numeric_limits<T>::max())) {
-                return *static_cast<const T*>(value.RawInlineData());
+                return static_cast<T>(raw);
             }
         }
         static const T kDefault{};
@@ -638,11 +638,11 @@ template<class T> struct ValueCodec<T, std::enable_if_t<
         }
         return static_cast<T>(value.AsUnsignedInteger());
     }
-    static const T& DecodeOrDefault(const Value& value) noexcept {
+    static T DecodeOrDefault(const Value& value) noexcept {
         if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
             const std::uint64_t raw = value.AsUnsignedInteger();
             if (raw <= static_cast<std::uint64_t>(std::numeric_limits<T>::max())) {
-                return *static_cast<const T*>(value.RawInlineData());
+                return static_cast<T>(raw);
             }
         }
         static const T kDefault{};
@@ -662,9 +662,9 @@ template<> struct ValueCodec<double, void> {
         }
         return value.AsDouble();
     }
-    static const double& DecodeOrDefault(const Value& value) noexcept {
+    static double DecodeOrDefault(const Value& value) noexcept {
         if (value.Kind() == ValueKind::Double && value.Type() == Type()) {
-            return *static_cast<const double*>(value.RawInlineData());
+            return value.AsDouble();
         }
         static constexpr double kDefault = 0.0;
         return kDefault;
@@ -745,18 +745,17 @@ template<class T> struct ValueCodec<T, std::enable_if_t<std::is_enum_v<T>>> {
             return static_cast<T>(static_cast<Underlying>(value.AsUnsignedInteger()));
         }
     }
-    static const T& DecodeOrDefault(const Value& value) noexcept {
+    static T DecodeOrDefault(const Value& value) noexcept {
         if constexpr (std::is_signed_v<Underlying>) {
             if (value.Kind() == ValueKind::SignedInteger && value.Type() == Type()) {
-                return *static_cast<const T*>(value.RawInlineData());
+                return static_cast<T>(static_cast<Underlying>(value.AsSignedInteger()));
             }
         } else {
             if (value.Kind() == ValueKind::UnsignedInteger && value.Type() == Type()) {
-                return *static_cast<const T*>(value.RawInlineData());
+                return static_cast<T>(static_cast<Underlying>(value.AsUnsignedInteger()));
             }
         }
-        static const T kDefault{};
-        return kDefault;
+        return T{};
     }
 };
 

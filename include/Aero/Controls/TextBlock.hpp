@@ -77,15 +77,15 @@ public:
     void ClearOwnedInlines() noexcept;
 
     AERO_DEPENDENCY_PROPERTY(String, Text);
-    inline static constexpr auto ForegroundProperty = FrameworkElementForegroundProperty;
+    inline static const auto ForegroundProperty = FrameworkElementForegroundProperty;
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Background);
     AERO_DEPENDENCY_PROPERTY(Ref<Aero::Media::Brush>, Stroke);
     // WPF exposes the same inheritable text formatting property through
     // Control and TextBlock owners. Sharing the handle here gives generated
     // text content the ComboBoxItem/Control FontSize instead of falling back
     // to an unrelated TextBlock default.
-    inline static constexpr auto FontSizeProperty = Control::FontSizeProperty;
-    inline static constexpr auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
+    inline static const auto FontSizeProperty = Control::FontSizeProperty;
+    inline static const auto FontFamilyProperty = FrameworkElement::FontFamilyProperty;
     AERO_DEPENDENCY_PROPERTY(FontWeight, FontWeight);
     AERO_DEPENDENCY_PROPERTY(FontStyle, FontStyle);
     AERO_DEPENDENCY_PROPERTY(TextDecorations, TextDecorations);

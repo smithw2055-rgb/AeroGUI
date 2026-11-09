@@ -19,10 +19,10 @@ class AERO_GUI_API TextProperties : public Base::Object {
 
 public:
     Meta::TypeId RuntimeType() const noexcept override { return StaticTypeId(); }
-    inline static constexpr Meta::AttachedPropertyRef<TextProperties, std::uint32_t> PasswordLengthProperty{"PasswordLength"};
-    inline static constexpr Meta::AttachedPropertyRef<TextProperties, Base::String> PlaceholderProperty{"Placeholder"};
-    inline static constexpr Meta::AttachedPropertyRef<TextProperties, Value> StrokeProperty{"Stroke"};
-    inline static constexpr Meta::AttachedPropertyRef<TextProperties, double> StrokeThicknessProperty{"StrokeThickness"};
+    inline static const Meta::AttachedPropertyRef<TextProperties, std::uint32_t> PasswordLengthProperty{"PasswordLength"};
+    inline static const Meta::AttachedPropertyRef<TextProperties, Base::String> PlaceholderProperty{"Placeholder"};
+    inline static const Meta::AttachedPropertyRef<TextProperties, Value> StrokeProperty{"Stroke"};
+    inline static const Meta::AttachedPropertyRef<TextProperties, double> StrokeThicknessProperty{"StrokeThickness"};
 
     static void OnCompatibilityPropertyChanged(DependencyObject& object,
         const DependencyPropertyChangedEventArgs& args) noexcept;

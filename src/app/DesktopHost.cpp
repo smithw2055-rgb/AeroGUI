@@ -620,6 +620,7 @@ Base::Result<void> LoadFromUri(
             const bool needsRender = force || frameRequested ||
                 committed || synchronized || !firstFrameRendered ||
                 (capturing && updateTimeSeconds < 1.5);
+            lastFrameActive = needsRender;
             if (!needsRender) return {};
 
             if (!renderer.RenderOffscreen()) {
@@ -733,6 +734,7 @@ Base::Result<void> LoadFromUri(
         bool firstFrameRendered = false;
         bool firstLayoutFlushed = false;
         bool frameRequested = true;
+        bool lastFrameActive = true;
         bool updateClockInitialized = false;
         std::chrono::steady_clock::time_point lastUpdate;
         double updateTimeSeconds = 0.0;
@@ -1115,10 +1117,14 @@ Base::Result<void> LoadFromUri(
             if (exitRequested) break;
 
             bool anyOpen = false;
+            std::uint32_t openCount = 0U;
+            bool anyActive = false;
             for (WindowHost* host : windows) {
                 if (host != nullptr && host->IsOpen()) {
                     anyOpen = true;
+                    ++openCount;
                     status = host->RenderFrame();
+                    anyActive = anyActive || host->lastFrameActive || host->frameRequested;
                     if (!status) return status.GetStatus();
                 }
             }
@@ -1141,7 +1147,7 @@ Base::Result<void> LoadFromUri(
                     // events. Animation or multi-window hosting uses a 16 ms
                     // timed native wait so other windows and the animation
                     // clock remain responsive without a 1 ms polling loop.
-                    const bool blockUntilEvent = false;
+                    const bool blockUntilEvent = (openCount == 1U && !anyActive);
                     waiter->WaitForActivity(16U, blockUntilEvent);
                 }
             }

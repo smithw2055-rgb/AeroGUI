@@ -327,6 +327,13 @@ private:
         DataContext
     };
 
+    struct SubStepSubscription {
+        std::uint32_t stepIndex = 0U;
+        Base::Ref<Base::Object> owner;
+        std::uint64_t notificationSubscription = 0U;
+        DependencyPropertyHandle dependencyProperty;
+    };
+
     struct BindingRecord {
         BindingHandle handle;
         BindingDescriptor descriptor;
@@ -343,6 +350,7 @@ private:
         Meta::TypeId validatedSourceType = Meta::InvalidTypeId;
         std::uint64_t notificationSubscription = 0U;
         DependencyPropertyHandle sourceDependencyProperty;
+        Base::Vector<SubStepSubscription> subStepSubscriptions;
         PropertyValue lastSourceValue;
         PropertyValue lastTargetValue;
         BindingDiagnosticStage conversionFailureStage =
@@ -440,6 +448,12 @@ private:
     Base::Result<void> SubscribeMetadataSource(
         BindingRecord& record) noexcept;
     void ReleaseMetadataSource(BindingRecord& record) noexcept;
+    void RefreshSubStepSubscriptions(
+        BindingRecord& record,
+        std::uint32_t fromStepIndex) noexcept;
+    void ReleaseSubStepSubscriptions(
+        BindingRecord& record,
+        std::uint32_t fromStepIndex) noexcept;
     void CleanupRecord(BindingRecord& record) noexcept;
     void RemoveAt(std::uint32_t index) noexcept;
 

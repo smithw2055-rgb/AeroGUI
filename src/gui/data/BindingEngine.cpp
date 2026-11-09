@@ -1657,6 +1657,32 @@ void BindingEngine::OnPropertyChanged(
             if (record->sourceDependencyProperty.IsValid() &&
                 record->metadataSource == &object &&
                 record->sourceDependencyProperty == args.GetProperty()) {
+                if (record->pathPlan != nullptr &&
+                    record->pathPlan->Steps().Size() > 1U) {
+                    RefreshSubStepSubscriptions(*record, 1U);
+                }
+                record->sourceDirty = true;
+                EnqueueDirtyRecord(*record);
+            }
+            for (std::uint32_t subIdx = 0U;
+                 subIdx < record->subStepSubscriptions.Size();
+                 ++subIdx) {
+                const SubStepSubscription& sub =
+                    record->subStepSubscriptions[subIdx];
+                if (sub.owner.Get() == &object &&
+                    sub.dependencyProperty.IsValid() &&
+                    sub.dependencyProperty == args.GetProperty()) {
+                    const std::uint32_t triggeredStep = sub.stepIndex;
+                    if (record->pathPlan != nullptr &&
+                        triggeredStep + 1U < record->pathPlan->Steps().Size()) {
+                        RefreshSubStepSubscriptions(*record, triggeredStep + 1U);
+                    }
+                    record->sourceDirty = true;
+                    EnqueueDirtyRecord(*record);
+                    break;
+                }
+            }
+            if (false) {
                 record->sourceDirty = true;
                 EnqueueDirtyRecord(*record);
             }
@@ -1699,10 +1725,99 @@ void BindingEngine::OnPropertyChanged(
 void BindingEngine::OnMetadataPropertyChanged(
     Base::Object& object,
     MemberId property) noexcept {
+    Base::BasicVector<BindingHandle, 16U> sourceHandles;
+    if (const auto* foundList = sourceToBindings_.Find(&object)) {
+        for (BindingHandle handle : *foundList) {
+            sourceHandles.PushBack(handle);
+        }
+    }
+    const Base::BasicVector<BindingHandle, 16U>* sourceList = &sourceHandles;
+    if (!sourceHandles.Empty()) {
+        for (BindingHandle handle : *sourceList) {
+            BindingRecord* record = FindRecord(handle);
+            if (record == nullptr) continue;
+            if (record->sourceKind == BindingSourceKind::DependencyProperty ||
+                record->pathPlan == nullptr ||
+                !record->pathPlan->IsValid() ||
+                record->pathPlan->Steps().Empty()) {
+                continue;
+            }
+            for (std::uint32_t subIdx = 0U;
+                 subIdx < record->subStepSubscriptions.Size();
+                 ++subIdx) {
+                const SubStepSubscription& sub =
+                    record->subStepSubscriptions[subIdx];
+                if (sub.owner.Get() == &object &&
+                    sub.stepIndex < record->pathPlan->Steps().Size()) {
+                    const CompiledPathStep& step =
+                        record->pathPlan->Steps()[sub.stepIndex];
+                    if (property == InvalidMemberId ||
+                        step.member == property ||
+                        step.dynamic) {
+                        const std::uint32_t triggeredStep = sub.stepIndex;
+                        if (triggeredStep + 1U < record->pathPlan->Steps().Size()) {
+                            RefreshSubStepSubscriptions(*record, triggeredStep + 1U);
+                        }
+                        record->sourceDirty = true;
+                        EnqueueDirtyRecord(*record);
+                        break;
+                    }
+                }
+            }
+            if (record->metadataSource == &object) {
+                const CompiledPathStep& first =
+                    record->pathPlan->Steps()[0];
+                if (property == InvalidMemberId ||
+                    first.member == property ||
+                    first.dynamic) {
+                    if (record->pathPlan->Steps().Size() > 1U) {
+                        RefreshSubStepSubscriptions(*record, 1U);
+                    }
+                    record->sourceDirty = true;
+                    EnqueueDirtyRecord(*record);
+                }
+            }
+        }
+    }
+}
+
+
+#if 0
+static void UnusedOnMetadataPropertyChangedTail(
+    Base::Object& object,
+    MemberId property) noexcept {
     if (const auto* sourceList = sourceToBindings_.Find(&object)) {
         for (BindingHandle handle : *sourceList) {
             BindingRecord* record = FindRecord(handle);
             if (record == nullptr) continue;
+            if (record->sourceKind == BindingSourceKind::DependencyProperty ||
+                record->pathPlan == nullptr ||
+                !record->pathPlan->IsValid() ||
+                record->pathPlan->Steps().Empty()) {
+                continue;
+            }
+            for (std::uint32_t subIdx = 0U;
+                 subIdx < record->subStepSubscriptions.Size();
+                 ++subIdx) {
+                const SubStepSubscription& sub =
+                    record->subStepSubscriptions[subIdx];
+                if (sub.owner.Get() == &object &&
+                    sub.stepIndex < record->pathPlan->Steps().Size()) {
+                    const CompiledPathStep& step =
+                        record->pathPlan->Steps()[sub.stepIndex];
+                    if (property == InvalidMemberId ||
+                        step.member == property ||
+                        step.dynamic) {
+                        const std::uint32_t triggeredStep = sub.stepIndex;
+                        if (triggeredStep + 1U < record->pathPlan->Steps().Size()) {
+                            RefreshSubStepSubscriptions(*record, triggeredStep + 1U);
+                        }
+                        record->sourceDirty = true;
+                        EnqueueDirtyRecord(*record);
+                        break;
+                    }
+                }
+            }
             if (record->sourceKind == BindingSourceKind::DependencyProperty ||
                 record->metadataSource != &object ||
                 record->pathPlan == nullptr ||
@@ -1715,6 +1830,9 @@ void BindingEngine::OnMetadataPropertyChanged(
             if (property == InvalidMemberId ||
                 first.member == property ||
                 first.dynamic) {
+                if (record->pathPlan->Steps().Size() > 1U) {
+                    RefreshSubStepSubscriptions(*record, 1U);
+                }
                 record->sourceDirty = true;
                 EnqueueDirtyRecord(*record);
             }
@@ -1722,6 +1840,7 @@ void BindingEngine::OnMetadataPropertyChanged(
     }
 }
 
+#endif
 void BindingEngine::MetadataPropertyChanged(
     Base::Object& object,
     MemberId property,
@@ -2021,11 +2140,15 @@ Base::Result<void> BindingEngine::ResolveMetadataSource(
     AddSourceBinding(record.metadataSource, record.handle);
     Base::Result<void> subscribed =
         SubscribeMetadataSource(record);
-    if (!subscribed) {
+    if (!subscribed) { /*
+        */
+    ReleaseSubStepSubscriptions(record, 0U);
+    if (record.metadataSource != nullptr) {
         RemoveSourceBinding(record.metadataSource, record.handle);
         record.metadataSource = nullptr;
         record.pathPlan = nullptr;
         return subscribed.GetStatus();
+    }
     }
     record.sourceDirty = true;
     record.applied = false;
@@ -2101,12 +2224,154 @@ Base::Result<void> BindingEngine::SubscribeMetadataSource(
                 }
             }
         }
+        if (record.pathPlan->Steps().Size() > 1U) {
+            RefreshSubStepSubscriptions(record, 1U);
+        }
+    }
+    return {};
+}
+
+void BindingEngine::ReleaseSubStepSubscriptions(
+    BindingRecord& record,
+    std::uint32_t fromStepIndex) noexcept {
+    std::uint32_t writeIdx = 0U;
+    for (std::uint32_t i = 0U; i < record.subStepSubscriptions.Size(); ++i) {
+        SubStepSubscription& sub = record.subStepSubscriptions[i];
+        if (sub.stepIndex < fromStepIndex) {
+            if (writeIdx != i) {
+                record.subStepSubscriptions[writeIdx] = std::move(sub);
+            }
+            ++writeIdx;
+            continue;
+        }
+        Base::Object* ownerPtr = sub.owner.Get();
+        if (ownerPtr != nullptr) {
+            if (sub.dependencyProperty.IsValid()) {
+                if (auto* depObj = ::Aero::TryCast<::Aero::DependencyObject>(ownerPtr)) {
+                    (void)depObj->RemoveValueChangedHandler(
+                        sub.dependencyProperty,
+                        propertyChangedHandler_);
+                }
+            }
+            if (sub.notificationSubscription != 0U && record.metadata != nullptr) {
+                (void)record.metadata->UnsubscribePropertyChanged(
+                    *ownerPtr,
+                    sub.notificationSubscription);
+            }
+        }
+        sub.owner.Reset();
+        bool stillUsed = (record.metadataSource == ownerPtr);
+        if (!stillUsed && ownerPtr != nullptr) {
+            for (std::uint32_t j = 0U; j < writeIdx; ++j) {
+                if (record.subStepSubscriptions[j].owner.Get() == ownerPtr) {
+                    stillUsed = true;
+                    break;
+                }
+            }
+        }
+        if (!stillUsed && ownerPtr != nullptr) {
+            RemoveSourceBinding(ownerPtr, record.handle);
+        }
+    }
+    while (record.subStepSubscriptions.Size() > writeIdx) {
+        record.subStepSubscriptions.Erase(record.subStepSubscriptions.Size() - 1U);
+    }
+}
+
+void BindingEngine::RefreshSubStepSubscriptions(
+    BindingRecord& record,
+    std::uint32_t fromStepIndex) noexcept {
+    ReleaseSubStepSubscriptions(record, fromStepIndex);
+    if (record.bindsToSource ||
+        record.metadata == nullptr ||
+        record.metadataSource == nullptr ||
+        record.pathPlan == nullptr ||
+        !record.pathPlan->IsValid()) {
+        return;
+    }
+    const Base::Span<const CompiledPathStep> steps = record.pathPlan->Steps();
+    if (steps.Size() <= 1U) {
+        return;
+    }
+    const Base::Object* currentObj = record.metadataSource;
+    for (std::uint32_t stepIdx = 0U; stepIdx + 1U < steps.Size(); ++stepIdx) {
+        if (currentObj == nullptr) {
+            break;
+        }
+        Base::Result<PropertyValue> stepVal =
+            record.pathPlan->ReadSingleStep(*record.metadata, *currentObj, stepIdx);
+        if (!stepVal ||
+            stepVal.Value().Kind() != ValueKind::Object ||
+            stepVal.Value().IsNullObject()) {
+            break;
+        }
+        Base::Ref<Base::Object> nextObj = stepVal.Value().AsObject();
+        const std::uint32_t nextStepIdx = stepIdx + 1U;
+        if (nextStepIdx >= fromStepIndex && nextObj) {
+            SubStepSubscription sub{};
+            sub.stepIndex = nextStepIdx;
+            sub.owner = nextObj;
+            Base::Result<std::uint64_t> notifySub =
+                record.metadata->SubscribePropertyChanged(
+                    *nextObj,
+                    &BindingEngine::MetadataPropertyChanged,
+                    this);
+            if (notifySub) {
+                sub.notificationSubscription = notifySub.Value();
+            }
+            if (auto* depObj = ::Aero::TryCast<::Aero::DependencyObject>(nextObj.Get())) {
+                const CompiledPathStep& nextStep = steps[nextStepIdx];
+                if (!nextStep.dynamic && nextStep.dependencyProperty != nullptr) {
+                    const DependencyPropertyHandle handle =
+                        nextStep.dependencyProperty->Handle();
+                    depObj->AddValueChangedHandler(handle, propertyChangedHandler_);
+                    sub.dependencyProperty = handle;
+                } else if (!nextStep.dynamic) {
+                    const Meta::DependencyProperty* dp = nullptr;
+                    if (nextStep.member != InvalidMemberId) {
+                        dp = DependencyObjectAccess::PropertyRegistry(depObj).Find(
+                            DependencyPropertyHandle{nextStep.member});
+                    }
+                    if (dp == nullptr && !nextStep.propertyName.Empty()) {
+                        dp = DependencyObjectAccess::PropertyRegistry(depObj).Find(
+                            depObj->RuntimeType(), nextStep.propertyName.View());
+                    }
+                    if (dp != nullptr) {
+                        const DependencyPropertyHandle canonicalHandle = dp->Handle();
+                        depObj->AddValueChangedHandler(
+                            canonicalHandle, propertyChangedHandler_);
+                        sub.dependencyProperty = canonicalHandle;
+                    }
+                }
+            }
+            AddSourceBinding(nextObj.Get(), record.handle);
+            record.subStepSubscriptions.PushBack(std::move(sub));
+        }
+        currentObj = nextObj.Get();
+    }
+}
+
+static Base::Result<void> UnusedSubscribeMetadataSourceTail() noexcept {
+    if (false) {
+        if (false) {
+            if (false) {
+                if (false) {
+                }
+            }
+        }
     }
     return {};
 }
 
 void BindingEngine::ReleaseMetadataSource(
     BindingRecord& record) noexcept {
+    ReleaseSubStepSubscriptions(record, 0U);
+    /*
+
+    BindingRecord& record) noexcept {
+    if (record.metadataSource != nullptr) {
+        */
+    ReleaseSubStepSubscriptions(record, 0U);
     if (record.metadataSource != nullptr) {
         RemoveSourceBinding(record.metadataSource, record.handle);
     }

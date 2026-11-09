@@ -159,8 +159,13 @@ public:
         if (target == nullptr) {
             return false;
         }
-        if (treeIn_ != 0U && target->treeIn_ != 0U && !manualInterval_ && !target->manualInterval_) {
-            return treeIn_ >= target->treeIn_ && treeIn_ <= target->treeOut_;
+        if (!manualInterval_ && !target->manualInterval_) {
+            if (treeIn_ == 0U || target->treeIn_ == 0U) {
+                EnsureEulerTourReady();
+            }
+            if (treeIn_ != 0U && target->treeIn_ != 0U) {
+                return treeIn_ >= target->treeIn_ && treeIn_ <= target->treeOut_;
+            }
         }
         for (const TypeClass* current = base_; current != nullptr; current = current->base_) {
             if (current == target) {
@@ -173,7 +178,11 @@ public:
     void AddProperty(const TypeProperty* prop) const noexcept;
     const TypeProperty* FindProperty(StringView name, bool inherit = true) const noexcept;
     const TypeProperty* FindPropertyById(MetaMemberId memberId, bool inherit = true) const noexcept;
-    TypePropertySlice Properties() const noexcept { return {props_, propCount_}; }
+    TypePropertySlice Properties() const noexcept {
+        return {overflowProps_ != nullptr ? overflowProps_ : props_, propCount_};
+    }
+
+    static void EnsureEulerTourReady() noexcept;
 
     static const TypeClass* FindById(MetaTypeId typeId) noexcept;
     static const TypeClass* FindByDenseIndex(std::uint16_t denseIndex) noexcept;
@@ -192,9 +201,11 @@ private:
     mutable std::uint16_t treeIn_ = 0U;
     mutable std::uint16_t treeOut_ = 0U;
     mutable std::uint16_t propCount_ = 0U;
+    mutable std::uint16_t overflowCap_ = 0U;
     mutable bool manualInterval_ = false;
     mutable const TypeClass* firstChild_ = nullptr;
     mutable const TypeClass* nextSibling_ = nullptr;
+    mutable const TypeProperty** overflowProps_ = nullptr;
     mutable const TypeProperty* props_[kMaxInlineProperties]{};
 };
 

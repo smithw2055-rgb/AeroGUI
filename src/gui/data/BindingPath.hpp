@@ -188,6 +188,11 @@ public:
         Meta::PropertyValue& root,
         const Meta::PropertyValue& value) const noexcept;
 
+    Base::Result<Meta::PropertyValue> ReadSingleStep(
+        const Meta::Registry& runtime,
+        const Base::Object& object,
+        std::uint32_t stepIndex) const noexcept;
+
 private:
     static void ClearStepCache(CompiledPathStep& step) noexcept;
     static void PopulateStepCache(

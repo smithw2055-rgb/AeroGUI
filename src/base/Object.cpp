@@ -177,6 +177,8 @@ void ExpireControlBlock(ObjectControlBlock* control) noexcept {
     }
 }
 
+std::atomic<bool> g_eulerTourDirty{true};
+
 } // namespace
 
 void RecomputeTypeClassEulerTourLocked() noexcept {
@@ -256,7 +258,18 @@ TypeClass::TypeClass(
         nextSibling_ = g_rootTypeClasses;
         g_rootTypeClasses = this;
     }
-    RecomputeTypeClassEulerTourLocked();
+    g_eulerTourDirty.store(true, std::memory_order_release);
+}
+
+void TypeClass::EnsureEulerTourReady() noexcept {
+    if (!g_eulerTourDirty.load(std::memory_order_acquire)) {
+        return;
+    }
+    TypeClassSpinGuard lock;
+    if (g_eulerTourDirty.load(std::memory_order_relaxed)) {
+        RecomputeTypeClassEulerTourLocked();
+        g_eulerTourDirty.store(false, std::memory_order_release);
+    }
 }
 
 void TypeClass::AddProperty(const TypeProperty* prop) const noexcept {
@@ -264,21 +277,49 @@ void TypeClass::AddProperty(const TypeProperty* prop) const noexcept {
         return;
     }
     TypeClassSpinGuard lock;
+    const TypeProperty** active = overflowProps_ != nullptr ? overflowProps_ : props_;
     for (std::uint16_t i = 0U; i < propCount_; ++i) {
-        if (props_[i] == prop || props_[i]->Name() == prop->Name()) {
-            props_[i] = prop;
+        if (active[i] == prop || active[i]->Name() == prop->Name()) {
+            active[i] = prop;
             return;
         }
     }
-    if (propCount_ < kMaxInlineProperties) {
-        props_[propCount_++] = prop;
+    if (overflowProps_ == nullptr) {
+        if (propCount_ < kMaxInlineProperties) {
+            props_[propCount_++] = prop;
+            return;
+        }
+        const std::uint16_t newCap = static_cast<std::uint16_t>(kMaxInlineProperties * 2U);
+        auto* grown = new (std::nothrow) const TypeProperty*[newCap]{};
+        if (grown == nullptr) {
+            return;
+        }
+        for (std::uint16_t i = 0U; i < propCount_; ++i) {
+            grown[i] = props_[i];
+        }
+        overflowProps_ = grown;
+        overflowCap_ = newCap;
+    } else if (propCount_ >= overflowCap_) {
+        const std::uint16_t newCap = static_cast<std::uint16_t>(overflowCap_ * 2U);
+        auto* grown = new (std::nothrow) const TypeProperty*[newCap]{};
+        if (grown == nullptr) {
+            return;
+        }
+        for (std::uint16_t i = 0U; i < propCount_; ++i) {
+            grown[i] = overflowProps_[i];
+        }
+        delete[] overflowProps_;
+        overflowProps_ = grown;
+        overflowCap_ = newCap;
     }
+    overflowProps_[propCount_++] = prop;
 }
 
 const TypeProperty* TypeClass::FindProperty(StringView name, bool inherit) const noexcept {
     for (const TypeClass* current = this; current != nullptr; current = inherit ? current->base_ : nullptr) {
+        const TypeProperty* const* active = current->overflowProps_ != nullptr ? current->overflowProps_ : current->props_;
         for (std::uint16_t i = 0U; i < current->propCount_; ++i) {
-            const TypeProperty* prop = current->props_[i];
+            const TypeProperty* prop = active[i];
             if (prop != nullptr && prop->Name() == name) {
                 return prop;
             }
@@ -292,8 +333,9 @@ const TypeProperty* TypeClass::FindPropertyById(MetaMemberId memberId, bool inhe
         return nullptr;
     }
     for (const TypeClass* current = this; current != nullptr; current = inherit ? current->base_ : nullptr) {
+        const TypeProperty* const* active = current->overflowProps_ != nullptr ? current->overflowProps_ : current->props_;
         for (std::uint16_t i = 0U; i < current->propCount_; ++i) {
-            const TypeProperty* prop = current->props_[i];
+            const TypeProperty* prop = active[i];
             if (prop != nullptr && prop->Id() == memberId) {
                 return prop;
             }

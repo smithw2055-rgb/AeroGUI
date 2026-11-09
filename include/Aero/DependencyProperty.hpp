@@ -37,6 +37,15 @@ AERO_GUI_API std::uint16_t ResolveRegisteredPropertyGlobalIndex(MemberId member)
 
 constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(TypeId ownerType, StringView name) noexcept;
 AERO_GUI_API DependencyPropertyHandle ResolveDependencyPropertyHandle(DependencyPropertyHandle handle) noexcept;
+AERO_GUI_API const Value* ResolveRegisteredPropertyDefaultValue(
+    DependencyPropertyHandle handle,
+    const Base::TypeClass* ownerType,
+    bool onlyIfOverridden = false) noexcept;
+
+template<class T> using PropertyAccess = std::conditional_t<
+    (std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_same_v<T, TypeReference>),
+    T,
+    const T&>;
 
 template<class TValue, bool IsLiteral = (std::is_trivially_destructible_v<TValue> && std::is_default_constructible_v<TValue>)>
 struct TypedPropertyDefaultStorage {
@@ -60,9 +69,18 @@ struct TypedPropertyDefaultStorage<TValue, false> {
         return kDefault;
     }
     void Set(const TValue& value) const noexcept {
-        static TValue s_default;
-        s_default = value;
-        defaultValuePtr = &s_default;
+        static constexpr std::uint32_t kMaxSlots = 256U;
+        static TValue s_slots[kMaxSlots];
+        static std::uint32_t s_nextSlot = 0U;
+        if (defaultValuePtr >= &s_slots[0] && defaultValuePtr < &s_slots[kMaxSlots]) {
+            *const_cast<TValue*>(defaultValuePtr) = value;
+            return;
+        }
+        if (s_nextSlot < kMaxSlots) {
+            TValue& slot = s_slots[s_nextSlot++];
+            slot = value;
+            defaultValuePtr = &slot;
+        }
     }
 };
 
@@ -72,21 +90,23 @@ public:
     using ValueType = TValue;
 
     constexpr explicit TypedDependencyProperty(MemberId id) noexcept
-        : id_(id), canonicalId_(id), globalIndex_(0xFFFFU), defaultStorage_{} {}
+        : id_(id), canonicalId_(id), globalIndex_(0xFFFFU), hasExplicitDefault_(false), defaultStorage_{} {}
 
     constexpr TypedDependencyProperty(MemberId id, TValue defaultValue) noexcept
-        : id_(id), canonicalId_(id), globalIndex_(0xFFFFU), defaultStorage_(defaultValue) {}
+        : id_(id), canonicalId_(id), globalIndex_(0xFFFFU), hasExplicitDefault_(true), defaultStorage_(defaultValue) {}
 
     constexpr TypedDependencyProperty(TypeId ownerType, StringView name) noexcept
         : id_(MakeMemberId(ownerType, MemberKind::Property, name)),
           canonicalId_(id_),
           globalIndex_(0xFFFFU),
+          hasExplicitDefault_(false),
           defaultStorage_{} {}
 
     constexpr TypedDependencyProperty(TypeId ownerType, StringView name, TValue defaultValue) noexcept
         : id_(MakeMemberId(ownerType, MemberKind::Property, name)),
           canonicalId_(id_),
           globalIndex_(0xFFFFU),
+          hasExplicitDefault_(true),
           defaultStorage_(defaultValue) {}
 
     constexpr MemberId Id() const noexcept { return id_; }
@@ -108,19 +128,36 @@ public:
 
     operator DependencyPropertyHandle() const noexcept { return ResolvedHandle(); }
 
-    const TValue& DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
-        static_cast<void>(ownerType);
+    PropertyAccess<TValue> DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
+        if (ownerType != nullptr || !hasExplicitDefault_) {
+            if (const Value* metaDefault =
+                    ResolveRegisteredPropertyDefaultValue(ResolvedHandle(), ownerType, hasExplicitDefault_)) {
+                if constexpr (std::is_same_v<TValue, String>) {
+                    if (metaDefault->Kind() == ValueKind::String) {
+                        defaultStorage_.Set(ValueCodec<String>::DecodeOrDefault(*metaDefault));
+                        if (!hasExplicitDefault_ && ownerType == nullptr) {
+                            hasExplicitDefault_ = true;
+                        }
+                        return defaultStorage_.Get();
+                    }
+                } else {
+                    return ValueCodec<TValue>::DecodeOrDefault(*metaDefault);
+                }
+            }
+        }
         return defaultStorage_.Get();
     }
 
     void SetDefaultValue(const TValue& value) const noexcept {
         defaultStorage_.Set(value);
+        hasExplicitDefault_ = true;
     }
 
 private:
     MemberId id_ = InvalidMemberId;
     mutable MemberId canonicalId_ = InvalidMemberId;
     mutable std::uint16_t globalIndex_ = 0xFFFFU;
+    mutable bool hasExplicitDefault_ = false;
     TypedPropertyDefaultStorage<TValue> defaultStorage_{};
 };
 
@@ -140,8 +177,11 @@ public:
     constexpr const TypedDependencyProperty<TValue>* Ptr() const noexcept { return &typed_; }
     constexpr const TypedDependencyProperty<TValue>* operator->() const noexcept { return &typed_; }
     std::uint16_t GlobalIndex() const noexcept { return typed_.GlobalIndex(); }
-    const TValue& DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
+    PropertyAccess<TValue> DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
         return typed_.DefaultValue(ownerType);
+    }
+    void SetDefaultValue(const TValue& value) const noexcept {
+        typed_.SetDefaultValue(value);
     }
     operator DependencyPropertyHandle() const noexcept { return typed_.ResolvedHandle(); }
     constexpr MemberId Id() const noexcept { return handle_.value; }
@@ -177,8 +217,11 @@ public:
     constexpr const TypedDependencyProperty<TValue>* Ptr() const noexcept { return &typed_; }
     constexpr const TypedDependencyProperty<TValue>* operator->() const noexcept { return &typed_; }
     std::uint16_t GlobalIndex() const noexcept { return typed_.GlobalIndex(); }
-    const TValue& DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
+    PropertyAccess<TValue> DefaultValue(const Base::TypeClass* ownerType = nullptr) const noexcept {
         return typed_.DefaultValue(ownerType);
+    }
+    void SetDefaultValue(const TValue& value) const noexcept {
+        typed_.SetDefaultValue(value);
     }
     constexpr MemberId Id() const noexcept { return handle_.value; }
 
@@ -188,7 +231,7 @@ private:
     DependencyPropertyHandle handle_;
 };
 
-template<class T> using PropertyAccess = std::conditional_t<std::is_same_v<T, float>, float, const T&>;
+// PropertyAccess<T> is defined above TypedDependencyProperty.
 
 constexpr DependencyPropertyHandle MakeDependencyPropertyHandle(TypeId ownerType,
     StringView name) noexcept { return {MakeMemberId(ownerType, MemberKind::Property, name)}; }
@@ -522,27 +565,27 @@ using Meta::ValueCodec;
 } // namespace Aero
 
 #define AERO_DEPENDENCY_PROPERTY(type, name) \
-    inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}
+    inline static const ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}
 
 #define AERO_ATTACHED_PROPERTY(type, name) \
-    inline static constexpr ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}
+    inline static const ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}
 
 #define AERO_READONLY_PROPERTY(type, name) \
-    inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}
+    inline static const ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}
 
 #define AERO_DEPENDENCY_PROPERTY2(type, name) \
-    inline static constexpr ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}; \
+    inline static const ::Aero::Meta::DependencyPropertyRef<Self, type> name##Property{#name}; \
     typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name() const noexcept { return this->GetValue(name##Property); } \
     void Set##name(typename ::Aero::Meta::PropParamTraits<type>::SetParam value) noexcept { \
         this->SetValue(name##Property, value); \
     }
 
 #define AERO_READONLY_PROPERTY2(type, name) \
-    inline static constexpr ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}; \
+    inline static const ::Aero::Meta::ReadOnlyPropertyRef<Self, type> name##Property{#name}; \
     typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name() const noexcept { return this->GetValue(name##Property); }
 
 #define AERO_ATTACHED_PROPERTY2(type, name) \
-    inline static constexpr ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}; \
+    inline static const ::Aero::Meta::AttachedPropertyRef<Self, type> name##Property{#name}; \
     static typename ::Aero::Meta::PropParamTraits<type>::GetReturn Get##name(const ::Aero::DependencyObject& element) noexcept { \
         return element.GetValue(name##Property); \
     } \

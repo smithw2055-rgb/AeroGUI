@@ -67,7 +67,7 @@ public:
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::Base::Thickness, Padding);
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::HorizontalAlignment, HorizontalContentAlignment);
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::VerticalAlignment, VerticalContentAlignment);
-    inline static constexpr auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
+    inline static const auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
     Ref<Aero::Media::Brush> GetForeground() const noexcept { return GetValue(ForegroundProperty); }
     void SetForeground(Ref<Aero::Media::Brush> value) noexcept { SetValue(ForegroundProperty, std::move(value)); }
     AERO_DEPENDENCY_PROPERTY_INLINE(double, FontSize);
@@ -119,8 +119,8 @@ private:
 
     UIElement* templateChild_ = nullptr;
 
-    std::uint32_t templateGeneration_ = 0U;
     std::uint32_t templateInstanceIndex_ = UINT32_MAX;
+    std::uint16_t templateGeneration_ = 0U;
     bool templateApplied_ = false;
 };
 

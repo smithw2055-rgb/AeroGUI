@@ -12,6 +12,15 @@ public:
     AERO_VM_PROPERTY(int, Score, 42)
     AERO_VM_PROPERTY(Aero::String, Title, "Initial")
 };
+
+class PlanAParentViewModel final : public Aero::ViewModelBase {
+    AERO_REFLECT_INLINE(PlanAParentViewModel, Aero::ViewModelBase) {
+        AERO_BIND_PROPERTY(Child, &Self::GetChild, &Self::SetChild);
+    }
+
+public:
+    AERO_VM_PROPERTY(Aero::Ref<PlanAReflectedViewModel>, Child, nullptr)
+};
 } // namespace
 
 bool TestGalleryXamlSurface() {
@@ -2190,6 +2199,161 @@ bool TestArchitectureRefactoringValidation() {
         testBtn->SetBorderThickness(2.0);
         const Aero::Thickness expectedBorder{2.0, 2.0, 2.0, 2.0};
         CHECK(testBtn->GetBorderThickness() == expectedBorder);
+
+        // Verify arithmetic and enum GetValue return by value (no strict-aliasing UB or scratch ring dangling ref)
+        static_assert(std::is_same_v<
+            decltype(testBtn->GetValue(Aero::Controls::Control::FontSizeProperty)),
+            double>,
+            "GetValue(DependencyPropertyRef<Control, double>) must return double by value");
+        static_assert(std::is_same_v<
+            decltype(testBtn->GetValue(Aero::Controls::Control::FontWeightProperty)),
+            Aero::FontWeight>,
+            "GetValue(DependencyPropertyRef<Control, FontWeight>) must return FontWeight by value");
+
+        // Verify distinct TypedPropertyDefaultStorage<String, false> slots do not overwrite each other
+        auto testPwd = MakeRef<Aero::Controls::PasswordBox>();
+        auto testBox = MakeRef<Aero::Controls::TextBox>();
+        CHECK(testPwd != nullptr && testBox != nullptr);
+        CHECK(!testPwd->GetPasswordChar().Empty());
+        CHECK(testBox->GetText() != testPwd->GetPasswordChar());
+
+        // Verify TypeClass overflowProps_ dynamic expansion beyond 48 properties
+        static Aero::TypeClass dummyManyProps("ManyPropsType", "Test.ManyPropsType", Aero::Base::Object::StaticClassType(), nullptr);
+        static char s_propNames[60][16];
+        static Aero::TypeProperty s_props[60] = {
+            Aero::TypeProperty("P0", 1000U, nullptr, nullptr),
+            Aero::TypeProperty("P1", 1001U, nullptr, nullptr),
+            Aero::TypeProperty("P2", 1002U, nullptr, nullptr),
+            Aero::TypeProperty("P3", 1003U, nullptr, nullptr),
+            Aero::TypeProperty("P4", 1004U, nullptr, nullptr),
+            Aero::TypeProperty("P5", 1005U, nullptr, nullptr),
+            Aero::TypeProperty("P6", 1006U, nullptr, nullptr),
+            Aero::TypeProperty("P7", 1007U, nullptr, nullptr),
+            Aero::TypeProperty("P8", 1008U, nullptr, nullptr),
+            Aero::TypeProperty("P9", 1009U, nullptr, nullptr),
+            Aero::TypeProperty("P10", 1010U, nullptr, nullptr),
+            Aero::TypeProperty("P11", 1011U, nullptr, nullptr),
+            Aero::TypeProperty("P12", 1012U, nullptr, nullptr),
+            Aero::TypeProperty("P13", 1013U, nullptr, nullptr),
+            Aero::TypeProperty("P14", 1014U, nullptr, nullptr),
+            Aero::TypeProperty("P15", 1015U, nullptr, nullptr),
+            Aero::TypeProperty("P16", 1016U, nullptr, nullptr),
+            Aero::TypeProperty("P17", 1017U, nullptr, nullptr),
+            Aero::TypeProperty("P18", 1018U, nullptr, nullptr),
+            Aero::TypeProperty("P19", 1019U, nullptr, nullptr),
+            Aero::TypeProperty("P20", 1020U, nullptr, nullptr),
+            Aero::TypeProperty("P21", 1021U, nullptr, nullptr),
+            Aero::TypeProperty("P22", 1022U, nullptr, nullptr),
+            Aero::TypeProperty("P23", 1023U, nullptr, nullptr),
+            Aero::TypeProperty("P24", 1024U, nullptr, nullptr),
+            Aero::TypeProperty("P25", 1025U, nullptr, nullptr),
+            Aero::TypeProperty("P26", 1026U, nullptr, nullptr),
+            Aero::TypeProperty("P27", 1027U, nullptr, nullptr),
+            Aero::TypeProperty("P28", 1028U, nullptr, nullptr),
+            Aero::TypeProperty("P29", 1029U, nullptr, nullptr),
+            Aero::TypeProperty("P30", 1030U, nullptr, nullptr),
+            Aero::TypeProperty("P31", 1031U, nullptr, nullptr),
+            Aero::TypeProperty("P32", 1032U, nullptr, nullptr),
+            Aero::TypeProperty("P33", 1033U, nullptr, nullptr),
+            Aero::TypeProperty("P34", 1034U, nullptr, nullptr),
+            Aero::TypeProperty("P35", 1035U, nullptr, nullptr),
+            Aero::TypeProperty("P36", 1036U, nullptr, nullptr),
+            Aero::TypeProperty("P37", 1037U, nullptr, nullptr),
+            Aero::TypeProperty("P38", 1038U, nullptr, nullptr),
+            Aero::TypeProperty("P39", 1039U, nullptr, nullptr),
+            Aero::TypeProperty("P40", 1040U, nullptr, nullptr),
+            Aero::TypeProperty("P41", 1041U, nullptr, nullptr),
+            Aero::TypeProperty("P42", 1042U, nullptr, nullptr),
+            Aero::TypeProperty("P43", 1043U, nullptr, nullptr),
+            Aero::TypeProperty("P44", 1044U, nullptr, nullptr),
+            Aero::TypeProperty("P45", 1045U, nullptr, nullptr),
+            Aero::TypeProperty("P46", 1046U, nullptr, nullptr),
+            Aero::TypeProperty("P47", 1047U, nullptr, nullptr),
+            Aero::TypeProperty("P48", 1048U, nullptr, nullptr),
+            Aero::TypeProperty("P49", 1049U, nullptr, nullptr),
+            Aero::TypeProperty("P50", 1050U, nullptr, nullptr),
+            Aero::TypeProperty("P51", 1051U, nullptr, nullptr),
+            Aero::TypeProperty("P52", 1052U, nullptr, nullptr),
+            Aero::TypeProperty("P53", 1053U, nullptr, nullptr),
+            Aero::TypeProperty("P54", 1054U, nullptr, nullptr),
+            Aero::TypeProperty("P55", 1055U, nullptr, nullptr),
+            Aero::TypeProperty("P56", 1056U, nullptr, nullptr),
+            Aero::TypeProperty("P57", 1057U, nullptr, nullptr),
+            Aero::TypeProperty("P58", 1058U, nullptr, nullptr),
+            Aero::TypeProperty("P59", 1059U, nullptr, nullptr)
+        };
+        (void)s_propNames;
+        for (std::uint32_t i = 0U; i < 60U; ++i) {
+            dummyManyProps.AddProperty(&s_props[i]);
+        }
+        CHECK(dummyManyProps.Properties().Size() == 60U);
+        CHECK(dummyManyProps.FindProperty("P0") != nullptr);
+        CHECK(dummyManyProps.FindProperty("P59") != nullptr);
+
+        // Verify multi-step binding path ("Child.Title") subscribes to leaf NotifyPropertyChanged and intermediate replacement
+        {
+            constexpr const char* kMultiStepXaml = R"(
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <TextBlock x:Name="BoundLabel" Text="{Binding Child.Title}"/>
+</Grid>)";
+            static const Aero::ModuleRegistration s_planAModule =
+                Aero::DefineModule(
+                    "Aero.PlanAReflectionModule",
+                    [](Aero::Meta::Registration& reg) noexcept -> Result<void> {
+                        return Aero::Meta::RegisterComponentTypes<
+                            PlanAReflectedViewModel,
+                            PlanAParentViewModel>(reg);
+                    });
+            auto* planALive = new LiveGui();
+            CHECK(planALive->gui.AddModule(s_planAModule));
+            CHECK(planALive->gui.Initialize());
+            Result<Ref<View>> planAViewRes = planALive->gui.CreateView();
+            CHECK(planAViewRes.HasValue() && planAViewRes.Value() != nullptr);
+            planALive->view = std::move(planAViewRes).Value();
+
+            Aero::Markup::XamlReader reader(planALive->gui);
+            Result<Aero::Markup::XamlDocument> doc = reader.Parse(StringView(kMultiStepXaml), {}, {}, &planALive->diagnostics);
+            CHECK(doc.HasValue());
+            Grid* rootGrid = doc.Value().Root<Grid>();
+            TextBlock* boundLabel = doc.Value().FindName<TextBlock>("BoundLabel");
+            CHECK(rootGrid != nullptr && boundLabel != nullptr);
+
+            auto parentVm = MakeRef<PlanAParentViewModel>();
+            auto childVm1 = MakeRef<PlanAReflectedViewModel>();
+            Aero::String titleStr;
+            CHECK(titleStr.Assign("ChildOne"));
+            childVm1->SetTitle(titleStr);
+            parentVm->SetChild(childVm1);
+            rootGrid->SetDataContext(Aero::Ref<Aero::Base::Object>(parentVm));
+
+            CHECK(planALive->view->SetContent(std::move(doc).Value(), {400.0, 200.0}));
+            planALive->viewTime += 0.016;
+            Pump(*planALive->view, planALive->viewTime);
+            CHECK(boundLabel->GetText() == "ChildOne");
+
+            // Mutate leaf property directly on childVm1 without touching parentVm
+            CHECK(titleStr.Assign("ChildOneUpdated"));
+            childVm1->SetTitle(titleStr);
+            planALive->viewTime += 0.016;
+            Pump(*planALive->view, planALive->viewTime);
+            CHECK(boundLabel->GetText() == "ChildOneUpdated");
+
+            // Replace intermediate Child object on parentVm, then mutate new child
+            auto childVm2 = MakeRef<PlanAReflectedViewModel>();
+            CHECK(titleStr.Assign("ChildTwo"));
+            childVm2->SetTitle(titleStr);
+            parentVm->SetChild(childVm2);
+            planALive->viewTime += 0.016;
+            Pump(*planALive->view, planALive->viewTime);
+            CHECK(boundLabel->GetText() == "ChildTwo");
+
+            CHECK(titleStr.Assign("ChildTwoUpdated"));
+            childVm2->SetTitle(titleStr);
+            planALive->viewTime += 0.016;
+            Pump(*planALive->view, planALive->viewTime);
+            CHECK(boundLabel->GetText() == "ChildTwoUpdated");
+        }
     }
 
     return true;

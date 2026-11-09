@@ -39,9 +39,9 @@ public:
     // Same DP as HeaderedItemsControl so ContentSource="Header" TemplateBindings
     // and SetHeader share one store. A second Header DP left PART_Header empty
     // for generated SampleTemplate visuals.
-    inline static constexpr auto HeaderProperty = HeaderedItemsControl::HeaderProperty;
+    inline static const auto HeaderProperty = HeaderedItemsControl::HeaderProperty;
     AERO_DEPENDENCY_PROPERTY(String, Icon);
-    inline static constexpr auto HeaderTemplateProperty = HeaderedItemsControl::HeaderTemplateProperty;
+    inline static const auto HeaderTemplateProperty = HeaderedItemsControl::HeaderTemplateProperty;
     AERO_DEPENDENCY_PROPERTY(bool, IsExpanded);
     AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
     inline static constexpr RoutedEvent<RoutedEventArgs> ExpandedEvent{"Expanded"};

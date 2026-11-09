@@ -47,24 +47,13 @@ void UIElement::ArrangeChild(
     Rect finalRect) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
-    if (layout == nullptr || !child.GetIsLayoutAttached() ||
-        child.LayoutParent() != this) {
-        const auto* parentInfo = DependencyObjectAccess::PropertyRegistry(*this).Types().FindType(RuntimeType());
-        const auto* childInfo = DependencyObjectAccess::PropertyRegistry(child).Types().FindType(child.RuntimeType());
-        std::fprintf(stderr,
-            "ArrangeChild unattached: parent=%p (%.*s) child=%p (%.*s) layout=%p isAttached=%d layoutParent=%p visualParent=%p\n",
-            static_cast<void*>(this),
-            parentInfo ? static_cast<int>(parentInfo->Name().SizeBytes()) : 7,
-            parentInfo ? parentInfo->Name().Data() : "unknown",
-            static_cast<void*>(&child),
-            childInfo ? static_cast<int>(childInfo->Name().SizeBytes()) : 7,
-            childInfo ? childInfo->Name().Data() : "unknown",
-            static_cast<void*>(layout),
-            child.GetIsLayoutAttached() ? 1 : 0,
-            static_cast<void*>(child.LayoutParent()),
-            static_cast<void*>(child.GetVisualParent()));
-        std::fflush(stderr);
-        std::_Exit(1);
+    if (layout == nullptr) {
+        return;
+    }
+    if (!child.GetIsLayoutAttached() || child.LayoutParent() != this) {
+        if (!layout->Attach(*this, child)) {
+            return;
+        }
     }
     layout->ArrangeElement(child, finalRect);
 }
@@ -77,24 +66,13 @@ void UIElement::MeasureChild(
     Size availableSize) noexcept {
     auto* layout = static_cast<Aero::LayoutEngine*>(
         ElementTree::LayoutOf(*this));
-    if (layout == nullptr || !child.GetIsLayoutAttached() ||
-        child.LayoutParent() != this) {
-        const auto* parentInfo = DependencyObjectAccess::PropertyRegistry(*this).Types().FindType(RuntimeType());
-        const auto* childInfo = DependencyObjectAccess::PropertyRegistry(child).Types().FindType(child.RuntimeType());
-        std::fprintf(stderr,
-            "MeasureChild unattached: parent=%p (%.*s) child=%p (%.*s) layout=%p isAttached=%d layoutParent=%p visualParent=%p\n",
-            static_cast<void*>(this),
-            parentInfo ? static_cast<int>(parentInfo->Name().SizeBytes()) : 7,
-            parentInfo ? parentInfo->Name().Data() : "unknown",
-            static_cast<void*>(&child),
-            childInfo ? static_cast<int>(childInfo->Name().SizeBytes()) : 7,
-            childInfo ? childInfo->Name().Data() : "unknown",
-            static_cast<void*>(layout),
-            child.GetIsLayoutAttached() ? 1 : 0,
-            static_cast<void*>(child.LayoutParent()),
-            static_cast<void*>(child.GetVisualParent()));
-        std::fflush(stderr);
-        std::_Exit(1);
+    if (layout == nullptr) {
+        return;
+    }
+    if (!child.GetIsLayoutAttached() || child.LayoutParent() != this) {
+        if (!layout->Attach(*this, child)) {
+            return;
+        }
     }
     layout->MeasureElement(child, availableSize);
 }
