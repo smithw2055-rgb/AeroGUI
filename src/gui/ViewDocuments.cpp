@@ -409,6 +409,9 @@ Base::Result<void> ActivateMountedSubtree(
                     childEl->GetIsLayoutAttached() &&
                     (childEl->GetVisualParent() == edge.parent ||
                      childEl->GetLogicalParent() == edge.parent)) {
+                    if (childEl->GetLogicalParent() == nullptr && edge.parent != nullptr) {
+                        (void)context.AttachLogical(*edge.parent, *childEl);
+                    }
                     edge.state.layoutAttached = true;
                     if (childEl->GetLogicalParent() == edge.parent) {
                         edge.state.logicalAttached = true;

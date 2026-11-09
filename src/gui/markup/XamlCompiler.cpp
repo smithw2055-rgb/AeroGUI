@@ -700,6 +700,9 @@ void PrewarmCompiledDocumentBytecode(
     const CompiledDocument& document,
     const Schema& schema) noexcept {
     if (document.BytecodeProgram()) {
+        if (const auto* existing = ::Aero::TryCast<const XamlBytecodeContainer>(document.BytecodeProgram().Get())) {
+            existing->program.PrewarmMarkupExtensions(&schema, schema.Metadata(), nullptr);
+        }
         return;
     }
     Base::Result<const XamlBytecodeProgram*> compiled =
@@ -707,6 +710,8 @@ void PrewarmCompiledDocumentBytecode(
     if (!compiled || compiled.Value() == nullptr ||
         !compiled.Value()->IsValid() || !document.BytecodeProgram()) {
         document.SetBytecodeProgram({});
+    } else {
+        compiled.Value()->PrewarmMarkupExtensions(&schema, schema.Metadata(), nullptr);
     }
 }
 
@@ -2388,6 +2393,7 @@ CompiledDocument::Deserialize(
                 Base::ErrorCode::ValidationFailed,
                 "AXB3 bytecode section has trailing data");
         }
+        container->program.PrewarmMarkupExtensions(nullptr, const_cast<Meta::Registry*>(&domain), nullptr);
         document.cachedNodeCount_ = container->program.instructions.Size();
         document.SetBytecodeProgram(std::move(container));
         return document;

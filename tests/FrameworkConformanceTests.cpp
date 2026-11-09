@@ -21,6 +21,20 @@ class PlanAParentViewModel final : public Aero::ViewModelBase {
 public:
     AERO_VM_PROPERTY(Aero::Ref<PlanAReflectedViewModel>, Child, nullptr)
 };
+
+class PlanAAutoInitUserControl final : public Aero::Controls::UserControl {
+    AERO_REFLECT_INLINE(PlanAAutoInitUserControl, Aero::Controls::UserControl) {
+        builder.ComponentUri("memory:///StarColorGrid.xaml");
+        AERO_BIND_FIELD("R", &Self::rSlider_);
+    }
+
+public:
+    PlanAAutoInitUserControl() noexcept : Aero::Controls::UserControl(StaticTypeId()) {}
+    Aero::Controls::Slider* GetRSlider() const noexcept { return rSlider_; }
+
+private:
+    Aero::Controls::Slider* rSlider_ = nullptr;
+};
 } // namespace
 
 bool TestGalleryXamlSurface() {
@@ -2303,9 +2317,13 @@ bool TestArchitectureRefactoringValidation() {
                     [](Aero::Meta::Registration& reg) noexcept -> Result<void> {
                         return Aero::Meta::RegisterComponentTypes<
                             PlanAReflectedViewModel,
-                            PlanAParentViewModel>(reg);
+                            PlanAParentViewModel,
+                            PlanAAutoInitUserControl>(reg);
                     });
             auto* planALive = new LiveGui();
+            auto tutorialProvider = MakeRef<Aero::Markup::XamlProviderAdapter>(&OpenTutorialXaml, nullptr, nullptr);
+            CHECK(tutorialProvider != nullptr);
+            CHECK(planALive->gui.SetXamlProvider(tutorialProvider, "memory"));
             CHECK(planALive->gui.AddModule(s_planAModule));
             CHECK(planALive->gui.Initialize());
             Result<Ref<View>> planAViewRes = planALive->gui.CreateView();
@@ -2353,6 +2371,35 @@ bool TestArchitectureRefactoringValidation() {
             planALive->viewTime += 0.016;
             Pump(*planALive->view, planALive->viewTime);
             CHECK(boundLabel->GetText() == "ChildTwoUpdated");
+
+            // Verify ComboBoxItem::IsSelectedProperty is unified with ListBoxItem::IsSelectedProperty
+            CHECK(Aero::Controls::ComboBoxItem::IsSelectedProperty.Handle() == Aero::Controls::ListBoxItem::IsSelectedProperty.Handle());
+            CHECK(Aero::Controls::ComboBoxItem::IsSelectedProperty.Ptr() == Aero::Controls::ListBoxItem::IsSelectedProperty.Ptr());
+
+            // Verify CollectionView Schwartzian Transform pre-extracted key sorting
+            auto srcList = MakeRef<Aero::Collections::ObservableCollection<PlanAReflectedViewModel>>();
+            auto itemA = MakeRef<PlanAReflectedViewModel>();
+            auto itemB = MakeRef<PlanAReflectedViewModel>();
+            auto itemC = MakeRef<PlanAReflectedViewModel>();
+            itemA->SetScore(30);
+            itemB->SetScore(10);
+            itemC->SetScore(20);
+            srcList->Add(itemA);
+            srcList->Add(itemB);
+            srcList->Add(itemC);
+            auto cv = MakeRef<Aero::Data::CollectionView>(srcList.Get());
+            cv->SortBy("Score", Aero::Data::ListSortDirection::Ascending);
+            CHECK(cv->GetCount() == 3U);
+            CHECK(Aero::TryCast<PlanAReflectedViewModel>(cv->GetItem(0U).Get())->GetScore() == 10);
+            CHECK(Aero::TryCast<PlanAReflectedViewModel>(cv->GetItem(1U).Get())->GetScore() == 20);
+            CHECK(Aero::TryCast<PlanAReflectedViewModel>(cv->GetItem(2U).Get())->GetScore() == 30);
+
+            // Verify UserControl ComponentUri + BindField auto-initialization via OnPostConstruct
+            auto autoCtrl = MakeRef<PlanAAutoInitUserControl>();
+            CHECK(autoCtrl != nullptr);
+            CHECK(autoCtrl->GetContentElement() != nullptr);
+            CHECK(autoCtrl->GetRSlider() != nullptr);
+            CHECK(std::abs(autoCtrl->GetRSlider()->GetMaximum() - 255.0) < 1e-4);
         }
     }
 

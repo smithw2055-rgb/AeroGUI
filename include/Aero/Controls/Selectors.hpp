@@ -152,7 +152,7 @@ public:
     bool GetIsSelected() const noexcept;
     void SetIsSelected(bool value) noexcept;
 
-    AERO_DEPENDENCY_PROPERTY(bool, IsSelected);
+    inline static const auto& IsSelectedProperty = ListBoxItem::IsSelectedProperty;
 
 protected:
     void OnMouseLeftButtonDown(MouseButtonEventArgs& args);
@@ -326,4 +326,3 @@ private:
 } // namespace Aero::Controls
 
 AERO_DECLARE_TYPE_ENUM(Aero::Controls::SelectionMode)
-

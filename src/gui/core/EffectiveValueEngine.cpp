@@ -2567,7 +2567,18 @@ void EffectiveValueEngine::OnObjectDestroyed(DependencyObject& object) noexcept 
     if (object.StyleApplicationIndex() != UINT32_MAX && styleDestroyHook_ != nullptr) {
         styleDestroyHook_(styleDestroyContext_, object);
     }
-    if (queueHead_ != nullptr && (flushing_ || object.unmaterializedQueueMask_ != 0U)) {
+    bool hasQueuedEntry = (object.unmaterializedQueueMask_ != 0U);
+    if (!hasQueuedEntry && queueHead_ != nullptr) {
+        if (const PropertyStore* store = object.Store()) {
+            for (const auto& record : store->entries) {
+                if (record.Value().Queued()) {
+                    hasQueuedEntry = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (queueHead_ != nullptr && hasQueuedEntry) {
         PropertyStore* store = object.Store();
         QueueLink* previous = nullptr;
         QueueLink* cursor = queueHead_;
@@ -2659,8 +2670,9 @@ bool EffectiveValueEngine::HasObjectState(
 
 Base::Result<void> EffectiveValueEngine::DetachObject(DependencyObject& object) noexcept {
     Base::Result<void> ready = VerifyMutable(); if (!ready) return ready.GetStatus();
+    Base::Result<void> dropped = object.DropAllEngineValueState();
     OnObjectDestroyed(object);
-    return object.DropAllEngineValueState();
+    return dropped;
 }
 
 std::uint32_t EffectiveValueEngine::PendingPropertyCount() const noexcept {

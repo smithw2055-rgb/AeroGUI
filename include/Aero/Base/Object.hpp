@@ -141,6 +141,8 @@ public:
     constexpr const TypeClass* BaseType() const noexcept { return base_; }
     constexpr FactoryFn Factory() const noexcept { return factory_; }
     void SetFactory(FactoryFn factory) const noexcept { factory_ = factory; }
+    constexpr StringView ComponentUri() const noexcept { return componentUri_; }
+    void SetComponentUri(StringView uri) const noexcept { componentUri_ = uri; }
 
     constexpr std::uint16_t DenseIndex() const noexcept { return denseIndex_; }
     constexpr std::uint16_t TreeIn() const noexcept { return treeIn_; }
@@ -195,6 +197,7 @@ private:
     MetaTypeId typeId_ = InvalidMetaTypeId;
     StringView namespace_;
     StringView name_;
+    mutable StringView componentUri_;
     const TypeClass* base_ = nullptr;
     mutable FactoryFn factory_ = nullptr;
     mutable std::uint16_t denseIndex_ = 0U;

@@ -263,6 +263,9 @@ public: \
             builder.PropertyChangeNotifications(); \
         } \
         const ::Aero::TypeClass* cls = StaticClassType(); \
+        if (!cls->ComponentUri().Empty()) { \
+            builder.ComponentUri(cls->ComponentUri()); \
+        } \
         for (const ::Aero::TypeProperty* prop : cls->Properties()) { \
             if (prop == nullptr) continue; \
             ::Aero::Meta::PropertyRegistration reg; \

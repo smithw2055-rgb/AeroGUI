@@ -1935,7 +1935,7 @@ AERO_DESCRIBE(ComboBox) {
 AERO_DESCRIBE(ComboBoxItem) {
     using namespace Aero::Meta;
     Register<ComboBoxItem>(context)
-        .Property(ComboBoxItem::IsSelectedProperty, false, AffectsRender | BindsTwoWayByDefault)
+        // Inherits ListBoxItem::IsSelectedProperty
         .Override(Aero::UIElement::IsTabStopProperty, true, FrameworkPropertyMetadataOptions::None)
         .Factory();
     AERO_ON(ComboBoxItem, &ComboBoxItem::OnMouseLeftButtonDown, UIElement::MouseLeftButtonDownEvent);

@@ -19,6 +19,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 #include "gui/core/DependencyObjectAccess.hpp"
 
 namespace Aero {
@@ -1008,40 +1011,77 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
     measuredCount_ = 0U;
     arrangedCount_ = 0U;
 
-    const auto sortWorkQueueByDepth = [&](Base::Vector<VisualHandle>& work) noexcept {
+    const auto lowestBitIndex = [](std::uint64_t mask) noexcept -> std::uint32_t {
+#if defined(_MSC_VER)
+        unsigned long index = 0UL;
+        _BitScanForward64(&index, mask);
+        return static_cast<std::uint32_t>(index);
+#else
+        return static_cast<std::uint32_t>(__builtin_ctzll(mask));
+#endif
+    };
+
+    const auto drainQueueByDepth = [&](
+        Base::Vector<VisualHandle>& work,
+        UIElement::LayoutFlags queuedFlag,
+        auto&& visit) noexcept {
+        constexpr std::uint32_t kNumBuckets = 64U;
+        constexpr std::uint32_t kMaxBucketDepth = kNumBuckets - 1U;
+        constexpr std::uint32_t kStackCapacity = 256U;
+        constexpr std::uint32_t kInvalidIndex = UINT32_MAX;
+
         const std::uint32_t count = work.Size();
-        if (count <= 1U) return;
-        constexpr std::uint32_t kMaxBucketDepth = 128U;
-        struct DepthEntry {
-            VisualHandle handle;
-            std::uint16_t depth = 0U;
-        };
-        Base::BasicVector<DepthEntry, 64U> entries;
-        entries.Reserve(count);
-        std::uint16_t minDepth = UINT16_MAX;
-        std::uint16_t maxDepth = 0U;
-        for (const VisualHandle h : work) {
-            const UIElement* el = ResolveQueued(h);
-            const std::uint16_t d = el != nullptr
-                ? std::min<std::uint16_t>(el->TreeDepth(), kMaxBucketDepth - 1U)
-                : static_cast<std::uint16_t>(kMaxBucketDepth - 1U);
-            minDepth = std::min(minDepth, d);
-            maxDepth = std::max(maxDepth, d);
-            entries.PushBack({h, d});
+        if (count == 0U) return;
+        if (count == 1U) {
+            if (UIElement* el = ResolveQueued(work[0U])) {
+                el->Layout().SetFlag(queuedFlag, false);
+                visit(*el);
+            }
+            return;
         }
-        if (minDepth == maxDepth) return;
-        std::uint32_t buckets[kMaxBucketDepth]{};
+
+        std::uint64_t activeDepthMask = 0ULL;
+        std::uint32_t head[kNumBuckets];
+        std::uint32_t tail[kNumBuckets];
+        std::uint32_t stackNext[kStackCapacity];
+        Base::Vector<std::uint32_t> overflowNext;
+        std::uint32_t* nextInBucket = stackNext;
+        if (count > kStackCapacity) {
+            overflowNext.Reserve(count);
+            for (std::uint32_t i = 0U; i < count; ++i) {
+                overflowNext.PushBack(kInvalidIndex);
+            }
+            nextInBucket = overflowNext.Data();
+        }
+
         for (std::uint32_t i = 0U; i < count; ++i) {
-            ++buckets[entries[i].depth];
+            UIElement* el = ResolveQueued(work[i]);
+            if (el == nullptr) continue;
+            el->Layout().SetFlag(queuedFlag, false);
+            const std::uint32_t depth =
+                std::min<std::uint32_t>(el->TreeDepth(), kMaxBucketDepth);
+            const std::uint64_t bit = 1ULL << depth;
+            if ((activeDepthMask & bit) == 0ULL) {
+                activeDepthMask |= bit;
+                head[depth] = i;
+                tail[depth] = i;
+            } else {
+                nextInBucket[tail[depth]] = i;
+                tail[depth] = i;
+            }
+            nextInBucket[i] = kInvalidIndex;
         }
-        std::uint32_t running = 0U;
-        for (std::uint16_t d = minDepth; d <= maxDepth; ++d) {
-            const std::uint32_t c = buckets[d];
-            buckets[d] = running;
-            running += c;
-        }
-        for (std::uint32_t i = 0U; i < count; ++i) {
-            work[buckets[entries[i].depth]++] = entries[i].handle;
+
+        while (activeDepthMask != 0ULL) {
+            const std::uint32_t depth = lowestBitIndex(activeDepthMask);
+            activeDepthMask &= (activeDepthMask - 1ULL);
+            for (std::uint32_t idx = head[depth];
+                 idx != kInvalidIndex;
+                 idx = nextInBucket[idx]) {
+                if (UIElement* element = ResolveQueued(work[idx])) {
+                    visit(*element);
+                }
+            }
         }
     };
 
@@ -1064,56 +1104,54 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         while (!measureQueue_.Empty()) {
             measureWorkQueue_.Clear();
             measureWorkQueue_.Swap(measureQueue_);
-            sortWorkQueueByDepth(measureWorkQueue_);
-            ClearQueuedFlags(measureWorkQueue_, UIElement::LayoutFlags::MeasureQueued);
-            for (const VisualHandle handle : measureWorkQueue_) {
-                UIElement* element = ResolveQueued(handle);
-                if (element == nullptr ||
-                    ElementTree::LayoutOf(*element) != this ||
-                    element->GetIsMeasureValid()) {
-                    continue;
-                }
-                if (element == root_) {
-                    MeasureElement(*root_, rootAvailableSize_);
-                    continue;
-                }
-                UIElement* parent = element->GetIsLayoutAttached()
-                    ? element->LayoutParent() : nullptr;
-                const Size constraint = !element->GetNeverMeasured()
-                    ? element->GetPreviousAvailableSize()
-                    : (parent != nullptr ? parent->GetRenderSize() : rootAvailableSize_);
-                MeasureElement(*element, constraint);
-            }
+            drainQueueByDepth(
+                measureWorkQueue_,
+                UIElement::LayoutFlags::MeasureQueued,
+                [&](UIElement& element) noexcept {
+                    if (ElementTree::LayoutOf(element) != this ||
+                        element.GetIsMeasureValid()) {
+                        return;
+                    }
+                    if (&element == root_) {
+                        MeasureElement(*root_, rootAvailableSize_);
+                        return;
+                    }
+                    UIElement* parent = element.GetIsLayoutAttached()
+                        ? element.LayoutParent() : nullptr;
+                    const Size constraint = !element.GetNeverMeasured()
+                        ? element.GetPreviousAvailableSize()
+                        : (parent != nullptr ? parent->GetRenderSize() : rootAvailableSize_);
+                    MeasureElement(element, constraint);
+                });
             measureWorkQueue_.Clear();
         }
 
         if (!arrangeQueue_.Empty()) {
             arrangeWorkQueue_.Clear();
             arrangeWorkQueue_.Swap(arrangeQueue_);
-            sortWorkQueueByDepth(arrangeWorkQueue_);
-            ClearQueuedFlags(arrangeWorkQueue_, UIElement::LayoutFlags::ArrangeQueued);
-            for (const VisualHandle handle : arrangeWorkQueue_) {
-                UIElement* element = ResolveQueued(handle);
-                if (element == nullptr ||
-                    ElementTree::LayoutOf(*element) != this ||
-                    element->GetIsArrangeValid()) {
-                    continue;
-                }
-                if (element == root_) {
-                    ArrangeElement(
-                        *root_,
-                        {0.0f, 0.0f, rootAvailableSize_.width, rootAvailableSize_.height});
-                    continue;
-                }
-                Rect slot = !element->GetNeverArranged()
-                    ? element->GetPreviousFinalRect()
-                    : element->GetLayoutSlot();
-                if (slot.width == 0.0f && slot.height == 0.0f && element->GetNeverArranged()) {
-                    slot.width = element->GetDesiredSize().width;
-                    slot.height = element->GetDesiredSize().height;
-                }
-                ArrangeElement(*element, slot);
-            }
+            drainQueueByDepth(
+                arrangeWorkQueue_,
+                UIElement::LayoutFlags::ArrangeQueued,
+                [&](UIElement& element) noexcept {
+                    if (ElementTree::LayoutOf(element) != this ||
+                        element.GetIsArrangeValid()) {
+                        return;
+                    }
+                    if (&element == root_) {
+                        ArrangeElement(
+                            *root_,
+                            {0.0f, 0.0f, rootAvailableSize_.width, rootAvailableSize_.height});
+                        return;
+                    }
+                    Rect slot = !element.GetNeverArranged()
+                        ? element.GetPreviousFinalRect()
+                        : element.GetLayoutSlot();
+                    if (slot.width == 0.0f && slot.height == 0.0f && element.GetNeverArranged()) {
+                        slot.width = element.GetDesiredSize().width;
+                        slot.height = element.GetDesiredSize().height;
+                    }
+                    ArrangeElement(element, slot);
+                });
             arrangeWorkQueue_.Clear();
         }
     }

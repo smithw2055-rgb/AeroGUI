@@ -573,6 +573,11 @@ public:
         return *this;
     }
 
+    TypeBuilder& ComponentUri(StringView uri) noexcept {
+        RegisterComponentUriEntry(TypeOf<T>(), uri);
+        return *this;
+    }
+
     template<auto Member> TypeBuilder& Field(StringView name, FieldFlags flags = FieldFlags::None) noexcept {
         using Traits = MemberPointerTraits<Member>;
         using Owner = typename Traits::OwnerType;

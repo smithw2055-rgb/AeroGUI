@@ -583,6 +583,69 @@ using namespace Aero::Meta;
 using namespace Aero::Threading;
 using namespace Aero::Input;
 
+namespace {
+
+struct MatchedClassBindings {
+    static constexpr std::uint32_t kStackCapacity = 64U;
+    const CommandBinding::ClassBindingEntry* stack_[kStackCapacity];
+    Base::Vector<const CommandBinding::ClassBindingEntry*> overflow_;
+    std::uint32_t count_ = 0U;
+
+    struct Iterator {
+        const CommandBinding::ClassBindingEntry* const* ptr;
+        const CommandBinding::ClassBindingEntry& operator*() const noexcept { return **ptr; }
+        Iterator& operator++() noexcept { ++ptr; return *this; }
+        bool operator!=(const Iterator& other) const noexcept { return ptr != other.ptr; }
+    };
+
+    const CommandBinding::ClassBindingEntry* const* Data() const noexcept {
+        return overflow_.Empty() ? stack_ : overflow_.Data();
+    }
+    Iterator begin() const noexcept { return {Data()}; }
+    Iterator end() const noexcept { return {Data() + count_}; }
+    bool Empty() const noexcept { return count_ == 0U; }
+
+    void Push(const CommandBinding::ClassBindingEntry& entry) noexcept {
+        if (count_ < kStackCapacity && overflow_.Empty()) {
+            stack_[count_++] = &entry;
+            return;
+        }
+        if (overflow_.Empty()) {
+            overflow_.Reserve(kStackCapacity * 2U);
+            for (std::uint32_t i = 0U; i < count_; ++i) {
+                overflow_.PushBack(stack_[i]);
+            }
+        }
+        overflow_.PushBack(&entry);
+        count_ = overflow_.Size();
+    }
+};
+
+MatchedClassBindings FilterClassBindingsForCommand(const RoutedCommand& command) noexcept {
+    MatchedClassBindings matched;
+    const Base::StringView cmdName = command.GetName();
+    for (const CommandBinding::ClassBindingEntry& entry : CommandBinding::ClassBindings()) {
+        const RoutedCommand* rc = entry.command.Get();
+        if (rc == &command || (rc != nullptr && rc->GetName() == cmdName)) {
+            matched.Push(entry);
+        }
+    }
+    return matched;
+}
+
+MatchedClassBindings FilterClassBindingsForInput(const KeyboardInput& input) noexcept {
+    MatchedClassBindings matched;
+    for (const CommandBinding::ClassBindingEntry& entry : CommandBinding::ClassBindings()) {
+        const RoutedCommand* rc = entry.command.Get();
+        if (rc != nullptr && rc->MatchesInput(input)) {
+            matched.Push(entry);
+        }
+    }
+    return matched;
+}
+
+} // namespace
+
 CommandState::CommandState(ElementTree& tree, EventRouter& events) noexcept
     : tree_(&tree),
       events_(&events),
@@ -745,6 +808,11 @@ bool CommandState::CanExecute(
     if (!verified) return false;
     PruneStaleBindings();
 
+    const MatchedClassBindings matchedClassBindings =
+        FilterClassBindingsForCommand(command);
+    if (bindings_.Empty() && matchedClassBindings.Empty()) {
+        return false;
+    }
     CanExecuteRoutedEventArgs args;
     args.SetCommand(&command);
     args.SetParameter(parameter);
@@ -775,8 +843,9 @@ bool CommandState::CanExecute(
                 }
                 if (args.GetHandled() || !args.GetContinueRouting()) return false;
             }
-            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
-                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType) ||
+            for (const CommandBinding::ClassBindingEntry& record : matchedClassBindings) {
+                if ((element.RuntimeType() != record.ownerType &&
+                     !types.IsDerivedFrom(element.RuntimeType(), record.ownerType)) ||
                     (record.command.Get() != &command &&
                      (record.command.Get() == nullptr ||
                       record.command->GetName() != command.GetName()))) {
@@ -806,6 +875,11 @@ bool CommandState::Execute(
     }
 
     PruneStaleBindings();
+    const MatchedClassBindings matchedClassBindings =
+        FilterClassBindingsForCommand(command);
+    if (bindings_.Empty() && matchedClassBindings.Empty()) {
+        return false;
+    }
     ExecutedRoutedEventArgs args;
     args.SetCommand(&command);
     args.SetParameter(parameter);
@@ -836,8 +910,9 @@ bool CommandState::Execute(
                 }
                 if (args.GetHandled() || !args.GetContinueRouting()) return false;
             }
-            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
-                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType) ||
+            for (const CommandBinding::ClassBindingEntry& record : matchedClassBindings) {
+                if ((element.RuntimeType() != record.ownerType &&
+                     !types.IsDerivedFrom(element.RuntimeType(), record.ownerType)) ||
                     (record.command.Get() != &command &&
                      (record.command.Get() == nullptr ||
                       record.command->GetName() != command.GetName()))) {
@@ -860,6 +935,8 @@ bool CommandState::ProcessInput(
     UIElement& target,
     const KeyboardInput& input) noexcept {
     if (input.action != KeyboardAction::Down || !target.GetIsEnabled()) return false;
+    const MatchedClassBindings matchedClassBindings =
+        FilterClassBindingsForInput(input);
     Base::Result<void> verified = VerifyTarget(target);
     if (!verified) return false;
 
@@ -900,8 +977,9 @@ bool CommandState::ProcessInput(
                     return false;
                 }
             }
-            for (const CommandBinding::ClassBindingEntry& record : CommandBinding::ClassBindings()) {
-                if (!types.IsDerivedFrom(element.RuntimeType(), record.ownerType)) {
+            for (const CommandBinding::ClassBindingEntry& record : matchedClassBindings) {
+                if (element.RuntimeType() != record.ownerType &&
+                    !types.IsDerivedFrom(element.RuntimeType(), record.ownerType)) {
                     continue;
                 }
                 RoutedCommand* command = record.command.Get();

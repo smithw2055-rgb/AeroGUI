@@ -251,6 +251,7 @@ struct TextBoxBase::EditorState {
     String displayText;
     String compositionText;
     Base::Vector<std::uint64_t> glyphRuns;
+    Base::Vector<TextHitRegion> hitRegions;
     Base::Vector<CaretStop> caretStops;
     Size textSize;
     std::uint32_t wrapColumns = UINT32_MAX;
@@ -1207,6 +1208,155 @@ TextBoxBase::RebuildCaretStops() noexcept {
             graphemes + 1U);
     const std::uint32_t lines =
         std::max(1U, active.LineCount());
+    if (!state_->showingPlaceholder &&
+        !state_->glyphRuns.Empty() &&
+        !state_->hitRegions.Empty() &&
+        graphemes > 0U) {
+        ::Aero::Text::EditableTextModel displayModel;
+        const bool isPlain = state_->displayPolicy == &s_plainDisplayPolicy;
+        const bool validDisplayModel = isPlain
+            ? (state_->displayText.SizeBytes() == active.ByteOffsetForGrapheme(graphemes))
+            : (displayModel.SetText(state_->displayText.View()) &&
+               displayModel.GraphemeCount() == graphemes);
+        if (validDisplayModel) {
+            const auto byteOffsetFor = [&](std::uint32_t g) noexcept -> std::uint32_t {
+                return isPlain
+                    ? active.ByteOffsetForGrapheme(g)
+                    : displayModel.ByteOffsetForGrapheme(g);
+            };
+            double defaultLineHeight =
+                GetFontSize() * 1.6 / std::max(1.0, GetDpiScale());
+            for (const TextHitRegion& region : state_->hitRegions) {
+                if (region.height > 0.0F) {
+                    defaultLineHeight = static_cast<double>(region.height);
+                    break;
+                }
+            }
+            state_->caretStops.Resize(graphemes + 1U);
+            std::uint32_t currentVisualLine = 0U;
+            double currentLineY = 0.0;
+            double currentLineHeight = defaultLineHeight;
+            std::uint32_t regionCursor = 0U;
+            const std::uint32_t regionCount = state_->hitRegions.Size();
+
+            for (std::uint32_t line = 0U; line < lines; ++line) {
+                const TextRange range = active.LineRange(line);
+                const std::uint32_t start = range.start;
+                const std::uint32_t end = range.GetEnd();
+                bool firstRegionInLogicalLine = true;
+                double lastRightX = 0.0;
+
+                for (std::uint32_t index = start; index < end; ++index) {
+                    const std::uint32_t byteStart = byteOffsetFor(index);
+                    const std::uint32_t byteEnd = byteOffsetFor(index + 1U);
+                    while (regionCursor < regionCount) {
+                        const TextHitRegion& cand = state_->hitRegions[regionCursor];
+                        if (cand.textLength > 0U &&
+                            cand.textOffset + cand.textLength > byteStart) {
+                            break;
+                        }
+                        ++regionCursor;
+                    }
+
+                    bool foundRegion = false;
+                    double leftX = lastRightX;
+                    double rightX = lastRightX;
+                    double regY = currentLineY;
+                    double regH = currentLineHeight;
+
+                    auto accumulateRegion = [&](const TextHitRegion& reg) noexcept {
+                        if (reg.textLength == 0U ||
+                            reg.textOffset >= byteEnd ||
+                            reg.textOffset + reg.textLength <= byteStart) {
+                            return false;
+                        }
+                        const double startFrac = byteStart > reg.textOffset
+                            ? static_cast<double>(byteStart - reg.textOffset) /
+                                  static_cast<double>(reg.textLength)
+                            : 0.0;
+                        const double endFrac = byteEnd < reg.textOffset + reg.textLength
+                            ? static_cast<double>(byteEnd - reg.textOffset) /
+                                  static_cast<double>(reg.textLength)
+                            : 1.0;
+                        const double rLeft =
+                            static_cast<double>(reg.x) +
+                            static_cast<double>(reg.width) * startFrac;
+                        const double rRight =
+                            static_cast<double>(reg.x) +
+                            static_cast<double>(reg.width) * endFrac;
+                        if (!foundRegion) {
+                            foundRegion = true;
+                            leftX = rLeft;
+                            rightX = rRight;
+                            regY = static_cast<double>(reg.y);
+                            if (reg.height > 0.0F) {
+                                regH = static_cast<double>(reg.height);
+                            }
+                        } else if (std::fabs(static_cast<double>(reg.y) - regY) < 0.5) {
+                            leftX = std::min(leftX, rLeft);
+                            rightX = std::max(rightX, rRight);
+                            if (reg.height > 0.0F) {
+                                regH = std::max(regH, static_cast<double>(reg.height));
+                            }
+                        }
+                        return true;
+                    };
+
+                    for (std::uint32_t r = regionCursor; r < regionCount; ++r) {
+                        const TextHitRegion& reg = state_->hitRegions[r];
+                        if (reg.textOffset >= byteEnd && foundRegion) {
+                            break;
+                        }
+                        accumulateRegion(reg);
+                    }
+                    if (!foundRegion) {
+                        for (std::uint32_t r = 0U; r < regionCursor; ++r) {
+                            accumulateRegion(state_->hitRegions[r]);
+                        }
+                    }
+
+                    if (foundRegion) {
+                        if (firstRegionInLogicalLine) {
+                            firstRegionInLogicalLine = false;
+                            currentLineY = regY;
+                            currentLineHeight = regH;
+                        } else if (std::fabs(regY - currentLineY) >= 0.5) {
+                            ++currentVisualLine;
+                            currentLineY = regY;
+                            currentLineHeight = regH;
+                        } else {
+                            currentLineHeight = std::max(currentLineHeight, regH);
+                        }
+                        lastRightX = rightX;
+                    }
+                    state_->caretStops[index] = {
+                        leftX,
+                        currentLineY,
+                        currentLineHeight,
+                        currentVisualLine};
+                }
+
+                state_->caretStops[end] = {
+                    lastRightX,
+                    currentLineY,
+                    currentLineHeight,
+                    currentVisualLine};
+
+                if (line + 1U < lines) {
+                    ++currentVisualLine;
+                    currentLineY += currentLineHeight;
+                    if (end < graphemes) {
+                        state_->caretStops[end + 1U] = {
+                            0.0,
+                            currentLineY,
+                            currentLineHeight,
+                            currentVisualLine};
+                    }
+                }
+            }
+            return;
+        }
+    }
     std::uint32_t maximumLineLength = 0U;
     for (std::uint32_t line = 0U;
          line < lines; ++line) {
@@ -1396,7 +1546,10 @@ Size TextBoxBase::MeasureOverride(
             }
         }
         request.fontFamily = family;
+        request.fontWeight = GetFontWeight();
+        request.fontStyle = GetFontStyleCore();
         request.wrapping = GetTextWrappingCore();
+        request.includeHitRegions = !state_->showingPlaceholder;
         request.alignment = GetTextAlignmentCore();
         request.direction = GetFlowDirection() == FlowDirection::RightToLeft
             ? Text::TextDirection::RightToLeft
@@ -1427,6 +1580,8 @@ Size TextBoxBase::MeasureOverride(
             std::move(result.glyphRuns);
         state_->serviceOwnsGlyphRuns =
             !state_->glyphRuns.Empty();
+        state_->hitRegions =
+            std::move(result.hitRegions);
         state_->textSize = result.desiredSize;
     } else {
         std::uint32_t maximumLine = 0U;
@@ -1745,6 +1900,7 @@ void TextBoxBase::ReleaseGlyphRuns() noexcept {
         }
     }
     state_->glyphRuns.Clear();
+    state_->hitRegions.Clear();
     state_->serviceOwnsGlyphRuns = false;
 }
 

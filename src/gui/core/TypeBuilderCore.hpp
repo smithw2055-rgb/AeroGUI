@@ -978,4 +978,38 @@ void BoundFieldInvoker(Base::Object& root, Base::Object* child) noexcept {
     }
 }
 
+struct ComponentUriEntry {
+    TypeId ownerType = InvalidTypeId;
+    Base::String uri;
+};
+
+inline Base::Vector<ComponentUriEntry>& GetComponentUriRegistry() noexcept {
+    static Base::Vector<ComponentUriEntry> s_entries;
+    return s_entries;
+}
+
+inline void RegisterComponentUriEntry(TypeId ownerType, Base::StringView uri) noexcept {
+    auto& entries = GetComponentUriRegistry();
+    for (std::uint32_t i = 0; i < entries.Size(); ++i) {
+        if (entries[i].ownerType == ownerType) {
+            static_cast<void>(entries[i].uri.Assign(uri));
+            return;
+        }
+    }
+    ComponentUriEntry entry;
+    entry.ownerType = ownerType;
+    static_cast<void>(entry.uri.Assign(uri));
+    entries.PushBack(std::move(entry));
+}
+
+inline Base::StringView FindComponentUri(TypeId ownerType) noexcept {
+    const auto& entries = GetComponentUriRegistry();
+    for (std::uint32_t i = 0; i < entries.Size(); ++i) {
+        if (entries[i].ownerType == ownerType) {
+            return entries[i].uri.View();
+        }
+    }
+    return {};
+}
+
 } // namespace Aero::Meta

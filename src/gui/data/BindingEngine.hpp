@@ -90,6 +90,7 @@ struct BindingDescriptor {
     PropertyValue targetNullValue;
     BindingDiagnosticCallback diagnostic = nullptr;
     void* diagnosticContext = nullptr;
+    const CompiledBindingPath* precompiledPath = nullptr;
 };
 
 struct BindingInspection {
@@ -133,6 +134,7 @@ struct BindingCommonOptions {
     PropertyValue targetNullValue;
     BindingDiagnosticCallback diagnostic = nullptr;
     void* diagnosticContext = nullptr;
+    const CompiledBindingPath* precompiledPath = nullptr;
 };
 
 struct MetadataBindingDescriptor : public BindingCommonOptions {

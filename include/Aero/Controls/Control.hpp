@@ -67,7 +67,7 @@ public:
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::Base::Thickness, Padding);
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::HorizontalAlignment, HorizontalContentAlignment);
     AERO_DEPENDENCY_PROPERTY_INLINE(Aero::VerticalAlignment, VerticalContentAlignment);
-    inline static const auto ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
+    inline static const auto& ForegroundProperty = Aero::Media::FrameworkElementForegroundProperty;
     Ref<Aero::Media::Brush> GetForeground() const noexcept { return GetValue(ForegroundProperty); }
     void SetForeground(Ref<Aero::Media::Brush> value) noexcept { SetValue(ForegroundProperty, std::move(value)); }
     AERO_DEPENDENCY_PROPERTY_INLINE(double, FontSize);
@@ -321,10 +321,14 @@ public:
     UserControl() noexcept : ContentControl(StaticTypeId()) {}
     ~UserControl() override = default;
 
-    Base::Result<void> InitializeComponent(StringView uri) noexcept;
+    Base::Result<void> InitializeComponent(StringView uri = {}) noexcept;
+    void OnPostConstruct() noexcept;
 
 protected:
     explicit UserControl(TypeId runtimeType) noexcept : ContentControl(runtimeType) {}
+
+private:
+    bool componentInitialized_ = false;
 };
 
 class AERO_GUI_API Label : public ContentControl {

@@ -239,11 +239,15 @@ protected:
 private:
     void ClearTextures() noexcept;
     void SetVertexFormat(uint8_t format, uintptr_t offset) noexcept;
+    unsigned int EnsureProgram(uint32_t shaderEnum) noexcept;
 
     OpenGL33::DeviceOptions options_;
     Base::IAllocator* allocator_ = nullptr;
 
     unsigned int vao_ = 0;
+    unsigned int vaos_[Shader::Vertex::Format::Count] = {};
+    unsigned int boundVao_ = 0;
+    unsigned int vertexShader_ = 0;
     unsigned int dynamicVB_ = 0;
     unsigned int dynamicIB_ = 0;
 

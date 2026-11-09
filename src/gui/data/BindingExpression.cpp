@@ -529,6 +529,24 @@ Base::Result<BindingHandle> BindingEngine::Attach(
     if (record.sourceKind == BindingSourceKind::MetadataPath) {
         BindingPathCompileError compileError;
         Base::Result<const CompiledBindingPath*> compiled =
+            CompiledBindingPath::FindOrCompile(
+                *record.metadata,
+                record.metadataSource->RuntimeType(),
+                record.path.View(),
+                &compileError,
+                descriptor.precompiledPath);
+        if (!compiled || compiled.Value() == nullptr) {
+            --nextHandle_;
+            return BindingPathFailure(
+                record.metadata->Types(),
+                record.path.View(),
+                compileError,
+                compiled.GetStatus());
+        }
+        record.pathPlan = compiled.Value();
+        if (false) {
+        BindingPathCompileError compileError;
+        Base::Result<const CompiledBindingPath*> compiled =
             FindOrCompilePathPlan(
                 *record.metadata,
                 record.metadataSource->RuntimeType(),
@@ -543,6 +561,7 @@ Base::Result<BindingHandle> BindingEngine::Attach(
                 compiled.GetStatus());
         }
         record.pathPlan = compiled.Value();
+        }
         record.validatedSourceType = record.metadataSource->RuntimeType();
         const DependencyProperty* targetProperty =
             DependencyObjectAccess::PropertyRegistry(descriptor.target).Find(

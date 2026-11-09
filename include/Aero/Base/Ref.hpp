@@ -189,6 +189,9 @@ private:
     }
 };
 
+template<class T, class = void> struct HasPostConstruct : std::false_type {};
+template<class T> struct HasPostConstruct<T, std::void_t<decltype(std::declval<T&>().OnPostConstruct())>> : std::true_type {};
+
 template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocator, Args&&... args) noexcept {
     static_assert(std::is_base_of<Object, T>::value, "MakeRef<T> requires T to derive from Aero::Base::Object");
     static_assert(std::is_nothrow_constructible<T, Args...>::value,
@@ -206,7 +209,11 @@ template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocat
         }
         T* object = new (memory) T(std::forward<Args>(args)...);
         object->AttachSystemManagedLifetime();
-        return Ref<T>(object, AdoptRef);
+        Ref<T> result(object, AdoptRef);
+        if constexpr (HasPostConstruct<T>::value) {
+            object->OnPostConstruct();
+        }
+        return result;
     }
 
     constexpr std::size_t allocAlignment =
@@ -240,7 +247,11 @@ template<class T, class... Args> Ref<T> MakeRefWithAllocator(IAllocator& allocat
         return Ref<T>{};
     }
 
-    return Ref<T>(object, AdoptRef);
+    Ref<T> result2(object, AdoptRef);
+    if constexpr (HasPostConstruct<T>::value) {
+        object->OnPostConstruct();
+    }
+    return result2;
 }
 
 template<class T, class... Args> Ref<T> MakeRef(Args&&... args) noexcept {

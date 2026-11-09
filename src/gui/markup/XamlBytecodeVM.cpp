@@ -362,6 +362,178 @@ void XamlBytecodeProgram::Clear() noexcept {
     fallbackResources.Clear();
     templateOwner = nullptr;
     ambientTargetType = Meta::InvalidTypeId;
+    precompiledMarkupExtensions.Clear();
+    registeredBindingPathCount = 0U;
+    markupExtensionsPrewarmed = false;
+}
+
+namespace {
+
+bool IsSimpleDottedToken(Base::StringView text) noexcept {
+    if (text.Empty()) return false;
+    for (std::uint32_t i = 0U; i < text.SizeBytes(); ++i) {
+        const char c = text[i];
+        const bool isAlphaNum =
+            (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' || c == '.';
+        if (!isAlphaNum) return false;
+    }
+    return true;
+}
+
+bool IsSimpleResourceKeyToken(Base::StringView text) noexcept {
+    if (text.Empty()) return false;
+    for (std::uint32_t i = 0U; i < text.SizeBytes(); ++i) {
+        const char c = text[i];
+        if (c == ',' || c == '=' || c == '{' || c == '}' || c == '\'' || c == '"') {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TryStripNamedClausePrefix(
+    Base::StringView text,
+    Base::StringView clauseName,
+    Base::StringView& outValue) noexcept {
+    text = TrimAscii(text);
+    if (text.SizeBytes() <= clauseName.SizeBytes() ||
+        text.Substr(0U, clauseName.SizeBytes()) != clauseName) {
+        return false;
+    }
+    Base::StringView rest = TrimAscii(
+        text.Substr(clauseName.SizeBytes(), text.SizeBytes() - clauseName.SizeBytes()));
+    if (rest.Empty() || rest[0] != '=') {
+        return false;
+    }
+    outValue = TrimAscii(rest.Substr(1U, rest.SizeBytes() - 1U));
+    return !outValue.Empty();
+}
+
+} // namespace
+
+void XamlBytecodeProgram::EnsureBindingPathsRegistered() const noexcept {
+    const std::uint32_t count = bindingPaths.Size() < bindingPathStrings.Size()
+        ? bindingPaths.Size()
+        : bindingPathStrings.Size();
+    for (std::uint32_t i = registeredBindingPathCount; i < count; ++i) {
+        Data::CompiledBindingPath::RegisterPrecompiled(
+            bindingPathStrings[i].View(), bindingPaths[i]);
+    }
+    registeredBindingPathCount = count;
+    for (const auto& subObj : subPrograms) {
+        if (const auto* subContainer = ::Aero::TryCast<const XamlBytecodeContainer>(subObj.Get())) {
+            subContainer->program.EnsureBindingPathsRegistered();
+        }
+    }
+}
+
+void XamlBytecodeProgram::PrewarmMarkupExtensions(
+    const Schema* activeSchema,
+    Meta::Registry* activeRuntime,
+    Meta::DependencyPropertyRegistry* activeProperties) const noexcept {
+    EnsureBindingPathsRegistered();
+
+    const Schema* sc = activeSchema != nullptr ? activeSchema : schema;
+    Meta::Registry* rt = activeRuntime != nullptr
+        ? activeRuntime
+        : (runtime != nullptr ? runtime : (sc != nullptr ? sc->Metadata() : Meta::CurrentObjectFactory().metadata));
+    Meta::DependencyPropertyRegistry* dpReg = activeProperties != nullptr
+        ? activeProperties
+        : (properties != nullptr ? properties : Meta::CurrentObjectFactory().dependencyProperties);
+
+    if ((!markupExtensionsPrewarmed || precompiledMarkupExtensions.Size() != instructions.Size()) && rt != nullptr) {
+        precompiledMarkupExtensions.Clear();
+        precompiledMarkupExtensions.Resize(instructions.Size());
+        for (std::uint32_t i = 0U; i < instructions.Size(); ++i) {
+            const XamlInstruction& inst = instructions[i];
+            if (inst.op != XamlOpCode::ApplyMarkupExtension) {
+                continue;
+            }
+            PrecompiledMarkupExtensionOperand& operand = precompiledMarkupExtensions[i];
+            if (inst.typeOrPropIdx < propertyPool.Size()) {
+                const std::uint64_t propHandle = propertyPool[inst.typeOrPropIdx];
+                if (const auto* propInfo = rt->Types().FindProperty(propHandle)) {
+                    operand.targetValueType = propInfo->ValueType();
+                }
+                if (operand.targetValueType == Meta::InvalidTypeId && dpReg != nullptr) {
+                    if (const auto* dp = dpReg->Find(Meta::DependencyPropertyHandle{propHandle})) {
+                        operand.targetValueType = dp->ValueType();
+                    }
+                }
+            }
+            if (inst.extraIdx < typePool.Size()) {
+                const Meta::TypeId extTypeId = typePool[inst.extraIdx];
+                if (const Meta::TypeInfo* extInfo = rt->Types().FindType(extTypeId)) {
+                    const Base::StringView extName = extInfo->Name();
+                    if (extName == "Binding" || extName == "BindingExtension") {
+                        operand.kind = PrecompiledMarkupExtensionKind::Binding;
+                    } else if (extName == "TemplateBinding" || extName == "TemplateBindingExtension") {
+                        operand.kind = PrecompiledMarkupExtensionKind::TemplateBinding;
+                    } else if (extName == "StaticResource" || extName == "StaticResourceExtension") {
+                        operand.kind = PrecompiledMarkupExtensionKind::StaticResource;
+                    } else if (extName == "DynamicResource" || extName == "DynamicResourceExtension") {
+                        operand.kind = PrecompiledMarkupExtensionKind::DynamicResource;
+                    }
+                }
+            }
+            if (inst.operandIdx < stringPool.Size()) {
+                const Base::StringView rawArgs = TrimAscii(stringPool[inst.operandIdx].View());
+                if (operand.kind == PrecompiledMarkupExtensionKind::Binding) {
+                    Base::StringView stripped;
+                    if (rawArgs.Empty() || IsSimpleDottedToken(rawArgs)) {
+                        static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                        operand.isSimpleArgument = true;
+                    } else if (TryStripNamedClausePrefix(rawArgs, "Path", stripped) && IsSimpleDottedToken(stripped)) {
+                        static_cast<void>(operand.normalizedArgument.Assign(stripped));
+                        operand.isSimpleArgument = true;
+                    } else {
+                        static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                    }
+                } else if (operand.kind == PrecompiledMarkupExtensionKind::TemplateBinding) {
+                    Base::StringView stripped;
+                    if (IsSimpleDottedToken(rawArgs)) {
+                        static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                        operand.isSimpleArgument = true;
+                    } else if (TryStripNamedClausePrefix(rawArgs, "Property", stripped) && IsSimpleDottedToken(stripped)) {
+                        static_cast<void>(operand.normalizedArgument.Assign(stripped));
+                        operand.isSimpleArgument = true;
+                    } else {
+                        static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                    }
+                } else if (operand.kind == PrecompiledMarkupExtensionKind::StaticResource ||
+                           operand.kind == PrecompiledMarkupExtensionKind::DynamicResource) {
+                    Base::StringView candidate = rawArgs;
+                    Base::StringView strippedKey;
+                    if (TryStripNamedClausePrefix(rawArgs, "ResourceKey", strippedKey)) {
+                        candidate = strippedKey;
+                    }
+                    if (candidate.SizeBytes() >= 2U &&
+                        ((candidate[0] == '\'' && candidate[candidate.SizeBytes() - 1U] == '\'') ||
+                         (candidate[0] == '"' && candidate[candidate.SizeBytes() - 1U] == '"'))) {
+                        candidate = TrimAscii(candidate.Substr(1U, candidate.SizeBytes() - 2U));
+                    }
+                    if (IsSimpleResourceKeyToken(candidate)) {
+                        static_cast<void>(operand.normalizedArgument.Assign(candidate));
+                        operand.isSimpleArgument = true;
+                    } else {
+                        static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                    }
+                } else {
+                    static_cast<void>(operand.normalizedArgument.Assign(rawArgs));
+                }
+            }
+        }
+        markupExtensionsPrewarmed = true;
+    }
+
+    for (const auto& subObj : subPrograms) {
+        if (const auto* subContainer = ::Aero::TryCast<const XamlBytecodeContainer>(subObj.Get())) {
+            subContainer->program.PrewarmMarkupExtensions(sc, rt, dpReg);
+        }
+    }
 }
 
 struct PendingDeferredExtension {
@@ -1264,11 +1436,36 @@ Base::Result<void> XamlVM::Execute(
     };
 
     for (std::uint32_t i = 0U;
-         i < program.bindingPaths.Size() && i < program.bindingPathStrings.Size();
+         i < program.bindingPaths.Size() && i < program.bindingPathStrings.Size() && i < program.registeredBindingPathCount && false;
          ++i) {
         Data::CompiledBindingPath::RegisterPrecompiled(
             program.bindingPathStrings[i].View(), program.bindingPaths[i]);
     }
+
+    if (!program.markupExtensionsPrewarmed ||
+        program.registeredBindingPathCount < program.bindingPaths.Size() ||
+        program.precompiledMarkupExtensions.Size() != program.instructions.Size()) {
+        program.PrewarmMarkupExtensions(context.schema, runtime, nullptr);
+    }
+
+    Base::Vector<const ResourceDictionary*> ambientDicts;
+    auto bindRootNamedElement = [&](Base::StringView name, Base::Object& namedObject) noexcept {
+        if (!outObjects.Empty() && outObjects[0]) {
+            if (auto* rootFe = ::Aero::TryCast<FrameworkElement>(outObjects[0].Get())) {
+                rootFe->RegisterName(name, namedObject);
+            }
+            ::Aero::Meta::ApplyBoundFields(*outObjects[0], name, &namedObject);
+        }
+        Base::Object* existingRootObj = context.existingRoot
+            ? context.existingRoot.Get()
+            : (context.loadContext != nullptr ? context.loadContext->existingRoot.Get() : nullptr);
+        if (existingRootObj != nullptr && (outObjects.Empty() || existingRootObj != outObjects[0].Get())) {
+            if (auto* rootFe = ::Aero::TryCast<FrameworkElement>(existingRootObj)) {
+                rootFe->RegisterName(name, namedObject);
+            }
+            ::Aero::Meta::ApplyBoundFields(*existingRootObj, name, &namedObject);
+        }
+    };
 
     const XamlInstruction* ip = program.instructions.Data();
     const XamlInstruction* const end = ip + program.instructions.Size();
@@ -1542,6 +1739,7 @@ Base::Result<void> XamlVM::Execute(
                         rootFe->RegisterName(name, *outObjects[slot]);
                     }
                     ::Aero::Meta::ApplyBoundFields(*outObjects[0], name, outObjects[slot].Get());
+                    bindRootNamedElement(name, *outObjects[slot]);
                 }
                 if (auto* vsg = ::Aero::TryCast<VisualStateGroup>(outObjects[slot].Get())) {
                     vsg->SetName(name);
@@ -1768,6 +1966,33 @@ Base::Result<void> XamlVM::Execute(
             const std::uint64_t extTypeId = program.typePool[ip->extraIdx];
             const std::uint32_t argIdx = ip->operandIdx;
             Base::StringView arguments = program.stringPool[argIdx].View();
+            const std::size_t instIdx = static_cast<std::size_t>(ip - program.instructions.Data());
+            const PrecompiledMarkupExtensionOperand* precompiled =
+                (instIdx < program.precompiledMarkupExtensions.Size())
+                    ? &program.precompiledMarkupExtensions[instIdx]
+                    : nullptr;
+            if (precompiled != nullptr && precompiled->isSimpleArgument && !precompiled->normalizedArgument.Empty()) {
+                arguments = precompiled->normalizedArgument.View();
+            }
+            if (precompiled != nullptr &&
+                precompiled->kind == PrecompiledMarkupExtensionKind::StaticResource &&
+                precompiled->isSimpleArgument) {
+                Base::Result<Aero::Value> res = resolveResource(arguments);
+                if (!res) {
+                    DeferredStaticExtension dse;
+                    dse.slot = slot;
+                    dse.propHandle = propHandle;
+                    static_cast<void>(dse.resourceKey.Assign(arguments));
+                    dse.localScope = !ambientDictStack.Empty() ? ambientDictStack.Back() : nullptr;
+                    deferredStaticExtensions.PushBack(std::move(dse));
+                    break;
+                }
+                Base::Result<void> appStatus = ApplyPropertyToObject(
+                    *outObjects[slot], propHandle, res.Value(),
+                    runtime, context.templateBuilder);
+                if (!appStatus) return appStatus.GetStatus();
+                break;
+            }
             ExtensionServices services;
             services.schema = context.schema;
             services.targetObject = outObjects[slot].Get();
@@ -1781,6 +2006,11 @@ Base::Result<void> XamlVM::Execute(
                 ? context.loadContext->baseUri
                 : (!program.baseUri.Empty() ? &program.baseUri : nullptr);
             if (runtime != nullptr) {
+            if (precompiled != nullptr && precompiled->targetValueType != Meta::InvalidTypeId) {
+                services.targetValueType = precompiled->targetValueType;
+            }
+            }
+            if (services.targetValueType == Meta::InvalidTypeId && runtime != nullptr) {
                 if (const auto* propInfo = runtime->Types().FindProperty(propHandle)) {
                     services.targetValueType = propInfo->ValueType();
                 }
@@ -1802,7 +2032,7 @@ Base::Result<void> XamlVM::Execute(
                 ? context.documentResources
                 : (context.loadContext != nullptr ? context.loadContext->fallbackResources : nullptr);
 
-            Base::Vector<const ResourceDictionary*> ambientDicts;
+            ambientDicts.Clear();
             for (std::uint32_t i = ambientDictStack.Size(); i > 0U; --i) {
                 if (ambientDictStack[i - 1U] != nullptr) {
                     ambientDicts.PushBack(ambientDictStack[i - 1U]);
@@ -2347,6 +2577,7 @@ Base::Result<void> BindCompiledSubProgramToTemplate(
         subProg.properties = Meta::CurrentObjectFactory().dependencyProperties;
     }
     Meta::DependencyPropertyRegistry* properties = subProg.properties;
+    subProg.PrewarmMarkupExtensions(schema, runtime, properties);
 
     if (auto* controlTemplate = ::Aero::TryCast<Controls::ControlTemplate>(&target)) {
         if (controlTemplate->GetTargetType() == Meta::InvalidTypeId) {

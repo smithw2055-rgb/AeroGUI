@@ -149,8 +149,15 @@ public:
     }
 
     void SetDefaultValue(const TValue& value) const noexcept {
-        defaultStorage_.Set(value);
-        hasExplicitDefault_ = true;
+        if constexpr (std::is_trivially_destructible_v<TValue> && std::is_default_constructible_v<TValue>) {
+            defaultStorage_.Set(value);
+            hasExplicitDefault_ = true;
+        } else if constexpr (std::is_same_v<TValue, String>) {
+            if (!value.Empty()) {
+                defaultStorage_.Set(value);
+                hasExplicitDefault_ = true;
+            }
+        }
     }
 
 private:

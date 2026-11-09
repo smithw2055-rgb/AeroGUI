@@ -277,7 +277,7 @@ TriggerEngine::AttachTriggerBinding(
     Meta::DependencyPropertyChangedEventHandler handler,
     bool evaluateImmediately,
     bool ignoreInitialValue,
-    const Data::CompiledBindingPath* /*precompiledPath*/) noexcept {
+    const Data::CompiledBindingPath* precompiledPath) noexcept {
     if (bindings.Metadata() == nullptr) {
         return Base::Status::Failure(
             Base::ErrorCode::NotInitialized,
@@ -311,6 +311,7 @@ TriggerEngine::AttachTriggerBinding(
         }
     }
 
+    bool pathSliced = false;
     Base::StringView path = binding.GetPath().GetPath();
     constexpr Base::StringView kTemplatedParentPrefix("TemplatedParent.");
     if (explicitSource == nullptr &&
@@ -328,6 +329,7 @@ TriggerEngine::AttachTriggerBinding(
         path = path.Substr(
             kTemplatedParentPrefix.SizeBytes(),
             path.SizeBytes() - kTemplatedParentPrefix.SizeBytes());
+        pathSliced = true;
     }
 
     Base::Result<Base::Ref<Data::MultiBindingProxy>> createdProxy =
@@ -351,6 +353,7 @@ TriggerEngine::AttachTriggerBinding(
             explicitSource,
             dcOwner);
     descriptor.path = path;
+    descriptor.precompiledPath = pathSliced ? nullptr : precompiledPath;
     descriptor.bindsToSource = path.Empty();
     descriptor.mode = Data::BindingMode::OneWay;
     descriptor.updateSourceTrigger = Meta::UpdateSourceTrigger::PropertyChanged;

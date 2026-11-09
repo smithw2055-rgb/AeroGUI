@@ -32,6 +32,9 @@ namespace {
 
 static Base::Result<double> DecodeDoubleOrLength(
     const Meta::PropertyValue& value) noexcept {
+    if (value.Kind() == Meta::ValueKind::Double) {
+        return value.AsDouble();
+    }
     if (value.Type() == Meta::TypeOf<Length>()) {
         Base::Result<Length> length = Meta::ValueCodec<Length>::Decode(value);
         if (!length) return length.GetStatus();
@@ -93,6 +96,10 @@ private:
     DependencyPropertyRegistry* properties_ = nullptr;
     Base::Vector<ActiveGroup> active_;
     std::uint32_t goToStateDepth_ = 0U;
+    Base::Vector<TransitionValue> transitionValuesScratch_;
+    Base::Ref<Media::Animation::DoubleAnimation> scratchDoubleAnimation_;
+    Base::Ref<Media::Animation::ColorAnimation> scratchColorAnimation_;
+    Base::Ref<Media::Animation::PointAnimation> scratchPointAnimation_;
 
     std::uint32_t FindActive(
         TemplateHandle handle,
@@ -370,6 +377,9 @@ Base::Result<void> VisualStateManagerState::ApplyState(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
+    if (state.setters.Empty()) {
+        return {};
+    }
     Base::BasicVector<DependencyObject*, 16U> resolvedTargets;
     resolvedTargets.Reserve(state.setters.Size());
     for (const VisualStateSetterPlan& setter : state.setters) {
@@ -383,7 +393,7 @@ Base::Result<void> VisualStateManagerState::ApplyState(
         }
         resolvedTargets.PushBack(target);
     }
-    if (active.providerOrigin == 0U) {
+    if (active.providerOrigin == 0U || state.setters.Empty()) {
         Base::Result<std::uint32_t> origin =
             values_->AllocateProviderOrigin();
         if (!origin) return origin.GetStatus();
@@ -412,7 +422,7 @@ Base::Result<void> VisualStateManagerState::ClearStateValues(
     TemplateHandle handle,
     const VisualStatePlan& state,
     ActiveGroup& active) noexcept {
-    if (active.providerOrigin == 0U) {
+    if (active.providerOrigin == 0U || state.setters.Empty()) {
         return {};
     }
     DependencyObject* seenTargets[32];
@@ -760,7 +770,7 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             *transition.storyboard,
             active);
     }
-    if (transition.generatedDurationMicroseconds == 0U) {
+    if (transition.generatedDurationMicroseconds == 0U || values.Empty()) {
         return {};
     }
     Media::Animation::Model::TimelineTiming timing;
@@ -774,7 +784,7 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
         if (!authored) {
             return Base::Status::Failure(Base::ErrorCode::OutOfMemory, "Failed to allocate transition timeline");
         }
-        if (transition.generatedEasingFunction) {
+        if (true) {
             authored->SetEasingFunction(transition.generatedEasingFunction);
         }
         return animations_->BeginTimeline(*value.target, value.property, *authored, timing);
@@ -798,7 +808,10 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             if (fromDouble && toDouble) {
                 if (fromDouble.Value() == toDouble.Value()) continue;
                 started = beginGeneratedTimeline(value, [&]() {
-                    auto authored = Base::MakeRef<Media::Animation::DoubleAnimation>();
+                    if (!scratchDoubleAnimation_) {
+                        scratchDoubleAnimation_ = Base::MakeRef<Media::Animation::DoubleAnimation>();
+                    }
+                    auto& authored = scratchDoubleAnimation_;
                     if (authored) {
                         authored->SetFrom(fromDouble.Value());
                         authored->SetTo(toDouble.Value());
@@ -811,7 +824,10 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
             Base::Result<Base::Color> toColor = ValueCodec<Base::Color>::Decode(value.to);
             if (!fromColor || !toColor || fromColor.Value() == toColor.Value()) continue;
             started = beginGeneratedTimeline(value, [&]() {
-                auto authored = Base::MakeRef<Media::Animation::ColorAnimation>();
+                if (!scratchColorAnimation_) {
+                    scratchColorAnimation_ = Base::MakeRef<Media::Animation::ColorAnimation>();
+                }
+                auto& authored = scratchColorAnimation_;
                 if (authored) {
                     authored->SetFrom(fromColor.Value());
                     authored->SetTo(toColor.Value());
@@ -827,7 +843,10 @@ Base::Result<void> VisualStateManagerState::StartTransitionAnimations(
                 continue;
             }
             started = beginGeneratedTimeline(value, [&]() {
-                auto authored = Base::MakeRef<Media::Animation::PointAnimation>();
+                if (!scratchPointAnimation_) {
+                    scratchPointAnimation_ = Base::MakeRef<Media::Animation::PointAnimation>();
+                }
+                auto& authored = scratchPointAnimation_;
                 if (authored) {
                     authored->SetFrom(fromPoint.Value());
                     authored->SetTo(toPoint.Value());
@@ -851,7 +870,7 @@ bool VisualStateManagerState::GoToState(
     Base::StringView groupName,
     Base::StringView stateName,
     bool useTransitions) noexcept {
-    if (stateName.Empty()) {
+    if (stateName.Empty() || goToStateDepth_ != 0U) {
         return false;
     }
     const TemplateHandle handle =
@@ -862,12 +881,14 @@ bool VisualStateManagerState::GoToState(
         return false;
     }
     const VisualStateGroupPlan* group = groupName.Empty() ? nullptr : FindGroup(*plan, groupName);
+
+    const VisualStatePlan* next = group != nullptr ? FindState(*group, stateName) : nullptr;
     if (group == nullptr && groupName.Empty()) {
         for (const VisualStateGroupPlan& candidate : FrameworkTemplateState::VisualStateGroups(*plan)) {
-            if (FindState(candidate, stateName) != nullptr) { group = &candidate; groupName = candidate.name.View(); break; }
+            if (const VisualStatePlan* found = FindState(candidate, stateName)) { group = &candidate; groupName = candidate.name.View(); next = found; break; }
         }
     }
-    const VisualStatePlan* next = group != nullptr ? FindState(*group, stateName) : nullptr;
+
     if (next == nullptr) {
         // Support WPF / Silverlight / Aero naming aliases
         Base::StringView fallbackName;
@@ -882,10 +903,10 @@ bool VisualStateManagerState::GoToState(
             }
             if (next == nullptr && groupName.Empty()) {
                 for (const VisualStateGroupPlan& candidate : FrameworkTemplateState::VisualStateGroups(*plan)) {
-                    if (FindState(candidate, fallbackName) != nullptr) {
+                    if (const VisualStatePlan* found = FindState(candidate, fallbackName)) {
                         group = &candidate;
                         groupName = candidate.name.View();
-                        next = FindState(candidate, fallbackName);
+                        next = found;
                         break;
                     }
                 }
@@ -949,8 +970,9 @@ bool VisualStateManagerState::GoToState(
               previousName,
               stateName)
         : nullptr;
-    Base::Vector<TransitionValue>
-        transitionValues;
+
+    Base::Vector<TransitionValue>& transitionValues = transitionValuesScratch_;
+    transitionValues.Clear();
     if (transition != nullptr &&
         transition->generatedDurationMicroseconds != 0U &&
         !transition->storyboard) {

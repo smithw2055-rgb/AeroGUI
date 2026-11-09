@@ -263,6 +263,9 @@ void ContentControl::EnsureFallbackPresenter() noexcept {
         if (!fallbackPresenter_) return;
         UIElement* existingContent = ownedContent_ ? TryCast<UIElement>(ownedContent_.Get()) : nullptr;
         if (existingContent != nullptr && existingContent->GetVisualParent() == this) {
+            if (ElementTree* tree = VisualTree(this); tree != nullptr && existingContent->GetLogicalParent() == nullptr) {
+                static_cast<void>(tree->AttachLogical(*this, *existingContent));
+            }
             if (ElementTree* tree = VisualTree(this)) {
                 DetachVisualAttachment(tree, this, existingContent);
             } else {
@@ -1061,6 +1064,7 @@ AERO_DESCRIBE(UserControl) {
 }
 
 Base::Result<void> UserControl::InitializeComponent(StringView uri) noexcept {
+    componentInitialized_ = true;
     Gui* current = Gui::Current();
     if (current == nullptr) {
         return Base::Status::Failure(
@@ -1070,7 +1074,34 @@ Base::Result<void> UserControl::InitializeComponent(StringView uri) noexcept {
     if (UseCount() == 0U) {
         PromoteConstructingObject();
     }
+    if (uri.Empty()) {
+        if (const Base::TypeClass* cls = GetClassType(); cls != nullptr) {
+            uri = cls->ComponentUri();
+        }
+        if (uri.Empty()) {
+            uri = Meta::FindComponentUri(RuntimeType());
+        }
+    }
     return current->LoadComponent(*this, uri);
+}
+
+void UserControl::OnPostConstruct() noexcept {
+    const Value contentVal = GetContent();
+    const bool hasContent = !contentVal.IsUnset() &&
+        !(contentVal.Kind() == Meta::ValueKind::Object && contentVal.IsNullObject());
+    if (componentInitialized_ || GetContentElement() != nullptr || hasContent) {
+        return;
+    }
+    StringView uri;
+    if (const Base::TypeClass* cls = GetClassType(); cls != nullptr) {
+        uri = cls->ComponentUri();
+    }
+    if (uri.Empty()) {
+        uri = Meta::FindComponentUri(RuntimeType());
+    }
+    if (!uri.Empty() && Gui::Current() != nullptr) {
+        static_cast<void>(InitializeComponent(uri));
+    }
 }
 
 AERO_DESCRIBE(GroupBox) {

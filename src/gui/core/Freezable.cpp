@@ -64,7 +64,7 @@ Freezable* AsFreezable(
         return nullptr;
     }
     Base::Object* object = value.AsObject().Get();
-    if (!DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
+    if (!DependencyObjectAccess::HasPropertyRegistry(owner) || !DependencyObjectAccess::PropertyRegistry((owner)).Types().IsDerivedFrom(
             object->RuntimeType(), Freezable::StaticTypeId())) {
         return nullptr;
     }
@@ -560,7 +560,7 @@ Base::Result<void> DependencyObject::VisitFreezableChildren(
     void* context,
     Base::Result<void> (*visitor)(void*, Freezable&) noexcept) noexcept {
     DependencyObject& object = *this;
-    if (visitor == nullptr) return {};
+    if (visitor == nullptr || !DependencyObjectAccess::HasPropertyRegistry(object)) return {};
     const PropertyStore* store = object.Store();
     if (store == nullptr) {
         return {};
@@ -611,7 +611,7 @@ void DependencyObject::InvalidateSubProperty(
     Meta::DependencyPropertyHandle propertyHandle) noexcept {
     DependencyObject& object = *this;
     const Meta::DependencyProperty* property =
-        DependencyObjectAccess::PropertyRegistry((object)).Find(propertyHandle);
+        DependencyObjectAccess::HasPropertyRegistry(object) ? DependencyObjectAccess::PropertyRegistry((object)).Find(propertyHandle) : nullptr;
     const Meta::PropertyMetadata* metadata = property != nullptr
         ? property->MetadataFor(object.RuntimeType())
         : nullptr;

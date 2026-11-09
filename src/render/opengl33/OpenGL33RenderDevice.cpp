@@ -626,6 +626,55 @@ OpenGL33RenderDevice::~OpenGL33RenderDevice() noexcept {
     Shutdown();
 }
 
+unsigned int OpenGL33RenderDevice::EnsureProgram(uint32_t shaderEnum) noexcept {
+    if (shaderEnum >= Shader::Count) {
+        return 0;
+    }
+    if (programs_[shaderEnum] != 0) {
+        return programs_[shaderEnum];
+    }
+    if (vertexShader_ == 0) {
+        return 0;
+    }
+    const char* defines = nullptr;
+    for (const auto& entry : kShaderDefs) {
+        if (entry.shaderEnum == shaderEnum) {
+            defines = entry.defines;
+            break;
+        }
+    }
+    if (defines == nullptr) {
+        return 0;
+    }
+    const GLCallbacks& gl = gl_;
+    GLuint fs = CompilePermutationPS(gl, defines);
+    if (fs == 0) {
+        return 0;
+    }
+    GLuint prog = CreateAndInitProgram(gl, vertexShader_, fs);
+    gl.glDeleteShader(fs);
+    currentProgram_ = 0;
+    programs_[shaderEnum] = prog;
+    if (prog != 0) {
+        auto cacheLocations = [&](GLuint p, ProgramLocations& locs) {
+            locs.uViewportSize = gl.glGetUniformLocation(p, "uViewportSize");
+            locs.uFlipY = gl.glGetUniformLocation(p, "uFlipY");
+            locs.uTextureSize = gl.glGetUniformLocation(p, "uTextureSize");
+            locs.uPaint0 = gl.glGetUniformLocation(p, "uPaint0");
+            locs.uPaint1 = gl.glGetUniformLocation(p, "uPaint1");
+            locs.uEffect0 = gl.glGetUniformLocation(p, "uEffect0");
+            locs.uEffect1 = gl.glGetUniformLocation(p, "uEffect1");
+            locs.uEffectColor = gl.glGetUniformLocation(p, "uEffectColor");
+        };
+        cacheLocations(prog, programLocations_[shaderEnum]);
+        if (shaderEnum == Shader::Custom_Effect) {
+            customEffectProgram_ = prog;
+            customEffectLocations_ = programLocations_[shaderEnum];
+        }
+    }
+    return prog;
+}
+
 Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     if (vao_ != 0) return {};
 
@@ -640,42 +689,28 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     }
     const GLCallbacks& gl = gl_;
 
-    GLuint vertexShader = CompileShader(gl, GL_VERTEX_SHADER, VertexShaderSource);
-    if (vertexShader == 0) {
+    vertexShader_ = CompileShader(gl, GL_VERTEX_SHADER, VertexShaderSource);
+    if (vertexShader_ == 0) {
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile the GL vertex shader");
     }
-    for (const auto& entry : kShaderDefs) {
-        if (entry.shaderEnum < Shader::Count) {
-            GLuint fs = CompilePermutationPS(gl, entry.defines);
-            if (fs != 0) {
-                programs_[entry.shaderEnum] = CreateAndInitProgram(gl, vertexShader, fs);
-                gl.glDeleteShader(fs);
-            }
-        }
-    }
-    gl.glDeleteShader(vertexShader);
 
-    customEffectProgram_ = programs_[Shader::Custom_Effect];
-
-    auto cacheLocations = [&](GLuint prog, ProgramLocations& locs) {
-        if (prog == 0) return;
-        locs.uViewportSize = gl.glGetUniformLocation(prog, "uViewportSize");
-        locs.uFlipY = gl.glGetUniformLocation(prog, "uFlipY");
-        locs.uTextureSize = gl.glGetUniformLocation(prog, "uTextureSize");
-        locs.uPaint0 = gl.glGetUniformLocation(prog, "uPaint0");
-        locs.uPaint1 = gl.glGetUniformLocation(prog, "uPaint1");
-        locs.uEffect0 = gl.glGetUniformLocation(prog, "uEffect0");
-        locs.uEffect1 = gl.glGetUniformLocation(prog, "uEffect1");
-        locs.uEffectColor = gl.glGetUniformLocation(prog, "uEffectColor");
+    constexpr uint32_t kCoreShaders[] = {
+        Shader::RGBA,
+        Shader::Mask,
+        Shader::Clear,
+        Shader::Path_Solid,
+        Shader::Path_AA_Solid,
+        Shader::Path_Linear,
+        Shader::Path_Radial,
+        Shader::Path_Pattern,
+        Shader::SDF_Solid,
+        Shader::Opacity_Solid,
+        Shader::Blur,
+        Shader::Shadow,
+        Shader::Custom_Effect
     };
-
-    for (size_t i = 0; i < Shader::Count; ++i) {
-        if (programs_[i] != 0) {
-            cacheLocations(programs_[i], programLocations_[i]);
-        }
-    }
-    if (customEffectProgram_ != 0) {
-        cacheLocations(customEffectProgram_, customEffectLocations_);
+    for (uint32_t shaderEnum : kCoreShaders) {
+        (void)EnsureProgram(shaderEnum);
     }
 
     if (programs_[Shader::Path_Solid] == 0 || programs_[Shader::Path_Pattern] == 0 ||
@@ -686,7 +721,8 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
         return Base::Status::Failure(Base::ErrorCode::InternalError, "Failed to compile/link a GL program");
     }
 
-    gl.glGenVertexArrays(1, &vao_);
+    gl.glGenVertexArrays(Shader::Vertex::Format::Count, vaos_);
+    vao_ = vaos_[0];
     gl.glGenBuffers(1, &dynamicVB_);
     gl.glGenBuffers(1, &dynamicIB_);
     if (vao_ == 0 || dynamicVB_ == 0 || dynamicIB_ == 0) {
@@ -703,17 +739,40 @@ Base::Result<void> OpenGL33RenderDevice::Initialize() noexcept {
     gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
     gl.glBufferData(GL_ELEMENT_ARRAY_BUFFER, DYNAMIC_IB_SIZE, nullptr, GL_DYNAMIC_DRAW);
 
-    gl.glEnableVertexAttribArray(0);
-    gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, VertexStride, nullptr);
-    gl.glEnableVertexAttribArray(1);
-    gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, VertexStride, reinterpret_cast<const void*>(ColorOffset));
-    gl.glEnableVertexAttribArray(2);
-    gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, VertexStride, reinterpret_cast<const void*>(UVOffset));
-    gl.glEnableVertexAttribArray(3);
-    gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, VertexStride, reinterpret_cast<const void*>(CoverageOffset));
-    if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
-    if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
-    if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
+    for (uint8_t fmt = 0; fmt < Shader::Vertex::Format::Count; ++fmt) {
+        gl.glBindVertexArray(vaos_[fmt]);
+        gl.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+        gl.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
+        const GLsizei stride = (SizeForFormat[fmt] != 0U)
+            ? static_cast<GLsizei>(SizeForFormat[fmt]) : VertexStride;
+        const auto& off = GetVertexOffsets(fmt);
+        gl.glEnableVertexAttribArray(0);
+        gl.glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, nullptr);
+        if (off.colorOffset >= 0) {
+            gl.glEnableVertexAttribArray(1);
+            gl.glVertexAttribPointer(1, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride, reinterpret_cast<const void*>(static_cast<uintptr_t>(off.colorOffset)));
+        } else {
+            gl.glDisableVertexAttribArray(1);
+            if (gl.glVertexAttrib4f != nullptr) gl.glVertexAttrib4f(1, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
+        const int8_t uvOffset = (off.tex0Offset >= 0) ? off.tex0Offset : off.tex1Offset;
+        if (uvOffset >= 0) {
+            gl.glEnableVertexAttribArray(2);
+            gl.glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(static_cast<uintptr_t>(uvOffset)));
+        } else {
+            gl.glDisableVertexAttribArray(2);
+            if (gl.glVertexAttrib2f != nullptr) gl.glVertexAttrib2f(2, 0.0f, 0.0f);
+        }
+        if (off.coverageOffset >= 0) {
+            gl.glEnableVertexAttribArray(3);
+            gl.glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(static_cast<uintptr_t>(off.coverageOffset)));
+        } else {
+            gl.glDisableVertexAttribArray(3);
+            if (gl.glVertexAttrib1f != nullptr) gl.glVertexAttrib1f(3, 1.0f);
+        }
+    }
+    gl.glBindVertexArray(vao_);
+    boundVao_ = vao_;
     // Keep vao_ bound so subsequent MapIndices/dynamicIB_ binding does not violate Core Profile
 
     // Create the 64 sampler states indexed by SamplerState.v
@@ -828,6 +887,7 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
             for (uint8_t i = 0; i < StateCache::kSamplerTableSize; ++i) samplers_[i] = 0;
         }
         stateCache_.Reset();
+    boundVao_ = 0;
         if (gl.glDeleteProgram != nullptr) {
             for (uint32_t i = 0; i < Shader::Count; ++i) {
                 if (programs_[i] != 0) {
@@ -838,12 +898,20 @@ void OpenGL33RenderDevice::Shutdown() noexcept {
         }
         customEffectProgram_ = 0;
         currentProgram_ = 0;
+        if (vertexShader_ != 0 && gl.glDeleteShader != nullptr) {
+            gl.glDeleteShader(vertexShader_);
+            vertexShader_ = 0;
+        }
         if (dynamicVB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicVB_);
         if (dynamicIB_ != 0 && gl.glDeleteBuffers != nullptr) gl.glDeleteBuffers(1, &dynamicIB_);
-        if (vao_ != 0 && gl.glDeleteVertexArrays != nullptr) gl.glDeleteVertexArrays(1, &vao_);
+        if (vaos_[0] != 0 && gl.glDeleteVertexArrays != nullptr) {
+            gl.glDeleteVertexArrays(Shader::Vertex::Format::Count, vaos_);
+            for (uint8_t i = 0; i < Shader::Vertex::Format::Count; ++i) vaos_[i] = 0;
+        }
         dynamicVB_ = 0;
         dynamicIB_ = 0;
         vao_ = 0;
+        boundVao_ = 0;
     }
     currentTarget_ = nullptr;
     state_ = RenderDeviceState::Shutdown;
@@ -995,6 +1063,7 @@ void OpenGL33RenderDevice::BeginOffscreenRender() noexcept {
     renderingOffscreen_ = true;
     if (vao_ == 0 || currentTarget_ == nullptr || currentTarget_->IsDefaultFBO()) return;
     stateCache_.Reset();
+    boundVao_ = 0;
     cachedPaint0Hash_ = 0U;
     cachedEffectColorHash_ = 0U;
     cachedFlipY_ = -1.0f;
@@ -1026,6 +1095,7 @@ void OpenGL33RenderDevice::BeginOnscreenRender() noexcept {
     renderingOffscreen_ = false;
     if (vao_ == 0 || currentTarget_ == nullptr) return;
     stateCache_.Reset();
+    boundVao_ = 0;
     cachedPaint0Hash_ = 0U;
     cachedEffectColorHash_ = 0U;
     cachedFlipY_ = -1.0f;
@@ -1046,6 +1116,7 @@ void OpenGL33RenderDevice::SetRenderTarget(RenderTarget* surface) noexcept {
     if (vao_ == 0) return;
     ClearTextures();
     stateCache_.Reset();
+    boundVao_ = 0;
     cachedPaint0Hash_ = 0U;
     cachedEffectColorHash_ = 0U;
     cachedFlipY_ = -1.0f;
@@ -1119,7 +1190,10 @@ void OpenGL33RenderDevice::UnmapVertices() noexcept {
 void* OpenGL33RenderDevice::MapIndices(uint32_t bytes) noexcept {
     if (bytes == 0U || gl_.glMapBufferRange == nullptr) return nullptr;
     if (vao_ != 0 && gl_.glBindVertexArray != nullptr) {
-        gl_.glBindVertexArray(vao_);
+        if (boundVao_ == 0) {
+            gl_.glBindVertexArray(vao_);
+            boundVao_ = vao_;
+        }
     }
     activeIBBytes_ = bytes;
     uint32_t allocOffset = 0U;
@@ -1140,8 +1214,9 @@ void* OpenGL33RenderDevice::MapIndices(uint32_t bytes) noexcept {
 
 void OpenGL33RenderDevice::UnmapIndices() noexcept {
     if (vao_ == 0 || activeIBBytes_ == 0U || gl_.glUnmapBuffer == nullptr) return;
-    if (gl_.glBindVertexArray != nullptr) {
+    if (gl_.glBindVertexArray != nullptr && boundVao_ == 0) {
         gl_.glBindVertexArray(vao_);
+        boundVao_ = vao_;
     }
     gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
     gl_.glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
@@ -1153,12 +1228,13 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
 
     unsigned int program = 0;
     if (batch.shader.v == Shader::Custom_Effect) {
-        program = customEffectProgram_ != 0
-            ? customEffectProgram_ : programs_[Shader::Path_Pattern];
-    } else if (batch.shader.v < Shader::Count && programs_[batch.shader.v] != 0) {
-        program = programs_[batch.shader.v];
+        program = EnsureProgram(Shader::Custom_Effect);
+        if (program == 0) program = EnsureProgram(Shader::Path_Pattern);
+    } else if (batch.shader.v < Shader::Count) {
+        program = EnsureProgram(batch.shader.v);
+        if (program == 0) program = EnsureProgram(Shader::Path_Solid);
     } else {
-        program = programs_[Shader::Path_Solid];
+        program = EnsureProgram(Shader::Path_Solid);
     }
     if (program == 0) return;
 
@@ -1401,20 +1477,28 @@ void OpenGL33RenderDevice::DrawBatch(const Batch& batch) noexcept {
     const uintptr_t totalVBOffset = vbRing_.currentDrawOffset + batch.vertexOffset;
     const uintptr_t totalIBOffset = ibRing_.currentDrawOffset + static_cast<uintptr_t>(batch.startIndex) * sizeof(uint16_t);
 
-    gl_.glBindVertexArray(vao_);
-    gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
-    gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
-
     const GLsizei stride = (format < Shader::Vertex::Format::Count && SizeForFormat[format] != 0U)
         ? static_cast<GLsizei>(SizeForFormat[format]) : 24;
 
-    if (gl_.glDrawElementsBaseVertex != nullptr && stride > 0 && (totalVBOffset % static_cast<uintptr_t>(stride)) == 0) {
-        SetVertexFormat(format, 0);
+    if (gl_.glDrawElementsBaseVertex != nullptr && stride > 0 &&
+        (totalVBOffset % static_cast<uintptr_t>(stride)) == 0 &&
+        format < Shader::Vertex::Format::Count && vaos_[format] != 0) {
+        const unsigned int targetVao = vaos_[format];
+        if (boundVao_ != targetVao) {
+            gl_.glBindVertexArray(targetVao);
+            boundVao_ = targetVao;
+        }
         const GLint baseVertex = static_cast<GLint>(totalVBOffset / static_cast<uintptr_t>(stride));
         gl_.glDrawElementsBaseVertex(GL_TRIANGLES,
             static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,
             reinterpret_cast<const void*>(totalIBOffset), baseVertex);
     } else {
+        if (boundVao_ != vao_) {
+            gl_.glBindVertexArray(vao_);
+            boundVao_ = vao_;
+        }
+        gl_.glBindBuffer(GL_ARRAY_BUFFER, dynamicVB_);
+        gl_.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamicIB_);
         SetVertexFormat(format, totalVBOffset);
         gl_.glDrawElements(GL_TRIANGLES,
             static_cast<GLsizei>(batch.numIndices), GL_UNSIGNED_SHORT,

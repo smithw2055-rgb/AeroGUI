@@ -228,6 +228,21 @@ static_assert(sizeof(XamlInstruction) == 16U, "XamlInstruction must be exactly 1
 // ============================================================================
 // XamlBytecodeProgram Container
 // ============================================================================
+enum class PrecompiledMarkupExtensionKind : std::uint8_t {
+    Unknown = 0U,
+    Binding,
+    TemplateBinding,
+    StaticResource,
+    DynamicResource
+};
+
+struct PrecompiledMarkupExtensionOperand {
+    PrecompiledMarkupExtensionKind kind = PrecompiledMarkupExtensionKind::Unknown;
+    bool isSimpleArgument = false;
+    Meta::TypeId targetValueType = Meta::InvalidTypeId;
+    Base::String normalizedArgument;
+};
+
 struct XamlBytecodeProgram {
     std::uint32_t slotCount = 0U;
     Base::Vector<XamlInstruction> instructions;
@@ -266,6 +281,15 @@ struct XamlBytecodeProgram {
     Base::Vector<Aero::ResourceDictionary> ambientDictionaries;
     Aero::ResourceDictionary fallbackResources;
     Base::Object* templateOwner = nullptr;
+    mutable Base::Vector<PrecompiledMarkupExtensionOperand> precompiledMarkupExtensions;
+    mutable std::uint32_t registeredBindingPathCount = 0U;
+    mutable bool markupExtensionsPrewarmed = false;
+
+    void EnsureBindingPathsRegistered() const noexcept;
+    void PrewarmMarkupExtensions(
+        const Schema* activeSchema = nullptr,
+        Meta::Registry* activeRuntime = nullptr,
+        Meta::DependencyPropertyRegistry* activeProperties = nullptr) const noexcept;
 
     std::uint32_t FindSlotByName(Base::StringView name) const noexcept;
     std::int32_t FindPartIndexByName(Base::StringView name) const noexcept;

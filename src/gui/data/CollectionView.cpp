@@ -81,56 +81,82 @@ int CompareValues(const Meta::Value& leftValue, const Meta::Value& rightValue) n
     return 0;
 }
 
-int CompareSortPropertyValues(
-    const Base::Object* left,
-    const Base::Object* right,
-    StringView propertyName) noexcept {
-    if (left == nullptr || right == nullptr || propertyName.Empty()) {
-        return left < right ? -1 : (left > right ? 1 : 0);
+struct SortEntry {
+    std::uint32_t sourceIndex = 0U;
+    Base::Ref<Base::Object> item;
+    Meta::PropertyValue key;
+    bool hasKey = false;
+};
+
+struct SortPropertyLookupCache {
+    const Meta::DependencyPropertyRegistry* dpRegistry = nullptr;
+    Meta::TypeId dpOwnerType{};
+    const Meta::DependencyProperty* dp = nullptr;
+    bool dpSearched = false;
+    Meta::TypeId metaOwnerType{};
+    const Meta::PropertyInfo* metaProp = nullptr;
+    bool metaSearched = false;
+};
+
+bool ReadSortPropertyValue(
+    const Base::Object* item,
+    StringView propertyName,
+    const Meta::Registry* metadata,
+    SortPropertyLookupCache& cache,
+    Meta::PropertyValue& outValue) noexcept {
+    if (item == nullptr || propertyName.Empty()) {
+        return false;
     }
-    auto* leftObject = const_cast<Base::Object*>(left);
-    auto* rightObject = const_cast<Base::Object*>(right);
-    auto* leftDo = ::Aero::TryCast<DependencyObject>(leftObject);
-    auto* rightDo = ::Aero::TryCast<DependencyObject>(rightObject);
-    if (leftDo != nullptr && rightDo != nullptr) {
-        const Meta::DependencyProperty* leftProperty =
-            DependencyObjectAccess::PropertyRegistry(leftDo).Find(
-                leftDo->RuntimeType(), propertyName);
-        const Meta::DependencyProperty* rightProperty =
-            DependencyObjectAccess::PropertyRegistry(rightDo).Find(
-                rightDo->RuntimeType(), propertyName);
-        if (leftProperty != nullptr && rightProperty != nullptr) {
-            const Meta::PropertyValue leftValue =
-                leftDo->GetValue(leftProperty->Handle());
-            const Meta::PropertyValue rightValue =
-                rightDo->GetValue(rightProperty->Handle());
-            const int cmp = CompareValues(leftValue, rightValue);
-            if (cmp != 0) return cmp;
-            return left < right ? -1 : (left > right ? 1 : 0);
+    auto* mutableObject = const_cast<Base::Object*>(item);
+    if (auto* doObject = ::Aero::TryCast<DependencyObject>(mutableObject)) {
+        const Meta::DependencyPropertyRegistry& registry =
+            DependencyObjectAccess::PropertyRegistry(doObject);
+        const Meta::TypeId runtimeType = doObject->RuntimeType();
+        if (!cache.dpSearched ||
+            cache.dpRegistry != &registry ||
+            cache.dpOwnerType != runtimeType) {
+            cache.dpRegistry = &registry;
+            cache.dpOwnerType = runtimeType;
+            cache.dp = registry.Find(runtimeType, propertyName);
+            cache.dpSearched = true;
+        }
+        if (cache.dp != nullptr) {
+            outValue = doObject->GetValue(cache.dp->Handle());
+            return true;
         }
     }
 
     // Fallback for ViewModelBase reflection objects when TryCast<DependencyObject> returns nullptr
-    const Meta::ObjectFactoryState factory = Meta::CurrentObjectFactory();
-    if (factory.metadata != nullptr) {
-        const Meta::PropertyInfo* leftProp =
-            factory.metadata->Types().FindProperty(
-                leftObject->RuntimeType(), propertyName, true);
-        const Meta::PropertyInfo* rightProp =
-            factory.metadata->Types().FindProperty(
-                rightObject->RuntimeType(), propertyName, true);
-        if (leftProp != nullptr && rightProp != nullptr) {
-            Base::Result<Meta::Value> leftVal =
-                factory.metadata->GetProperty(*leftObject, leftProp->Id());
-            Base::Result<Meta::Value> rightVal =
-                factory.metadata->GetProperty(*rightObject, rightProp->Id());
-            if (leftVal && rightVal) {
-                const int cmp = CompareValues(leftVal.Value(), rightVal.Value());
-                if (cmp != 0) return cmp;
+    if (metadata != nullptr) {
+        const Meta::TypeId runtimeType = mutableObject->RuntimeType();
+        if (!cache.metaSearched || cache.metaOwnerType != runtimeType) {
+            cache.metaOwnerType = runtimeType;
+            cache.metaProp = metadata->Types().FindProperty(
+                runtimeType, propertyName, true);
+            cache.metaSearched = true;
+        }
+        if (cache.metaProp != nullptr) {
+            Base::Result<Meta::Value> val =
+                metadata->GetProperty(*mutableObject, cache.metaProp->Id());
+            if (val) {
+                outValue = std::move(val).Value();
+                return true;
             }
         }
     }
-    return left < right ? -1 : (left > right ? 1 : 0);
+    return false;
+}
+
+int CompareExtractedSortValues(
+    const SortEntry& left,
+    const SortEntry& right) noexcept {
+    if (left.hasKey && right.hasKey) {
+        const int cmp = CompareValues(left.key, right.key);
+        if (cmp != 0) return cmp;
+    }
+    const Base::Object* leftPtr = left.item.Get();
+    const Base::Object* rightPtr = right.item.Get();
+    return leftPtr < rightPtr ? -1 : (leftPtr > rightPtr ? 1 : 0);
 }
 
 } // namespace
@@ -329,27 +355,59 @@ void CollectionView::Rebuild() noexcept {
     map_.Clear();
     if (inner_ == nullptr) return;
     const std::uint32_t count = inner_->GetCount();
+    if (count == 0U) return;
     static_cast<void>(map_.Reserve(count));
+    if (!hasSort_) {
+        for (std::uint32_t index = 0U; index < count; ++index) {
+            Ref<Base::Object> item = inner_->GetItem(index);
+            if (!Passes(item.Get())) continue;
+            static_cast<void>(map_.PushBack(index));
+        }
+        return;
+    }
+
+    Base::Vector<SortEntry> entries;
+    static_cast<void>(entries.Reserve(count));
     for (std::uint32_t index = 0U; index < count; ++index) {
         Ref<Base::Object> item = inner_->GetItem(index);
         if (!Passes(item.Get())) continue;
-        static_cast<void>(map_.PushBack(index));
+        SortEntry entry;
+        entry.sourceIndex = index;
+        entry.item = std::move(item);
+        static_cast<void>(entries.PushBack(std::move(entry)));
     }
-    if (!hasSort_ || map_.Size() < 2U) return;
+    if (entries.Size() < 2U) {
+        if (entries.Size() == 1U) {
+            static_cast<void>(map_.PushBack(entries[0].sourceIndex));
+        }
+        return;
+    }
+
+    const Meta::Registry* metadata = Meta::CurrentObjectFactory().metadata;
+    const StringView propertyName = sortProperty_.View();
+    SortPropertyLookupCache lookupCache;
+    for (std::uint32_t i = 0U; i < entries.Size(); ++i) {
+        SortEntry& entry = entries[i];
+        entry.hasKey = ReadSortPropertyValue(
+            entry.item.Get(),
+            propertyName,
+            metadata,
+            lookupCache,
+            entry.key);
+    }
+
+    const bool descending = sortDirection_ == ListSortDirection::Descending;
     std::sort(
-        map_.Data(),
-        map_.Data() + map_.Size(),
-        [this](std::uint32_t left, std::uint32_t right) noexcept {
-            Ref<Base::Object> leftItem = inner_->GetItem(left);
-            Ref<Base::Object> rightItem = inner_->GetItem(right);
-            const int order = CompareSortPropertyValues(
-                leftItem.Get(),
-                rightItem.Get(),
-                sortProperty_.View());
-            return sortDirection_ == ListSortDirection::Descending
-                ? order > 0
-                : order < 0;
+        entries.Data(),
+        entries.Data() + entries.Size(),
+        [descending](const SortEntry& left, const SortEntry& right) noexcept {
+            const int order = CompareExtractedSortValues(left, right);
+            return descending ? order > 0 : order < 0;
         });
+
+    for (std::uint32_t i = 0U; i < entries.Size(); ++i) {
+        static_cast<void>(map_.PushBack(entries[i].sourceIndex));
+    }
 }
 
 bool CollectionView::Passes(const Base::Object* item) const noexcept {

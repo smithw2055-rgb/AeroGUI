@@ -896,6 +896,26 @@ void TextBlock::OnRender(
         }
 
         Base::Vector<StyleSpan> spans;
+        const auto appendSpan = [&spans](const StyleSpan& candidate) noexcept {
+            if (candidate.length == 0U) return;
+            if (!spans.Empty()) {
+                StyleSpan& prev = spans[spans.Size() - 1U];
+                const bool sameColor = !prev.hasForeground ||
+                    (prev.foreground.red == candidate.foreground.red &&
+                     prev.foreground.green == candidate.foreground.green &&
+                     prev.foreground.blue == candidate.foreground.blue &&
+                     prev.foreground.alpha == candidate.foreground.alpha);
+                if (prev.start + prev.length == candidate.start &&
+                    prev.hasForeground == candidate.hasForeground &&
+                    sameColor &&
+                    prev.bold == candidate.bold &&
+                    prev.italic == candidate.italic) {
+                    prev.length += candidate.length;
+                    return;
+                }
+            }
+            spans.PushBack(candidate);
+        };
         std::uint32_t currentOffset = 0U;
         for (const RichTextStyleRange& range : docRare_->richTextStyleRanges) {
             if (range.length == 0U) continue;
@@ -903,7 +923,7 @@ void TextBlock::OnRender(
                 StyleSpan unstyled;
                 unstyled.start = currentOffset;
                 unstyled.length = range.start - currentOffset;
-                spans.PushBack(unstyled);
+                appendSpan(unstyled);
             }
             const bool isStyled = range.hasForeground || range.italic ||
                 (range.bold && GetFontWeight() != FontWeight::Bold);
@@ -915,12 +935,12 @@ void TextBlock::OnRender(
                 styled.hasForeground = range.hasForeground;
                 styled.bold = range.bold && GetFontWeight() != FontWeight::Bold;
                 styled.italic = range.italic;
-                spans.PushBack(styled);
+                appendSpan(styled);
             } else {
                 StyleSpan unstyled;
                 unstyled.start = range.start;
                 unstyled.length = range.length;
-                spans.PushBack(unstyled);
+                appendSpan(unstyled);
             }
             currentOffset = std::max(currentOffset, range.start + range.length);
         }
@@ -928,10 +948,26 @@ void TextBlock::OnRender(
             StyleSpan unstyled;
             unstyled.start = currentOffset;
             unstyled.length = maxTextEnd - currentOffset;
-            spans.PushBack(unstyled);
+            appendSpan(unstyled);
         }
 
-        for (const StyleSpan& span : spans) {
+        if (spans.Size() == 1U && !spans[0].italic) {
+            const StyleSpan& span = spans[0];
+            const Color tint = span.hasForeground
+                ? span.foreground
+                : ::Aero::Media::SampleBrush(
+                    GetForeground(), 0.5,
+                    Color{0.0F, 0.0F, 0.0F, 1.0F});
+            emitAllGlyphRuns(tint);
+            if (span.bold) {
+                Base::Transform2D embolden;
+                embolden.dx = 0.4;
+                builder.PushTransform(embolden);
+                emitAllGlyphRuns(tint);
+                builder.PopTransform();
+            }
+        } else {
+            for (const StyleSpan& span : spans) {
             if (span.length == 0U) continue;
             Base::Vector<RichTextLineClip> clips;
             const std::uint64_t spanEnd =
@@ -1003,6 +1039,7 @@ void TextBlock::OnRender(
                 }
                 if (skewed) builder.PopTransform();
                 builder.PopClip();
+            }
             }
         }
     }
