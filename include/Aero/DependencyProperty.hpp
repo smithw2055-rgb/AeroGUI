@@ -435,6 +435,7 @@ public:
     // Metadata addresses become stable when the owning registry is frozen.
     const PropertyMetadata* MetadataFor(TypeId forType) const noexcept;
     const PropertyMetadata* MetadataFor(const Base::TypeClass* forClass) const noexcept;
+    const PropertyMetadata* MetadataFor(const Base::Object& forObject) const noexcept;
     const Base::TypeClass* OwnerClass() const noexcept { return ownerClass_; }
     const TypeRegistry* Types() const noexcept { return typeRegistry_; }
 
@@ -458,15 +459,12 @@ private:
         DependencyPropertyFlags flags = DependencyPropertyFlags::None;
     };
 
-    static constexpr std::uint32_t kMetadataCacheSlots = 32U;
+    enum MetadataLayoutBits : std::uint8_t {
+        kMetadataOverridesSorted = 1U << 0U,
+        kMetadataHasExtraOwner   = 1U << 1U,
+    };
 
     DependencyProperty() noexcept : name_(), metadata_() {}
-
-    void ClearMetadataCache() const noexcept {
-        for (std::uint32_t i = 0U; i < kMetadataCacheSlots; ++i) {
-            metadataCache_[i] = {};
-        }
-    }
 
     const MetadataEntry* FindMetadataExact(TypeId forType) const noexcept;
 
@@ -479,20 +477,15 @@ private:
     std::uint8_t inheritanceIndex_ = 0xFFU;
     bool hasDerivedDefaultOverride_ = false;
     std::uint8_t valueTypeTraits_ = 0U;
+    std::uint8_t metadataLayoutFlags_ = 0U;
     std::uint16_t globalIndex_ = 0xFFFFU;
     std::uint16_t ownerTreeIn_ = 0U;
     std::uint16_t ownerTreeOut_ = 0U;
     std::uint64_t readOnlySecret_ = 0U;
     ComputedPropertyReadCallback computedReader_ = nullptr;
 
-    struct MetadataCacheEntry {
-        TypeId forType = InvalidTypeId;
-        const PropertyMetadata* metadata = nullptr;
-    };
-
     String name_;
     Base::Vector<MetadataEntry> metadata_;
-    mutable MetadataCacheEntry metadataCache_[kMetadataCacheSlots]{};
 };
 
 template<class T, class = void>

@@ -200,7 +200,7 @@ PropertyValue VisualStateManagerState::BaseValueWithoutAnimation(
         return PropertyValue::Unset();
     }
     const PropertyMetadata* metadata =
-        descriptor->MetadataFor(target.RuntimeType());
+        descriptor->MetadataFor(target);
     return metadata != nullptr
         ? metadata->defaultValue
         : PropertyValue::Unset();

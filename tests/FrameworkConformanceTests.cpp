@@ -2306,11 +2306,18 @@ bool TestArchitectureRefactoringValidation() {
 
         // Verify multi-step binding path ("Child.Title") subscribes to leaf NotifyPropertyChanged and intermediate replacement
         {
-            constexpr const char* kMultiStepXaml = R"(
+            constexpr const char* kMultiStepXaml = R"XAML(
 <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.Resources>
+        <Storyboard x:Key="SharedFade">
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Opacity)" From="1.0" To="0.2" Duration="0:0:1"/>
+        </Storyboard>
+    </Grid.Resources>
     <TextBlock x:Name="BoundLabel" Text="{Binding Child.Title}"/>
-</Grid>)";
+    <Border x:Name="AnimTargetA" Opacity="1.0" Width="40" Height="20"/>
+    <Border x:Name="AnimTargetB" Opacity="1.0" Width="40" Height="20"/>
+</Grid>)XAML";
             static const Aero::ModuleRegistration s_planAModule =
                 Aero::DefineModule(
                     "Aero.PlanAReflectionModule",
@@ -2326,7 +2333,9 @@ bool TestArchitectureRefactoringValidation() {
             CHECK(planALive->gui.SetXamlProvider(tutorialProvider, "memory"));
             CHECK(planALive->gui.AddModule(s_planAModule));
             CHECK(planALive->gui.Initialize());
-            Result<Ref<View>> planAViewRes = planALive->gui.CreateView();
+            ViewOptions planAOpts;
+            planAOpts.automaticAnimationClock = false;
+            Result<Ref<View>> planAViewRes = planALive->gui.CreateView(planAOpts);
             CHECK(planAViewRes.HasValue() && planAViewRes.Value() != nullptr);
             planALive->view = std::move(planAViewRes).Value();
 
@@ -2335,7 +2344,9 @@ bool TestArchitectureRefactoringValidation() {
             CHECK(doc.HasValue());
             Grid* rootGrid = doc.Value().Root<Grid>();
             TextBlock* boundLabel = doc.Value().FindName<TextBlock>("BoundLabel");
-            CHECK(rootGrid != nullptr && boundLabel != nullptr);
+            Border* animTargetA = doc.Value().FindName<Border>("AnimTargetA");
+            Border* animTargetB = doc.Value().FindName<Border>("AnimTargetB");
+            CHECK(rootGrid != nullptr && boundLabel != nullptr && animTargetA != nullptr && animTargetB != nullptr);
 
             auto parentVm = MakeRef<PlanAParentViewModel>();
             auto childVm1 = MakeRef<PlanAReflectedViewModel>();
@@ -2400,6 +2411,93 @@ bool TestArchitectureRefactoringValidation() {
             CHECK(autoCtrl->GetContentElement() != nullptr);
             CHECK(autoCtrl->GetRSlider() != nullptr);
             CHECK(std::abs(autoCtrl->GetRSlider()->GetMaximum() - 255.0) < 1e-4);
+
+            // Verify ObservableCollection<T> typed helpers (GetTyped, operator[], IndexOf, Contains, Remove, range-for)
+            CHECK(srcList->GetTyped(0U) == itemA);
+            CHECK(srcList->GetTyped(99U) == nullptr);
+            CHECK((*srcList)[1U] == itemB);
+            CHECK(srcList->IndexOf(itemB) == 1);
+            CHECK(srcList->IndexOf(itemB.Get()) == 1);
+            CHECK(srcList->Contains(itemC));
+            CHECK(srcList->Contains(itemC.Get()));
+            std::int32_t scoreSum = 0;
+            for (const auto& entry : *srcList) {
+                scoreSum += entry->GetScore();
+            }
+            CHECK(scoreSum == 60);
+            CHECK(srcList->Remove(itemB.Get()));
+            CHECK(!srcList->Contains(itemB));
+            CHECK(srcList->GetCount() == 2U);
+
+            // Verify MakeCommand SFINAE, typed arguments, Ref/pointer owners, and WeakRef UAF protection
+            int lambdaCounter = 0;
+            bool allowExec = true;
+            auto simpleCmd = Aero::MakeCommand(
+                [&]() noexcept { ++lambdaCounter; },
+                [&]() noexcept { return allowExec; });
+            CHECK(simpleCmd->CanExecute(Aero::Value{}));
+            simpleCmd->Execute(Aero::Value{});
+            CHECK(lambdaCounter == 1);
+            allowExec = false;
+            CHECK(!simpleCmd->CanExecute(Aero::Value{}));
+
+            auto typedLambdaCmd = Aero::MakeCommand<std::int32_t>(
+                [&](std::int32_t delta) noexcept { lambdaCounter += delta; });
+            typedLambdaCmd->Execute(Aero::Value(5));
+            CHECK(lambdaCounter == 6);
+
+            Aero::Ref<Aero::RelayCommandT<std::int32_t>> weakBoundCmd;
+            {
+                auto tempVm = MakeRef<PlanAReflectedViewModel>();
+                weakBoundCmd = Aero::MakeCommand<std::int32_t>(
+                    tempVm, &PlanAReflectedViewModel::SetScore);
+                weakBoundCmd->Execute(Aero::Value(123));
+                CHECK(tempVm->GetScore() == 123);
+            }
+            // Owner tempVm is now destroyed; WeakRef-backed command must safely no-op without UAF
+            weakBoundCmd->Execute(Aero::Value(456));
+
+            // Verify AddOwner across sibling hierarchies (PasswordBox::Placeholder & Run DataContext)
+            auto pwdBox = MakeRef<Aero::Controls::PasswordBox>();
+            pwdBox->SetPlaceholder("Secret");
+            CHECK(pwdBox->GetPlaceholder() == "Secret");
+            auto runElem = MakeRef<Aero::Documents::Run>();
+            runElem->SetValue(
+                Aero::FrameworkContentElement::DataContextProperty,
+                Aero::Value(Aero::Ref<Aero::Base::Object>(itemA)));
+            CHECK(runElem->GetValue(Aero::FrameworkContentElement::DataContextProperty).AsObject() == itemA);
+
+            // Verify Storyboard::Begin / Pause / Resume / Stop on stack & heap Storyboard and per-target isolation
+            auto* sharedSb = Aero::TryCast<Aero::Media::Animation::Storyboard>(
+                rootGrid->TryFindResource("SharedFade").AsObject().Get());
+            CHECK(sharedSb != nullptr && sharedSb->Count() == 1U);
+            {
+                Aero::Media::Animation::Storyboard stackSb;
+                stackSb.AddTimeline(sharedSb->GetTimelines()[0U]);
+
+                stackSb.Begin(*animTargetA);
+                stackSb.Begin(*animTargetB);
+                planALive->viewTime += 0.016;
+                Pump(*planALive->view, planALive->viewTime);
+                planALive->viewTime += 0.5;
+                Pump(*planALive->view, planALive->viewTime);
+                CHECK(animTargetA->GetOpacity() < 0.85);
+                CHECK(animTargetB->GetOpacity() < 0.85);
+
+                stackSb.Pause(*animTargetB);
+                const double pausedOpacityB = animTargetB->GetOpacity();
+                stackSb.Stop(*animTargetA);
+                planALive->viewTime += 0.25;
+                Pump(*planALive->view, planALive->viewTime);
+                // Stopped target reverts to base value (1.0), paused target B stays paused without being stopped by Stop(A)
+                CHECK(std::abs(animTargetA->GetOpacity() - 1.0) < 1e-3);
+                CHECK(std::abs(animTargetB->GetOpacity() - pausedOpacityB) < 1e-3);
+
+                stackSb.Resume(*animTargetB);
+                planALive->viewTime += 0.6;
+                Pump(*planALive->view, planALive->viewTime);
+                CHECK(std::abs(animTargetB->GetOpacity() - 0.2) < 1e-2);
+            }
         }
     }
 

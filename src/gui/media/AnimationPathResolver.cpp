@@ -39,7 +39,7 @@ const Meta::DependencyProperty* FindPropertyForToken(
             if (prop != nullptr &&
                 (prop->IsAttached() ||
                  properties.Types().IsDerivedFrom(object.RuntimeType(), type.Id()) ||
-                 prop->MetadataFor(object.RuntimeType()) != nullptr)) {
+                 prop->MetadataFor(object) != nullptr)) {
                 return prop;
             }
         }
@@ -64,7 +64,7 @@ const Meta::DependencyProperty* FindPropertyForToken(
             if (prop != nullptr &&
                 (prop->IsAttached() ||
                  properties.Types().IsDerivedFrom(object.RuntimeType(), type.Id()) ||
-                 prop->MetadataFor(object.RuntimeType()) != nullptr)) {
+                 prop->MetadataFor(object) != nullptr)) {
                 return prop;
             }
         }

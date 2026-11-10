@@ -66,6 +66,40 @@ public:
     Ref<Base::Object> GetItem(std::uint32_t index) const noexcept override {
         return index < items_.Size() ? Ref<Base::Object>(items_[index]) : Ref<Base::Object>{};
     }
+    Ref<T> GetTyped(std::uint32_t index) const noexcept {
+        return index < items_.Size() ? items_[index] : Ref<T>{};
+    }
+    const Ref<T>& operator[](std::uint32_t index) const noexcept {
+        return items_[index];
+    }
+    std::int32_t IndexOf(const T* item) const noexcept {
+        for (std::uint32_t i = 0U; i < items_.Size(); ++i) {
+            if (items_[i].Get() == item) {
+                return static_cast<std::int32_t>(i);
+            }
+        }
+        return -1;
+    }
+    std::int32_t IndexOf(const Ref<T>& item) const noexcept {
+        return IndexOf(item.Get());
+    }
+    bool Contains(const T* item) const noexcept {
+        return IndexOf(item) >= 0;
+    }
+    bool Contains(const Ref<T>& item) const noexcept {
+        return Contains(item.Get());
+    }
+    bool Remove(const T* item) noexcept {
+        const std::int32_t idx = IndexOf(item);
+        if (idx < 0) return false;
+        (void)RemoveAt(static_cast<std::uint32_t>(idx));
+        return true;
+    }
+    bool Remove(const Ref<T>& item) noexcept {
+        return Remove(item.Get());
+    }
+    const Ref<T>* begin() const noexcept { return items_.begin(); }
+    const Ref<T>* end() const noexcept { return items_.end(); }
     void Add(Ref<T> item) noexcept { Insert(items_.Size(), std::move(item)); }
     void Insert(std::uint32_t index, Ref<T> item) noexcept {
         if (!item || index > items_.Size()) { AERO_ASSERT(false); return; }

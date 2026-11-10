@@ -221,6 +221,7 @@ public: \
     inline static constexpr auto __ClrNamespace = ::Aero::ClrNamespaceStorage(QName); \
     AERO_DECLARE_TYPE_NAMED(ClassName, BaseClass, ::Aero::Base::StringView(__ClrNamespace.data, static_cast<std::uint32_t>(__ClrNamespace.size)), #ClassName) \
     static void DescribeComponent(::Aero::Meta::TypeBuilder<ClassName>& builder) noexcept { \
+        (void)StaticClassType(); \
         if constexpr (std::is_base_of_v<::Aero::ViewModelBase, ClassName>) { \
             builder.PropertyChangeNotifications(); \
         } \

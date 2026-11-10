@@ -1044,14 +1044,12 @@ Base::Result<std::uint32_t> LayoutEngine::Flush() noexcept {
         std::uint32_t head[kNumBuckets];
         std::uint32_t tail[kNumBuckets];
         std::uint32_t stackNext[kStackCapacity];
-        Base::Vector<std::uint32_t> overflowNext;
         std::uint32_t* nextInBucket = stackNext;
         if (count > kStackCapacity) {
-            overflowNext.Reserve(count);
-            for (std::uint32_t i = 0U; i < count; ++i) {
-                overflowNext.PushBack(kInvalidIndex);
+            if (depthOverflowNext_.Size() < count) {
+                depthOverflowNext_.Resize(count, kInvalidIndex);
             }
-            nextInBucket = overflowNext.Data();
+            nextInBucket = depthOverflowNext_.Data();
         }
 
         for (std::uint32_t i = 0U; i < count; ++i) {

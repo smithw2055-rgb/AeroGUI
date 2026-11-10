@@ -182,12 +182,48 @@ bool IsValueType(const TypeInfo& type) noexcept {
 
 const DependencyProperty::MetadataEntry*
 DependencyProperty::FindMetadataExact(TypeId forType) const noexcept {
-    for (const MetadataEntry& entry : metadata_) {
-        if (entry.forType == forType) {
-            return &entry;
+    const std::uint32_t count = metadata_.Size();
+    if (count == 0U) {
+        return nullptr;
+    }
+    if (metadata_[0].forType == forType) {
+        return &metadata_[0];
+    }
+    if (count == 1U) {
+        return nullptr;
+    }
+    if ((metadataLayoutFlags_ & kMetadataOverridesSorted) != 0U) {
+        std::uint32_t lo = 1U;
+        std::uint32_t hi = count;
+        while (lo < hi) {
+            const std::uint32_t mid = lo + ((hi - lo) >> 1U);
+            const TypeId midType = metadata_[mid].forType;
+            if (midType < forType) {
+                lo = mid + 1U;
+            } else if (midType > forType) {
+                hi = mid;
+            } else {
+                return &metadata_[mid];
+            }
+        }
+        return nullptr;
+    }
+    for (std::uint32_t i = 1U; i < count; ++i) {
+        if (metadata_[i].forType == forType) {
+            return &metadata_[i];
         }
     }
     return nullptr;
+}
+
+const PropertyMetadata* DependencyProperty::MetadataFor(
+    const Base::Object& forObject) const noexcept {
+    const Base::TypeClass* cls = forObject.GetClassType();
+    const TypeId rt = forObject.RuntimeType();
+    if (cls != nullptr && cls->Id() == rt) {
+        return MetadataFor(cls);
+    }
+    return MetadataFor(rt);
 }
 
 const PropertyMetadata* DependencyProperty::MetadataFor(
@@ -205,27 +241,24 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
         if (ownerClass_ != nullptr) {
             return forClass->IsDescendantOf(ownerClass_) ? &metadata_[0].metadata : nullptr;
         }
+        return MetadataFor(forClass->Id());
     }
-    const TypeId forType = forClass->Id();
-    const std::uint32_t cacheSlot =
-        static_cast<std::uint32_t>(forType ^ (forType >> 17U)) & (kMetadataCacheSlots - 1U);
-    if (metadataCache_[cacheSlot].forType == forType) {
-        return metadataCache_[cacheSlot].metadata;
+    if (ownerClass_ == nullptr) {
+        return MetadataFor(forClass->Id());
     }
-    if (ownerClass_ != nullptr) {
-        if (forClass->IsDescendantOf(ownerClass_)) {
-            for (const Base::TypeClass* cls = forClass; cls != nullptr; cls = cls->Base()) {
-                if (const MetadataEntry* exact = FindMetadataExact(cls->Id())) {
-                    metadataCache_[cacheSlot].forType = forType;
-                    metadataCache_[cacheSlot].metadata = &exact->metadata;
-                    return &exact->metadata;
-                }
-            }
-        } else if (!IsAttached()) {
-            return nullptr;
+    const bool hasExtraOwner = (metadataLayoutFlags_ & kMetadataHasExtraOwner) != 0U;
+    if (!hasExtraOwner && !forClass->IsDescendantOf(ownerClass_)) {
+        return IsAttached() ? &metadata_[0].metadata : nullptr;
+    }
+    for (const Base::TypeClass* cls = forClass; cls != nullptr; cls = cls->Base()) {
+        if (const MetadataEntry* exact = FindMetadataExact(cls->Id())) {
+            return &exact->metadata;
         }
     }
-    return MetadataFor(forType);
+    if (IsAttached()) {
+        return &metadata_[0].metadata;
+    }
+    return nullptr;
 }
 
 const PropertyMetadata* DependencyProperty::MetadataFor(
@@ -239,20 +272,10 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
         return &metadata_[0].metadata;
     }
 
-    // Fast path 2: direct-mapped 8-slot cache lookup (zero element shifting).
-    const std::uint32_t cacheSlot =
-        static_cast<std::uint32_t>(forType ^ (forType >> 17U)) & (kMetadataCacheSlots - 1U);
-    if (metadataCache_[cacheSlot].forType == forType) {
-        return metadataCache_[cacheSlot].metadata;
-    }
-
-    // Fast path 3: attached property with no overrides applies its owner metadata to any valid type.
+    // Fast path 2: attached property with no overrides applies its owner metadata to any valid type.
     if (metadata_.Size() == 1U && IsAttached()) {
         if (typeRegistry_->FindType(forType) != nullptr) {
-            const PropertyMetadata* attachedResult = &metadata_[0].metadata;
-            metadataCache_[cacheSlot].forType = forType;
-            metadataCache_[cacheSlot].metadata = attachedResult;
-            return attachedResult;
+            return &metadata_[0].metadata;
         }
         return nullptr;
     }
@@ -309,11 +332,6 @@ const PropertyMetadata* DependencyProperty::MetadataFor(
     }
     if (result == nullptr && IsAttached()) {
         result = &metadata_[0].metadata;
-    }
-
-    if (result != nullptr) {
-        metadataCache_[cacheSlot].forType = forType;
-        metadataCache_[cacheSlot].metadata = result;
     }
 
     return result;
@@ -904,7 +922,9 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     static_cast<void>(entry.aliasName.Assign(actualName));
     property.metadata_.PushBack(
         std::move(entry));
-    property.ClearMetadataCache();
+    property.metadataLayoutFlags_ = static_cast<std::uint8_t>(
+        (property.metadataLayoutFlags_ & ~DependencyProperty::kMetadataOverridesSorted) |
+        DependencyProperty::kMetadataHasExtraOwner);
 
     Base::HashMap<MemberId, std::uint32_t>::InsertResult indexResult =
         memberIndex_.Insert(
@@ -913,7 +933,6 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     AERO_ASSERT(indexResult.inserted);
     if (!indexResult.inserted) {
         property.metadata_.PopBack();
-        property.ClearMetadataCache();
         return Base::Status::Failure(
             Base::ErrorCode::InternalError,
             "Reserved owner alias insertion unexpectedly failed");
@@ -933,7 +952,6 @@ Base::Result<void> DependencyPropertyRegistry::AddOwner(
     if (!alias) {
         static_cast<void>(memberIndex_.Erase(aliasMember));
         property.metadata_.PopBack();
-        property.ClearMetadataCache();
         return alias.GetStatus();
     }
     AERO_ASSERT(alias.Value() == aliasMember);
@@ -976,7 +994,6 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
     }
     property.metadata_.Reserve(
         property.metadata_.Size() + 1U);
-    property.ClearMetadataCache();
 
     const PropertyMetadata* baseMetadata =
         type->BaseType() != InvalidTypeId ? property.MetadataFor(type->BaseType()) : nullptr;
@@ -1008,7 +1025,8 @@ Base::Result<void> DependencyPropertyRegistry::OverrideMetadata(
         property.computedReader_ = entry.metadata.computedReader;
     }
     property.metadata_.PushBack(std::move(entry));
-    property.ClearMetadataCache();
+    property.metadataLayoutFlags_ = static_cast<std::uint8_t>(
+        property.metadataLayoutFlags_ & ~DependencyProperty::kMetadataOverridesSorted);
     return {};
 }
 
@@ -1096,18 +1114,26 @@ Base::Result<void> DependencyPropertyRegistry::Freeze() noexcept {
                 property.valueTypeTraits_ = valueTraits;
             }
         }
-        property.ClearMetadataCache();
+        std::uint8_t layoutFlags = 0U;
         if (property.metadata_.Size() > 1U) {
-            for (const DependencyProperty::MetadataEntry& entry : property.metadata_) {
-                if (entry.forType != property.registeredOwnerType_) {
-                    const std::uint32_t slot =
-                        static_cast<std::uint32_t>(entry.forType ^ (entry.forType >> 17U)) &
-                        (DependencyProperty::kMetadataCacheSlots - 1U);
-                    property.metadataCache_[slot].forType = entry.forType;
-                    property.metadataCache_[slot].metadata = &entry.metadata;
+            for (std::uint32_t i = 1U; i < property.metadata_.Size(); ++i) {
+                if (property.metadata_[i].owner) {
+                    layoutFlags |= DependencyProperty::kMetadataHasExtraOwner;
+                    break;
                 }
             }
+            if (property.metadata_.Size() > 2U) {
+                std::sort(
+                    property.metadata_.begin() + 1,
+                    property.metadata_.end(),
+                    [](const DependencyProperty::MetadataEntry& lhs,
+                       const DependencyProperty::MetadataEntry& rhs) noexcept {
+                        return lhs.forType < rhs.forType;
+                    });
+            }
+            layoutFlags |= DependencyProperty::kMetadataOverridesSorted;
         }
+        property.metadataLayoutFlags_ = layoutFlags;
     }
 
     for (const auto& kv : memberIndex_) {
@@ -1551,7 +1577,7 @@ Base::Result<void> EffectiveValueEngine::ResolveAndVerifyObjectProperty(
     }
     const DependencyProperty* registered = registry_->Find(inOutProperty);
     const PropertyMetadata* metadata = registered != nullptr
-        ? registered->MetadataFor(object.RuntimeType())
+        ? registered->MetadataFor(object)
         : nullptr;
     if (registered == nullptr || metadata == nullptr) {
         return Base::Status::Failure(
@@ -1820,7 +1846,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
 
     struct AncestorNode {
         const PropertyStore* store = nullptr;
-        TypeId runtimeType = InvalidTypeId;
+        const DependencyObject* object = nullptr;
     };
     Base::BasicVector<AncestorNode, 16U> parentChain;
     std::uint64_t parentChainBloom = 0ULL;
@@ -1831,7 +1857,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
         if (ancStore != nullptr) {
             parentChainBloom |= ancStore->entries.bloomMask_;
         }
-        parentChain.PushBack(AncestorNode{ancStore, anc->RuntimeType()});
+        parentChain.PushBack(AncestorNode{ancStore, anc});
     }
     Base::BasicVector<AncestorNode, 16U> previousParentChain;
     std::uint64_t prevChainBloom = 0ULL;
@@ -1843,7 +1869,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             if (ancStore != nullptr) {
                 prevChainBloom |= ancStore->entries.bloomMask_;
             }
-            previousParentChain.PushBack(AncestorNode{ancStore, anc->RuntimeType()});
+            previousParentChain.PushBack(AncestorNode{ancStore, anc});
         }
     }
 
@@ -1882,7 +1908,7 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
             continue;
         }
 
-        const PropertyMetadata* childMeta = prop->MetadataFor(child.RuntimeType());
+        const PropertyMetadata* childMeta = prop->MetadataFor(child);
         const PropertyMetadata* ownerMeta = hasDerivedDefaultOverride
             ? prop->MetadataFor(prop->RegisteredOwnerType())
             : childMeta;
@@ -1901,8 +1927,8 @@ Base::Result<void> EffectiveValueEngine::SetInheritanceParent(
                     anc.store->entries.Find(inheritableHandle.value) != nullptr) {
                     return true;
                 }
-                if (hasDerivedDefaultOverride) {
-                    if (const PropertyMetadata* ancMeta = prop->MetadataFor(anc.runtimeType)) {
+                if (hasDerivedDefaultOverride && anc.object != nullptr) {
+                    if (const PropertyMetadata* ancMeta = prop->MetadataFor(*anc.object)) {
                         if (ancMeta->defaultValue != baselineDefault ||
                             (ownerMeta != nullptr && ancMeta->defaultValue != ownerMeta->defaultValue)) {
                             return true;
@@ -1967,7 +1993,6 @@ Base::Result<void> EffectiveValueEngine::PropagateToDescendants(
         if (desc == nullptr || desc == current || !visited_.Insert(desc).inserted) {
             return {};
         }
-        const TypeId descType = desc->RuntimeType();
         PropertyStore* descStore = desc->Store();
         bool anyUnshielded = false;
 
@@ -1975,7 +2000,7 @@ Base::Result<void> EffectiveValueEngine::PropagateToDescendants(
             for (const DependencyProperty* prop : properties) {
                 const DependencyPropertyHandle propHandle = prop->Handle();
                 const std::uint8_t inhIndex = prop->InheritanceIndex();
-                const PropertyMetadata* metadata = prop->MetadataFor(descType);
+                const PropertyMetadata* metadata = prop->MetadataFor(*desc);
                 const bool inherits = metadata != nullptr &&
                     HasFlag(metadata->flags, FrameworkPropertyMetadataOptions::Inherits);
                 StoredValueEntry* existing = descStore != nullptr
@@ -2099,7 +2124,7 @@ Base::Result<void> EffectiveValueEngine::Apply(
     const DependencyProperty* registered = registry_->Find(property);
     if (registered == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Dependency property is no longer registered");
-    const PropertyMetadata* metadata = registered->MetadataFor(object.RuntimeType());
+    const PropertyMetadata* metadata = registered->MetadataFor(object);
     if (metadata == nullptr) return Base::Status::Failure(Base::ErrorCode::NotFound,
         "Dependency property metadata is unavailable for the object");
     property = registered->Handle();
@@ -2118,7 +2143,7 @@ Base::Result<void> EffectiveValueEngine::Apply(
                     ? ancStore->entries.Find(property.value)
                     : nullptr;
             if (ancEntry != nullptr || checkDefaultOverride) {
-                if (const PropertyMetadata* ancMeta = registered->MetadataFor(inheritFrom->RuntimeType())) {
+                if (const PropertyMetadata* ancMeta = registered->MetadataFor(*inheritFrom)) {
                     if (ancEntry != nullptr && ancEntry->HasNonDefaultState(ancMeta->defaultValue)) {
                         inherited = &ancEntry->effectiveValue;
                         break;

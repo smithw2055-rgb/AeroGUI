@@ -283,6 +283,7 @@ void BeginStoryboard::Invoke(
     }
     StoryboardHost::StoryboardCompletionSession completion(host->Allocator());
     completion.storyboard = GetStoryboard();
+    completion.storyboardIdentity = GetStoryboard().Get();
     completion.owner = &associatedObject;
     Base::Result<std::uint32_t> started =
         host->BeginTimeline(
@@ -315,6 +316,88 @@ void BeginStoryboard::Invoke(
     if (!GetName().Empty()) {
         host->storyboardSessions.PushBack(std::move(namedSession));
     }
+}
+
+namespace {
+
+void ControlStoryboardForTarget(
+    const Storyboard& storyboard,
+    ::Aero::FrameworkElement& target,
+    ControlStoryboardAction::Option option) noexcept {
+    StoryboardHost* host = ResolveAnimationStoryboardHost(target);
+    if (host == nullptr || host->Animations() == nullptr) {
+        return;
+    }
+    Base::Vector<Model::AnimationHandle> stopped(host->Allocator());
+    for (StoryboardHost::StoryboardCompletionSession& session : host->storyboardCompletionSessions) {
+        const Storyboard* identity = session.storyboard
+            ? session.storyboard.Get()
+            : session.storyboardIdentity;
+        if (identity != &storyboard || session.owner != &target) {
+            continue;
+        }
+        for (Model::AnimationHandle handle : session.handles) {
+            if (option == ControlStoryboardAction::Option::Stop) {
+                if (host->Animations()->Stop(handle)) {
+                    stopped.PushBack(handle);
+                }
+            } else if (option == ControlStoryboardAction::Option::Pause) {
+                host->Animations()->Pause(handle);
+            } else if (option == ControlStoryboardAction::Option::Resume) {
+                host->Animations()->Resume(handle);
+            }
+        }
+    }
+    if (option == ControlStoryboardAction::Option::Stop && !stopped.Empty()) {
+        host->CancelStoryboardCompletionSessions(stopped.AsSpan());
+    }
+}
+
+} // namespace
+
+void Storyboard::Begin(::Aero::FrameworkElement& target) noexcept {
+    StoryboardHost* host = ResolveAnimationStoryboardHost(target);
+    if (host == nullptr || host->Animations() == nullptr || host->Metadata() == nullptr) {
+        return;
+    }
+    const bool isRepeatButton = host->Metadata()->Types().IsDerivedFrom(
+        target.RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()) ||
+        (target.GetTemplatedParent() != nullptr &&
+         host->Metadata()->Types().IsDerivedFrom(
+             target.GetTemplatedParent()->RuntimeType(), Controls::Primitives::RepeatButton::StaticTypeId()));
+    if (isRepeatButton && TargetsScaleTransform(*host, *this)) {
+        return;
+    }
+    StoryboardHost::StoryboardCompletionSession completion(host->Allocator());
+    completion.storyboard = Base::Ref<Storyboard>::TryFromBorrowed(*this);
+    completion.storyboardIdentity = this;
+    completion.owner = &target;
+    Base::Result<std::uint32_t> started = host->BeginTimeline(
+        *this,
+        target,
+        nullptr,
+        nullptr,
+        &completion.handles,
+        nullptr);
+    if (!started) {
+        host->Animations()->RemoveBatch(completion.handles.AsSpan());
+        return;
+    }
+    if (!completion.handles.Empty()) {
+        host->storyboardCompletionSessions.PushBack(std::move(completion));
+    }
+}
+
+void Storyboard::Stop(::Aero::FrameworkElement& target) noexcept {
+    ControlStoryboardForTarget(*this, target, ControlStoryboardAction::Option::Stop);
+}
+
+void Storyboard::Pause(::Aero::FrameworkElement& target) noexcept {
+    ControlStoryboardForTarget(*this, target, ControlStoryboardAction::Option::Pause);
+}
+
+void Storyboard::Resume(::Aero::FrameworkElement& target) noexcept {
+    ControlStoryboardForTarget(*this, target, ControlStoryboardAction::Option::Resume);
 }
 
 void ControlStoryboardAction::Invoke(

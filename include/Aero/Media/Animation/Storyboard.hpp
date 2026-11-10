@@ -9,6 +9,8 @@
 
 #include <utility>
 
+namespace Aero { class FrameworkElement; }
+
 namespace Aero::Media::Animation {
 
 class AERO_GUI_API TimelineGroup : public Timeline {
@@ -62,6 +64,11 @@ public:
     void AddTimeline(Ref<Timeline> value) noexcept { AddChild(std::move(value)); }
 
     void ClearTimelines() noexcept { Clear(); }
+
+    void Begin(::Aero::FrameworkElement& target) noexcept;
+    void Stop(::Aero::FrameworkElement& target) noexcept;
+    void Pause(::Aero::FrameworkElement& target) noexcept;
+    void Resume(::Aero::FrameworkElement& target) noexcept;
 
     AERO_ATTACHED_PROPERTY(String, TargetName);
     AERO_ATTACHED_PROPERTY(String, TargetProperty);

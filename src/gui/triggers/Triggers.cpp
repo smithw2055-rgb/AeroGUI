@@ -101,7 +101,7 @@ bool ResolveTriggerSetterValue(
             }
         } else if (fallbackToDefaultOnMissingResource && prop != nullptr) {
             const Meta::PropertyMetadata* meta =
-                prop->MetadataFor(target.RuntimeType());
+                prop->MetadataFor(target);
             if (meta == nullptr) {
                 meta = prop->MetadataFor(prop->RegisteredOwnerType());
             }

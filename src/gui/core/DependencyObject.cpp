@@ -966,7 +966,7 @@ void DependencyObject::SetTemplateValue(
     if (registered == nullptr) return;
     property = registered->Handle();
     const TypeId runtimeType = RuntimeType();
-    const PropertyMetadata* metadata = registered->MetadataFor(runtimeType);
+    const PropertyMetadata* metadata = registered->MetadataFor(*this);
     if (metadata == nullptr) return;
     if (!registry->ValidateValueFor(property, runtimeType, value)) return;
 

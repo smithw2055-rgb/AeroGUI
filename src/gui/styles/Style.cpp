@@ -100,7 +100,7 @@ void TextProperties::OnCompatibilityPropertyChanged(
         DependencyObjectAccess::PropertyRegistry((object)).Find(
             Meta::DependencyPropertyHandle{targetInfo->Id()});
     if (target == nullptr ||
-        target->MetadataFor(object.RuntimeType()) == nullptr) {
+        target->MetadataFor(object) == nullptr) {
         return;
     }
 

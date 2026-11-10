@@ -316,7 +316,7 @@ UpdateSourceTrigger BindingEngine::ResolveUpdateSourceTrigger(
         return UpdateSourceTrigger::PropertyChanged;
     }
     const PropertyMetadata* metadata =
-        info->MetadataFor(target.RuntimeType());
+        info->MetadataFor(target);
     if (metadata == nullptr ||
         metadata->defaultUpdateSourceTrigger ==
             UpdateSourceTrigger::Default) {
@@ -338,7 +338,7 @@ BindingMode BindingEngine::ResolveBindingMode(
         return BindingMode::OneWay;
     }
     const PropertyMetadata* metadata =
-        info->MetadataFor(target.RuntimeType());
+        info->MetadataFor(target);
     if (metadata != nullptr &&
         HasFlag(
             metadata->flags,

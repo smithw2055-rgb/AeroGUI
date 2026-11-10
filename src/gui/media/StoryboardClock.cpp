@@ -294,6 +294,8 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
 
         Base::Ref<Storyboard> storyboard =
             session.storyboard;
+        const Storyboard* storyboardIdentity =
+            storyboard ? storyboard.Get() : session.storyboardIdentity;
         for (std::uint32_t next = index + 1U;
              next < storyboardCompletionSessions.Size();
              ++next) {
@@ -315,7 +317,7 @@ StoryboardHost::ProcessStoryboardCompletions() noexcept
             if (subscription.trigger == nullptr ||
                 subscription.owner == nullptr ||
                 subscription.trigger->GetStoryboard().Get() !=
-                    storyboard.Get()) {
+                    storyboardIdentity) {
                 continue;
             }
             Base::Result<bool> allowed = Interactivity()->ConditionBehaviorsAllowExecution(

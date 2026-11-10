@@ -285,7 +285,7 @@ Base::Result<Meta::PropertyValue> MissingDynamicResourceValue(
     const Meta::DependencyProperty* descriptor) noexcept {
     if (descriptor != nullptr) {
         const Meta::PropertyMetadata* metadata =
-            descriptor->MetadataFor(object.RuntimeType());
+            descriptor->MetadataFor(object);
         if (metadata == nullptr) {
             metadata = descriptor->MetadataFor(
                 descriptor->RegisteredOwnerType());

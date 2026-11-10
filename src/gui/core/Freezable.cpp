@@ -613,7 +613,7 @@ void DependencyObject::InvalidateSubProperty(
     const Meta::DependencyProperty* property =
         DependencyObjectAccess::HasPropertyRegistry(object) ? DependencyObjectAccess::PropertyRegistry((object)).Find(propertyHandle) : nullptr;
     const Meta::PropertyMetadata* metadata = property != nullptr
-        ? property->MetadataFor(object.RuntimeType())
+        ? property->MetadataFor(object)
         : nullptr;
     if (metadata == nullptr) return;
     const Meta::PropertyInvalidationFlags flags =

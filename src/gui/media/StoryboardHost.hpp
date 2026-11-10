@@ -38,6 +38,7 @@ public:
         explicit StoryboardCompletionSession(Base::IAllocator* allocator) noexcept;
 
         Base::Ref<MediaAnimation::Storyboard> storyboard;
+        const MediaAnimation::Storyboard* storyboardIdentity = nullptr;
         Aero::FrameworkElement* owner = nullptr;
         Base::Vector<Aero::Media::Animation::Model::AnimationHandle> handles;
     };
